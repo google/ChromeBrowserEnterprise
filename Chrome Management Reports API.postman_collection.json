@@ -1,0 +1,264 @@
+{
+	"info": {
+		"_postman_id": "192d2d5d-eb0c-40ad-9f70-5ec1f6e8bac3",
+		"name": "Chrome Management Reports API",
+		"description": "https://developers.google.com/chrome/management/reference/rest/v1/customers.reports",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Generate report of all installed Chrome versions",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:countChromeVersions?pageSize=100&pageSize=100&pageToken",
+					"protocol": "https",
+					"host": [
+						"chromemanagement",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"v1",
+						"customers",
+						"my_customer",
+						"reports:countChromeVersions"
+					],
+					"query": [
+						{
+							"key": "pageSize",
+							"value": "100",
+							"description": "Maximum number of results to return. Maximum and default are 100."
+						},
+						{
+							"key": "filter",
+							"value": "last_active_date>=2021-01-01",
+							"disabled": true
+						},
+						{
+							"key": "pageSize",
+							"value": "100",
+							"description": "Maximum number of results to return. Maximum and default are 100."
+						},
+						{
+							"key": "pageToken",
+							"value": null,
+							"description": "Token to specify the page of the request to be returned."
+						}
+					]
+				},
+				"description": "https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countChromeVersions"
+			},
+			"response": []
+		},
+		{
+			"name": "Generate report of installed Chrome versions by organizational unit",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:countChromeVersions?pageSize=100&orgUnitId=03ph8a2z1uaewos&pageSize=100&pageToken=",
+					"protocol": "https",
+					"host": [
+						"chromemanagement",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"v1",
+						"customers",
+						"my_customer",
+						"reports:countChromeVersions"
+					],
+					"query": [
+						{
+							"key": "pageSize",
+							"value": "100",
+							"description": "Maximum number of results to return. Maximum and default are 100."
+						},
+						{
+							"key": "orgUnitId",
+							"value": "03ph8a2z1uaewos",
+							"description": "The ID of the organizational unit"
+						},
+						{
+							"key": "pageSize",
+							"value": "100",
+							"description": "Maximum number of results to return. Maximum and default are 100."
+						},
+						{
+							"key": "pageToken",
+							"value": "",
+							"description": "Token to specify the page of the request to be returned."
+						}
+					]
+				},
+				"description": "https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countChromeVersions"
+			},
+			"response": []
+		},
+		{
+			"name": "Generate report to find devices that have an app installed",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:findInstalledAppDevices?orgUnitId=03ph8a2z0lovut0&appId=afhcomalholahplbjhnmahkoekoijban&appType=APP&pageSize=100&pageToken",
+					"protocol": "https",
+					"host": [
+						"chromemanagement",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"v1",
+						"customers",
+						"my_customer",
+						"reports:findInstalledAppDevices"
+					],
+					"query": [
+						{
+							"key": "orgUnitId",
+							"value": "03ph8a2z0lovut0",
+							"description": "The ID of the organizational unit."
+						},
+						{
+							"key": "appId",
+							"value": "afhcomalholahplbjhnmahkoekoijban",
+							"description": "Unique identifier of the app. For Chrome apps and extensions, the 32-character id (e.g. ehoadneljpdggcbbknedodolkkjodefl). \nTabby Cat\nhttps://chrome.google.com/webstore/detail/mefhakmgclhhfbdadeojlkbllmecialg"
+						},
+						{
+							"key": "appType",
+							"value": "APP",
+							"description": "Type of the app.\nhttps://developers.google.com/chrome/management/reference/rest/v1/AppType"
+						},
+						{
+							"key": "pageSize",
+							"value": "100",
+							"description": "Maximum number of results to return. Maximum and default are 100."
+						},
+						{
+							"key": "pageToken",
+							"value": null,
+							"description": "Token to specify the page of the request to be returned."
+						}
+					]
+				},
+				"description": "https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countInstalledApps"
+			},
+			"response": []
+		},
+		{
+			"name": "Generate report of app installations by organizational unit",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:countInstalledApps?orgUnitId=03ph8a2z1uaewos&orderBy=total_install_count&pageSize=100&pageToken=",
+					"protocol": "https",
+					"host": [
+						"chromemanagement",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"v1",
+						"customers",
+						"my_customer",
+						"reports:countInstalledApps"
+					],
+					"query": [
+						{
+							"key": "orgUnitId",
+							"value": "03ph8a2z1uaewos",
+							"description": "The ID of the organizational unit."
+						},
+						{
+							"key": "orderBy",
+							"value": "total_install_count",
+							"description": "Field used to order results"
+						},
+						{
+							"key": "pageSize",
+							"value": "100",
+							"description": "Maximum number of results to return. Maximum and default are 100."
+						},
+						{
+							"key": "pageToken",
+							"value": "",
+							"description": "Token to specify the page of the request to be returned."
+						}
+					]
+				},
+				"description": "https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countInstalledApps"
+			},
+			"response": []
+		}
+	],
+	"auth": {
+		"type": "oauth2",
+		"oauth2": [
+			{
+				"key": "redirect_uri",
+				"value": "{{redirect_uris}}",
+				"type": "string"
+			},
+			{
+				"key": "scope",
+				"value": "https://www.googleapis.com/auth/chrome.management.reports.readonly",
+				"type": "string"
+			},
+			{
+				"key": "authUrl",
+				"value": "{{auth_uri}}",
+				"type": "string"
+			},
+			{
+				"key": "accessTokenUrl",
+				"value": "{{token_uri}}",
+				"type": "string"
+			},
+			{
+				"key": "clientSecret",
+				"value": "{{client_secret}}",
+				"type": "string"
+			},
+			{
+				"key": "clientId",
+				"value": "{{client_id}}",
+				"type": "string"
+			},
+			{
+				"key": "tokenName",
+				"value": "ManagementReportsApiToken",
+				"type": "string"
+			},
+			{
+				"key": "addTokenTo",
+				"value": "header",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

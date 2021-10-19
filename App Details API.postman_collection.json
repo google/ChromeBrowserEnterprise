@@ -1,0 +1,151 @@
+{
+	"info": {
+		"_postman_id": "de077402-433b-4720-bba8-814f2d410a68",
+		"name": "App Details API",
+		"description": "https://developers.google.com/chrome/management/guides/app_details_api",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Get a specific app by its resource name",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/apps/chrome/afhcomalholahplbjhnmahkoekoijban",
+					"protocol": "https",
+					"host": [
+						"chromemanagement",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"v1",
+						"customers",
+						"my_customer",
+						"apps",
+						"chrome",
+						"afhcomalholahplbjhnmahkoekoijban"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Extension Workflow Request Count",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/apps:countChromeAppRequests?orgUnitId=03ph8a2z0lovut0&pageSize=50&pageToken&orderBy=latestRequestTime",
+					"protocol": "https",
+					"host": [
+						"chromemanagement",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"v1",
+						"customers",
+						"my_customer",
+						"apps:countChromeAppRequests"
+					],
+					"query": [
+						{
+							"key": "orgUnitId",
+							"value": "03ph8a2z0lovut0",
+							"description": "(Optional) The ID of the organizational unit."
+						},
+						{
+							"key": "pageSize",
+							"value": "50",
+							"description": "(Optional) Maximum number of results to return. Maximum and default are 50."
+						},
+						{
+							"key": "pageToken",
+							"value": null,
+							"description": "(Optional) Token to specify the page of the request to be returned."
+						},
+						{
+							"key": "orderBy",
+							"value": "latestRequestTime",
+							"description": "(Optional) Field used to order results"
+						},
+						{
+							"key": "sortOrder",
+							"value": "DESCENDING",
+							"description": "(Optional) Whether to return results in ascending or descending order. Must be used with the orderBy parameter.\n \t \tAcceptable values are:\n \t \t\"ASCENDING\" - Ascending order.\n \t \t\"DESCENDING\" - Descending order.",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"auth": {
+		"type": "oauth2",
+		"oauth2": [
+			{
+				"key": "redirect_uri",
+				"value": "{{redirect_uris}}",
+				"type": "string"
+			},
+			{
+				"key": "scope",
+				"value": "https://www.googleapis.com/auth/chrome.management.appdetails.readonly",
+				"type": "string"
+			},
+			{
+				"key": "clientSecret",
+				"value": "{{client_secret}}",
+				"type": "string"
+			},
+			{
+				"key": "clientId",
+				"value": "{{client_id}}",
+				"type": "string"
+			},
+			{
+				"key": "accessTokenUrl",
+				"value": "{{token_uri}}",
+				"type": "string"
+			},
+			{
+				"key": "authUrl",
+				"value": "{{auth_uri}}",
+				"type": "string"
+			},
+			{
+				"key": "tokenName",
+				"value": "AppDetailsApiToken",
+				"type": "string"
+			},
+			{
+				"key": "addTokenTo",
+				"value": "header",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}
