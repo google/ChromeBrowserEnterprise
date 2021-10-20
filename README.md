@@ -3,7 +3,7 @@
 Use the [Chrome Browser Enterprise (CBE)](https://support.google.com/chrome/a/topic/9025410?hl=en&ref_topic=4386754) REST API to manage the Chrome browser in your orgnization. 
 
 ## General Concepts
-###### Authorization 
+###### Authorization
 Before using all Chrome Browser Cloud Management (CBCM) APIs, you will need to enable a few APIs (if they are not already enabled) in the Google Developer Console by following each link and selecting the project on which you wish to enable the APIs:
 - [Admin SDK API](https://console.developers.google.com/apis/api/admin.googleapis.com/overview?project=_)
 - [Chrome Management API](https://console.developers.google.com/apis/api/chromemanagement.googleapis.com/overview?project=_)
@@ -46,3 +46,9 @@ Requires one of the following scopes to authorize your access to each API. Note:
     -  This is one of the most important APIs to view browser policies, change browser policies, policy inheritance, and manage extensions. You can find sample requests for various use cases in this collection.
   - [Directory API.postman_collection](Directory%20API.postman_collection.json)
     - This collection allows you to manage the organizational units (OU). Remember that OU hierarchy is limited to 35 levels of depth.
+
+## Contributing
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+## License
+See [LICENSE](LICENSE) for details.
