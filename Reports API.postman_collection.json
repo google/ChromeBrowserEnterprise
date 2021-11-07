@@ -1,0 +1,205 @@
+{
+	"info": {
+		"_postman_id": "dd394b6e-376a-456e-a4df-e8bd593d15b9",
+		"name": "Reports API",
+		"description": "https://developers.google.com/admin-sdk/reports/v1/get-start/overview",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Retrieve all administrative activities",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/admin?endTime=2021-11-07T00:00:00.000Z&startTime=2021-09-07T00:00:00.000Z&maxResults=25",
+					"protocol": "https",
+					"host": [
+						"admin",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"reports",
+						"v1",
+						"activity",
+						"users",
+						"all",
+						"applications",
+						"admin"
+					],
+					"query": [
+						{
+							"key": "endTime",
+							"value": "2021-11-07T00:00:00.000Z"
+						},
+						{
+							"key": "startTime",
+							"value": "2021-09-07T00:00:00.000Z"
+						},
+						{
+							"key": "maxResults",
+							"value": "25"
+						}
+					]
+				},
+				"description": "https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-admin#get_account_events"
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve all activities by event name",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/admin?endTime=2021-11-07T00:00:00.000Z&startTime=2021-09-07T00:00:00.000Z&maxResults=25&eventName=CHANGE_CHROME_OS_USER_SETTING",
+					"protocol": "https",
+					"host": [
+						"admin",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"reports",
+						"v1",
+						"activity",
+						"users",
+						"all",
+						"applications",
+						"admin"
+					],
+					"query": [
+						{
+							"key": "endTime",
+							"value": "2021-11-07T00:00:00.000Z"
+						},
+						{
+							"key": "startTime",
+							"value": "2021-09-07T00:00:00.000Z"
+						},
+						{
+							"key": "maxResults",
+							"value": "25"
+						},
+						{
+							"key": "eventName",
+							"value": "CHANGE_CHROME_OS_USER_SETTING"
+						}
+					]
+				},
+				"description": "https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-admin#get_admin_event"
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve all authorization token events for a domain",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/token?endTime=2021-11-07T00:00:00.000Z&startTime=2021-09-07T00:00:00.000Z&maxResults=25",
+					"protocol": "https",
+					"host": [
+						"admin",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"reports",
+						"v1",
+						"activity",
+						"users",
+						"all",
+						"applications",
+						"token"
+					],
+					"query": [
+						{
+							"key": "endTime",
+							"value": "2021-11-07T00:00:00.000Z"
+						},
+						{
+							"key": "startTime",
+							"value": "2021-09-07T00:00:00.000Z"
+						},
+						{
+							"key": "maxResults",
+							"value": "25"
+						}
+					]
+				},
+				"description": "https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-tokens#retrieve_all_authorization_token_events_for_a_domain"
+			},
+			"response": []
+		}
+	],
+	"auth": {
+		"type": "oauth2",
+		"oauth2": [
+			{
+				"key": "scope",
+				"value": "https://www.googleapis.com/auth/admin.reports.audit.readonly",
+				"type": "string"
+			},
+			{
+				"key": "tokenName",
+				"value": "ReportsApiToken",
+				"type": "string"
+			},
+			{
+				"key": "clientSecret",
+				"value": "{{client_secret}}",
+				"type": "string"
+			},
+			{
+				"key": "clientId",
+				"value": "{{client_id}}",
+				"type": "string"
+			},
+			{
+				"key": "accessTokenUrl",
+				"value": "{{token_uri}}",
+				"type": "string"
+			},
+			{
+				"key": "authUrl",
+				"value": "{{auth_uri}}",
+				"type": "string"
+			},
+			{
+				"key": "redirect_uri",
+				"value": "{{redirect_uris}}",
+				"type": "string"
+			},
+			{
+				"key": "addTokenTo",
+				"value": "header",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

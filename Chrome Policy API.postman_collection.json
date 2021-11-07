@@ -252,7 +252,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "\r\n{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z1nachpv\",\r\n        \"additionalTargetKeys\": {\r\n          \"app_id\": \"chrome:fklgmciohehgadlafhljjhgdojfjihhk\"\r\n        }\r\n      },\r\n      policyValue: {\r\n          policySchema: \"chrome.users.apps.InstallType\",\r\n          value: {appInstallType: \"ALLOWED\"}\r\n      },\r\n        updateMask: {paths: \"appInstallType\"}\r\n    }\r\n  ]\r\n}\r\n",
+					"raw": "\r\n{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z0lovut0\",\r\n        \"additionalTargetKeys\": {\r\n          \"app_id\": \"chrome:cijidiollmnkegoghpfobabpecdkeiah\"\r\n        }\r\n      },\r\n      policyValue: {\r\n          policySchema: \"chrome.users.apps.InstallType\",\r\n          value: {appInstallType: \"ALLOWED\"}\r\n      },\r\n        updateMask: {paths: \"appInstallType\"}\r\n    }\r\n  ]\r\n}\r\n",
 					"options": {
 						"raw": {
 							"language": "json"

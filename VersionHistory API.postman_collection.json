@@ -1,0 +1,130 @@
+{
+	"info": {
+		"_postman_id": "d98a114a-feb1-4f39-9ba2-e4bd7a971cf1",
+		"name": "VersionHistory API",
+		"description": "https://developer.chrome.com/docs/versionhistory/",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "List all releases for Windows (64bit) in the stable channel",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://versionhistory.googleapis.com/v1/chrome/platforms/win64/channels/stable/versions/all/releases?order_by=version%20desc&filter=version>=92",
+					"protocol": "https",
+					"host": [
+						"versionhistory",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"v1",
+						"chrome",
+						"platforms",
+						"win64",
+						"channels",
+						"stable",
+						"versions",
+						"all",
+						"releases"
+					],
+					"query": [
+						{
+							"key": "order_by",
+							"value": "version%20desc",
+							"description": "Add a order_by query parameter to order results\nhttps://developer.chrome.com/docs/versionhistory/reference/#order"
+						},
+						{
+							"key": "filter",
+							"value": "version>=92",
+							"description": "filter query parameter to filter results \nhttps://developer.chrome.com/docs/versionhistory/reference/#filter"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "List all releases for Windows (64bit) in the extended stable channel",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://versionhistory.googleapis.com/v1/chrome/platforms/win64/channels/extended/versions/all/releases?order_by=version%20desc&filter=version>=92",
+					"protocol": "https",
+					"host": [
+						"versionhistory",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"v1",
+						"chrome",
+						"platforms",
+						"win64",
+						"channels",
+						"extended",
+						"versions",
+						"all",
+						"releases"
+					],
+					"query": [
+						{
+							"key": "order_by",
+							"value": "version%20desc",
+							"description": "Add a order_by query parameter to order results\nhttps://developer.chrome.com/docs/versionhistory/reference/#order"
+						},
+						{
+							"key": "filter",
+							"value": "version>=92",
+							"description": "filter query parameter to filter results \nhttps://developer.chrome.com/docs/versionhistory/reference/#filter"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "List all releases for Mac in the stable channel",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/stable/versions/all/releases?order_by=version%20desc&filter=version>=92",
+					"protocol": "https",
+					"host": [
+						"versionhistory",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"v1",
+						"chrome",
+						"platforms",
+						"mac",
+						"channels",
+						"stable",
+						"versions",
+						"all",
+						"releases"
+					],
+					"query": [
+						{
+							"key": "order_by",
+							"value": "version%20desc",
+							"description": "Add a order_by query parameter to order results\nhttps://developer.chrome.com/docs/versionhistory/reference/#order"
+						},
+						{
+							"key": "filter",
+							"value": "version>=92",
+							"description": "filter query parameter to filter results \nhttps://developer.chrome.com/docs/versionhistory/reference/#filter"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
