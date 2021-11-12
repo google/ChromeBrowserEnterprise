@@ -22,10 +22,5 @@ To enable an API for your project, do the following:
 ### Postman
 You can use the latest Postman [on the web](https://identity.getpostman.com/signup?continue=https%3A%2F%2Fgo.postman.co%2Fbuild&_ga=2.39310499.1216381035.1635882050-1482705519.1632930853] or (desktop app)[https://www.postman.com/downloads/] to [import the collections](https://learning.postman.com/docs/getting-started/importing-and-exporting-data/).
 
-## Authorization
-Google APIs use the [OAuth 2.0 protocol](https://tools.ietf.org/html/rfc6749) for authentication and authorization. Google supports common OAuth 2.0 scenarios such as those for web server, client-side, installed, and limited-input device applications.
-All applications follow a basic pattern when accessing a Google API using OAuth 2.0. At a high level, you follow five steps:
-1. Obtain OAuth 2.0 credentials from the Google API Console
-> Visit the [Google API Console](https://console.developers.google.com/) to obtain OAuth 2.0 credentials such as a client ID and client secret that are known to both Google and your application.
-2. Obtain an access token from the Google Authorization Server.
-> Before your application can access private data using a Google API, it must obtain an access token that grants access to that API. A single access token can grant varying degrees of access to multiple APIs. A variable parameter called scope controls the set of resources and operations that an access token permits. During the access-token request, your application sends one or more values in the scope parameter.
+## Next > [Authorization](auth.md)
+
