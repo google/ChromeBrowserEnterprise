@@ -20,7 +20,7 @@ To enable an API for your project, do the following:
 4. If prompted, accept the API's Terms of Service.
 
 ### Postman
-You can use the latest Postman [on the web](https://identity.getpostman.com/signup?continue=https%3A%2F%2Fgo.postman.co%2Fbuild&_ga=2.39310499.1216381035.1635882050-1482705519.1632930853] or (desktop app)[https://www.postman.com/downloads/] to [import the collections](https://learning.postman.com/docs/getting-started/importing-and-exporting-data/).
+You can use the latest Postman [on the web](https://identity.getpostman.com/signup?continue=https%3A%2F%2Fgo.postman.co%2Fbuild&_ga=2.39310499.1216381035.1635882050-1482705519.1632930853) or [desktop app](https://www.postman.com/downloads/) to [import the collections](https://learning.postman.com/docs/getting-started/importing-and-exporting-data/).
 
 ## Next > [Authorization](auth.md)
 
