@@ -3,7 +3,7 @@ Create a new Workspace. You can name it what ever you like. Import the Collectio
 
 # Collections
 
-## App Details API
+## [App Details API](/postman/App%20Details%20API.postman_collection.json)
 > Get a specific app by its resource name
 > > Description: Get detailed information about a given Chrome extension. 
 > > Reference: [customers.apps.chrome.get ](https://developers.google.com/chrome/management/reference/rest/v1/customers.apps.chrome/get)
@@ -12,7 +12,7 @@ Create a new Workspace. You can name it what ever you like. Import the Collectio
 > > Description: Get summary of extension requests.
 > > Reference: [customers.apps.countChromeAppRequests](https://developers.google.com/chrome/management/reference/rest/v1/customers.apps/countChromeAppRequests)
 
-## Chrome Browser Cloud Management API
+## [Chrome Browser Cloud Management API](/postman/Chrome%20Browser%20Cloud%20Management%20API.postman_collection.json)
 > Find browser by machine name and org unit path
 > > Description: Retrieve browser properties by machine name and OU name.
 > > Reference: [Retrieve a Chrome browser Device](https://support.google.com/chrome/a/answer/9681204#retrieve_a_chrome_browser_device)
@@ -49,7 +49,28 @@ Create a new Workspace. You can name it what ever you like. Import the Collectio
 > > Description: Delete an enrolled Chrome browser. 
 > > Reference: [Delete a Chrome Browser Device](https://support.google.com/chrome/a/answer/9681204#delete_a_chrome_browser_device)
 
-## Chrome Policy API
+## [Chrome Management Reports API](/postman/Chrome%20Management%20Reports%20API.postman_collection.json)
+> Generate report of all installed Chrome versions
+> > Description: Generate report of all installed Chrome versions.
+> > Reference: [countChromeVersions](https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countChromeVersions)
+>
+> Generate report of installed Chrome versions by organizational unit
+> > Description: Generate report of installed Chrome versions by organizational unit.
+> > Reference: [countChromeVersions](https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countChromeVersions)
+>
+> Generate report to find devices that have an app installed
+> > Description: Generate report to find devices that have an app installed.
+> > Reference: [countInstalledApps](https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countInstalledApps)
+>
+> Generate report of app installations by organizational unit
+> > Description: Generate report of app installations by organizational unit.
+> > Reference: [countInstalledApps](https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countInstalledApps)
+>
+> Generate report of devices that have a specified app installed
+> > Description: Generate report of devices that have a specified app installed.
+> > Reference: [findInstalledAppDevices](https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countInstalledApps)
+
+## [Chrome Policy API](/postman/Chrome%20Policy%20API.postman_collection.json)
 > Get a list of policy schemas
 > > Description: Gets a list of policy schemas that match an optional filter value.
 > > Reference: [List schemas](https://developers.google.com/chrome/policy/reference/rest/v1/customers.policySchemas/list)
@@ -102,7 +123,7 @@ Create a new Workspace. You can name it what ever you like. Import the Collectio
 > > Description: Get all extension policies by OU.
 > > Reference: [Get or list policies for an Organizational Unit](https://developers.google.com/chrome/policy/reference/rest/v1/customers.policies/resolve)
 
-## Directory API
+## [Directory API](/postman/Directory%20API.postman_collection.json)
 > Retrieves all organizational units
 > > Description: Retrieves a list of all organizational units .
 > > Reference: [orgunits.list](https://developers.google.com/admin-sdk/directory/reference/rest/v1/orgunits/list)
@@ -127,7 +148,7 @@ Create a new Workspace. You can name it what ever you like. Import the Collectio
 > > Description: Adds an organizational unit.
 > > Reference: [orgunits.insert](https://developers.google.com/admin-sdk/directory/reference/rest/v1/orgunits/insert)
 
-## Enrollment Token API
+## [Enrollment Token API](/postman/Enrollment%20Token%20API.postman_collection.json)
 > List all enrollment tokens for an account
 > > Description: Retrieves all enrollment tokens.
 > > Reference: [Use the Chrome Browser Enrollment Token API](https://support.google.com/chrome/a/answer/9949706?hl=en&ref_topic=9301744)
@@ -147,7 +168,7 @@ Create a new Workspace. You can name it what ever you like. Import the Collectio
 ## Google Service Account
 > Javascript sample to get OAuth token using a Service Account.
 
-## Reports API
+## [Reports API](/postman/Reports%20API.postman_collection.json)
 > Retrieve all administrative activities
 > > Description: Retrieve a report of all Admin console changes for a specific event name done by a specific administrator.
 > > Reference: [Retrieve all activities by event and administrator](https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-admin#get_admin_event)
@@ -160,7 +181,7 @@ Create a new Workspace. You can name it what ever you like. Import the Collectio
 > > Description: Retrieve all authorization events for third party applications.
 > > Reference: [Retrieve all authorization token events for a domain](https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-tokens#retrieve_all_authorization_token_events_for_a_domain)
 
-## Version History API
+## [Version History API](/postman/VersionHistory%20API.postman_collection.json)
 > List all releases for Windows (64bit) in the stable channel
 > > Description: List all releases for Windows (64bit) in the stable channel.
 > > Reference: [VersionHistory API referencer](https://developer.chrome.com/docs/versionhistory/reference/)
