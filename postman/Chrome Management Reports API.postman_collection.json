@@ -194,6 +194,62 @@
 				"description": "https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countInstalledApps"
 			},
 			"response": []
+		},
+		{
+			"name": "Generate report of devices that have a specified app installed",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:findInstalledAppDevices?orgUnitId=03ph8a2z1uaewos&appId=bhloflhklmhfpedakmangadcdofhnnoh&appType=EXTENSION&orderBy=machine&pageSize=100&pageToken=",
+					"protocol": "https",
+					"host": [
+						"chromemanagement",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"v1",
+						"customers",
+						"my_customer",
+						"reports:findInstalledAppDevices"
+					],
+					"query": [
+						{
+							"key": "orgUnitId",
+							"value": "03ph8a2z1uaewos",
+							"description": "The ID of the organizational unit."
+						},
+						{
+							"key": "appId",
+							"value": "bhloflhklmhfpedakmangadcdofhnnoh",
+							"description": "Unique identifier of the app. For Chrome apps and extensions, the 32-character id (e.g. ehoadneljpdggcbbknedodolkkjodefl)"
+						},
+						{
+							"key": "appType",
+							"value": "EXTENSION",
+							"description": "Type of the app"
+						},
+						{
+							"key": "orderBy",
+							"value": "machine",
+							"description": "Field used to order results"
+						},
+						{
+							"key": "pageSize",
+							"value": "100",
+							"description": "Maximum number of results to return. Maximum and default are 100."
+						},
+						{
+							"key": "pageToken",
+							"value": "",
+							"description": "Token to specify the page of the request to be returned."
+						}
+					]
+				},
+				"description": "https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countInstalledApps"
+			},
+			"response": []
 		}
 	],
 	"auth": {
