@@ -4,7 +4,7 @@ Use the [Chrome Browser Enterprise (CBE)](https://support.google.com/chrome/a/to
 
 ## Documentation
 * [Getting Started with Chrome Browser Cloud Management and Postman](https://services.google.com/fh/files/misc/chrome_browser_cloud_management_postman_api_integration.pdf)
-* [Authentication](docs/auth.md)
+* [Scopes](docs/auth.md)
 * [Postman Collection](docs/postmanColl.md)
 
 
