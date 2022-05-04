@@ -27,18 +27,13 @@ namespace cbcmClient
             string token = this.GetAuthBearerToken();
 
             RestClient client = new RestClient(serviceURL);
+            client.Timeout = base._timeout;
 
 
             var request = new RestRequest(Method.GET);
             request.AddHeader("Content-Type", "application/json");
             request.AddHeader("Authorization", String.Format("Bearer {0}", token));
             IRestResponse response = client.Execute(request);
-
-            if (response.Content.Contains("error"))
-                throw new ApplicationException(String.Format("\r\nToken: {0}\r\nResponse URI:{1}\r\n:Response Content: {2}"
-                    ,token
-                    ,response.ResponseUri.ToString()
-                    ,response.Content));
 
             var orgUnits = OrgUnits.FromJson(response.Content);
 
@@ -52,18 +47,17 @@ namespace cbcmClient
             StringBuilder stringBuilder = new StringBuilder();
 
             //write the header
-            stringBuilder.AppendLine("name,description,blockInheritance,orgUnitId,orgUnitPath,parentOrgUnitId,parentOrgUnitPath");
+            stringBuilder.AppendLine("orgUnitId, name,description,orgUnitPath,parentOrgUnitId,parentOrgUnitPath");
 
             if (orgUnits is null || orgUnits.OrganizationUnits is null)
                 return stringBuilder.ToString();
 
             foreach(OrganizationUnit orgUnit in orgUnits.OrganizationUnits)
             {
-                stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6}",
+                stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5}",
+                    orgUnit.OrgUnitId,
                     orgUnit.Name,
                     orgUnit.Description,
-                    orgUnit.BlockInheritance,
-                    orgUnit.OrgUnitId,
                     orgUnit.OrgUnitPath,
                     orgUnit.ParentOrgUnitId,
                     orgUnit.ParentOrgUnitPath)

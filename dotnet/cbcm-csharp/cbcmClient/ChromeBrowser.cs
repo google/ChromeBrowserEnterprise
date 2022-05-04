@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Text;
+using System.Web;
 using RestSharp;
 using cbcmSchema.Browserdevices;
 using cbcmSchema.ApplicationException;
@@ -55,53 +57,75 @@ namespace cbcmClient
         /// <exception cref="ApplicationException"></exception>
         private List<BrowserDevicesBrowser> GetEnrolledBrowsers(string query, string orgUnitPath, string projection, string orderBy, string sortOrder, int maxResults)
         {
-            string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
-            string token = this.GetAuthBearerToken(scope);
+            
             string nextPageToken = String.Empty;
-            Uri baseUrl = null;
             BrowserDevices browserDevices = null;
             List<BrowserDevicesBrowser> browserList = new List<BrowserDevicesBrowser>();
+            string content = String.Empty;
+            string responseUri = String.Empty;
+            RestClient client;
 
-            RestClient client = new RestClient();
-            
-            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection={1}&orderBy={2}&sortOrder={3}&maxResults={4}"
-                   , this.CustomerID
-                   , projection
-                   , String.IsNullOrEmpty(orderBy) ? "last_activity" : orderBy
-                   , String.IsNullOrEmpty(sortOrder) ? "DESCENDING" : sortOrder
-                   , maxResults);
-
-            if (!String.IsNullOrEmpty(query))
-                serviceURL = serviceURL + "&query=" + query;
-
-            if (!String.IsNullOrEmpty(orgUnitPath))
-                serviceURL = serviceURL + "&orgUnitPath=" + orgUnitPath;
-
-            do
+            try
             {
-                serviceURL = serviceURL + "&pageToken=" + nextPageToken;
+                string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
+                string token = this.GetAuthBearerToken(scope);
+                client = new RestClient();
+                client.Timeout = base._timeout;
 
-                baseUrl = new Uri(serviceURL);
+                string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection={1}&orderBy={2}&sortOrder={3}&maxResults={4}&pageToken="
+                       , this.CustomerID
+                       , projection
+                       , String.IsNullOrEmpty(orderBy) ? "last_activity" : orderBy
+                       , String.IsNullOrEmpty(sortOrder) ? "DESCENDING" : sortOrder
+                       , maxResults);
 
-                client.BaseUrl = baseUrl;
+                if (!String.IsNullOrEmpty(query))
+                    serviceURL = serviceURL + "&query=" + query;
 
-                var request = new RestRequest(Method.GET);
-                request.AddHeader("Content-Type", "application/json");
-                request.AddHeader("Authorization", String.Format("Bearer {0}", token));
-                IRestResponse response = client.Execute(request);
+                if (!String.IsNullOrEmpty(orgUnitPath))
+                    serviceURL = serviceURL + "&orgUnitPath=" + orgUnitPath;
 
-                if (response.Content.Contains("errors"))
+                do
                 {
-                    throw new ApplicationException(String.Format("\r\nToken: {0}\r\nResponse URI:{1}\r\n:Response Content: {2}"
-                        , token
-                        , response.ResponseUri.ToString()
-                        , response.Content));
-                }
+                    UriBuilder builder = new UriBuilder(serviceURL);
+                    var qs = HttpUtility.ParseQueryString(builder.Query);
+                    qs.Set("pageToken", nextPageToken);
+                    builder.Query = qs.ToString();
 
-                browserDevices = BrowserDevices.FromJson(response.Content);
-                browserList.AddRange(browserDevices.Browsers);
-                nextPageToken = browserDevices.NextPageToken;
-            } while (!String.IsNullOrEmpty(nextPageToken));
+                    client.BaseUrl = builder.Uri;
+
+                    var request = new RestRequest(Method.GET);
+                    request.AddHeader("Content-Type", "application/json");
+                    request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+                    IRestResponse response = client.Execute(request);
+
+                    if (response is null)
+                    {
+                        nextPageToken = String.Empty;
+                        continue;
+                    }
+
+                    //useful for debugging
+                    if (response.ResponseUri != null && response.Content != null)
+                    {
+                        responseUri = response.ResponseUri.ToString();
+                        content = response.Content;
+                    }
+
+                    browserDevices = BrowserDevices.FromJson(content);
+                    browserList.AddRange(browserDevices.Browsers);
+
+                    //set next page token
+                    nextPageToken = browserDevices.NextPageToken;
+
+
+                } while (!String.IsNullOrEmpty(nextPageToken));
+
+            }
+            catch (Exception ex)
+            {
+                throw new ApplicationException(String.Format("Service URI: {0}\r\nContent: {1}.\r\n", responseUri, content), ex);
+            }
 
             return browserList;
         }
@@ -176,6 +200,56 @@ namespace cbcmClient
             }//foreach browserList.
 
             base.WriteToFile("CBCM_BrowserDevicesInstalledOnUserAppDataFolder", stringBuilder.ToString());
+        }
+
+        public string MoveChromeBrowsersToOu(List<string> deviceNames, string orgUnitPath)
+        {
+            List<BrowserDevicesBrowser> enrolledBrowserList = this.GetEnrolledBrowsers(
+            String.Empty
+            , String.Empty
+            , "BASIC"
+            , "last_activity"
+            , "DESCENDING"
+            , 100);
+
+            string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
+            BrowserDevicesBrowser foundDeviceId = null;
+            StringBuilder foundDeviceIds = new StringBuilder();
+            StringBuilder result = new StringBuilder();
+            result.AppendLine("Devices not found:");
+
+            foreach (string item in deviceNames)
+            {
+                foundDeviceId = enrolledBrowserList.Find(x => x.DeviceId.Contains(item));
+
+                if (foundDeviceId == null)
+                    result.Append(String.Join(",", item));
+                else
+                    foundDeviceIds.Append(String.Join(",", foundDeviceId.DeviceId));
+            }
+
+            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/moveChromeBrowsersToOu"
+                   , this.CustomerID);
+
+            if (String.IsNullOrEmpty(foundDeviceId.ToString()))
+                return result.ToString();
+
+            RestClient client = new RestClient();
+            Uri baseUrl = new Uri(serviceURL);
+            client.BaseUrl = baseUrl;
+            client.Timeout = -1;
+
+            string token = this.GetAuthBearerToken(scope);
+            var request = new RestRequest(Method.POST);
+            request.AddHeader("Content-Type", "application/json");
+            request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+            string body = "{org_unit_path:\"" + orgUnitPath + "\",resource_ids:[" + foundDeviceIds.ToString() + "]}";
+            request.AddParameter("application/json", body, ParameterType.RequestBody);
+            IRestResponse response = client.Execute(request);
+            result.AppendLine(String.Format("Resonse Code = {0}\r\nResponse Content = {1}", response.StatusCode.ToString(), response.Content));
+
+            return result.ToString();
+
         }
 
 

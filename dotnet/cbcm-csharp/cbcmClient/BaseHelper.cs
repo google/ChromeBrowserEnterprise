@@ -11,6 +11,7 @@ namespace cbcmClient
     {
         private string _keyFile = string.Empty;
         private string _customerID = string.Empty;
+        protected int _timeout = 3597;  //client timeout interval in seconds.
         public string CustomerID { 
             get { return String.IsNullOrEmpty(_customerID) ? "my_customer" : this._customerID; }
             set { this._customerID = value; }
