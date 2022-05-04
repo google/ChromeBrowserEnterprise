@@ -24,10 +24,10 @@ namespace cbcmSchema.Browserdevices
         public string NextPageToken { get; set; }
     }
 
-    public partial class BrowserDevicesBrowser
+    public partial class BrowserDevicesBrowser : IEquatable<BrowserDevicesBrowser>
     {
         [JsonProperty("deviceId", NullValueHandling = NullValueHandling.Ignore)]
-        public Guid? DeviceId { get; set; }
+        public string DeviceId { get; set; }
 
         [JsonProperty("lastPolicyFetchTime", NullValueHandling = NullValueHandling.Ignore)]
         public DateTimeOffset? LastPolicyFetchTime { get; set; }
@@ -90,6 +90,35 @@ namespace cbcmSchema.Browserdevices
 
         [JsonProperty("deviceIdentifiersHistory", NullValueHandling = NullValueHandling.Ignore)]
         public DeviceIdentifiersHistory DeviceIdentifiersHistory { get; set; }
+
+        public override string ToString()
+        {
+            return this.DeviceId;
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj == null) return false;
+
+            BrowserDevicesBrowser lhs = obj as BrowserDevicesBrowser;
+
+            if (lhs == null) return false;
+
+            if (String.IsNullOrEmpty(lhs.DeviceId)) return false;
+
+            return String.Compare(lhs.DeviceId, this.DeviceId, true) == 0;
+        }
+
+        public override int GetHashCode()
+        {
+            return base.GetHashCode();
+        }
+
+        public bool Equals(BrowserDevicesBrowser other)
+        {
+            if (other == null) return false;
+            return this.DeviceId.Equals(other.DeviceId);
+        }
     }
 
     public partial class BrowserBrowser
