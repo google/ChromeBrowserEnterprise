@@ -8,6 +8,9 @@ namespace cbcmApp
     {
         private AppSettingsReader appSettingsReader = null;
 
+        /// <summary>
+        /// Service Account Key File.json
+        /// </summary>
         internal string AccountKeyFile { 
             get
             {
@@ -15,11 +18,25 @@ namespace cbcmApp
             }
 
         }
+        /// <summary>
+        /// Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.
+        /// </summary>
         internal string CustomerID
         {
             get
             {
                 return this.appSettingsReader.GetValue("customer_id", typeof(string)).ToString();
+            }
+        }
+
+        /// <summary>
+        /// If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.
+        /// </summary>
+        internal string adminUserToImpersonate
+        {
+            get 
+            {
+                return this.appSettingsReader.GetValue("adminUserToImpersonate", typeof(string)).ToString();
             }
         }
 
