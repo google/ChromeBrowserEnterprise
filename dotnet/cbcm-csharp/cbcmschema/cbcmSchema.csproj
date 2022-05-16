@@ -46,6 +46,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BrowserDevices.cs" />
+    <Compile Include="ExtensionMgmtPolicy.cs" />
+    <Compile Include="MoveChromeBrowsersToOu.cs" />
     <Compile Include="OrgUnits.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ResponseException.cs" />
