@@ -5,7 +5,7 @@ using System.Text;
 using System.Web;
 using RestSharp;
 using cbcmSchema.Browserdevices;
-using cbcmSchema.ApplicationException;
+using cbcmSchema.BrowserToOU;
 
 namespace cbcmClient
 {
@@ -16,9 +16,15 @@ namespace cbcmClient
             this.CustomerID = customerID;
         }
 
+        public ChromeBrowser(string keyFile, string customerID, string adminUserToImpersonate) : base(keyFile, adminUserToImpersonate)
+        {
+            this.CustomerID = customerID;
+        }
+
         public void GetAllEnrolledBrowsers()
         {
             List<BrowserDevicesBrowser> browserList = this.GetEnrolledBrowsers(
+                String.Empty,
                 String.Empty
                 , String.Empty
                 , "FULL"
@@ -57,7 +63,30 @@ namespace cbcmClient
         /// <exception cref="ApplicationException"></exception>
         private List<BrowserDevicesBrowser> GetEnrolledBrowsers(string query, string orgUnitPath, string projection, string orderBy, string sortOrder, int maxResults)
         {
-            
+            return this.GetEnrolledBrowsers(token:String.Empty,
+                query: query,
+                orgUnitPath:orgUnitPath,
+                projection:projection,
+                orderBy:orderBy,
+                sortOrder:sortOrder,
+                maxResults:maxResults);
+        }
+
+        /// <summary>
+        /// Get Chrome browser devices. 
+        /// </summary>
+        /// <param name="token">Authentication token</param>
+        /// <param name="query">Search string using the list page query language</param>
+        /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
+        /// <param name="projection">Restrict information returned to a set of selected fields. "BASIC" - Includes only the basic metadata fields. "FULL" - Includes all metadata fields</param>
+        /// <param name="orderBy">Chrome browser device property to use for sorting results</param>
+        /// <param name="sortOrder">"ASCENDING" - Ascending order. "DESCENDING" - Descending order.</param>
+        /// <param name="maxResults">Maximum number of results to return. Maximum, is 100.</param>
+        /// <returns>Returns a list of Chrome browser devices.</returns>
+        /// <exception cref="ApplicationException"></exception>
+        private List<BrowserDevicesBrowser> GetEnrolledBrowsers(string token, string query, string orgUnitPath, string projection, string orderBy, string sortOrder, int maxResults)
+        {
+
             string nextPageToken = String.Empty;
             BrowserDevices browserDevices = null;
             List<BrowserDevicesBrowser> browserList = new List<BrowserDevicesBrowser>();
@@ -67,8 +96,13 @@ namespace cbcmClient
 
             try
             {
-                string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
-                string token = this.GetAuthBearerToken(scope);
+                //Get a new token if needed.
+                if (String.IsNullOrEmpty(token))
+                {
+                    string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
+                    token = this.GetAuthBearerToken(scope);
+                }
+
                 client = new RestClient();
                 client.Timeout = base._timeout;
 
@@ -202,51 +236,64 @@ namespace cbcmClient
             base.WriteToFile("CBCM_BrowserDevicesInstalledOnUserAppDataFolder", stringBuilder.ToString());
         }
 
+        /// <summary>
+        /// Move enrolled browser to a different OU
+        /// </summary>
+        /// <param name="deviceNames">List of Computer names</param>
+        /// <param name="orgUnitPath">Destination OU path</param>
+        /// <returns></returns>
         public string MoveChromeBrowsersToOu(List<string> deviceNames, string orgUnitPath)
         {
-            List<BrowserDevicesBrowser> enrolledBrowserList = this.GetEnrolledBrowsers(
-            String.Empty
-            , String.Empty
-            , "BASIC"
-            , "last_activity"
-            , "DESCENDING"
-            , 100);
-
-            string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
-            BrowserDevicesBrowser foundDeviceId = null;
-            StringBuilder foundDeviceIds = new StringBuilder();
+            List<BrowserDevicesBrowser> enrolledBrowserList = null;
             StringBuilder result = new StringBuilder();
-            result.AppendLine("Devices not found:");
-
-            foreach (string item in deviceNames)
-            {
-                foundDeviceId = enrolledBrowserList.Find(x => x.DeviceId.Contains(item));
-
-                if (foundDeviceId == null)
-                    result.Append(String.Join(",", item));
-                else
-                    foundDeviceIds.Append(String.Join(",", foundDeviceId.DeviceId));
-            }
-
-            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/moveChromeBrowsersToOu"
-                   , this.CustomerID);
-
-            if (String.IsNullOrEmpty(foundDeviceId.ToString()))
-                return result.ToString();
-
-            RestClient client = new RestClient();
-            Uri baseUrl = new Uri(serviceURL);
-            client.BaseUrl = baseUrl;
-            client.Timeout = -1;
-
-            string token = this.GetAuthBearerToken(scope);
+            result.AppendLine("");
+            string[] scopes = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
+            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/moveChromeBrowsersToOu", this.CustomerID);
+            string token = this.GetAuthBearerToken(scopes);
             var request = new RestRequest(Method.POST);
-            request.AddHeader("Content-Type", "application/json");
-            request.AddHeader("Authorization", String.Format("Bearer {0}", token));
-            string body = "{org_unit_path:\"" + orgUnitPath + "\",resource_ids:[" + foundDeviceIds.ToString() + "]}";
-            request.AddParameter("application/json", body, ParameterType.RequestBody);
-            IRestResponse response = client.Execute(request);
-            result.AppendLine(String.Format("Resonse Code = {0}\r\nResponse Content = {1}", response.StatusCode.ToString(), response.Content));
+            RestClient client;
+            Uri baseUrl;
+            string foundDeviceId;
+            MoveChromeBrowsersToOu chromeBrowsersToOu;
+
+            foreach (string deviceName in deviceNames)
+            {
+                enrolledBrowserList = this.GetEnrolledBrowsers(token
+                    , String.Format("machine_name:{0}", deviceName)
+                    , String.Empty
+                    , "BASIC"
+                    , "last_activity"
+                    , "DESCENDING"
+                    , 100
+                    );
+
+                if (enrolledBrowserList.Count < 1)
+                {
+                    result.AppendLine(String.Format("Devices not found:{0}", deviceName));
+                    continue;
+                }
+
+                //Take only the first item in the found result set.
+                foundDeviceId = enrolledBrowserList[0].DeviceId;
+
+                chromeBrowsersToOu = new MoveChromeBrowsersToOu();
+                chromeBrowsersToOu.OrgUnitPath = orgUnitPath.Trim();
+                chromeBrowsersToOu.ResourceIds = new string[1] { foundDeviceId };
+                string body = chromeBrowsersToOu.ToJson();
+
+                client = new RestClient();
+                baseUrl = new Uri(serviceURL);
+                client.BaseUrl = baseUrl;
+                client.Timeout = -1;
+
+                request.AddHeader("Content-Type", "application/json");
+                request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+                
+                request.AddParameter("application/json", body, ParameterType.RequestBody);
+                IRestResponse response = client.Execute(request);
+                result.AppendLine(String.Format("Device {0} moved to {1}. Resonse Code = {2}\r\nResponse Content = {3}", deviceName, orgUnitPath, response.StatusCode.ToString(), response.Content));
+            }
+                       
 
             return result.ToString();
 

@@ -12,10 +12,12 @@ namespace cbcmClient
         private string _keyFile = string.Empty;
         private string _customerID = string.Empty;
         protected int _timeout = 3597;  //client timeout interval in seconds.
-        public string CustomerID { 
+        internal string CustomerID { 
             get { return String.IsNullOrEmpty(_customerID) ? "my_customer" : this._customerID; }
             set { this._customerID = value; }
         }
+
+        internal string AdminUserToImpersonate { get; set; }    
 
         private string[] _scopes = {"https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly"
                 ,"https://www.googleapis.com/auth/admin.directory.device.chromebrowsers"
@@ -33,10 +35,12 @@ namespace cbcmClient
         {
             this._keyFile = keyFile;
         }
-        public BaseHelper(string keyFile, string[] scopes)
+        
+
+        public BaseHelper(string keyFile, string adminUserToImpersonate)
         {
             this._keyFile = keyFile;
-            this._scopes = scopes;
+            this.AdminUserToImpersonate = adminUserToImpersonate;
         }
 
         internal string GetAuthBearerToken(string[] scopes)
@@ -49,6 +53,9 @@ namespace cbcmClient
                 credential = GoogleCredential.FromStream(stream);
             }
             credential = credential.CreateScoped(scopes);
+            //domain-wide delegation
+            if (!String.IsNullOrEmpty(this.AdminUserToImpersonate))
+                credential.CreateWithUser(this.AdminUserToImpersonate);
 
             try
             {

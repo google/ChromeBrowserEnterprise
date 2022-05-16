@@ -11,9 +11,13 @@ namespace cbcmClient
 
         private string _customerID = String.Empty;
 
-        public AuthorizationToken(string keyFile, string customerID) : base(keyFile)
+        public AuthorizationToken(string keyFile, string customerID, string adminUserToImpersonate) : base(keyFile, adminUserToImpersonate)
         {
             this._customerID = customerID;
+        }
+
+        public AuthorizationToken(string keyFile) : base(keyFile)
+        {
         }
 
         public string AccessToken

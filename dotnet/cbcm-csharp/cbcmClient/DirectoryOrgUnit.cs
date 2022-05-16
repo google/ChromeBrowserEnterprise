@@ -15,7 +15,7 @@ namespace cbcmClient
         //private string _customerID = String.Empty;
 
 
-        public DirectoryOrgUnit(string keyFile, string customerID) : base(keyFile)
+        public DirectoryOrgUnit(string keyFile, string customerID, string adminUserToImpersonate) : base(keyFile, adminUserToImpersonate)
         {
             this.CustomerID = customerID;
         }
