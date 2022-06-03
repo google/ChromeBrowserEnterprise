@@ -26,9 +26,6 @@ namespace cbcmApp
 
                 string adminUserToImpersonate = config.adminUserToImpersonate;
 
-                if (String.IsNullOrEmpty(customerID))
-                    throw new ApplicationException("Customer ID is missing. Please configure the application configuration file.");
-
                 // Test if input arguments were supplied.
                 if (args.Length == 0)
                 {
@@ -54,7 +51,6 @@ namespace cbcmApp
                     case 2: //log all OU data.
                         Program.GetAllOrganizationalUnits(accountKeyFile, customerID, adminUserToImpersonate);
                         break;
-
                     case 3: //Find enrolled browsers with missing profile, extensions, and policies.
                         Program.GetBrowserDevicesWithMissingData(accountKeyFile, customerID, adminUserToImpersonate);                      
                         break;
@@ -66,6 +62,9 @@ namespace cbcmApp
                         break;
                     case 6: //Move Chrome browser Devices between Organization Units 
                         Program.MoveChromeBrowserDevicesToOU(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2]);
+                        break;
+                    case 7: //Delete a Chrome browser Device 
+                        Program.DeleteEnrolledBrowser(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
                         break;
                     default:
                         Program.HelpWithArguments();
@@ -81,7 +80,7 @@ namespace cbcmApp
                 Console.WriteLine(ex.ToString());
             }
         }
-
+        
         private static void HelpWithArguments()
         {
             Console.WriteLine("Please enter a numeric argument. Usage:");
@@ -91,6 +90,7 @@ namespace cbcmApp
             Console.WriteLine("4 Find browsers installed on the user's app data folder. Applies to Windows OS platform only.");
             Console.WriteLine(@"5 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV.\r\n\t Usage: cbcmapp.exe 5  ""03ph8a2z2qk3175"" ""BLOCKED"" ""C:/ Temp / BatchUploadExtensions.csv""");
             Console.WriteLine(@"6 Move Chrome browser Devices between Organization Units. Required arguments OU path, and file to CSV.\r\n\t Usage: cbcmapp.exe 6  ""/Default settings"" ""C:/Temp/MoveDevices.csv""");
+            Console.WriteLine(@"7 Delete enrolled browsers from the admin console. Required argument file to CSV.\r\n\t Usage: cbcmapp.exe 7  ""C:/Temp/deleteBrowsers.csv""");
         }
 
         /// <summary>
@@ -107,7 +107,7 @@ namespace cbcmApp
         /// <summary>
         /// Get all OUs.
         /// </summary>
-        /// <param name="accountKeyFile"></param>
+        /// <param name="accountKeyFile">>service account key file</param>
         /// <param name="customerID">Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
         /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
         public static void GetAllOrganizationalUnits(string accountKeyFile, string customerID, string adminUserToImpersonate)
@@ -181,6 +181,21 @@ namespace cbcmApp
             List<string> items = Program.ImportData(filePath);
             string result =  chromeBrowser.MoveChromeBrowsersToOu(items, orgUnitPath.Trim());
             Program.Log(result, "moveChromeBrowsersToOu.txt");
+        }
+
+        /// <summary>
+        /// Delete a Chrome browser Device 
+        /// </summary>
+        /// <param name="accountKeyFile">>service account key file</param>
+        /// <param name="customerID">>Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="filePath">File path to CSV with no header data. Limit row count to 400 app IDs</param>
+        private static void DeleteEnrolledBrowser(string accountKeyFile, string customerID, string adminUserToImpersonate, string filePath)
+        {
+            ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
+            List<string> items = Program.ImportData(filePath);
+            string result = chromeBrowser.DeleteChromeBrowsers(items);
+            Program.Log(result, "deleteChromeBrowsers.txt");
         }
 
         /// <summary>
