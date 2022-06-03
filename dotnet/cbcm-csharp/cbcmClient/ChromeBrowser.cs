@@ -63,13 +63,13 @@ namespace cbcmClient
         /// <exception cref="ApplicationException"></exception>
         private List<BrowserDevicesBrowser> GetEnrolledBrowsers(string query, string orgUnitPath, string projection, string orderBy, string sortOrder, int maxResults)
         {
-            return this.GetEnrolledBrowsers(token:String.Empty,
+            return this.GetEnrolledBrowsers(token: String.Empty,
                 query: query,
-                orgUnitPath:orgUnitPath,
-                projection:projection,
-                orderBy:orderBy,
-                sortOrder:sortOrder,
-                maxResults:maxResults);
+                orgUnitPath: orgUnitPath,
+                projection: projection,
+                orderBy: orderBy,
+                sortOrder: sortOrder,
+                maxResults: maxResults);
         }
 
         /// <summary>
@@ -147,7 +147,10 @@ namespace cbcmClient
                     }
 
                     browserDevices = BrowserDevices.FromJson(content);
-                    browserList.AddRange(browserDevices.Browsers);
+
+                    //check if a matching browser was found and then add to list.
+                    if (browserDevices != null && (browserDevices.Browsers != null && browserDevices.Browsers.Count > 0))
+                        browserList.AddRange(browserDevices.Browsers);
 
                     //set next page token
                     nextPageToken = browserDevices.NextPageToken;
@@ -192,8 +195,8 @@ namespace cbcmClient
                         , browser.DeviceId
                         , browser.MachineName
                         , browser.LastRegistrationTime
-                        , browser.ExtensionCount.HasValue? browser.ExtensionCount.Value.ToString() : String.Empty
-                        , browser.PolicyCount.HasValue? browser.PolicyCount.Value.ToString() : String.Empty)
+                        , browser.ExtensionCount.HasValue ? browser.ExtensionCount.Value.ToString() : String.Empty
+                        , browser.PolicyCount.HasValue ? browser.PolicyCount.Value.ToString() : String.Empty)
                         );
             }
 
@@ -239,18 +242,17 @@ namespace cbcmClient
         /// <summary>
         /// Move enrolled browser to a different OU
         /// </summary>
-        /// <param name="deviceNames">List of Computer names</param>
+        /// <param name="deviceNames">List of device names</param>
         /// <param name="orgUnitPath">Destination OU path</param>
         /// <returns></returns>
         public string MoveChromeBrowsersToOu(List<string> deviceNames, string orgUnitPath)
         {
             List<BrowserDevicesBrowser> enrolledBrowserList = null;
             StringBuilder result = new StringBuilder();
-            result.AppendLine("");
             string[] scopes = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
             string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/moveChromeBrowsersToOu", this.CustomerID);
             string token = this.GetAuthBearerToken(scopes);
-            var request = new RestRequest(Method.POST);
+
             RestClient client;
             Uri baseUrl;
             string foundDeviceId;
@@ -258,6 +260,7 @@ namespace cbcmClient
 
             foreach (string deviceName in deviceNames)
             {
+
                 enrolledBrowserList = this.GetEnrolledBrowsers(token
                     , String.Format("machine_name:{0}", deviceName)
                     , String.Empty
@@ -285,20 +288,75 @@ namespace cbcmClient
                 baseUrl = new Uri(serviceURL);
                 client.BaseUrl = baseUrl;
                 client.Timeout = -1;
+                var request = new RestRequest(Method.POST);
 
                 request.AddHeader("Content-Type", "application/json");
                 request.AddHeader("Authorization", String.Format("Bearer {0}", token));
-                
+
                 request.AddParameter("application/json", body, ParameterType.RequestBody);
                 IRestResponse response = client.Execute(request);
                 result.AppendLine(String.Format("Device {0} moved to {1}. Resonse Code = {2}\r\nResponse Content = {3}", deviceName, orgUnitPath, response.StatusCode.ToString(), response.Content));
             }
-                       
+
 
             return result.ToString();
 
         }
 
+        /// <summary>
+        /// Delete a Chrome browser Device 
+        /// </summary>
+        /// <param name="deviceNames">List of device names</param>
+        /// <returns></returns>
+        public string DeleteChromeBrowsers(List<string> deviceNames)
+        {
+            List<BrowserDevicesBrowser> enrolledBrowserList = null;
+            StringBuilder result = new StringBuilder();
+            string[] scopes = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
+            string token = this.GetAuthBearerToken(scopes);
+
+            RestClient client;
+            Uri baseUrl;
+            string foundDeviceId;
+            MoveChromeBrowsersToOu chromeBrowsersToOu;
+
+            foreach (string deviceName in deviceNames)
+            {
+                enrolledBrowserList = this.GetEnrolledBrowsers(token
+                    , String.Format("machine_name:{0}", deviceName)
+                    , String.Empty
+                    , "BASIC"
+                    , "last_activity"
+                    , "DESCENDING"
+                    , 100
+                    );
+
+                if (enrolledBrowserList.Count < 1)
+                {
+                    result.AppendLine(String.Format("Devices not found:{0}", deviceName));
+                    continue;
+                }
+
+                //Take only the first item in the found result set.
+                foundDeviceId = enrolledBrowserList[0].DeviceId;
+                string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/{1}", this.CustomerID, foundDeviceId);
+
+                client = new RestClient();
+                baseUrl = new Uri(serviceURL);
+                client.BaseUrl = baseUrl;
+                client.Timeout = -1;
+                var request = new RestRequest(Method.DELETE);
+
+                request.AddHeader("Content-Type", "application/json");
+                request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+
+                IRestResponse response = client.Execute(request);
+                result.AppendLine(String.Format("Device {0} deleted. Resonse Code = {1}\r\nResponse Content = {2}", deviceName, response.StatusCode.ToString(), response.Content));
+            }
+
+
+            return result.ToString();
+        }
 
 
     }
