@@ -66,9 +66,14 @@ namespace cbcmApp
                     case 7: //Delete a Chrome browser Device 
                         Program.DeleteEnrolledBrowser(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
                         break;
+                    case 8: //backup policies for an Organizational Unit (OU)
+                        Program.BackupBrowserPolicyByOU(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
+                        break;
+                    case 100: //get detailed data from enrolled browsers.
+                        Program.GetAllEnrolledBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty);
+                        break;
                     default:
                         Program.HelpWithArguments();
-                        Program.DumpsterDive(accountKeyFile, customerID, adminUserToImpersonate);
                         break;
                 }
 
@@ -80,7 +85,7 @@ namespace cbcmApp
                 Console.WriteLine(ex.ToString());
             }
         }
-        
+
         private static void HelpWithArguments()
         {
             Console.WriteLine("Please enter a numeric argument. Usage:");
@@ -88,9 +93,11 @@ namespace cbcmApp
             Console.WriteLine("2 Get All Organizational Units (OU).");
             Console.WriteLine("3 Find enrolled browsers with missing data (profile, extensions, and policies).");
             Console.WriteLine("4 Find browsers installed on the user's app data folder. Applies to Windows OS platform only.");
-            Console.WriteLine(@"5 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV.\r\n\t Usage: cbcmapp.exe 5  ""03ph8a2z2qk3175"" ""BLOCKED"" ""C:/ Temp / BatchUploadExtensions.csv""");
-            Console.WriteLine(@"6 Move Chrome browser Devices between Organization Units. Required arguments OU path, and file to CSV.\r\n\t Usage: cbcmapp.exe 6  ""/Default settings"" ""C:/Temp/MoveDevices.csv""");
+            Console.WriteLine(@"5 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV.\r\n\t Usage: cbcmapp.exe 5  ""OU ID"" ""BLOCKED"" ""C:/Temp/BatchUploadExtensions.csv""");
+            Console.WriteLine(@"6 Move Chrome browser Devices between Organization Units. Required arguments OU path, and file to CSV.\r\n\t Usage: cbcmapp.exe 6  ""/OU Name"" ""C:/Temp/MoveDevices.csv""");
             Console.WriteLine(@"7 Delete enrolled browsers from the admin console. Required argument file to CSV.\r\n\t Usage: cbcmapp.exe 7  ""C:/Temp/deleteBrowsers.csv""");
+            Console.WriteLine(@"8 Backup policies for an Organizational Unit (OU). Required arguments OU ID. \r\n\t Usage: cbcmapp.exe 8  ""OU ID""");
+            Console.WriteLine(@"100 Get all enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 100 \r\n\t cbcm.exe 100 ""/North America/Algonquin""");
         }
 
         /// <summary>
@@ -160,7 +167,7 @@ namespace cbcmApp
                 throw new ArgumentNullException("Extension install type (FORCED, ALLOWED, BLOCKED) is required.");
 
             List<string> extensions = Program.ImportData(filePath);
-            ChromeMgmtPolicy chromeMgmtPolicy = new ChromeMgmtPolicy(accountKeyFile, customerID, adminUserToImpersonate);
+            ChrometPolicyResolve chromeMgmtPolicy = new ChrometPolicyResolve(accountKeyFile, customerID, adminUserToImpersonate);
             string result = chromeMgmtPolicy.BatchUploadExtensionsToOU(extensions, orgUnitId.Trim(), extensionInstallType.Trim());
             Program.Log(result, "BatchUploadExtensionsToOu.txt");
         }
@@ -197,32 +204,45 @@ namespace cbcmApp
             string result = chromeBrowser.DeleteChromeBrowsers(items);
             Program.Log(result, "deleteChromeBrowsers.txt");
         }
-
         /// <summary>
         /// 
         /// </summary>
         /// <param name="accountKeyFile">service account key file</param>
         /// <param name="customerID">Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
-        /// /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
-        /// <exception cref="NotImplementedException"></exception>
-        private static void DumpsterDive(string accountKeyFile, string customerID, string adminUserToImpersonate)
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="orgUnitId">OU ID</param>
+        private static void BackupBrowserPolicyByOU(string accountKeyFile, string customerID, string adminUserToImpersonate, string orgUnitId)
+        {
+            ChrometPolicyResolve chrometPolicyResolve = new ChrometPolicyResolve(accountKeyFile, customerID);
+            string result = chrometPolicyResolve.BackupPolicies(orgUnitId);
+            Program.Log(result, String.Format("policybackup_{0}.json", orgUnitId));
+        }
+
+        /// <summary>
+        /// Get full projection of enrolled browser data.
+        /// </summary>
+        /// <param name="accountKeyFile">service account key file</param>
+        /// <param name="customerID">Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
+        private static void GetAllEnrolledBrowsers(string accountKeyFile, string customerID, string adminUserToImpersonate, string orgUnitPath)
         {
             ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
-            chromeBrowser.GetAllEnrolledBrowsers();
+            string result = chromeBrowser.GetAllEnrolledBrowsers(orgUnitPath);
+            Program.Log(result, "all-enrolled-browser-data.json");
         }
+
+       
 
         public static void Log(string logMessage, string logfile)
         {
             //string fullPathToLogFile = Directory.GetCurrentDirectory() + @"\Error_log\" +  logfile;
             using (StreamWriter streamWriter = File.AppendText(logfile))
             {
-                streamWriter.Write("\r\nLog Entry : ");
-                streamWriter.WriteLine($"{DateTime.Now.ToLongTimeString()} {DateTime.Now.ToLongDateString()}");
-                streamWriter.WriteLine("  :");
-                streamWriter.WriteLine($"  :{logMessage}");
-                streamWriter.WriteLine("-------------------------------");
+                streamWriter.WriteLine(logMessage);
             }
         }
+
         /// <summary>
         /// Import data from file.
         /// </summary>
