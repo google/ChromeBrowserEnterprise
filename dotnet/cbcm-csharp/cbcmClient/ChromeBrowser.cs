@@ -21,34 +21,85 @@ namespace cbcmClient
             this.CustomerID = customerID;
         }
 
-        public void GetAllEnrolledBrowsers()
+        /// <summary>
+        /// Get all enrolled browsers - Full projection - with the optional org unit path.
+        /// </summary>
+        /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
+        /// <returns></returns>
+        /// <exception cref="ApplicationException"></exception>
+        public string GetAllEnrolledBrowsers(string orgUnitPath)
         {
-            List<BrowserDevicesBrowser> browserList = this.GetEnrolledBrowsers(
-                String.Empty,
-                String.Empty
-                , String.Empty
-                , "FULL"
-                , "last_activity"
-                , "DESCENDING"
-                , 100);
-
+  
+            string nextPageToken = String.Empty;
+            BrowserDevices browserDevices = null;
             StringBuilder stringBuilder = new StringBuilder();
+            string content = String.Empty;
+            string responseUri = String.Empty;
+            RestClient client;
 
-            //write the header
-            stringBuilder.AppendLine("DeviceId, MachineName, ExtensionCount");
-
-            foreach (BrowserDevicesBrowser item in browserList)
+            try
             {
-                stringBuilder.AppendLine(String.Format("{0}, {1}, {2}"
-                    , item.DeviceId
-                    , item.MachineName
-                    , item.ExtensionCount
-                    )
-                    );
+                string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
+                string token = this.GetAuthBearerToken(scope);               
+
+
+                string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection=FULL&orderBy=last_activity&sortOrder=DESCENDING&maxResults=100&pageToken="
+                       , this.CustomerID);
+
+                if (!String.IsNullOrEmpty(orgUnitPath))
+                    serviceURL = serviceURL + "&orgUnitPath=" + orgUnitPath;
+
+                do
+                {
+                    client = new RestClient();
+                    client.Timeout = base._timeout;
+
+                    UriBuilder builder = new UriBuilder(serviceURL);
+                    var qs = HttpUtility.ParseQueryString(builder.Query);
+                    qs.Set("pageToken", nextPageToken);
+                    builder.Query = qs.ToString();
+
+                    client.BaseUrl = builder.Uri;
+
+                    var request = new RestRequest(Method.GET);
+                    request.AddHeader("Content-Type", "application/json");
+                    request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+                    IRestResponse response = client.Execute(request);
+
+                    if (response is null)
+                    {
+                        nextPageToken = String.Empty;
+                        continue;
+                    }
+
+                    //useful for debugging
+                    if (response.ResponseUri != null && response.Content != null)
+                    {
+                        responseUri = response.ResponseUri.ToString();
+                        content = response.Content;
+                    }
+
+                    browserDevices = BrowserDevices.FromJson(content);
+
+                    stringBuilder.AppendLine(content);
+
+                    //set next page token
+                    nextPageToken = browserDevices.NextPageToken;
+
+
+                } while (!String.IsNullOrEmpty(nextPageToken));
+
+            }
+            catch (Exception ex)
+            {
+                throw new ApplicationException(String.Format("Service URI: {0}\r\nContent: {1}.\r\n", responseUri, content), ex);
             }
 
-            base.WriteToFile("CBCM_ChromeBrowser", stringBuilder.ToString());
+            return stringBuilder.ToString();
+
+
         }
+
         /// <summary>
         /// Get all Chrome browser devices. 
         /// https://support.google.com/chrome/a/answer/9681204?hl=en
@@ -86,7 +137,6 @@ namespace cbcmClient
         /// <exception cref="ApplicationException"></exception>
         private List<BrowserDevicesBrowser> GetEnrolledBrowsers(string token, string query, string orgUnitPath, string projection, string orderBy, string sortOrder, int maxResults)
         {
-
             string nextPageToken = String.Empty;
             BrowserDevices browserDevices = null;
             List<BrowserDevicesBrowser> browserList = new List<BrowserDevicesBrowser>();
@@ -102,9 +152,7 @@ namespace cbcmClient
                     string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
                     token = this.GetAuthBearerToken(scope);
                 }
-
-                client = new RestClient();
-                client.Timeout = base._timeout;
+                
 
                 string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection={1}&orderBy={2}&sortOrder={3}&maxResults={4}&pageToken="
                        , this.CustomerID
@@ -121,6 +169,9 @@ namespace cbcmClient
 
                 do
                 {
+                    client = new RestClient();
+                    client.Timeout = base._timeout;
+
                     UriBuilder builder = new UriBuilder(serviceURL);
                     var qs = HttpUtility.ParseQueryString(builder.Query);
                     qs.Set("pageToken", nextPageToken);
@@ -166,7 +217,6 @@ namespace cbcmClient
 
             return browserList;
         }
-
 
         /// <summary>
         /// Find enrlled browsers that have a shell created in CBCM. These don't have details like Browser profile, extensions, and policies.
@@ -318,7 +368,6 @@ namespace cbcmClient
             RestClient client;
             Uri baseUrl;
             string foundDeviceId;
-            MoveChromeBrowsersToOu chromeBrowsersToOu;
 
             foreach (string deviceName in deviceNames)
             {
