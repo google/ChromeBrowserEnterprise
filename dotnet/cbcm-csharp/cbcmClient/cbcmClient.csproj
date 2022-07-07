@@ -70,7 +70,7 @@
     <Compile Include="BaseHelper.cs" />
     <Compile Include="AuthorizationToken.cs" />
     <Compile Include="ChromeBrowser.cs" />
-    <Compile Include="ChromeMgmtPolicy.cs" />
+    <Compile Include="ChrometPolicyResolve.cs" />
     <Compile Include="DirectoryOrgUnit.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
