@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
+using System.IO;
 using System.Text;
 using System.Web;
 using RestSharp;
@@ -25,14 +25,12 @@ namespace cbcmClient
         /// Get all enrolled browsers - Full projection - with the optional org unit path.
         /// </summary>
         /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
-        /// <returns></returns>
         /// <exception cref="ApplicationException"></exception>
-        public string GetAllEnrolledBrowsers(string orgUnitPath)
+        public void GetAllEnrolledBrowsers(string orgUnitPath)
         {
   
             string nextPageToken = String.Empty;
             BrowserDevices browserDevices = null;
-            StringBuilder stringBuilder = new StringBuilder();
             string content = String.Empty;
             string responseUri = String.Empty;
             RestClient client;
@@ -42,61 +40,65 @@ namespace cbcmClient
                 string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
                 string token = this.GetAuthBearerToken(scope);               
 
-
                 string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection=FULL&orderBy=last_activity&sortOrder=DESCENDING&maxResults=100&pageToken="
                        , this.CustomerID);
 
                 if (!String.IsNullOrEmpty(orgUnitPath))
                     serviceURL = serviceURL + "&orgUnitPath=" + orgUnitPath;
 
-                do
+                /*** Storing results in memory can lead to out of memory exception.
+                 * Therefore, this hack will append resulting paginated data to file. Consider storging in a database.
+                 */
+
+                // Create a file to write to.
+                using (StreamWriter sw = File.CreateText(String.Format("all-enrolled-browser-data-{0}.json", DateTime.Now.Ticks)))
                 {
-                    client = new RestClient();
-                    client.Timeout = base._timeout;
-
-                    UriBuilder builder = new UriBuilder(serviceURL);
-                    var qs = HttpUtility.ParseQueryString(builder.Query);
-                    qs.Set("pageToken", nextPageToken);
-                    builder.Query = qs.ToString();
-
-                    client.BaseUrl = builder.Uri;
-
-                    var request = new RestRequest(Method.GET);
-                    request.AddHeader("Content-Type", "application/json");
-                    request.AddHeader("Authorization", String.Format("Bearer {0}", token));
-                    IRestResponse response = client.Execute(request);
-
-                    if (response is null)
+                    do
                     {
-                        nextPageToken = String.Empty;
-                        continue;
-                    }
+                        client = new RestClient();
+                        client.Timeout = base._timeout;
 
-                    //useful for debugging
-                    if (response.ResponseUri != null && response.Content != null)
-                    {
-                        responseUri = response.ResponseUri.ToString();
-                        content = response.Content;
-                    }
+                        UriBuilder builder = new UriBuilder(serviceURL);
+                        var qs = HttpUtility.ParseQueryString(builder.Query);
+                        qs.Set("pageToken", nextPageToken);
+                        builder.Query = qs.ToString();
 
-                    browserDevices = BrowserDevices.FromJson(content);
+                        client.BaseUrl = builder.Uri;
 
-                    stringBuilder.AppendLine(content);
+                        var request = new RestRequest(Method.GET);
+                        request.AddHeader("Content-Type", "application/json");
+                        request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+                        IRestResponse response = client.Execute(request);
 
-                    //set next page token
-                    nextPageToken = browserDevices.NextPageToken;
+                        if (response is null)
+                        {
+                            nextPageToken = String.Empty;
+                            continue;
+                        }
+
+                        //useful for debugging
+                        if (response.ResponseUri != null && response.Content != null)
+                        {
+                            responseUri = response.ResponseUri.ToString();
+                            content = response.Content;
+                        }
+
+                        browserDevices = BrowserDevices.FromJson(content);
+
+                        sw.WriteLine(content);
+
+                        //set next page token
+                        nextPageToken = browserDevices.NextPageToken;
 
 
-                } while (!String.IsNullOrEmpty(nextPageToken));
+                    } while (!String.IsNullOrEmpty(nextPageToken));
+                }
 
             }
             catch (Exception ex)
             {
                 throw new ApplicationException(String.Format("Service URI: {0}\r\nContent: {1}.\r\n", responseUri, content), ex);
             }
-
-            return stringBuilder.ToString();
-
 
         }
 
@@ -216,6 +218,31 @@ namespace cbcmClient
             }
 
             return browserList;
+        }
+
+        /// <summary>
+        /// Delete a Chrome browser Device 
+        /// </summary>
+        /// <param name="deviceID">The deviceId is a unique identifier for a device and is found in the response of the Retrieve all Chrome devices operation. </param>
+        /// <returns>Response status and result.</returns>
+        private string DeleteEnrolledBrowser(string deviceID)
+        {
+            string[] scopes = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
+            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/{1}", this.CustomerID, deviceID);
+
+            RestClient client = new RestClient();
+            Uri baseUrl = new Uri(serviceURL);
+            client.BaseUrl = baseUrl;
+            client.Timeout = -1;
+            var request = new RestRequest(Method.DELETE);
+
+            request.AddHeader("Content-Type", "application/json");
+            string token = this.GetAuthBearerToken(scopes);
+            request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+
+            IRestResponse response = client.Execute(request);
+
+            return response.StatusCode + " " + response.Content;
         }
 
         /// <summary>
@@ -353,6 +380,42 @@ namespace cbcmClient
 
         }
 
+
+        /// <summary>
+        /// Get enrolled browser data based on last activity.
+        /// </summary>
+        /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
+        /// <param name="startDate">Start date</param>
+        /// <param name="endDate">End data</param>
+        public void GetBrowsersFilteredByActivityDate(string orgUnitPath, DateTime startDate, DateTime endDate)
+        {
+            List<BrowserDevicesBrowser> browserList = this.GetEnrolledBrowsers(
+                String.Format("last_activity:{0}..{1}", startDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd"))
+                , orgUnitPath
+                , "BASIC"
+                , "last_activity"
+                , "ASCENDING"
+                , 100);
+
+            StringBuilder stringBuilder = new StringBuilder();
+            //write the header.
+            stringBuilder.AppendLine("OrgUnitPath,deviceId,machineName,lastActivityTime,lastPolicyFetchTime,osPlatform");
+
+            foreach (BrowserDevicesBrowser browser in browserList)
+            {
+                stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5}"
+                    , browser.OrgUnitPath
+                    , browser.DeviceId
+                    , browser.MachineName
+                    , browser.LastActivityTime
+                    , browser.LastPolicyFetchTime
+                    , browser.OsPlatform)
+                    );
+            }
+
+            base.WriteToFile("CBCM_BrowsersFilteredByLastActivityDate", stringBuilder.ToString());
+        }
+
         /// <summary>
         /// Delete a Chrome browser Device 
         /// </summary>
@@ -405,6 +468,30 @@ namespace cbcmClient
 
 
             return result.ToString();
+        }
+
+        /// <summary>
+        /// Delete inactive browsers based on last activity start and end dates.
+        /// </summary>
+        /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
+        /// <param name="startDate">Last activity start date.</param>
+        /// <param name="endDate">Last activity end date.</param>
+        public void DeleteInactiveBrowsers(string orgUnitPath, DateTime startDate, DateTime endDate)
+        {
+            List<BrowserDevicesBrowser> browserList = this.GetEnrolledBrowsers(
+                String.Format("last_activity:{0}..{1}", startDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd"))
+                , orgUnitPath
+                , "BASIC"
+                , "last_activity"
+                , "ASCENDING"
+                , 100);
+
+
+            foreach (BrowserDevicesBrowser browser in browserList)
+            {
+                this.DeleteEnrolledBrowser(browser.DeviceId);
+            }
+
         }
 
 
