@@ -63,18 +63,25 @@ namespace cbcmApp
                     case 6: //Move Chrome browser Devices between Organization Units 
                         Program.MoveChromeBrowserDevicesToOU(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2]);
                         break;
-                    case 7: //Delete a Chrome browser Device 
-                        Program.DeleteEnrolledBrowser(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
-                        break;
-                    case 8: //backup policies for an Organizational Unit (OU)
+                    case 20: //backup policies for an Organizational Unit (OU)
                         Program.BackupBrowserPolicyByOU(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
                         break;
                     case 100: //get detailed data from enrolled browsers.
                         Program.GetAllEnrolledBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty);
                         break;
+                    case 800: //get browsers where the last activitiy is between start and end dates
+                        Program.GetEnrolledBrowsersByLastActivity(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2], args[3]);
+                        break;
+                    case 890: //delete inactive browsers by last activity start and end dates
+                        Program.InactiveBrowserDeletion(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2], args[3]);
+                        break;
+                    case 990: //Delete a Chrome browser Device 
+                        Program.DeleteEnrolledBrowser(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
+                        break;
                     default:
                         Program.HelpWithArguments();
                         break;
+
                 }
 
                 Console.ReadLine();
@@ -95,9 +102,12 @@ namespace cbcmApp
             Console.WriteLine("4 Find browsers installed on the user's app data folder. Applies to Windows OS platform only.");
             Console.WriteLine(@"5 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV.\r\n\t Usage: cbcmapp.exe 5  ""OU ID"" ""BLOCKED"" ""C:/Temp/BatchUploadExtensions.csv""");
             Console.WriteLine(@"6 Move Chrome browser Devices between Organization Units. Required arguments OU path, and file to CSV.\r\n\t Usage: cbcmapp.exe 6  ""/OU Name"" ""C:/Temp/MoveDevices.csv""");
-            Console.WriteLine(@"7 Delete enrolled browsers from the admin console. Required argument file to CSV.\r\n\t Usage: cbcmapp.exe 7  ""C:/Temp/deleteBrowsers.csv""");
-            Console.WriteLine(@"8 Backup policies for an Organizational Unit (OU). Required arguments OU ID. \r\n\t Usage: cbcmapp.exe 8  ""OU ID""");
+            Console.WriteLine(@"20 Backup policies for an Organizational Unit (OU). Required arguments OU ID. \r\n\t Usage: cbcmapp.exe 20  ""OU ID""");
             Console.WriteLine(@"100 Get all enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 100 \r\n\t cbcm.exe 100 ""/North America/Algonquin""");
+            Console.WriteLine(@"800 Find browsers in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 800  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
+            Console.WriteLine(@"890 Delete in active browser in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 890  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
+            Console.WriteLine(@"990 Delete enrolled browsers from the admin console. Required argument file to CSV.\r\n\t Usage: cbcmapp.exe 990  ""C:/Temp/deleteBrowsers.csv""");
+
         }
 
         /// <summary>
@@ -228,11 +238,52 @@ namespace cbcmApp
         private static void GetAllEnrolledBrowsers(string accountKeyFile, string customerID, string adminUserToImpersonate, string orgUnitPath)
         {
             ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
-            string result = chromeBrowser.GetAllEnrolledBrowsers(orgUnitPath);
-            Program.Log(result, "all-enrolled-browser-data.json");
+            chromeBrowser.GetAllEnrolledBrowsers(orgUnitPath);
         }
 
-       
+        /// <summary>
+        /// Get basic projection of enrolled browser data where the last activity is between start and end days.
+        /// </summary>
+        /// <param name="accountKeyFile">service account key file</param>
+        /// <param name="customerID">Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
+        /// <param name="inputStartdate">Last activity start date formatted as yyyy-MM-dd.</param>
+        /// <param name="inputEnddate">Last activity end  date formatted as yyyy-MM-dd.</param>
+        private static void GetEnrolledBrowsersByLastActivity(string accountKeyFile, string customerID, string adminUserToImpersonate, 
+            string orgUnitPath,
+            string inputStartdate,
+            string inputEnddate)
+        {
+            DateTime startDate = DateTime.Parse(inputStartdate);
+            DateTime endDate = DateTime.Parse(inputEnddate);
+
+            ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
+            chromeBrowser.GetBrowsersFilteredByActivityDate(orgUnitPath, startDate, endDate);
+        }
+
+        /// <summary>
+        /// Delete inactive browser where the last activity is between start and end days.
+        /// </summary>
+        /// <param name="accountKeyFile">service account key file</param>
+        /// <param name="customerID">Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
+        /// <param name="inputStartdate">Last activity start date formatted as yyyy-MM-dd.</param>
+        /// <param name="inputEnddate">Last activity end  date formatted as yyyy-MM-dd.</param>
+        private static void InactiveBrowserDeletion(string accountKeyFile, string customerID, string adminUserToImpersonate,
+            string orgUnitPath,
+            string inputStartdate,
+            string inputEnddate)
+        {
+            DateTime startDate = DateTime.Parse(inputStartdate);
+            DateTime endDate = DateTime.Parse(inputEnddate);
+
+            ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
+            chromeBrowser.DeleteInactiveBrowsers(orgUnitPath, startDate, endDate);
+        }
+
+
 
         public static void Log(string logMessage, string logfile)
         {
