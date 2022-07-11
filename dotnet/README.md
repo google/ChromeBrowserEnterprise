@@ -63,6 +63,15 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
   "Output": "policybackup.json"
 }
 ```
+### Get all enrolled browser data with an optional argument to query by orgnizational unit (demo purpose)
+:exclamation: Note: Wiring to a local file on pagination. However, the recommended approach here is to fast-write to a data store.
+```
+{
+  "Agurment": "100" "OU Path"
+  "Usage": cbcmapp.exe 100 "/APAC/Tokyo"
+  "Output": "all-enrolled-browser-data.json"
+}
+```
 ### Inactive Browser
 #### Find browsers in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd)
 ```
