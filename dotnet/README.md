@@ -13,3 +13,37 @@ Before buidling the solution, remember to modify the app.config file.
 ```
 
 ## CBCM App :computer:
+After you build the solution, you can run cbcmApp.exe from the Windows command prompt using various arguments.
+
+### Get All Organizational Units (OU)
+```
+{
+  "Agurment": 2,
+  "Usage": "cbcmapp.exe 2",
+  "Output": "CBCM_DirectoryOrgUnit.csv"
+}
+```
+### Find enrolled browsers with missing data (profile, extensions, and policies)
+```
+{
+  "Agurment": 3,
+  "Usage": "cbcmapp.exe 3",
+  "Output": "CBCM_BrowsersWithMissingData.csv"
+}
+```
+### Find browsers installed on the user's app data folder. Applies to Windows OS platform only
+```
+{
+  "Agurment": 4,
+  "Usage": "cbcmapp.exe 4",
+  "Output": "CBCM_BrowserDevicesInstalledOnUserAppDataFolder.csv"
+}
+```
+### Bulk upload extension IDs to an OU with install policy
+```
+{
+  "Agurment": "5" "OU ID" "Install Policy (ALLOWED, BLOCKED, FORCED)" "extensions ID csv file",
+  "Usage": cbcmapp.exe 5 "03phkw8rsq" "BLOCKED" "C:/Temp/BatchUploadExtensions.csv",
+  "Output": "BatchUploadExtensionsToOu.txt"
+}
+```
