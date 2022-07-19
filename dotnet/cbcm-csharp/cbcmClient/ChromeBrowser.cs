@@ -21,11 +21,11 @@ namespace cbcmClient
             this.CustomerID = customerID;
         }
 
+        [ObsoleteAttribute("This method is obsolete. Call AllBasicEnrolledBrowsersSaveToFile instead.", true)]
         /// <summary>
         /// Get all enrolled browsers - Full projection - with the optional org unit path.
         /// </summary>
         /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
-        /// <exception cref="ApplicationException"></exception>
         public void GetAllEnrolledBrowsers(string orgUnitPath)
         {
   
@@ -100,6 +100,152 @@ namespace cbcmClient
                 throw new ApplicationException(String.Format("Service URI: {0}\r\nContent: {1}.\r\n", responseUri, content), ex);
             }
 
+        }
+
+        /// <summary>
+        /// Save all enrolled browsers - Full projection - with the optional org unit path.
+        /// </summary>
+        /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
+        /// <param name="projection">Restrict information returned to a set of selected fields.</param>
+        /// <param name="fileExt">Valid file extension types are "csv" or "json".</param>
+        public void AllBasicEnrolledBrowsersSaveToFile(string orgUnitPath, string projection, string fileExt)
+        {
+            this.EnrolledBrowsersSaveToFile(string.Empty,
+                orgUnitPath,
+                "BASIC",
+                "machine_name",
+                "ASCENDING",
+                100,
+                String.Compare(fileExt, "json", true)==0 ? "json": "csv");
+        }
+
+        /// <summary>
+        /// Save all Chrome browser devices to file
+        /// https://support.google.com/chrome/a/answer/9681204?hl=en
+        /// CSV output file will contain basic info only - deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion
+        /// </summary>
+        /// <param name="query">Search string using the list page query language</param>
+        /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
+        /// <param name="projection">Restrict information returned to a set of selected fields. "BASIC" - Includes only the basic metadata fields. "FULL" - Includes all metadata fields</param>
+        /// <param name="orderBy">Chrome browser device property to use for sorting results</param>
+        /// <param name="sortOrder">"ASCENDING" - Ascending order. "DESCENDING" - Descending order.</param>
+        /// <param name="maxResults">Maximum number of results to return. Maximum, is 100.</param>
+        /// <param name="fileExt">Valid input types "csv" or "json". Default is cvs</param>
+        private void EnrolledBrowsersSaveToFile(string query, string orgUnitPath, string projection, string orderBy, string sortOrder, int maxResults, string fileExt)
+        {
+            string nextPageToken = String.Empty;
+            BrowserDevices browserDevices = null;
+            string content = String.Empty;
+            string responseUri = String.Empty;
+            RestClient client;
+            StringBuilder stringBuilder = new StringBuilder();
+            string outputFileName = String.Format("all-enrolled-browser-data-{0}.csv", DateTime.Now.Ticks);
+
+            if (String.Compare(fileExt, "json", true) == 0)
+                outputFileName = String.Format("all-enrolled-browser-data-{0}.json", DateTime.Now.Ticks);
+
+
+            try
+            {
+                string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
+                string token = this.GetAuthBearerToken(scope);
+
+                string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection={1}&orderBy={2}&sortOrder={3}&maxResults={4}&pageToken="
+                      , this.CustomerID
+                      , projection
+                      , String.IsNullOrEmpty(orderBy) ? "last_activity" : orderBy
+                      , String.IsNullOrEmpty(sortOrder) ? "DESCENDING" : sortOrder
+                      , maxResults);
+
+                if (!String.IsNullOrEmpty(query))
+                    serviceURL = serviceURL + "&query=" + query;
+
+                if (!String.IsNullOrEmpty(orgUnitPath))
+                    serviceURL = serviceURL + "&orgUnitPath=" + orgUnitPath;
+
+                /*** Storing results in memory can lead to out of memory exception.
+                 * Therefore, this hack will append resulting paginated data to file. Consider storging in a database.
+                 */
+
+                stringBuilder.AppendLine("deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion");
+
+                // Create a file to write to.
+                using (StreamWriter sw = File.CreateText(outputFileName))
+                {
+                    do
+                    {
+                        client = new RestClient();
+                        client.Timeout = base._timeout;
+
+                        UriBuilder builder = new UriBuilder(serviceURL);
+                        var qs = HttpUtility.ParseQueryString(builder.Query);
+                        qs.Set("pageToken", nextPageToken);
+                        builder.Query = qs.ToString();
+
+                        client.BaseUrl = builder.Uri;
+
+                        var request = new RestRequest(Method.GET);
+                        request.AddHeader("Content-Type", "application/json");
+                        request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+                        IRestResponse response = client.Execute(request);
+
+                        if (response is null)
+                        {
+                            nextPageToken = String.Empty;
+                            continue;
+                        }
+
+                        //useful for debugging
+                        if (response.ResponseUri != null && response.Content != null)
+                        {
+                            responseUri = response.ResponseUri.ToString();
+                            content = response.Content;
+                        }
+
+                        browserDevices = BrowserDevices.FromJson(content);
+
+                        if (String.Compare(fileExt, "json", true) == 0)
+                            sw.WriteLine(content);
+                        else
+                        {
+                            //check if a matching browser was found and then add to list.
+                            if (browserDevices != null && (browserDevices.Browsers != null && browserDevices.Browsers.Count > 0))
+                            {
+
+                                foreach (var browser in browserDevices.Browsers)
+                                {
+                                    stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8}",
+                                        browser.DeviceId,
+                                        browser.MachineName,
+                                        browser.OrgUnitPath,
+                                        browser.LastDeviceUser,
+                                        browser.LastActivityTime?.ToString("yyyy-MM-dd hh:mm"),
+                                        browser.SerialNumber,
+                                        browser.OsPlatform,
+                                        browser.OsArchitecture,
+                                        browser.OsVersion));
+
+                                    sw.Write(stringBuilder.ToString());
+
+                                    //clear the stringbuilder.
+                                    stringBuilder.Clear();
+
+                                }//foreach browser in browserDevices.Browsers
+                            }//browserDeices contains a valid object
+                        }//else (CSV)
+
+                        //set next page token
+                        nextPageToken = browserDevices.NextPageToken;
+
+
+                    } while (!String.IsNullOrEmpty(nextPageToken));
+                }
+
+            }
+            catch (Exception ex)
+            {
+                throw new ApplicationException(String.Format("Service URI: {0}\r\nContent: {1}.\r\n", responseUri, content), ex);
+            }
         }
 
         /// <summary>
@@ -220,30 +366,6 @@ namespace cbcmClient
             return browserList;
         }
 
-        /// <summary>
-        /// Delete a Chrome browser Device 
-        /// </summary>
-        /// <param name="deviceID">The deviceId is a unique identifier for a device and is found in the response of the Retrieve all Chrome devices operation. </param>
-        /// <returns>Response status and result.</returns>
-        private string DeleteEnrolledBrowser(string deviceID)
-        {
-            string[] scopes = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
-            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/{1}", this.CustomerID, deviceID);
-
-            RestClient client = new RestClient();
-            Uri baseUrl = new Uri(serviceURL);
-            client.BaseUrl = baseUrl;
-            client.Timeout = -1;
-            var request = new RestRequest(Method.DELETE);
-
-            request.AddHeader("Content-Type", "application/json");
-            string token = this.GetAuthBearerToken(scopes);
-            request.AddHeader("Authorization", String.Format("Bearer {0}", token));
-
-            IRestResponse response = client.Execute(request);
-
-            return response.StatusCode + " " + response.Content;
-        }
 
         /// <summary>
         /// Find enrlled browsers that have a shell created in CBCM. These don't have details like Browser profile, extensions, and policies.
@@ -427,10 +549,8 @@ namespace cbcmClient
             StringBuilder result = new StringBuilder();
             string[] scopes = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
             string token = this.GetAuthBearerToken(scopes);
-
-            RestClient client;
-            Uri baseUrl;
             string foundDeviceId;
+            string deleteOp;
 
             foreach (string deviceName in deviceNames)
             {
@@ -451,22 +571,27 @@ namespace cbcmClient
 
                 //Take only the first item in the found result set.
                 foundDeviceId = enrolledBrowserList[0].DeviceId;
-                string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/{1}", this.CustomerID, foundDeviceId);
-
-                client = new RestClient();
-                baseUrl = new Uri(serviceURL);
-                client.BaseUrl = baseUrl;
-                client.Timeout = -1;
-                var request = new RestRequest(Method.DELETE);
-
-                request.AddHeader("Content-Type", "application/json");
-                request.AddHeader("Authorization", String.Format("Bearer {0}", token));
-
-                IRestResponse response = client.Execute(request);
-                result.AppendLine(String.Format("Device {0} deleted. Resonse Code = {1}\r\nResponse Content = {2}", deviceName, response.StatusCode.ToString(), response.Content));
+                deleteOp = this.DeleteEnrolledBrowser(token, foundDeviceId);
+                result.AppendLine(String.Format("Device {0} deleted. {1}", deviceName, deleteOp));
             }
 
+            return result.ToString();
+        }
 
+        /// <summary>
+        /// Delete enrolled browser by device ID.
+        /// </summary>
+        /// <param name="deviceIDs">List of device IDs.</param>
+        /// <returns></returns>
+        public string DeleteChromeBrowserByDeviceId(List<string> deviceIDs)
+        {
+            StringBuilder result = new StringBuilder();
+            string deleteOp;
+            foreach (string deviceID in deviceIDs)
+            {
+                deleteOp = this.DeleteEnrolledBrowser(string.Empty, deviceID);
+                result.AppendLine(deleteOp);
+            }
             return result.ToString();
         }
 
@@ -489,11 +614,38 @@ namespace cbcmClient
 
             foreach (BrowserDevicesBrowser browser in browserList)
             {
-                this.DeleteEnrolledBrowser(browser.DeviceId);
+                this.DeleteEnrolledBrowser(String.Empty, browser.DeviceId);
             }
 
         }
 
+        /// <summary>
+        /// Delete a Chrome browser Device 
+        /// </summary>
+        /// <param name="deviceID">The deviceId is a unique identifier for a device and is found in the response of the Retrieve all Chrome devices operation. </param>
+        /// <returns>Response status and result.</returns>     
+        private string DeleteEnrolledBrowser(string token, string deviceID)
+        {
+            string[] scopes = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
+            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/{1}", this.CustomerID, deviceID);
+
+            RestClient client = new RestClient();
+            Uri baseUrl = new Uri(serviceURL);
+            client.BaseUrl = baseUrl;
+            client.Timeout = -1;
+            var request = new RestRequest(Method.DELETE);
+
+            request.AddHeader("Content-Type", "application/json");
+
+            if (String.IsNullOrEmpty(token))
+                token = this.GetAuthBearerToken(scopes);
+
+            request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+
+            IRestResponse response = client.Execute(request);
+
+            return String.Format("Resonse Code = {0}. Response Content = {1}", response.StatusCode.ToString(), response.Content);
+        }
 
     }
 }
