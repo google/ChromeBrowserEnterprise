@@ -69,6 +69,9 @@ namespace cbcmApp
                     case 100: //get detailed data from enrolled browsers.
                         Program.GetAllEnrolledBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty);
                         break;
+                    case 101: //get basic data from enrolled browsers as csv.
+                        Program.GetAllBasicEnrolledBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty);
+                        break;
                     case 800: //get browsers where the last activitiy is between start and end dates
                         Program.GetEnrolledBrowsersByLastActivity(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2], args[3]);
                         break;
@@ -78,13 +81,16 @@ namespace cbcmApp
                     case 990: //Delete a Chrome browser Device 
                         Program.DeleteEnrolledBrowser(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
                         break;
+                    case 991: //Delete a Chrome browser Device 
+                        Program.DeleteEnrolledBrowserByDeviceId(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
+                        break;
                     default:
                         Program.HelpWithArguments();
                         break;
 
                 }
 
-                Console.ReadLine();
+                //Console.ReadLine();
             }
             catch (Exception ex)
             {
@@ -104,9 +110,11 @@ namespace cbcmApp
             Console.WriteLine(@"6 Move Chrome browser Devices between Organization Units. Required arguments OU path, and file to CSV.\r\n\t Usage: cbcmapp.exe 6  ""/OU Name"" ""C:/Temp/MoveDevices.csv""");
             Console.WriteLine(@"20 Backup policies for an Organizational Unit (OU). Required arguments OU ID. \r\n\t Usage: cbcmapp.exe 20  ""OU ID""");
             Console.WriteLine(@"100 Get all enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 100 \r\n\t cbcm.exe 100 ""/North America/Algonquin""");
+            Console.WriteLine(@"101 Get Basic enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 101 \r\n\t cbcm.exe 101 ""/North America/Algonquin""");
             Console.WriteLine(@"800 Find browsers in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 800  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
             Console.WriteLine(@"890 Delete in active browser in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 890  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
-            Console.WriteLine(@"990 Delete enrolled browsers from the admin console. Required argument file to CSV.\r\n\t Usage: cbcmapp.exe 990  ""C:/Temp/deleteBrowsers.csv""");
+            Console.WriteLine(@"990 Delete enrolled browsers from the admin console. Required argument file to CSV with machine names.\r\n\t Usage: cbcmapp.exe 990  ""C:/Temp/deleteBrowsers.csv""");
+            Console.WriteLine(@"991 Delete enrolled browsers from the admin console. Required argument file to CSV with device IDs.\r\n\t Usage: cbcmapp.exe 991  ""C:/Temp/deleteBrowsers.csv""");
 
         }
 
@@ -214,6 +222,22 @@ namespace cbcmApp
             string result = chromeBrowser.DeleteChromeBrowsers(items);
             Program.Log(result, "deleteChromeBrowsers.txt");
         }
+
+        /// <summary>
+        /// Delete a Chrome browser Device by device IDs
+        /// </summary>
+        /// <param name="accountKeyFile">>service account key file</param>
+        /// <param name="customerID">>Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="filePath">File path to CSV with no header data. Limit row count to 400 app IDs</param>
+        private static void DeleteEnrolledBrowserByDeviceId(string accountKeyFile, string customerID, string adminUserToImpersonate, string filePath)
+        {
+            ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
+            List<string> items = Program.ImportData(filePath);
+            string result = chromeBrowser.DeleteChromeBrowserByDeviceId(items);
+            Program.Log(result, "deleteChromeBrowsers.txt");
+        }
+
         /// <summary>
         /// 
         /// </summary>
@@ -238,7 +262,21 @@ namespace cbcmApp
         private static void GetAllEnrolledBrowsers(string accountKeyFile, string customerID, string adminUserToImpersonate, string orgUnitPath)
         {
             ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
-            chromeBrowser.GetAllEnrolledBrowsers(orgUnitPath);
+            //chromeBrowser.GetAllEnrolledBrowsers(orgUnitPath);
+            chromeBrowser.AllBasicEnrolledBrowsersSaveToFile(orgUnitPath, "FULL", "json");
+        }
+
+        /// <summary>
+        /// Get basic projection of enrolled browser data.
+        /// </summary>
+        /// <param name="accountKeyFile">service account key file</param>
+        /// <param name="customerID">Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
+        private static void GetAllBasicEnrolledBrowsers(string accountKeyFile, string customerID, string adminUserToImpersonate, string orgUnitPath)
+        {
+            ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
+            chromeBrowser.AllBasicEnrolledBrowsersSaveToFile(orgUnitPath, "BASIC", "csv");
         }
 
         /// <summary>
