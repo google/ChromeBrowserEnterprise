@@ -72,6 +72,14 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
   "Output": "all-enrolled-browser-data.json"
 }
 ```
+### Get basic enrolled browser data with an optional argument to query by orgnizational unit. Output columns {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion}
+```
+{
+  "Agurment": "101" "OU Path"
+  "Usage": cbcmapp.exe 101 "/APAC/Tokyo"
+  "Output": "all-enrolled-browser-data.csv"
+}
+```
 ### Inactive Browser
 #### Find browsers in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd)
 ```
@@ -89,10 +97,20 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
   "Output": none
 }
 ```
-### Delete enrolled browsers from the admin console
+### Delete Enrolled Browser
+#### Delete enrolled browsers from the admin console. Input file must contain a comma-separated list of machine names.
 ```
 {
   "Agurment": "990" "machine names csv file"
-  "Usage": cbcmapp.exe 890 "C:/Temp/deleteBrowsers.csv"
+  "Usage": cbcmapp.exe 990 "C:/Temp/deleteBrowsers.csv"
   "Output": "deleteChromeBrowsers.csv"
 }
+```
+#### Delete enrolled browsers from the admin console. Input file must contain a comma-separated list of deviceIds.
+```
+{
+  "Agurment": "991" "deviceId csv file"
+  "Usage": cbcmapp.exe 991 "C:/Temp/deleteBrowsers.csv"
+  "Output": "deleteChromeBrowsers.csv"
+}
+```
