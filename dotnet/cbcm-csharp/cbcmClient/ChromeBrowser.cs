@@ -324,21 +324,16 @@ namespace cbcmClient
                         continue;
                     }
 
-                    //useful for debugging
-                    if (response.ResponseUri != null && response.Content != null)
-                    {
-                        responseUri = response.ResponseUri.ToString();
-                        content = response.Content;
-                    }
+                    responseUri = response.ResponseUri.ToString();
+                    content = response.Content;
 
                     browserDevices = BrowserDevices.FromJson(content);
 
-                    //check if a matching browser was found and then add to list.
-                    if (browserDevices != null && (browserDevices.Browsers != null && browserDevices.Browsers.Count > 0))
-                        browserList.AddRange(browserDevices.Browsers);
-
                     //set next page token
                     nextPageToken = browserDevices.NextPageToken;
+
+                    if (browserDevices.Browsers != null)
+                        browserList.AddRange(browserDevices.Browsers);
 
 
                 } while (!String.IsNullOrEmpty(nextPageToken));
@@ -361,7 +356,7 @@ namespace cbcmClient
             List<BrowserDevicesBrowser> browserList = this.GetEnrolledBrowsers(
                 String.Empty
                 , String.Empty
-                , "FULL"
+                , "BASIC"
                 , "last_activity"
                 , "DESCENDING"
                 , 100);
@@ -400,7 +395,7 @@ namespace cbcmClient
 
             StringBuilder stringBuilder = new StringBuilder();
             //write the header.
-            stringBuilder.AppendLine("OrgUnitPath,deviceId,machineName,executablePath,channel,browserVersion,lastStatusReportTime");
+            stringBuilder.AppendLine("OrgUnitPath,deviceId,machineName,executablePath,channel,browserVersion,lastActivityTime");
 
             foreach (BrowserDevicesBrowser browserDevice in browserList)
             {
@@ -408,14 +403,14 @@ namespace cbcmClient
                 {
                     if (!String.IsNullOrEmpty(browser.ExecutablePath) && browser.ExecutablePath.Contains("users"))
                     {
-                        stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5}"
+                        stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6}"
                             , browserDevice.OrgUnitPath
                             , browserDevice.DeviceId
                             , browserDevice.MachineName
                             , browser.ExecutablePath
                             , browser.Channel
                             , browser.BrowserVersion
-                            , browser.LastStatusReportTime
+                            , browserDevice.LastActivityTime?.ToString("yyyy-MM-dd hh:mm")
                             ));
                     }
                 }//foreach browserDevice.Browsers                    
@@ -515,8 +510,8 @@ namespace cbcmClient
                     , browser.OrgUnitPath
                     , browser.DeviceId
                     , browser.MachineName
-                    , browser.LastActivityTime
-                    , browser.LastPolicyFetchTime
+                    , browser.LastActivityTime?.ToString("yyyy-MM-dd hh:mm")
+                    , browser.LastPolicyFetchTime?.ToString("yyyy-MM-dd hh:mm")
                     , browser.OsPlatform)
                     );
             }
