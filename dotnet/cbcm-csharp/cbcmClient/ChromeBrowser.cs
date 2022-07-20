@@ -163,10 +163,6 @@ namespace cbcmClient
                 if (!String.IsNullOrEmpty(orgUnitPath))
                     serviceURL = serviceURL + "&orgUnitPath=" + orgUnitPath;
 
-                /*** Storing results in memory can lead to out of memory exception.
-                 * Therefore, this hack will append resulting paginated data to file. Consider storging in a database.
-                 */
-
                 stringBuilder.AppendLine("deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion");
 
                 // Create a file to write to.
@@ -195,48 +191,38 @@ namespace cbcmClient
                             continue;
                         }
 
-                        //useful for debugging
-                        if (response.ResponseUri != null && response.Content != null)
-                        {
-                            responseUri = response.ResponseUri.ToString();
-                            content = response.Content;
-                        }
-
+                        responseUri = response.ResponseUri.ToString();
+                        
+                        content = response.Content;
                         browserDevices = BrowserDevices.FromJson(content);
-
-                        if (String.Compare(fileExt, "json", true) == 0)
-                            sw.WriteLine(content);
-                        else
-                        {
-                            //check if a matching browser was found and then add to list.
-                            if (browserDevices != null && (browserDevices.Browsers != null && browserDevices.Browsers.Count > 0))
-                            {
-
-                                foreach (var browser in browserDevices.Browsers)
-                                {
-                                    stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8}",
-                                        browser.DeviceId,
-                                        browser.MachineName,
-                                        browser.OrgUnitPath,
-                                        browser.LastDeviceUser,
-                                        browser.LastActivityTime?.ToString("yyyy-MM-dd hh:mm"),
-                                        browser.SerialNumber,
-                                        browser.OsPlatform,
-                                        browser.OsArchitecture,
-                                        browser.OsVersion));
-
-                                    sw.Write(stringBuilder.ToString());
-
-                                    //clear the stringbuilder.
-                                    stringBuilder.Clear();
-
-                                }//foreach browser in browserDevices.Browsers
-                            }//browserDeices contains a valid object
-                        }//else (CSV)
-
+                        
                         //set next page token
                         nextPageToken = browserDevices.NextPageToken;
 
+                        if (String.Compare(fileExt, "json", true) == 0)
+                            sw.WriteLine(content);
+                        else //csv
+                        {
+                            foreach (var browser in browserDevices.Browsers)
+                            {
+                                stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8}",
+                                    browser.DeviceId,
+                                    browser.MachineName,
+                                    browser.OrgUnitPath,
+                                    browser.LastDeviceUser,
+                                    browser.LastActivityTime?.ToString("yyyy-MM-dd hh:mm"),
+                                    browser.SerialNumber,
+                                    browser.OsPlatform,
+                                    browser.OsArchitecture,
+                                    browser.OsVersion));
+
+                            }//foreach browser in browserDevices.Browsers
+                            sw.Write(stringBuilder.ToString());
+
+                            //clean up work
+                            stringBuilder.Clear();
+                            browserDevices = null;  //to-do: nextpagetoken is duplicating and isn't easy to reproduce. adding this for safety.
+                        }//else (CSV)
 
                     } while (!String.IsNullOrEmpty(nextPageToken));
                 }
