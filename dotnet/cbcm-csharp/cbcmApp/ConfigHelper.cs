@@ -3,7 +3,6 @@ using System.Configuration;
 
 namespace cbcmApp
 {
-   
     internal sealed class ConfigHelper
     {
         private AppSettingsReader appSettingsReader = null;
@@ -44,8 +43,5 @@ namespace cbcmApp
         {
             this.appSettingsReader = new AppSettingsReader();
         }
-
-
     }
-
 }

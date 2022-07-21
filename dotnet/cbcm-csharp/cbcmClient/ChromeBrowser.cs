@@ -288,12 +288,12 @@ namespace cbcmClient
                 }
                 
 
-                string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection={1}&orderBy={2}&sortOrder={3}&maxResults={4}&pageToken="
-                       , this.CustomerID
-                       , projection
-                       , String.IsNullOrEmpty(orderBy) ? "last_activity" : orderBy
-                       , String.IsNullOrEmpty(sortOrder) ? "DESCENDING" : sortOrder
-                       , maxResults);
+                string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection={1}&orderBy={2}&sortOrder={3}&maxResults={4}&pageToken=",
+                    this.CustomerID,
+                    projection,
+                    String.IsNullOrEmpty(orderBy) ? "last_activity" : orderBy,
+                    String.IsNullOrEmpty(sortOrder) ? "DESCENDING" : sortOrder,
+                    maxResults);
 
                 if (!String.IsNullOrEmpty(query))
                     serviceURL = serviceURL + "&query=" + query;
@@ -354,12 +354,12 @@ namespace cbcmClient
         public void GetBrowsersWithMissingData()
         {
             List<BrowserDevicesBrowser> browserList = this.GetEnrolledBrowsers(
-                String.Empty
-                , String.Empty
-                , "BASIC"
-                , "last_activity"
-                , "DESCENDING"
-                , 100);
+                String.Empty,
+                String.Empty,
+                "BASIC",
+                "last_activity",
+                "DESCENDING",
+                100);
 
             StringBuilder stringBuilder = new StringBuilder();
             //write the header.
@@ -370,13 +370,13 @@ namespace cbcmClient
                 if ((!browser.LastStatusReportTime.HasValue &&
                     !browser.LastPolicyFetchTime.HasValue) &&
                     !browser.LastStatusReportTime.HasValue)
-                    stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5}"
-                        , browser.OrgUnitPath
-                        , browser.DeviceId
-                        , browser.MachineName
-                        , browser.LastRegistrationTime
-                        , browser.ExtensionCount.HasValue ? browser.ExtensionCount.Value.ToString() : String.Empty
-                        , browser.PolicyCount.HasValue ? browser.PolicyCount.Value.ToString() : String.Empty)
+                    stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5}",
+                        browser.OrgUnitPath,
+                        browser.DeviceId,
+                        browser.MachineName,
+                        browser.LastRegistrationTime,
+                        browser.ExtensionCount.HasValue ? browser.ExtensionCount.Value.ToString() : String.Empty,
+                        browser.PolicyCount.HasValue ? browser.PolicyCount.Value.ToString() : String.Empty)
                         );
             }
 
@@ -386,12 +386,12 @@ namespace cbcmClient
         public void GetBrowserDevicesInstalledOnUserAppDataFolder()
         {
             List<BrowserDevicesBrowser> browserList = this.GetEnrolledBrowsers(
-                "os_platform:Windows"
-                , String.Empty
-                , "FULL"
-                , "last_activity"
-                , "DESCENDING"
-                , 100);
+                "os_platform:Windows",
+                String.Empty,
+                "FULL",
+                "last_activity",
+                "DESCENDING",
+                100);
 
             StringBuilder stringBuilder = new StringBuilder();
             //write the header.
@@ -403,14 +403,14 @@ namespace cbcmClient
                 {
                     if (!String.IsNullOrEmpty(browser.ExecutablePath) && browser.ExecutablePath.Contains("users"))
                     {
-                        stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6}"
-                            , browserDevice.OrgUnitPath
-                            , browserDevice.DeviceId
-                            , browserDevice.MachineName
-                            , browser.ExecutablePath
-                            , browser.Channel
-                            , browser.BrowserVersion
-                            , browserDevice.LastActivityTime?.ToString("yyyy-MM-dd hh:mm")
+                        stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6}",
+                            browserDevice.OrgUnitPath,
+                            browserDevice.DeviceId,
+                            browserDevice.MachineName,
+                            browser.ExecutablePath,
+                            browser.Channel,
+                            browser.BrowserVersion,
+                            browserDevice.LastActivityTime?.ToString("yyyy-MM-dd hh:mm")
                             ));
                     }
                 }//foreach browserDevice.Browsers                    
@@ -441,13 +441,13 @@ namespace cbcmClient
             foreach (string deviceName in deviceNames)
             {
 
-                enrolledBrowserList = this.GetEnrolledBrowsers(token
-                    , String.Format("machine_name:{0}", deviceName)
-                    , String.Empty
-                    , "BASIC"
-                    , "last_activity"
-                    , "DESCENDING"
-                    , 100
+                enrolledBrowserList = this.GetEnrolledBrowsers(token,
+                    String.Format("machine_name:{0}", deviceName),
+                    String.Empty,
+                    "BASIC",
+                    "last_activity",
+                    "DESCENDING",
+                    100
                     );
 
                 if (enrolledBrowserList.Count < 1)
@@ -506,13 +506,13 @@ namespace cbcmClient
 
             foreach (BrowserDevicesBrowser browser in browserList)
             {
-                stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5}"
-                    , browser.OrgUnitPath
-                    , browser.DeviceId
-                    , browser.MachineName
-                    , browser.LastActivityTime?.ToString("yyyy-MM-dd hh:mm")
-                    , browser.LastPolicyFetchTime?.ToString("yyyy-MM-dd hh:mm")
-                    , browser.OsPlatform)
+                stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5}",
+                    browser.OrgUnitPath,
+                    browser.DeviceId,
+                    browser.MachineName,
+                    browser.LastActivityTime?.ToString("yyyy-MM-dd hh:mm"),
+                    browser.LastPolicyFetchTime?.ToString("yyyy-MM-dd hh:mm"),
+                    browser.OsPlatform)
                     );
             }
 
@@ -535,13 +535,13 @@ namespace cbcmClient
 
             foreach (string deviceName in deviceNames)
             {
-                enrolledBrowserList = this.GetEnrolledBrowsers(token
-                    , String.Format("machine_name:{0}", deviceName)
-                    , String.Empty
-                    , "BASIC"
-                    , "last_activity"
-                    , "DESCENDING"
-                    , 100
+                enrolledBrowserList = this.GetEnrolledBrowsers(token,
+                    String.Format("machine_name:{0}", deviceName),
+                    String.Empty,
+                    "BASIC",
+                    "last_activity",
+                    "DESCENDING",
+                    100
                     );
 
                 if (enrolledBrowserList.Count < 1)
@@ -585,12 +585,12 @@ namespace cbcmClient
         public void DeleteInactiveBrowsers(string orgUnitPath, DateTime startDate, DateTime endDate)
         {
             List<BrowserDevicesBrowser> browserList = this.GetEnrolledBrowsers(
-                String.Format("last_activity:{0}..{1}", startDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd"))
-                , orgUnitPath
-                , "BASIC"
-                , "last_activity"
-                , "ASCENDING"
-                , 100);
+                String.Format("last_activity:{0}..{1}", startDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd")),
+                orgUnitPath,
+                "BASIC",
+                "last_activity",
+                "ASCENDING",
+                100);
 
 
             foreach (BrowserDevicesBrowser browser in browserList)
