@@ -106,7 +106,7 @@ namespace cbcmApp
             Console.WriteLine("2 Get All Organizational Units (OU).");
             Console.WriteLine("3 Find enrolled browsers with missing data (profile, extensions, and policies).");
             Console.WriteLine("4 Find browsers installed on the user's app data folder. Applies to Windows OS platform only.");
-            Console.WriteLine(@"5 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV.\r\n\t Usage: cbcmapp.exe 5  ""OU ID"" ""BLOCKED"" ""C:/Temp/BatchUploadExtensions.csv""");
+            Console.WriteLine(@"5 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV/TXT.\r\n\t Usage: cbcmapp.exe 5  ""OU ID"" ""BLOCKED"" ""C:/Temp/BatchUploadExtensions.csv""");
             Console.WriteLine(@"6 Move Chrome browser Devices between Organization Units. Required arguments OU path, and file to CSV.\r\n\t Usage: cbcmapp.exe 6  ""/OU Name"" ""C:/Temp/MoveDevices.csv""");
             Console.WriteLine(@"20 Backup policies for an Organizational Unit (OU). Required arguments OU ID. \r\n\t Usage: cbcmapp.exe 20  ""OU ID""");
             Console.WriteLine(@"100 Get all enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 100 \r\n\t cbcm.exe 100 ""/North America/Algonquin""");
@@ -114,7 +114,7 @@ namespace cbcmApp
             Console.WriteLine(@"800 Find browsers in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 800  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
             Console.WriteLine(@"890 Delete in active browser in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 890  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
             Console.WriteLine(@"990 Delete enrolled browsers from the admin console. Required argument file to CSV with machine names.\r\n\t Usage: cbcmapp.exe 990  ""C:/Temp/deleteBrowsers.csv""");
-            Console.WriteLine(@"991 Delete enrolled browsers from the admin console. Required argument file to CSV with device IDs.\r\n\t Usage: cbcmapp.exe 991  ""C:/Temp/deleteBrowsers.csv""");
+            Console.WriteLine(@"991 Delete enrolled browsers from the admin console. Required argument file to CSV/TXT with device IDs.\r\n\t Usage: cbcmapp.exe 991  ""C:/Temp/deleteBrowsers.csv""");
 
         }
 
@@ -342,7 +342,28 @@ namespace cbcmApp
             if (!File.Exists(filePath))
                 throw new FileNotFoundException(String.Format("Unable to find {0}", filePath));
 
-            string[] separators = {","};
+            List<string> result;
+            string fileExt = Path.GetExtension(filePath);
+
+            if (String.Compare(fileExt, ".csv", true) == 0)
+                result = Program.ImportCSV(filePath);
+            else if (String.Compare(fileExt, ".txt", true) == 0)
+                result = Program.ImportTXT(filePath);
+            else 
+                result = new List<string>();
+
+            return result;
+        }
+
+        /// <summary>
+        /// Import data from CSV
+        /// </summary>
+        /// <param name="filePath"></param>
+        /// <returns></returns>
+        /// <exception cref="ApplicationException"></exception>
+        private static List<string> ImportCSV(string filePath)
+        {
+            string[] separators = { "," };
             string content = File.ReadAllText(filePath);
             string[] lines = content.Split(separators, StringSplitOptions.RemoveEmptyEntries);
             string[] linesTrimmed = lines.Select(line => line.Trim()).ToArray();
@@ -356,6 +377,25 @@ namespace cbcmApp
                 throw new ApplicationException(String.Format("{0} contains more than {1} entries. Please limit the entries to {1} or less.", filePath, max));
 
             return new List<string>(linesTrimmed);
+        }
+
+        /// <summary>
+        /// Import data from TXT
+        /// </summary>
+        /// <param name="filePath"></param>
+        /// <returns></returns>
+        /// <exception cref="ApplicationException"></exception>
+        private static List<string> ImportTXT(string filePath)
+        {
+            List<string> result = File.ReadLines(filePath, System.Text.Encoding.Default)
+                .Where(l => !String.IsNullOrEmpty(l)).ToList();
+
+            int max = 400;
+
+            if (result.Count > max)
+                throw new ApplicationException(String.Format("{0} contains more than {1} entries. Please limit the entries to {1} or less.", filePath, max));
+
+            return result;
         }
 
 
