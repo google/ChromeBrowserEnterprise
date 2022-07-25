@@ -19,15 +19,15 @@ namespace cbcmClient
 
         internal string AdminUserToImpersonate { get; set; }    
 
-        private string[] _scopes = {"https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly"
-                ,"https://www.googleapis.com/auth/admin.directory.device.chromebrowsers"
-                ,"https://www.googleapis.com/auth/chrome.management.reports.readonly"
-                ,"https://www.googleapis.com/auth/chrome.management.appdetails.readonly"
-                ,"https://www.googleapis.com/auth/chrome.management.policy.readonly"
-                ,"https://www.googleapis.com/auth/chrome.management.policy"
-                ,"https://www.googleapis.com/auth/admin.directory.orgunit.readonly"
-                ,"https://www.googleapis.com/auth/admin.directory.orgunit"
-                ,"https://www.googleapis.com/auth/admin.reports.audit.readonly" };
+        private string[] _scopes = {"https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly",
+            "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers",
+            "https://www.googleapis.com/auth/chrome.management.reports.readonly",
+            "https://www.googleapis.com/auth/chrome.management.appdetails.readonly",
+            "https://www.googleapis.com/auth/chrome.management.policy.readonly",
+            "https://www.googleapis.com/auth/chrome.management.policy",
+            "https://www.googleapis.com/auth/admin.directory.orgunit.readonly",
+            "https://www.googleapis.com/auth/admin.directory.orgunit",
+            "https://www.googleapis.com/auth/admin.reports.audit.readonly" };
 
         internal string LogOutputFormat = "csv";
 

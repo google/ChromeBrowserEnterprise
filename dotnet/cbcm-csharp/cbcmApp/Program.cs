@@ -47,7 +47,6 @@ namespace cbcmApp
                     case 1: //print access token
                         Program.AccessToken(accountKeyFile, customerID, adminUserToImpersonate);
                         break;
-
                     case 2: //log all OU data.
                         Program.GetAllOrganizationalUnits(accountKeyFile, customerID, adminUserToImpersonate);
                         break;
@@ -87,7 +86,6 @@ namespace cbcmApp
                     default:
                         Program.HelpWithArguments();
                         break;
-
                 }
 
                 //Console.ReadLine();
@@ -115,7 +113,6 @@ namespace cbcmApp
             Console.WriteLine(@"890 Delete in active browser in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 890  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
             Console.WriteLine(@"990 Delete enrolled browsers from the admin console. Required argument file to CSV with machine names.\r\n\t Usage: cbcmapp.exe 990  ""C:/Temp/deleteBrowsers.csv""");
             Console.WriteLine(@"991 Delete enrolled browsers from the admin console. Required argument file to CSV/TXT with device IDs.\r\n\t Usage: cbcmapp.exe 991  ""C:/Temp/deleteBrowsers.csv""");
-
         }
 
         /// <summary>
@@ -397,7 +394,5 @@ namespace cbcmApp
 
             return result;
         }
-
-
     }
 }

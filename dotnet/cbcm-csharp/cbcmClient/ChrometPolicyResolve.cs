@@ -142,7 +142,6 @@ namespace cbcmClient
 
             try
             {
-
                 //set the org unit.
                 cbcmSchema.ChromeBrowserPolicyRequest.PolicyTargetKey policyTargetKey = new cbcmSchema.ChromeBrowserPolicyRequest.PolicyTargetKey();
                 policyTargetKey.TargetResource = String.Format("orgunits/{0}", orgUnitId);
