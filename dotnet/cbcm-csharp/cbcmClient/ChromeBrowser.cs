@@ -28,76 +28,63 @@ namespace cbcmClient
         /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
         public void GetAllEnrolledBrowsers(string orgUnitPath)
         {
-  
+
             string nextPageToken = String.Empty;
             BrowserDevices browserDevices = null;
             string content = String.Empty;
-            string responseUri = String.Empty;
             RestClient client;
 
-            try
+
+            string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
+            string token = this.GetAuthBearerToken(scope);
+
+            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection=FULL&orderBy=last_activity&sortOrder=DESCENDING&maxResults=100&pageToken="
+                   , this.CustomerID);
+
+            if (!String.IsNullOrEmpty(orgUnitPath))
+                serviceURL = serviceURL + "&orgUnitPath=" + orgUnitPath;
+
+            /*** Storing results in memory can lead to out of memory exception.
+             * Therefore, this hack will append resulting paginated data to file. Consider storging in a database.
+             */
+
+            // Create a file to write to.
+            using (StreamWriter sw = File.CreateText(String.Format("all-enrolled-browser-data-{0}.json", DateTime.Now.Ticks)))
             {
-                string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
-                string token = this.GetAuthBearerToken(scope);               
-
-                string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection=FULL&orderBy=last_activity&sortOrder=DESCENDING&maxResults=100&pageToken="
-                       , this.CustomerID);
-
-                if (!String.IsNullOrEmpty(orgUnitPath))
-                    serviceURL = serviceURL + "&orgUnitPath=" + orgUnitPath;
-
-                /*** Storing results in memory can lead to out of memory exception.
-                 * Therefore, this hack will append resulting paginated data to file. Consider storging in a database.
-                 */
-
-                // Create a file to write to.
-                using (StreamWriter sw = File.CreateText(String.Format("all-enrolled-browser-data-{0}.json", DateTime.Now.Ticks)))
+                do
                 {
-                    do
+                    client = new RestClient();
+                    client.Timeout = base._timeout;
+
+                    UriBuilder builder = new UriBuilder(serviceURL);
+                    var qs = HttpUtility.ParseQueryString(builder.Query);
+                    qs.Set("pageToken", nextPageToken);
+                    builder.Query = qs.ToString();
+
+                    client.BaseUrl = builder.Uri;
+
+                    var request = new RestRequest(Method.GET);
+                    request.AddHeader("Content-Type", "application/json");
+                    request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+                    IRestResponse response = client.Execute(request);
+
+                    if (response is null)
                     {
-                        client = new RestClient();
-                        client.Timeout = base._timeout;
+                        nextPageToken = String.Empty;
+                        continue;
+                    }
 
-                        UriBuilder builder = new UriBuilder(serviceURL);
-                        var qs = HttpUtility.ParseQueryString(builder.Query);
-                        qs.Set("pageToken", nextPageToken);
-                        builder.Query = qs.ToString();
+                    content = response.Content;
 
-                        client.BaseUrl = builder.Uri;
+                    browserDevices = BrowserDevices.FromJson(content);
 
-                        var request = new RestRequest(Method.GET);
-                        request.AddHeader("Content-Type", "application/json");
-                        request.AddHeader("Authorization", String.Format("Bearer {0}", token));
-                        IRestResponse response = client.Execute(request);
+                    sw.WriteLine(content);
 
-                        if (response is null)
-                        {
-                            nextPageToken = String.Empty;
-                            continue;
-                        }
-
-                        //useful for debugging
-                        if (response.ResponseUri != null && response.Content != null)
-                        {
-                            responseUri = response.ResponseUri.ToString();
-                            content = response.Content;
-                        }
-
-                        browserDevices = BrowserDevices.FromJson(content);
-
-                        sw.WriteLine(content);
-
-                        //set next page token
-                        nextPageToken = browserDevices.NextPageToken;
+                    //set next page token
+                    nextPageToken = browserDevices.NextPageToken;
 
 
-                    } while (!String.IsNullOrEmpty(nextPageToken));
-                }
-
-            }
-            catch (Exception ex)
-            {
-                throw new ApplicationException(String.Format("Service URI: {0}\r\nContent: {1}.\r\n", responseUri, content), ex);
+                } while (!String.IsNullOrEmpty(nextPageToken));
             }
 
         }
@@ -136,7 +123,6 @@ namespace cbcmClient
             string nextPageToken = String.Empty;
             BrowserDevices browserDevices = null;
             string content = String.Empty;
-            string responseUri = String.Empty;
             RestClient client;
             StringBuilder stringBuilder = new StringBuilder();
             string outputFileName = String.Format("all-enrolled-browser-data-{0}.csv", DateTime.Now.Ticks);
@@ -145,8 +131,6 @@ namespace cbcmClient
                 outputFileName = String.Format("all-enrolled-browser-data-{0}.json", DateTime.Now.Ticks);
 
 
-            try
-            {
                 string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
                 string token = this.GetAuthBearerToken(scope);
 
@@ -165,73 +149,66 @@ namespace cbcmClient
 
                 stringBuilder.AppendLine("deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion");
 
-                // Create a file to write to.
-                using (StreamWriter sw = File.CreateText(outputFileName))
-                {
-                    do
-                    {
-                        client = new RestClient();
-                        client.Timeout = base._timeout;
-
-                        UriBuilder builder = new UriBuilder(serviceURL);
-                        var qs = HttpUtility.ParseQueryString(builder.Query);
-                        qs.Set("pageToken", nextPageToken);
-                        builder.Query = qs.ToString();
-
-                        client.BaseUrl = builder.Uri;
-
-                        var request = new RestRequest(Method.GET);
-                        request.AddHeader("Content-Type", "application/json");
-                        request.AddHeader("Authorization", String.Format("Bearer {0}", token));
-                        IRestResponse response = client.Execute(request);
-
-                        if (response is null)
-                        {
-                            nextPageToken = String.Empty;
-                            continue;
-                        }
-
-                        responseUri = response.ResponseUri.ToString();
-                        
-                        content = response.Content;
-                        browserDevices = BrowserDevices.FromJson(content);
-                        
-                        //set next page token
-                        nextPageToken = browserDevices.NextPageToken;
-
-                        if (String.Compare(fileExt, "json", true) == 0)
-                            sw.WriteLine(content);
-                        else //csv
-                        {
-                            foreach (var browser in browserDevices.Browsers)
-                            {
-                                stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8}",
-                                    browser.DeviceId,
-                                    browser.MachineName,
-                                    browser.OrgUnitPath,
-                                    browser.LastDeviceUser,
-                                    browser.LastActivityTime?.ToString("yyyy-MM-dd hh:mm"),
-                                    browser.SerialNumber,
-                                    browser.OsPlatform,
-                                    browser.OsArchitecture,
-                                    browser.OsVersion));
-
-                            }//foreach browser in browserDevices.Browsers
-                            sw.Write(stringBuilder.ToString());
-
-                            //clean up work
-                            stringBuilder.Clear();
-                            browserDevices = null;  //to-do: nextpagetoken is duplicating and isn't easy to reproduce. adding this for safety.
-                        }//else (CSV)
-
-                    } while (!String.IsNullOrEmpty(nextPageToken));
-                }
-
-            }
-            catch (Exception ex)
+            // Create a file to write to.
+            using (StreamWriter sw = File.CreateText(outputFileName))
             {
-                throw new ApplicationException(String.Format("Service URI: {0}\r\nContent: {1}.\r\n", responseUri, content), ex);
+                do
+                {
+                    client = new RestClient();
+                    client.Timeout = base._timeout;
+
+                    UriBuilder builder = new UriBuilder(serviceURL);
+                    var qs = HttpUtility.ParseQueryString(builder.Query);
+                    qs.Set("pageToken", nextPageToken);
+                    builder.Query = qs.ToString();
+
+                    client.BaseUrl = builder.Uri;
+
+                    var request = new RestRequest(Method.GET);
+                    request.AddHeader("Content-Type", "application/json");
+                    request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+                    IRestResponse response = client.Execute(request);
+
+                    if (response is null)
+                    {
+                        nextPageToken = String.Empty;
+                        continue;
+                    }
+
+                    content = response.Content;
+                    browserDevices = BrowserDevices.FromJson(content);
+
+                    //set next page token
+                    nextPageToken = browserDevices.NextPageToken;
+
+                    if (String.Compare(fileExt, "json", true) == 0)
+                        sw.WriteLine(content);
+                    else //csv
+                    {
+                        foreach (var browser in browserDevices.Browsers)
+                        {
+                            stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8}",
+                                browser.DeviceId,
+                                browser.MachineName,
+                                browser.OrgUnitPath,
+                                browser.LastDeviceUser,
+                                browser.LastActivityTime?.ToString("yyyy-MM-dd hh:mm"),
+                                browser.SerialNumber,
+                                browser.OsPlatform,
+                                browser.OsArchitecture,
+                                browser.OsVersion));
+
+                        }//foreach browser in browserDevices.Browsers
+                        sw.Write(stringBuilder.ToString());
+
+                        //clean up work
+                        stringBuilder.Clear();
+                        browserDevices = null;  //to-do: nextpagetoken is duplicating and isn't easy to reproduce. adding this for safety.
+                    }//else (CSV)
+
+                } while (!String.IsNullOrEmpty(nextPageToken));
             }
+
         }
 
         /// <summary>
@@ -275,74 +252,67 @@ namespace cbcmClient
             BrowserDevices browserDevices = null;
             List<BrowserDevicesBrowser> browserList = new List<BrowserDevicesBrowser>();
             string content = String.Empty;
-            string responseUri = String.Empty;
             RestClient client;
 
-            try
+
+            //Get a new token if needed.
+            if (String.IsNullOrEmpty(token))
             {
-                //Get a new token if needed.
-                if (String.IsNullOrEmpty(token))
+                string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
+                token = this.GetAuthBearerToken(scope);
+            }
+
+
+            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection={1}&orderBy={2}&sortOrder={3}&maxResults={4}&pageToken="
+                   , this.CustomerID
+                   , projection
+                   , String.IsNullOrEmpty(orderBy) ? "last_activity" : orderBy
+                   , String.IsNullOrEmpty(sortOrder) ? "DESCENDING" : sortOrder
+                   , maxResults);
+
+            if (!String.IsNullOrEmpty(query))
+                serviceURL = serviceURL + "&query=" + query;
+
+            if (!String.IsNullOrEmpty(orgUnitPath))
+                serviceURL = serviceURL + "&orgUnitPath=" + orgUnitPath;
+
+            do
+            {
+                client = new RestClient();
+                client.Timeout = base._timeout;
+
+                UriBuilder builder = new UriBuilder(serviceURL);
+                var qs = HttpUtility.ParseQueryString(builder.Query);
+                qs.Set("pageToken", nextPageToken);
+                builder.Query = qs.ToString();
+
+                client.BaseUrl = builder.Uri;
+
+                var request = new RestRequest(Method.GET);
+                request.AddHeader("Content-Type", "application/json");
+                request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+                IRestResponse response = client.Execute(request);
+
+                if (response is null)
                 {
-                    string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
-                    token = this.GetAuthBearerToken(scope);
+                    nextPageToken = String.Empty;
+                    continue;
                 }
-                
 
-                string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection={1}&orderBy={2}&sortOrder={3}&maxResults={4}&pageToken="
-                       , this.CustomerID
-                       , projection
-                       , String.IsNullOrEmpty(orderBy) ? "last_activity" : orderBy
-                       , String.IsNullOrEmpty(sortOrder) ? "DESCENDING" : sortOrder
-                       , maxResults);
+                content = response.Content;
 
-                if (!String.IsNullOrEmpty(query))
-                    serviceURL = serviceURL + "&query=" + query;
+                browserDevices = BrowserDevices.FromJson(content);
 
-                if (!String.IsNullOrEmpty(orgUnitPath))
-                    serviceURL = serviceURL + "&orgUnitPath=" + orgUnitPath;
+                //set next page token
+                nextPageToken = browserDevices.NextPageToken;
 
-                do
-                {
-                    client = new RestClient();
-                    client.Timeout = base._timeout;
-
-                    UriBuilder builder = new UriBuilder(serviceURL);
-                    var qs = HttpUtility.ParseQueryString(builder.Query);
-                    qs.Set("pageToken", nextPageToken);
-                    builder.Query = qs.ToString();
-
-                    client.BaseUrl = builder.Uri;
-
-                    var request = new RestRequest(Method.GET);
-                    request.AddHeader("Content-Type", "application/json");
-                    request.AddHeader("Authorization", String.Format("Bearer {0}", token));
-                    IRestResponse response = client.Execute(request);
-
-                    if (response is null)
-                    {
-                        nextPageToken = String.Empty;
-                        continue;
-                    }
-
-                    responseUri = response.ResponseUri.ToString();
-                    content = response.Content;
-
-                    browserDevices = BrowserDevices.FromJson(content);
-
-                    //set next page token
-                    nextPageToken = browserDevices.NextPageToken;
-
-                    if (browserDevices.Browsers != null)
-                        browserList.AddRange(browserDevices.Browsers);
+                if (browserDevices.Browsers != null)
+                    browserList.AddRange(browserDevices.Browsers);
 
 
-                } while (!String.IsNullOrEmpty(nextPageToken));
+            } while (!String.IsNullOrEmpty(nextPageToken));
 
-            }
-            catch (Exception ex)
-            {
-                throw new ApplicationException(String.Format("Service URI: {0}\r\nContent: {1}.\r\n", responseUri, content), ex);
-            }
+
 
             return browserList;
         }
