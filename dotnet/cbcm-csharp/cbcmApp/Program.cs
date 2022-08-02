@@ -184,7 +184,7 @@ namespace cbcmApp
             if (String.IsNullOrEmpty(extensionInstallType))
                 throw new ArgumentNullException("Extension install type (FORCED, ALLOWED, BLOCKED) is required.");
 
-            List<string> extensions = Program.ImportData(filePath);
+            List<string> extensions = Program.ImportData(filePath, true);
             ChrometPolicyResolve chromeMgmtPolicy = new ChrometPolicyResolve(accountKeyFile, customerID, adminUserToImpersonate);
             string result = chromeMgmtPolicy.BatchUploadExtensionsToOU(extensions, orgUnitId.Trim(), extensionInstallType.Trim());
             Program.Log(result, "BatchUploadExtensionsToOu.txt");
@@ -203,7 +203,7 @@ namespace cbcmApp
                 throw new ArgumentNullException("OrgUnitId is required.");
 
             ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
-            List<string> items = Program.ImportData(filePath);
+            List<string> items = Program.ImportData(filePath, true);
             string result =  chromeBrowser.MoveChromeBrowsersToOu(items, orgUnitPath.Trim());
             Program.Log(result, "moveChromeBrowsersToOu.txt");
         }
@@ -218,7 +218,7 @@ namespace cbcmApp
         private static void DeleteEnrolledBrowser(string accountKeyFile, string customerID, string adminUserToImpersonate, string filePath)
         {
             ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
-            List<string> items = Program.ImportData(filePath);
+            List<string> items = Program.ImportData(filePath, false);
             string result = chromeBrowser.DeleteChromeBrowsers(items);
             Program.Log(result, "deleteChromeBrowsers.txt");
         }
@@ -233,7 +233,7 @@ namespace cbcmApp
         private static void DeleteEnrolledBrowserByDeviceId(string accountKeyFile, string customerID, string adminUserToImpersonate, string filePath)
         {
             ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
-            List<string> items = Program.ImportData(filePath);
+            List<string> items = Program.ImportData(filePath, false);
             string result = chromeBrowser.DeleteChromeBrowserByDeviceId(items);
             Program.Log(result, "deleteChromeBrowsers.txt");
         }
@@ -336,8 +336,9 @@ namespace cbcmApp
         /// Import data from file.
         /// </summary>
         /// <param name="filePath">full path to data file.</param>
+        /// <param name="limitEntries">Validate the number of items imported from file</param>
         /// <returns>List of items</returns>
-        private static List<string> ImportData(string filePath)
+        private static List<string> ImportData(string filePath, bool limitEntries)
         {
             if (!File.Exists(filePath))
                 throw new FileNotFoundException(String.Format("Unable to find {0}", filePath));
@@ -346,9 +347,9 @@ namespace cbcmApp
             string fileExt = Path.GetExtension(filePath);
 
             if (String.Compare(fileExt, ".csv", true) == 0)
-                result = Program.ImportCSV(filePath);
+                result = Program.ImportCSV(filePath, limitEntries);
             else if (String.Compare(fileExt, ".txt", true) == 0)
-                result = Program.ImportTXT(filePath);
+                result = Program.ImportTXT(filePath, limitEntries);
             else 
                 result = new List<string>();
 
@@ -359,9 +360,10 @@ namespace cbcmApp
         /// Import data from CSV
         /// </summary>
         /// <param name="filePath"></param>
+        /// <param name="limitEntries"></param>
         /// <returns></returns>
         /// <exception cref="ApplicationException"></exception>
-        private static List<string> ImportCSV(string filePath)
+        private static List<string> ImportCSV(string filePath, bool limitEntries)
         {
             string[] separators = { "," };
             string content = File.ReadAllText(filePath);
@@ -373,7 +375,7 @@ namespace cbcmApp
             //max entries allowed for processing.
             int max = 400;
 
-            if (linesTrimmed.Length > max)
+            if (limitEntries == true && linesTrimmed.Length > max)
                 throw new ApplicationException(String.Format("{0} contains more than {1} entries. Please limit the entries to {1} or less.", filePath, max));
 
             return new List<string>(linesTrimmed);
@@ -383,16 +385,17 @@ namespace cbcmApp
         /// Import data from TXT
         /// </summary>
         /// <param name="filePath"></param>
+        /// <param name="limitEntries"></param>
         /// <returns></returns>
         /// <exception cref="ApplicationException"></exception>
-        private static List<string> ImportTXT(string filePath)
+        private static List<string> ImportTXT(string filePath, bool limitEntries)
         {
             List<string> result = File.ReadLines(filePath, System.Text.Encoding.Default)
                 .Where(l => !String.IsNullOrEmpty(l)).ToList();
 
             int max = 400;
 
-            if (result.Count > max)
+            if (limitEntries == true && result.Count > max)
                 throw new ApplicationException(String.Format("{0} contains more than {1} entries. Please limit the entries to {1} or less.", filePath, max));
 
             return result;
