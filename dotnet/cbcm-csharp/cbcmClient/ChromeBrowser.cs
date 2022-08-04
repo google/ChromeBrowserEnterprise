@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using System.Text;
 using System.Web;
@@ -99,7 +100,7 @@ namespace cbcmClient
         {
             this.EnrolledBrowsersSaveToFile(string.Empty,
                 orgUnitPath,
-                "BASIC",
+                projection,
                 "machine_name",
                 "ASCENDING",
                 100,
@@ -127,27 +128,26 @@ namespace cbcmClient
             StringBuilder stringBuilder = new StringBuilder();
             string outputFileName = String.Format("all-enrolled-browser-data-{0}.csv", DateTime.Now.Ticks);
 
-            if (String.Compare(fileExt, "json", true) == 0)
-                outputFileName = String.Format("all-enrolled-browser-data-{0}.json", DateTime.Now.Ticks);
+            string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
+            string token = this.GetAuthBearerToken(scope);
 
+            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection={1}&orderBy={2}&sortOrder={3}&maxResults={4}&pageToken="
+                  , this.CustomerID
+                  , projection
+                  , String.IsNullOrEmpty(orderBy) ? "last_activity" : orderBy
+                  , String.IsNullOrEmpty(sortOrder) ? "DESCENDING" : sortOrder
+                  , maxResults);
 
-                string[] scope = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly" };
-                string token = this.GetAuthBearerToken(scope);
+            if (!String.IsNullOrEmpty(query))
+                serviceURL = serviceURL + "&query=" + query;
 
-                string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?projection={1}&orderBy={2}&sortOrder={3}&maxResults={4}&pageToken="
-                      , this.CustomerID
-                      , projection
-                      , String.IsNullOrEmpty(orderBy) ? "last_activity" : orderBy
-                      , String.IsNullOrEmpty(sortOrder) ? "DESCENDING" : sortOrder
-                      , maxResults);
+            if (!String.IsNullOrEmpty(orgUnitPath))
+                serviceURL = serviceURL + "&orgUnitPath=" + orgUnitPath;
 
-                if (!String.IsNullOrEmpty(query))
-                    serviceURL = serviceURL + "&query=" + query;
-
-                if (!String.IsNullOrEmpty(orgUnitPath))
-                    serviceURL = serviceURL + "&orgUnitPath=" + orgUnitPath;
-
-                stringBuilder.AppendLine("deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion");
+            if (String.Compare(projection, "FULL", true) == 0)
+                stringBuilder.AppendLine("deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion,policyCount,machinePolicies,extensionCount,extensionId,extensionName");
+            else
+                stringBuilder.AppendLine("deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion,policyCount,extensionCount");
 
             // Create a file to write to.
             using (StreamWriter sw = File.CreateText(outputFileName))
@@ -181,35 +181,95 @@ namespace cbcmClient
                     //set next page token
                     nextPageToken = browserDevices.NextPageToken;
 
-                    if (String.Compare(fileExt, "json", true) == 0)
-                        sw.WriteLine(content);
-                    else //csv
+                    foreach (var browser in browserDevices.Browsers)
                     {
-                        foreach (var browser in browserDevices.Browsers)
+                        
+
+                        if (String.Compare(projection, "FULL", true) == 0)
                         {
-                            stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8}",
-                                browser.DeviceId,
-                                browser.MachineName,
-                                browser.OrgUnitPath,
-                                browser.LastDeviceUser,
-                                browser.LastActivityTime?.ToString("yyyy-MM-dd hh:mm"),
-                                browser.SerialNumber,
-                                browser.OsPlatform,
-                                browser.OsArchitecture,
-                                browser.OsVersion));
+                            stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},\"[{10}]\",{11},\"[{12}]\"",
+                            browser.DeviceId,                                           //0
+                            browser.MachineName,                                        //1
+                            browser.OrgUnitPath,                                        //2
+                            browser.LastDeviceUser,                                     //3
+                            browser.LastActivityTime?.ToString("yyyy-MM-dd hh:mm"),     //4
+                            browser.SerialNumber,                                       //5
+                            browser.OsPlatform,                                         //6
+                            browser.OsArchitecture,                                     //7
+                            browser.OsVersion,                                          //8
+                            browser.PolicyCount?.ToString(),                            //9
+                            this.PrettyPrint(browser.MachinePolicies),                  //10
+                            browser.ExtensionCount?.ToString(),                         //11
+                            this.PrettyPrint(browser.AllExtensions)                     //12
+                            ));
+                        }
+                        else
+                        {
+                            stringBuilder.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10}",
+                            browser.DeviceId,
+                            browser.MachineName,
+                            browser.OrgUnitPath,
+                            browser.LastDeviceUser,
+                            browser.LastActivityTime?.ToString("yyyy-MM-dd hh:mm"),
+                            browser.SerialNumber,
+                            browser.OsPlatform,
+                            browser.OsArchitecture,
+                            browser.OsVersion,
+                            browser.PolicyCount?.ToString(),
+                            browser.ExtensionCount?.ToString()
+                            ));
+                        }
 
-                        }//foreach browser in browserDevices.Browsers
-                        sw.Write(stringBuilder.ToString());
+                    }//foreach browser in browserDevices.Browsers
+                    sw.Write(stringBuilder.ToString());
 
-                        //clean up work
-                        stringBuilder.Clear();
-                        browserDevices = null;  //to-do: nextpagetoken is duplicating and isn't easy to reproduce. adding this for safety.
-                    }//else (CSV)
+                    //clean up work
+                    stringBuilder.Clear();
+                    browserDevices = null;  //to-do: nextpagetoken is duplicating and isn't easy to reproduce. adding this for safety.
 
                 } while (!String.IsNullOrEmpty(nextPageToken));
             }
 
         }
+        #region Policy Formatter Helper
+        private string PrettyPrint(List<Policy> policies)
+        {
+            if (policies is null)
+                return String.Empty;
+
+            StringBuilder sb = new StringBuilder();
+
+            foreach (Policy policy in policies)
+            {
+                if (policy is null)
+                    continue;
+
+                sb.Append(policy.ToString());
+            }
+
+            return sb.ToString();
+        }
+
+        private string PrettyPrint(List<Extension> extensions)
+        {
+            if (extensions is null)
+                return String.Empty;
+
+            StringBuilder sb = new StringBuilder();
+
+            foreach(Extension extension in extensions)
+            {
+                sb.Append(String.Format("extensionId:{0};name{1};installType:{2};",
+                            extension.ExtensionId,
+                            extension.Name,
+                            extension.InstallType
+                            ));
+            }
+
+            return sb.ToString();
+        }
+        
+        #endregion
 
         /// <summary>
         /// Get all Chrome browser devices. 
