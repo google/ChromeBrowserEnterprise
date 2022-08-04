@@ -73,10 +73,10 @@ namespace cbcmApp
                         Program.GetAllBasicEnrolledBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty);
                         break;
                     case 800: //get browsers where the last activitiy is between start and end dates
-                        Program.GetEnrolledBrowsersByLastActivity(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2], args[3]);
+                        Program.GetEnrolledBrowsersByLastActivity(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3]);
                         break;
                     case 890: //delete inactive browsers by last activity start and end dates
-                        Program.InactiveBrowserDeletion(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2], args[3]);
+                        Program.InactiveBrowserDeletion(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3]);
                         break;
                     case 990: //Delete a Chrome browser Device 
                         Program.DeleteEnrolledBrowser(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
@@ -106,15 +106,15 @@ namespace cbcmApp
             Console.WriteLine("2 Get All Organizational Units (OU).");
             Console.WriteLine("3 Find enrolled browsers with missing data (profile, extensions, and policies).");
             Console.WriteLine("4 Find browsers installed on the user's app data folder. Applies to Windows OS platform only.");
-            Console.WriteLine(@"5 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV/TXT.\r\n\t Usage: cbcmapp.exe 5  ""OU ID"" ""BLOCKED"" ""C:/Temp/BatchUploadExtensions.csv""");
-            Console.WriteLine(@"6 Move Chrome browser Devices between Organization Units. Required arguments OU path, and file to CSV.\r\n\t Usage: cbcmapp.exe 6  ""/OU Name"" ""C:/Temp/MoveDevices.csv""");
+            Console.WriteLine(@"5 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV/TXT.\r\n\t Usage: cbcmapp.exe 5  ""OU ID"" ""BLOCKED"" ""C:/Temp/BatchUploadExtensions.[csv|txt]""");
+            Console.WriteLine(@"6 Move Chrome browser Devices between Organization Units. Required arguments OU path, and file to CSV/TXT.\r\n\t Usage: cbcmapp.exe 6  ""/OU Name"" ""C:/Temp/MoveDevices.[csv|txt]""");
             Console.WriteLine(@"20 Backup policies for an Organizational Unit (OU). Required arguments OU ID. \r\n\t Usage: cbcmapp.exe 20  ""OU ID""");
             Console.WriteLine(@"100 Get all enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 100 \r\n\t cbcm.exe 100 ""/North America/Algonquin""");
             Console.WriteLine(@"101 Get Basic enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 101 \r\n\t cbcm.exe 101 ""/North America/Algonquin""");
             Console.WriteLine(@"800 Find browsers in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 800  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
             Console.WriteLine(@"890 Delete in active browser in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 890  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
-            Console.WriteLine(@"990 Delete enrolled browsers from the admin console. Required argument file to CSV with machine names.\r\n\t Usage: cbcmapp.exe 990  ""C:/Temp/deleteBrowsers.csv""");
-            Console.WriteLine(@"991 Delete enrolled browsers from the admin console. Required argument file to CSV/TXT with device IDs.\r\n\t Usage: cbcmapp.exe 991  ""C:/Temp/deleteBrowsers.csv""");
+            Console.WriteLine(@"990 Delete enrolled browsers from the admin console. Required argument file to CSV/TXT with machine names.\r\n\t Usage: cbcmapp.exe 990  ""C:/Temp/deleteBrowsers.[csv|txt]""");
+            Console.WriteLine(@"991 Delete enrolled browsers from the admin console. Required argument file to CSV/TXT with device IDs.\r\n\t Usage: cbcmapp.exe 991  ""C:/Temp/deleteBrowsers.[csv|txt]""");
 
         }
 
@@ -263,7 +263,7 @@ namespace cbcmApp
         {
             ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
             //chromeBrowser.GetAllEnrolledBrowsers(orgUnitPath);
-            chromeBrowser.AllBasicEnrolledBrowsersSaveToFile(orgUnitPath, "FULL", "json");
+            chromeBrowser.AllBasicEnrolledBrowsersSaveToFile(orgUnitPath, "FULL", "csv");
         }
 
         /// <summary>
