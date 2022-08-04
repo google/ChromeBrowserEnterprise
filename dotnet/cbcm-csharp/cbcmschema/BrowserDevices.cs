@@ -10,13 +10,16 @@ namespace cbcmSchema.Browserdevices
 {
     using System;
     using System.Collections.Generic;
-
+    using System.Linq;
     using System.Globalization;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Converters;
 
     public partial class BrowserDevices
     {
+        [JsonProperty("kind", NullValueHandling = NullValueHandling.Ignore)]
+        public string Kind { get; set; }
+
         [JsonProperty("browsers", NullValueHandling = NullValueHandling.Ignore)]
         public List<BrowserDevicesBrowser> Browsers { get; set; }
 
@@ -74,7 +77,10 @@ namespace cbcmSchema.Browserdevices
         public List<LastDeviceUser> LastDeviceUsers { get; set; }
 
         [JsonProperty("machinePolicies", NullValueHandling = NullValueHandling.Ignore)]
-        public List<MachinePolicy> MachinePolicies { get; set; }
+        public List<Policy> MachinePolicies { get; set; }
+
+        [JsonProperty("machineExtensionPolicies", NullValueHandling = NullValueHandling.Ignore)]
+        public List<ExtensionPolicy> MachineExtensionPolicies { get; set; }
 
         [JsonProperty("browsers", NullValueHandling = NullValueHandling.Ignore)]
         public List<BrowserBrowser> Browsers { get; set; }
@@ -90,6 +96,40 @@ namespace cbcmSchema.Browserdevices
 
         [JsonProperty("deviceIdentifiersHistory", NullValueHandling = NullValueHandling.Ignore)]
         public DeviceIdentifiersHistory DeviceIdentifiersHistory { get; set; }
+
+        [JsonProperty("annotatedLocation", NullValueHandling = NullValueHandling.Ignore)]
+        public string AnnotatedLocation { get; set; }
+
+        [JsonProperty("annotatedUser", NullValueHandling = NullValueHandling.Ignore)]
+        public string AnnotatedUser { get; set; }
+
+        [JsonProperty("annotatedAssetId", NullValueHandling = NullValueHandling.Ignore)]
+        public string AnnotatedAssetId { get; set; }
+
+        [JsonProperty("annotatedNotes", NullValueHandling = NullValueHandling.Ignore)]
+        public string AnnotatedNotes { get; set; }
+
+        public List<Extension> AllExtensions
+        {
+            get
+            {
+                List<Extension> extensions = new List<Extension>();
+
+                if (this.Browsers is null)
+                    return extensions;
+
+                foreach (BrowserBrowser browser in this.Browsers)
+                {
+                    if (browser is null)
+                        continue;
+
+                    extensions.AddRange(browser.AllExtensions);
+                }
+
+                return extensions;
+
+            }
+        }
 
         public override string ToString()
         {
@@ -140,6 +180,30 @@ namespace cbcmSchema.Browserdevices
 
         [JsonProperty("profiles", NullValueHandling = NullValueHandling.Ignore)]
         public List<Profile> Profiles { get; set; }
+
+        public List<Extension> AllExtensions
+        {
+            get
+            {
+                List<Extension> extensions = new List<Extension>();
+
+                if (this.Profiles is null)
+                    return extensions;
+
+                foreach (Profile profile in this.Profiles)
+                {
+                    if (profile.Extensions is null)
+                        continue;
+
+                    extensions.AddRange(profile.Extensions);
+                }
+
+                return extensions;
+            }
+        }
+
+        [JsonProperty("pendingInstallVersion", NullValueHandling = NullValueHandling.Ignore)]
+        public string PendingInstallVersion { get; set; }
     }
 
     public partial class Plugin
@@ -168,11 +232,17 @@ namespace cbcmSchema.Browserdevices
         [JsonProperty("lastPolicyFetchTime", NullValueHandling = NullValueHandling.Ignore)]
         public DateTimeOffset? LastPolicyFetchTime { get; set; }
 
+        [JsonProperty("extensions", NullValueHandling = NullValueHandling.Ignore)]
+        public List<Extension> Extensions { get; set; }
+
         [JsonProperty("chromeSignedInUserEmail", NullValueHandling = NullValueHandling.Ignore)]
         public string ChromeSignedInUserEmail { get; set; }
 
-        [JsonProperty("extensions", NullValueHandling = NullValueHandling.Ignore)]
-        public List<Extension> Extensions { get; set; }
+        [JsonProperty("userPolicies", NullValueHandling = NullValueHandling.Ignore)]
+        public List<Policy> UserPolicies { get; set; }
+
+        [JsonProperty("extensionPolicies", NullValueHandling = NullValueHandling.Ignore)]
+        public List<ExtensionPolicy> ExtensionPolicies { get; set; }
     }
 
     public partial class Extension
@@ -183,30 +253,44 @@ namespace cbcmSchema.Browserdevices
         [JsonProperty("version", NullValueHandling = NullValueHandling.Ignore)]
         public string Version { get; set; }
 
+        [JsonProperty("permissions", NullValueHandling = NullValueHandling.Ignore)]
+        public List<string> Permissions { get; set; }
+
         [JsonProperty("name", NullValueHandling = NullValueHandling.Ignore)]
         public string Name { get; set; }
+
+        [JsonProperty("description", NullValueHandling = NullValueHandling.Ignore)]
+        public string Description { get; set; }
 
         [JsonProperty("appType", NullValueHandling = NullValueHandling.Ignore)]
         public string AppType { get; set; }
 
+        [JsonProperty("homepageUrl", NullValueHandling = NullValueHandling.Ignore)]
+        public Uri HomepageUrl { get; set; }
+
         [JsonProperty("installType", NullValueHandling = NullValueHandling.Ignore)]
         public string InstallType { get; set; }
+
+        [JsonProperty("manifestVersion", NullValueHandling = NullValueHandling.Ignore)]
+        public long? ManifestVersion { get; set; }
+
+        [JsonProperty("disabled", NullValueHandling = NullValueHandling.Ignore)]
+        public bool? Disabled { get; set; }
     }
 
-    public partial class DeviceIdentifiersHistory
+    public partial class ExtensionPolicy
     {
+        [JsonProperty("extensionId", NullValueHandling = NullValueHandling.Ignore)]
+        public string ExtensionId { get; set; }
+
+        [JsonProperty("extensionName", NullValueHandling = NullValueHandling.Ignore)]
+        public string ExtensionName { get; set; }
+
+        [JsonProperty("policies", NullValueHandling = NullValueHandling.Ignore)]
+        public List<Policy> Policies { get; set; }
     }
 
-    public partial class LastDeviceUser
-    {
-        [JsonProperty("userName", NullValueHandling = NullValueHandling.Ignore)]
-        public string UserName { get; set; }
-
-        [JsonProperty("lastStatusReportTime", NullValueHandling = NullValueHandling.Ignore)]
-        public DateTimeOffset? LastStatusReportTime { get; set; }
-    }
-
-    public partial class MachinePolicy
+    public partial class Policy
     {
         [JsonProperty("source", NullValueHandling = NullValueHandling.Ignore)]
         public string Source { get; set; }
@@ -216,6 +300,52 @@ namespace cbcmSchema.Browserdevices
 
         [JsonProperty("value", NullValueHandling = NullValueHandling.Ignore)]
         public string Value { get; set; }
+
+        [JsonProperty("error", NullValueHandling = NullValueHandling.Ignore)]
+        public string Error { get; set; }
+
+        public override string ToString()
+        {
+            return String.Format("source:{0};name:{1};value:{2}", 
+                this.Source,
+                this.Name,
+                this.Value);
+        }
+    }
+    public partial class DeviceIdentifiersHistory
+    {
+        [JsonProperty("records", NullValueHandling = NullValueHandling.Ignore)]
+        public List<Record> Records { get; set; }
+    }
+
+    public partial class Record
+    {
+        [JsonProperty("identifiers", NullValueHandling = NullValueHandling.Ignore)]
+        public Identifiers Identifiers { get; set; }
+
+        [JsonProperty("firstRecordTime", NullValueHandling = NullValueHandling.Ignore)]
+        public DateTimeOffset? FirstRecordTime { get; set; }
+
+        [JsonProperty("lastActivityTime", NullValueHandling = NullValueHandling.Ignore)]
+        public DateTimeOffset? LastActivityTime { get; set; }
+    }
+
+    public partial class Identifiers
+    {
+        [JsonProperty("machineName", NullValueHandling = NullValueHandling.Ignore)]
+        public string MachineName { get; set; }
+
+        [JsonProperty("serialNumber", NullValueHandling = NullValueHandling.Ignore)]
+        public string SerialNumber { get; set; }
+    }
+
+    public partial class LastDeviceUser
+    {
+        [JsonProperty("userName", NullValueHandling = NullValueHandling.Ignore)]
+        public string UserName { get; set; }
+
+        [JsonProperty("lastStatusReportTime", NullValueHandling = NullValueHandling.Ignore)]
+        public DateTimeOffset? LastStatusReportTime { get; set; }
     }
 
     public partial class BrowserDevices
