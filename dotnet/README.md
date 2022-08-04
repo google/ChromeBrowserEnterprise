@@ -42,16 +42,16 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
 ### Bulk upload extension IDs to an OU with install policy
 ```
 {
-  "Agurment": "5" "OU ID" "Install Policy (ALLOWED, BLOCKED, FORCED)" "extensions ID csv file",
-  "Usage": cbcmapp.exe 5 "03phkw8rsq" "BLOCKED" "C:/Temp/BatchUploadExtensions.csv",
+  "Agurment": "5" "OU ID" "Install Policy (ALLOWED, BLOCKED, FORCED)" "extensions ID csv/txt file",
+  "Usage": cbcmapp.exe 5 "03phkw8rsq" "BLOCKED" "C:/Temp/BatchUploadExtensions.[csv|txt]",
   "Output": "BatchUploadExtensionsToOu.txt"
 }
 ```
 ### Move Chrome browser Devices between Organization Units
 ```
 {
-  "Agurment": "6" "OU Path" "machine names csv file"
-  "Usage": cbcmapp.exe 6 "/APAC/Tokyo" ""C:/Temp/MoveDevices.csv"
+  "Agurment": "6" "OU Path" "machine names csvtxt file"
+  "Usage": cbcmapp.exe 6 "/APAC/Tokyo" ""C:/Temp/MoveDevices.[csv|txt]"
   "Output": "moveChromeBrowsersToOu.txt"
 }
 ```
@@ -64,15 +64,17 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
 }
 ```
 ### Get all enrolled browser data with an optional argument to query by orgnizational unit (demo purpose)
-:exclamation: Note: Wiring to a local file on pagination. However, the recommended approach here is to fast-write to a data store.
+:exclamation: Note: the recommended approach  is to fast-write to a data store. In this sample code it writes to the local disk.
+{deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion,policyCount,machinePolicies,extensionCount,extensionId,extensionName}
 ```
 {
   "Agurment": "100" "OU Path"
   "Usage": cbcmapp.exe 100 "/APAC/Tokyo"
-  "Output": "all-enrolled-browser-data.json"
+  "Usage": cbcmapp.exe 100
+  "Output": "all-enrolled-browser-data.csv"
 }
 ```
-### Get basic enrolled browser data with an optional argument to query by orgnizational unit. Output columns {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion}
+### Get basic enrolled browser data with an optional argument to query by orgnizational unit. Output columns {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion,policyCount,extensionCount}
 ```
 {
   "Agurment": "101" "OU Path"
@@ -81,19 +83,21 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
 }
 ```
 ### Inactive Browser
-#### Find browsers in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd)
+#### Find browsers in an Organizational Unit (OU) where the last activity date is between given start and end days (format yyyy-MM-dd)
 ```
 {
   "Agurment": "800"  "OU Path" "Start date" "End date"
-  "Usage": cbcmapp.exe 800  "/North America/Algonquin" "2022-01-01" "2022-04-01"
+  "Usage sample 1": cbcmapp.exe 800  "/North America/Algonquin" "2022-01-01" "2022-04-01"
+  "Usage sample 2": cbcmapp.exe 800  "" "2022-01-01" "2022-04-01"
   "Output": "CBCM_BrowsersFilteredByLastActivityDate.csv"
 }
 ```
-#### Delete inactive browser in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd)
+#### Delete inactive browser in an Organizational Unit (OU) where the last activity date is between given start and end days (format yyyy-MM-dd)
 ```
 {
   "Agurment": "890"  "OU Path" "Start date" "End date"
-  "Usage": cbcmapp.exe 890  "/North America/Algonquin" "2022-01-01" "2022-04-01"
+  "Usage sample 1": cbcmapp.exe 890  "/North America/Algonquin" "2022-01-01" "2022-04-01"
+  "Usage sample 2": cbcmapp.exe 890  "" "2022-01-01" "2022-04-01"
   "Output": none
 }
 ```
