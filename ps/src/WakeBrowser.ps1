@@ -2,7 +2,7 @@
 Install-Module -Name Invoke-CommandAs -Force
 
 #print enrollment token
-Get-ItemProperty -Path HKLM:\SOFTWARE\Policies\Google\Chrome -Name "CloudManagementEnrollmentToken"
+#Get-ItemProperty -Path HKLM:\SOFTWARE\Policies\Google\Chrome -Name "CloudManagementEnrollmentToken"
 
 # Execute As System. Launch chrome browser as system in a temp data dir.
 Invoke-CommandAs -ScriptBlock { 
