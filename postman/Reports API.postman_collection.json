@@ -3,7 +3,8 @@
 		"_postman_id": "dd394b6e-376a-456e-a4df-e8bd593d15b9",
 		"name": "Reports API",
 		"description": "https://developers.google.com/admin-sdk/reports/v1/get-start/overview",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "17723612"
 	},
 	"item": [
 		{
@@ -12,7 +13,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/admin?endTime=2021-11-07T00:00:00.000Z&startTime=2021-09-07T00:00:00.000Z&maxResults=25",
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/admin?endTime=2022-11-07T00:00:00.000Z&startTime=2022-01-07T00:00:00.000Z&maxResults=25",
 					"protocol": "https",
 					"host": [
 						"admin",
@@ -32,11 +33,11 @@
 					"query": [
 						{
 							"key": "endTime",
-							"value": "2021-11-07T00:00:00.000Z"
+							"value": "2022-11-07T00:00:00.000Z"
 						},
 						{
 							"key": "startTime",
-							"value": "2021-09-07T00:00:00.000Z"
+							"value": "2022-01-07T00:00:00.000Z"
 						},
 						{
 							"key": "maxResults",
@@ -54,7 +55,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/admin?endTime=2021-11-07T00:00:00.000Z&startTime=2021-09-07T00:00:00.000Z&maxResults=25&eventName=CHANGE_CHROME_OS_USER_SETTING",
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/admin?endTime=2022-11-07T00:00:00.000Z&startTime=2022-01-07T00:00:00.000Z&maxResults=25&eventName=CHANGE_CHROME_OS_USER_SETTING",
 					"protocol": "https",
 					"host": [
 						"admin",
@@ -74,11 +75,11 @@
 					"query": [
 						{
 							"key": "endTime",
-							"value": "2021-11-07T00:00:00.000Z"
+							"value": "2022-11-07T00:00:00.000Z"
 						},
 						{
 							"key": "startTime",
-							"value": "2021-09-07T00:00:00.000Z"
+							"value": "2022-01-07T00:00:00.000Z"
 						},
 						{
 							"key": "maxResults",
@@ -86,7 +87,431 @@
 						},
 						{
 							"key": "eventName",
-							"value": "CHANGE_CHROME_OS_USER_SETTING"
+							"value": "CHANGE_CHROME_OS_USER_SETTING",
+							"description": "https://developers.google.com/admin-sdk/reports/v1/appendix/activity/chrome"
+						}
+					]
+				},
+				"description": "https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-admin#get_admin_event"
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve malware transfer activities",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome?endTime=2022-11-07T00:00:00.000Z&startTime=2022-01-07T00:00:00.000Z&maxResults=25&eventName=MALWARE_TRANSFER",
+					"protocol": "https",
+					"host": [
+						"admin",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"reports",
+						"v1",
+						"activity",
+						"users",
+						"all",
+						"applications",
+						"chrome"
+					],
+					"query": [
+						{
+							"key": "endTime",
+							"value": "2022-11-07T00:00:00.000Z"
+						},
+						{
+							"key": "startTime",
+							"value": "2022-01-07T00:00:00.000Z"
+						},
+						{
+							"key": "maxResults",
+							"value": "25"
+						},
+						{
+							"key": "eventName",
+							"value": "MALWARE_TRANSFER",
+							"description": "https://developers.google.com/admin-sdk/reports/v1/appendix/activity/chrome#MALWARE_TRANSFER_TYPE"
+						}
+					]
+				},
+				"description": "https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-admin#get_admin_event"
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve unsafe site visit events",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome?endTime=2022-11-07T00:00:00.000Z&startTime=2022-01-07T00:00:00.000Z&maxResults=25&eventName=UNSAFE_SITE_VISIT",
+					"protocol": "https",
+					"host": [
+						"admin",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"reports",
+						"v1",
+						"activity",
+						"users",
+						"all",
+						"applications",
+						"chrome"
+					],
+					"query": [
+						{
+							"key": "endTime",
+							"value": "2022-11-07T00:00:00.000Z"
+						},
+						{
+							"key": "startTime",
+							"value": "2022-01-07T00:00:00.000Z"
+						},
+						{
+							"key": "maxResults",
+							"value": "25"
+						},
+						{
+							"key": "eventName",
+							"value": "UNSAFE_SITE_VISIT",
+							"description": "https://developers.google.com/admin-sdk/reports/v1/appendix/activity/chrome#UNSAFE_SITE_VISIT_TYPE"
+						}
+					]
+				},
+				"description": "https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-admin#get_admin_event"
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve password changed activities",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome?endTime=2022-11-07T00:00:00.000Z&startTime=2022-01-07T00:00:00.000Z&maxResults=25&eventName=PASSWORD_CHANGED",
+					"protocol": "https",
+					"host": [
+						"admin",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"reports",
+						"v1",
+						"activity",
+						"users",
+						"all",
+						"applications",
+						"chrome"
+					],
+					"query": [
+						{
+							"key": "endTime",
+							"value": "2022-11-07T00:00:00.000Z"
+						},
+						{
+							"key": "startTime",
+							"value": "2022-01-07T00:00:00.000Z"
+						},
+						{
+							"key": "maxResults",
+							"value": "25"
+						},
+						{
+							"key": "eventName",
+							"value": "PASSWORD_CHANGED",
+							"description": "https://developers.google.com/admin-sdk/reports/v1/appendix/activity/chrome#SAFE_BROWSING_PASSWORD_ALERT"
+						}
+					]
+				},
+				"description": "https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-admin#get_admin_event"
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve password breach events",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome?endTime=2022-11-07T00:00:00.000Z&startTime=2022-01-07T00:00:00.000Z&maxResults=25&eventName=PASSWORD_BREACH",
+					"protocol": "https",
+					"host": [
+						"admin",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"reports",
+						"v1",
+						"activity",
+						"users",
+						"all",
+						"applications",
+						"chrome"
+					],
+					"query": [
+						{
+							"key": "endTime",
+							"value": "2022-11-07T00:00:00.000Z"
+						},
+						{
+							"key": "startTime",
+							"value": "2022-01-07T00:00:00.000Z"
+						},
+						{
+							"key": "maxResults",
+							"value": "25"
+						},
+						{
+							"key": "eventName",
+							"value": "PASSWORD_BREACH",
+							"description": "https://developers.google.com/admin-sdk/reports/v1/appendix/activity/chrome#PASSWORD_BREACH_TYPE"
+						}
+					]
+				},
+				"description": "https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-admin#get_admin_event"
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve content transfer activities",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome?endTime=2022-11-07T00:00:00.000Z&startTime=2022-01-07T00:00:00.000Z&maxResults=25&eventName=CONTENT_TRANSFER",
+					"protocol": "https",
+					"host": [
+						"admin",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"reports",
+						"v1",
+						"activity",
+						"users",
+						"all",
+						"applications",
+						"chrome"
+					],
+					"query": [
+						{
+							"key": "endTime",
+							"value": "2022-11-07T00:00:00.000Z"
+						},
+						{
+							"key": "startTime",
+							"value": "2022-01-07T00:00:00.000Z"
+						},
+						{
+							"key": "maxResults",
+							"value": "25"
+						},
+						{
+							"key": "eventName",
+							"value": "CONTENT_TRANSFER",
+							"description": "https://developers.google.com/admin-sdk/reports/v1/appendix/activity/chrome#SAFE_BROWSING_PASSWORD_ALERT"
+						}
+					]
+				},
+				"description": "https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-admin#get_admin_event"
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve content unscanned activities",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome?endTime=2022-11-07T00:00:00.000Z&startTime=2022-01-07T00:00:00.000Z&maxResults=25&eventName=CONTENT_UNSCANNED",
+					"protocol": "https",
+					"host": [
+						"admin",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"reports",
+						"v1",
+						"activity",
+						"users",
+						"all",
+						"applications",
+						"chrome"
+					],
+					"query": [
+						{
+							"key": "endTime",
+							"value": "2022-11-07T00:00:00.000Z"
+						},
+						{
+							"key": "startTime",
+							"value": "2022-01-07T00:00:00.000Z"
+						},
+						{
+							"key": "maxResults",
+							"value": "25"
+						},
+						{
+							"key": "eventName",
+							"value": "CONTENT_UNSCANNED",
+							"description": "https://developers.google.com/admin-sdk/reports/v1/appendix/activity/chrome#CONTENT_UNSCANNED_TYPE"
+						}
+					]
+				},
+				"description": "https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-admin#get_admin_event"
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve extension request activities",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome?endTime=2022-11-07T00:00:00.000Z&startTime=2022-01-07T00:00:00.000Z&maxResults=25&eventName=EXTENSION_REQUEST",
+					"protocol": "https",
+					"host": [
+						"admin",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"reports",
+						"v1",
+						"activity",
+						"users",
+						"all",
+						"applications",
+						"chrome"
+					],
+					"query": [
+						{
+							"key": "endTime",
+							"value": "2022-11-07T00:00:00.000Z"
+						},
+						{
+							"key": "startTime",
+							"value": "2022-01-07T00:00:00.000Z"
+						},
+						{
+							"key": "maxResults",
+							"value": "25"
+						},
+						{
+							"key": "eventName",
+							"value": "EXTENSION_REQUEST",
+							"description": "https://developers.google.com/admin-sdk/reports/v1/appendix/activity/chrome#EXTENSION_REQUEST_TYPE"
+						}
+					]
+				},
+				"description": "https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-admin#get_admin_event"
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve login events",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome?endTime=2022-11-07T00:00:00.000Z&startTime=2022-01-07T00:00:00.000Z&maxResults=25&eventName=LOGIN_EVENT",
+					"protocol": "https",
+					"host": [
+						"admin",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"reports",
+						"v1",
+						"activity",
+						"users",
+						"all",
+						"applications",
+						"chrome"
+					],
+					"query": [
+						{
+							"key": "endTime",
+							"value": "2022-11-07T00:00:00.000Z"
+						},
+						{
+							"key": "startTime",
+							"value": "2022-01-07T00:00:00.000Z"
+						},
+						{
+							"key": "maxResults",
+							"value": "25"
+						},
+						{
+							"key": "eventName",
+							"value": "LOGIN_EVENT",
+							"description": "https://developers.google.com/admin-sdk/reports/v1/appendix/activity/chrome#LOGIN_EVENT_TYPE"
+						}
+					]
+				},
+				"description": "https://developers.google.com/admin-sdk/reports/v1/guides/manage-audit-admin#get_admin_event"
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve senstive data transfer events",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome?endTime=2022-11-07T00:00:00.000Z&startTime=2022-01-07T00:00:00.000Z&maxResults=25&eventName=SENSITIVE_DATA_TRANSFER",
+					"protocol": "https",
+					"host": [
+						"admin",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"reports",
+						"v1",
+						"activity",
+						"users",
+						"all",
+						"applications",
+						"chrome"
+					],
+					"query": [
+						{
+							"key": "endTime",
+							"value": "2022-11-07T00:00:00.000Z"
+						},
+						{
+							"key": "startTime",
+							"value": "2022-01-07T00:00:00.000Z"
+						},
+						{
+							"key": "maxResults",
+							"value": "25"
+						},
+						{
+							"key": "eventName",
+							"value": "SENSITIVE_DATA_TRANSFER",
+							"description": "https://developers.google.com/admin-sdk/reports/v1/appendix/activity/chrome#SENSITIVE_DATA_TRANSFER_TYPE"
 						}
 					]
 				},
@@ -100,7 +525,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/token?endTime=2021-11-07T00:00:00.000Z&startTime=2021-09-07T00:00:00.000Z&maxResults=25",
+					"raw": "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/token?endTime=2022-11-07T00:00:00.000Z&startTime=2022-01-07T00:00:00.000Z&maxResults=25",
 					"protocol": "https",
 					"host": [
 						"admin",
@@ -120,11 +545,11 @@
 					"query": [
 						{
 							"key": "endTime",
-							"value": "2021-11-07T00:00:00.000Z"
+							"value": "2022-11-07T00:00:00.000Z"
 						},
 						{
 							"key": "startTime",
-							"value": "2021-09-07T00:00:00.000Z"
+							"value": "2022-01-07T00:00:00.000Z"
 						},
 						{
 							"key": "maxResults",
