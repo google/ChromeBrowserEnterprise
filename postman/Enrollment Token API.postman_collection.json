@@ -3,7 +3,8 @@
 		"_postman_id": "d7c2110d-2efc-4174-8a3f-eb009f7e370e",
 		"name": "Enrollment Token API",
 		"description": "https://support.google.com/chrome/a/answer/9949706?hl=en&ref_topic=9301744",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "17723612"
 	},
 	"item": [
 		{
@@ -60,7 +61,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/chrome/enrollmentTokens?orgUnitPath=/UX/Research/Research_support&pageToken&pageSize=100",
+					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/chrome/enrollmentTokens?orgUnitPath=&pageToken&pageSize=100&query",
 					"protocol": "https",
 					"host": [
 						"www",
@@ -79,7 +80,7 @@
 					"query": [
 						{
 							"key": "orgUnitPath",
-							"value": "/UX/Research/Research_support",
+							"value": "",
 							"description": "The full path of the organizational unit or its unique ID."
 						},
 						{
@@ -91,49 +92,12 @@
 							"key": "pageSize",
 							"value": "100",
 							"description": "Maximum number of results to return. Maximum and default is 100."
+						},
+						{
+							"key": "query",
+							"value": null,
+							"description": "Search string to filter the listed tokens. https://support.google.com/chrome/a/answer/9949706?hl=en&ref_topic=9301744"
 						}
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "Update a Chrome browser Device",
-			"protocolProfileBehavior": {
-				"followAuthorizationHeader": true,
-				"followOriginalHttpMethod": true,
-				"strictSSL": true
-			},
-			"request": {
-				"method": "PUT",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "{\r\n  \"deviceId\": \"82fba8e0-3370-46c8-b9ac-7eeda7423789\",\r\n  \"annotatedUser\": \"user 1\",\r\n  \"annotatedLocation\": \"North America/Chicago\",\r\n  \"annotatedNotes\": \"Test notes\",\r\n  \"annotatedAssetId\":\"BLACKHAWK\"\r\n\r\n}",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers/82fba8e0-3370-46c8-b9ac-7eeda7423789/",
-					"protocol": "https",
-					"host": [
-						"www",
-						"googleapis",
-						"com"
-					],
-					"path": [
-						"admin",
-						"directory",
-						"v1.1beta1",
-						"customer",
-						"my_customer",
-						"devices",
-						"chromebrowsers",
-						"82fba8e0-3370-46c8-b9ac-7eeda7423789",
-						""
 					]
 				}
 			},
@@ -190,7 +154,7 @@
 				"method": "POST",
 				"header": [],
 				"url": {
-					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/chrome/enrollmentTokens/1c224042-e68f-4179-bbb4-e4381bdf0b71:revoke",
+					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/chrome/enrollmentTokens/77dc2a5a-ebec-44c1-bcee-84c09bb7312e:revoke",
 					"protocol": "https",
 					"host": [
 						"www",
@@ -205,7 +169,7 @@
 						"my_customer",
 						"chrome",
 						"enrollmentTokens",
-						"1c224042-e68f-4179-bbb4-e4381bdf0b71:revoke"
+						"77dc2a5a-ebec-44c1-bcee-84c09bb7312e:revoke"
 					]
 				}
 			},
@@ -216,8 +180,23 @@
 		"type": "oauth2",
 		"oauth2": [
 			{
+				"key": "accessTokenUrl",
+				"value": "{{token_uri}}",
+				"type": "string"
+			},
+			{
 				"key": "redirect_uri",
 				"value": "{{redirect_uris}}",
+				"type": "string"
+			},
+			{
+				"key": "tokenName",
+				"value": "EnrollmentTokenAPI",
+				"type": "string"
+			},
+			{
+				"key": "scope",
+				"value": "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers",
 				"type": "string"
 			},
 			{
@@ -231,23 +210,8 @@
 				"type": "string"
 			},
 			{
-				"key": "accessTokenUrl",
-				"value": "{{token_uri}}",
-				"type": "string"
-			},
-			{
 				"key": "authUrl",
 				"value": "{{auth_uri}}",
-				"type": "string"
-			},
-			{
-				"key": "scope",
-				"value": "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers",
-				"type": "string"
-			},
-			{
-				"key": "tokenName",
-				"value": "chromebrowsers",
 				"type": "string"
 			},
 			{

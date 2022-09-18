@@ -3,16 +3,17 @@
 		"_postman_id": "de077402-433b-4720-bba8-814f2d410a68",
 		"name": "App Details API",
 		"description": "https://developers.google.com/chrome/management/guides/app_details_api",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "17723612"
 	},
 	"item": [
 		{
-			"name": "Get a specific app by its resource name",
+			"name": "Retrievea specific app by its resource name",
 			"request": {
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/apps/chrome/jlhmfgmfgeifomenelglieieghnjghma",
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/apps/chrome/blipmdconlkpinefehnmjammfjpmpbjk",
 					"protocol": "https",
 					"host": [
 						"chromemanagement",
@@ -25,7 +26,7 @@
 						"my_customer",
 						"apps",
 						"chrome",
-						"jlhmfgmfgeifomenelglieieghnjghma"
+						"blipmdconlkpinefehnmjammfjpmpbjk"
 					]
 				},
 				"description": "Get a specific app for a customer by its resource name.\nPath parameter\nname: Required. The app for which details are being queried. Examples: \"customers/my_customer/apps/chrome/gmbmikajjgmnabiglmofipeabaddhgne@2.1.2\" for the Save to Google Drive Chrome extension version 2.1.2, \"customers/my_customer/apps/android/com.google.android.apps.docs\" for the Google Drive Android app's latest version.\nhttps://developers.google.com/chrome/management/reference/rest/v1/customers.apps.chrome/get"
@@ -33,7 +34,7 @@
 			"response": []
 		},
 		{
-			"name": "Get Extension Workflow Request Count",
+			"name": "Retrieve Extension Workflow Request Count",
 			"event": [
 				{
 					"listen": "prerequest",
@@ -50,7 +51,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/apps:countChromeAppRequests?orgUnitId=&pageSize=50&orderBy=latestRequestTime desc",
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/apps:countChromeAppRequests?orgUnitId=&pageSize=1&orderBy=latestRequestTime desc",
 					"protocol": "https",
 					"host": [
 						"chromemanagement",
@@ -71,7 +72,7 @@
 						},
 						{
 							"key": "pageSize",
-							"value": "50",
+							"value": "1",
 							"description": "(Optional) Maximum number of results to return. Maximum and default are 50."
 						},
 						{

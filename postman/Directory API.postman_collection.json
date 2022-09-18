@@ -3,7 +3,8 @@
 		"_postman_id": "4f770f23-8d14-4231-8f19-14549c4a7d24",
 		"name": "Directory API",
 		"description": "https://developers.google.com/admin-sdk/directory/reference/rest/v1/orgunits/",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "17723612"
 	},
 	"item": [
 		{
@@ -12,7 +13,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://www.googleapis.com/admin/directory/v1/customer/my_customer/orgunits?type=ALL",
+					"raw": "https://www.googleapis.com/admin/directory/v1/customer/my_customer/orgunits?type=ALL&maxResults=1&pageToken",
 					"protocol": "https",
 					"host": [
 						"www",
@@ -31,6 +32,14 @@
 						{
 							"key": "type",
 							"value": "ALL"
+						},
+						{
+							"key": "maxResults",
+							"value": "1"
+						},
+						{
+							"key": "pageToken",
+							"value": null
 						}
 					]
 				}
@@ -43,7 +52,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://www.googleapis.com/admin/directory/v1/customer/my_customer/orgunits/North America/Algonquin",
+					"raw": "https://www.googleapis.com/admin/directory/v1/customer/my_customer/orgunits/North America/Austin",
 					"protocol": "https",
 					"host": [
 						"www",
@@ -58,7 +67,7 @@
 						"my_customer",
 						"orgunits",
 						"North America",
-						"Algonquin"
+						"Austin"
 					],
 					"query": [
 						{
@@ -72,7 +81,7 @@
 			"response": []
 		},
 		{
-			"name": "Retrieve all or children organizational units",
+			"name": "Retrieve all child organizational units",
 			"request": {
 				"method": "GET",
 				"header": [],

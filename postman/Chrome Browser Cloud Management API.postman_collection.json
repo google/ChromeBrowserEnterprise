@@ -2,11 +2,12 @@
 	"info": {
 		"_postman_id": "f4e3a2f2-e4d5-47ee-8354-2e4ccff9ac4c",
 		"name": "Chrome Browser Cloud Management API",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "17723612"
 	},
 	"item": [
 		{
-			"name": "Find browser by machine name and org unit path",
+			"name": "Retrieve browser by machine name and org unit path",
 			"protocolProfileBehavior": {
 				"followAuthorizationHeader": true,
 				"followOriginalHttpMethod": true,
@@ -16,7 +17,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers?query=machine_name:BLACKHAWK&orderBy=machine_name&sortOrder=ASCENDING&orgUnitPath=/North America/Chicago&projection=BASIC&maxResults=100&pageToken",
+					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers?query=machine_name:WIN-10-ACNT-01-CP&orderBy=machine_name&sortOrder=ASCENDING&orgUnitPath=/North America/Austin&projection=FULL&maxResults=100&pageToken",
 					"protocol": "https",
 					"host": [
 						"www",
@@ -35,7 +36,7 @@
 					"query": [
 						{
 							"key": "query",
-							"value": "machine_name:BLACKHAWK",
+							"value": "machine_name:WIN-10-ACNT-01-CP",
 							"description": "The name of the machine associated with the device."
 						},
 						{
@@ -50,12 +51,12 @@
 						},
 						{
 							"key": "orgUnitPath",
-							"value": "/North America/Chicago",
+							"value": "/North America/Austin",
 							"description": "The full path of the organizational unit or its unique ID."
 						},
 						{
 							"key": "projection",
-							"value": "BASIC",
+							"value": "FULL",
 							"description": "Determines whether the response contains the full list of properties or only a subset. \n\"BASIC\": Includes only the basic metadata fields (i.e., the ones found in the columns of the admin console browsers list as enumerated above).\n\"FULL\": Includes all metadata fields (as enumerated above)"
 						},
 						{
@@ -74,7 +75,7 @@
 			"response": []
 		},
 		{
-			"name": "Retrieve a Chrome browser Device",
+			"name": "Retrieve a Chrome browser Device ID",
 			"protocolProfileBehavior": {
 				"followAuthorizationHeader": true,
 				"followOriginalHttpMethod": true,
@@ -84,7 +85,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers/82fba8e0-3370-46c8-b9ac-7eeda7423789?projection=BASIC",
+					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers/9c6de4c1-cd4e-45f9-891b-708cee47696a?projection=FULL",
 					"protocol": "https",
 					"host": [
 						"www",
@@ -99,12 +100,12 @@
 						"my_customer",
 						"devices",
 						"chromebrowsers",
-						"82fba8e0-3370-46c8-b9ac-7eeda7423789"
+						"9c6de4c1-cd4e-45f9-891b-708cee47696a"
 					],
 					"query": [
 						{
 							"key": "projection",
-							"value": "BASIC",
+							"value": "FULL",
 							"description": "Determines whether the response contains the full list of properties or only a subset.\n Acceptable values are:\n\"BASIC\": Includes only the basic metadata fields (i.e., the ones found in the columns of the admin console browsers list as enumerated above)\n\"FULL\": Includes all metadata fields (as enumerated above)"
 						}
 					]
@@ -113,7 +114,7 @@
 			"response": []
 		},
 		{
-			"name": "Find browser by machine name",
+			"name": "Retrieve Chrome browser by machine name",
 			"protocolProfileBehavior": {
 				"followAuthorizationHeader": true,
 				"followOriginalHttpMethod": true,
@@ -123,7 +124,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers?query=machine_name:BLACKHAWK&projection=FULL",
+					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers?query=os_platform:Windows&projection=FULL&pageToken=&maxResults=100&orderBy=last_activity&sortOrder=DESCENDING",
 					"protocol": "https",
 					"host": [
 						"www",
@@ -142,13 +143,29 @@
 					"query": [
 						{
 							"key": "query",
-							"value": "machine_name:BLACKHAWK",
+							"value": "os_platform:Windows",
 							"description": "The name of the machine associated with the device."
 						},
 						{
 							"key": "projection",
 							"value": "FULL",
 							"description": "Determines whether the response contains the full list of properties or only a subset. \n\"BASIC\": Includes only the basic metadata fields (i.e., the ones found in the columns of the admin console browsers list as enumerated above).\n\"FULL\": Includes all metadata fields (as enumerated above)"
+						},
+						{
+							"key": "pageToken",
+							"value": ""
+						},
+						{
+							"key": "maxResults",
+							"value": "100"
+						},
+						{
+							"key": "orderBy",
+							"value": "last_activity"
+						},
+						{
+							"key": "sortOrder",
+							"value": "DESCENDING"
 						}
 					]
 				}
@@ -156,7 +173,7 @@
 			"response": []
 		},
 		{
-			"name": "Find browsers by org unit path",
+			"name": "Retrieve browsers by org unit path",
 			"protocolProfileBehavior": {
 				"followAuthorizationHeader": true,
 				"followOriginalHttpMethod": true,
@@ -166,7 +183,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers?orderBy=browser_version_sortable&sortOrder=DESCENDING&orgUnitPath=/North America/Algonquin&projection=FULL&maxResults=100&pageToken",
+					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers?orderBy=browser_version_sortable&sortOrder=DESCENDING&orgUnitPath=/North America/Austin&projection=FULL&maxResults=1&pageToken",
 					"protocol": "https",
 					"host": [
 						"www",
@@ -195,7 +212,7 @@
 						},
 						{
 							"key": "orgUnitPath",
-							"value": "/North America/Algonquin",
+							"value": "/North America/Austin",
 							"description": "The full path of the organizational unit or its unique ID."
 						},
 						{
@@ -205,7 +222,7 @@
 						},
 						{
 							"key": "maxResults",
-							"value": "100",
+							"value": "1",
 							"description": "Maximum number of results to return. Default, and maximum, is 100."
 						},
 						{
@@ -229,7 +246,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers?query=has_device_id_collision:true&orderBy=browser_version_sortable&sortOrder=DESCENDING&orgUnitPath=/North America/Algonquin&projection=BASIC&maxResults=100&pageToken",
+					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers?query=has_device_id_collision:true&orderBy=browser_version_sortable&sortOrder=DESCENDING&orgUnitPath=/North America/Austin&projection=BASIC&maxResults=100&pageToken",
 					"protocol": "https",
 					"host": [
 						"www",
@@ -263,7 +280,7 @@
 						},
 						{
 							"key": "orgUnitPath",
-							"value": "/North America/Algonquin",
+							"value": "/North America/Austin",
 							"description": "The full path of the organizational unit or its unique ID."
 						},
 						{
@@ -287,7 +304,185 @@
 			"response": []
 		},
 		{
-			"name": "Update a Chrome browser Device",
+			"name": "Retrieve Chrome browsers by last activity date",
+			"protocolProfileBehavior": {
+				"followAuthorizationHeader": true,
+				"followOriginalHttpMethod": true,
+				"strictSSL": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers?query=last_activity:2021-01-01..2022-01-01 &orderBy=last_activity&sortOrder=ASCENDING&orgUnitPath=&projection=BASIC&maxResults=1&pageToken",
+					"protocol": "https",
+					"host": [
+						"www",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"directory",
+						"v1.1beta1",
+						"customer",
+						"my_customer",
+						"devices",
+						"chromebrowsers"
+					],
+					"query": [
+						{
+							"key": "query",
+							"value": "last_activity:2021-01-01..2022-01-01 ",
+							"description": "The last time the Chrome browser device has shown activity (policy fetch or reporting)."
+						},
+						{
+							"key": "orderBy",
+							"value": "last_activity",
+							"description": "Chrome browser device property to use for sorting results"
+						},
+						{
+							"key": "sortOrder",
+							"value": "ASCENDING",
+							"description": "Whether to return results in ascending or descending order. Must be used with the orderBy parameter.\n \t \tAcceptable values are:\n \t \t\"ASCENDING\" - Ascending order.\n \t \t\"DESCENDING\" - Descending order."
+						},
+						{
+							"key": "orgUnitPath",
+							"value": "",
+							"description": "The full path of the organizational unit or its unique ID."
+						},
+						{
+							"key": "projection",
+							"value": "BASIC",
+							"description": "Determines whether the response contains the full list of properties or only a subset. \n\"BASIC\": Includes only the basic metadata fields (i.e., the ones found in the columns of the admin console browsers list as enumerated above).\n\"FULL\": Includes all metadata fields (as enumerated above)"
+						},
+						{
+							"key": "maxResults",
+							"value": "1",
+							"description": "Maximum number of results to return. Default, and maximum, is 100."
+						},
+						{
+							"key": "pageToken",
+							"value": null,
+							"description": "The pageToken query parameter is used to request the next page of query results. The follow-on request's pageToken query parameter is the nextPageToken from your previous response."
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve Chrome browsers where the Device ID is shared by multiple machines Copy",
+			"protocolProfileBehavior": {
+				"followAuthorizationHeader": true,
+				"followOriginalHttpMethod": true,
+				"strictSSL": true
+			},
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "\"ya29.c.b0AXv0zTMgyeOr_54kCcGQa0s09O5n-pc1dqN7ekxt-lMgH2tTiR0Wt-b7YST05AyDTKTHtHZeWdATQNmqs5hsKBBMlYgoWpD2EiSUpbTaptnmz9FRKBsTlNj_8pcddnQdMgpmgBCwNydyU9w4XoRM-DH_CiHmF2ic_48iTUiJAKppCZikyioOauKZRw91qSJ0IgHRRBZhS3gW7YekwFjLeOLQoWCaD64........................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................\"",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/C01av84bt/devices/chromebrowsers?query=has_device_id_collision:true&orderBy=browser_version_sortable&sortOrder=DESCENDING&projection=BASIC&maxResults=100&pageToken",
+					"protocol": "https",
+					"host": [
+						"www",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"directory",
+						"v1.1beta1",
+						"customer",
+						"C01av84bt",
+						"devices",
+						"chromebrowsers"
+					],
+					"query": [
+						{
+							"key": "query",
+							"value": "has_device_id_collision:true",
+							"description": "Device ID is shared by multiple machines that Chrome Browser identifies as the same machine. Supported values are true and false."
+						},
+						{
+							"key": "orderBy",
+							"value": "browser_version_sortable",
+							"description": "Chrome browser device property to use for sorting results"
+						},
+						{
+							"key": "sortOrder",
+							"value": "DESCENDING",
+							"description": "Whether to return results in ascending or descending order. Must be used with the orderBy parameter.\n \t \tAcceptable values are:\n \t \t\"ASCENDING\" - Ascending order.\n \t \t\"DESCENDING\" - Descending order."
+						},
+						{
+							"key": "orgUnitPath",
+							"value": "/North America/Algonquin",
+							"description": "The full path of the organizational unit or its unique ID.",
+							"disabled": true
+						},
+						{
+							"key": "projection",
+							"value": "BASIC",
+							"description": "Determines whether the response contains the full list of properties or only a subset. \n\"BASIC\": Includes only the basic metadata fields (i.e., the ones found in the columns of the admin console browsers list as enumerated above).\n\"FULL\": Includes all metadata fields (as enumerated above)"
+						},
+						{
+							"key": "maxResults",
+							"value": "100",
+							"description": "Maximum number of results to return. Default, and maximum, is 100."
+						},
+						{
+							"key": "pageToken",
+							"value": null,
+							"description": "The pageToken query parameter is used to request the next page of query results. The follow-on request's pageToken query parameter is the nextPageToken from your previous response."
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieve Chrome browser remote commands",
+			"protocolProfileBehavior": {
+				"followAuthorizationHeader": true,
+				"followOriginalHttpMethod": true,
+				"strictSSL": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers:describeCommands",
+					"protocol": "https",
+					"host": [
+						"www",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"admin",
+						"directory",
+						"v1.1beta1",
+						"customer",
+						"my_customer",
+						"devices",
+						"chromebrowsers:describeCommands"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Update annotated fields of a Chrome Browser",
 			"protocolProfileBehavior": {
 				"followAuthorizationHeader": true,
 				"followOriginalHttpMethod": true,
@@ -298,7 +493,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n  \"deviceId\": \"82fba8e0-3370-46c8-b9ac-7eeda7423789\",\r\n  \"annotatedUser\": \"user 1\",\r\n  \"annotatedLocation\": \"North America/Chicago\",\r\n  \"annotatedNotes\": \"Test notes\",\r\n  \"annotatedAssetId\":\"BLACKHAWK\"\r\n\r\n}",
+					"raw": "{\r\n  \"deviceId\": \"9c6de4c1-cd4e-45f9-891b-708cee47696a\",\r\n  \"annotatedUser\": \"user 1\",\r\n  \"annotatedLocation\": \"North America/Austin\",\r\n  \"annotatedNotes\": \"Test notes 09/08/2022\",\r\n  \"annotatedAssetId\":\"WIN-10-ACNT-01-CP\"\r\n\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -306,7 +501,7 @@
 					}
 				},
 				"url": {
-					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers/82fba8e0-3370-46c8-b9ac-7eeda7423789/",
+					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers/9c6de4c1-cd4e-45f9-891b-708cee47696a/",
 					"protocol": "https",
 					"host": [
 						"www",
@@ -321,7 +516,7 @@
 						"my_customer",
 						"devices",
 						"chromebrowsers",
-						"82fba8e0-3370-46c8-b9ac-7eeda7423789",
+						"9c6de4c1-cd4e-45f9-891b-708cee47696a",
 						""
 					]
 				}
@@ -329,7 +524,7 @@
 			"response": []
 		},
 		{
-			"name": "Move a Chrome browser Device between Organization Units",
+			"name": "Move Chrome browsers between Organization Units",
 			"protocolProfileBehavior": {
 				"followAuthorizationHeader": true,
 				"followOriginalHttpMethod": true,
@@ -340,7 +535,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n  \"org_unit_path\": \"/North America/Algonquin\",\r\n  \"resource_ids\": [\"72112da9-7113-4089-998b-d1dc7c5762e0\",\"a6b3e6b8-c39c-4380-82c3-cfe52950f8e7\"]\r\n}",
+					"raw": "{\"org_unit_path\":\"North America/Austin\",\"resource_ids\":[\"9c6de4c1-cd4e-45f9-891b-708cee47696a\",\"39cba31d-7a9c-42c6-b7b1-4597d7fc5e76\"]}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -365,7 +560,8 @@
 						"chromebrowsers",
 						"moveChromeBrowsersToOu"
 					]
-				}
+				},
+				"description": "Resource ID array is limited to 600 items."
 			},
 			"response": []
 		},
@@ -380,7 +576,7 @@
 				"method": "DELETE",
 				"header": [],
 				"url": {
-					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers/{deviceId}",
+					"raw": "https://www.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers/236da872-e62d-4eec-af68-eb859daa6ad6",
 					"protocol": "https",
 					"host": [
 						"www",
@@ -395,7 +591,7 @@
 						"my_customer",
 						"devices",
 						"chromebrowsers",
-						"{deviceId}"
+						"236da872-e62d-4eec-af68-eb859daa6ad6"
 					]
 				}
 			},

@@ -3,7 +3,8 @@
 		"_postman_id": "ee4f29bd-8919-48fc-a78c-7de42ecf5792",
 		"name": "Chrome Policy API",
 		"description": "https://developers.google.com/chrome/policy/guides/policy-api",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "17723612"
 	},
 	"item": [
 		{
@@ -12,7 +13,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://chromepolicy.googleapis.com/v1/customers/my_customer/policySchemas?pageSize=100&pageToken",
+					"raw": "https://chromepolicy.googleapis.com/v1/customers/my_customer/policySchemas?pageSize=100&pageToken=",
 					"protocol": "https",
 					"host": [
 						"chromepolicy",
@@ -33,7 +34,7 @@
 						},
 						{
 							"key": "pageToken",
-							"value": null,
+							"value": "",
 							"description": "The page token used to retrieve a specific page of the listing request."
 						}
 					]
@@ -47,7 +48,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://chromepolicy.googleapis.com/v1/customers/my_customer/policySchemas?pageSize=100&pageToken&filter=field_descriptions.field=forceEphemeralProfiles",
+					"raw": "https://chromepolicy.googleapis.com/v1/customers/my_customer/policySchemas?pageSize=100&pageToken&filter=field_descriptions.field=autoplayAllowlist",
 					"protocol": "https",
 					"host": [
 						"chromepolicy",
@@ -73,7 +74,7 @@
 						},
 						{
 							"key": "filter",
-							"value": "field_descriptions.field=forceEphemeralProfiles"
+							"value": "field_descriptions.field=autoplayAllowlist"
 						}
 					]
 				}
@@ -81,13 +82,13 @@
 			"response": []
 		},
 		{
-			"name": "Get or list policies for an Organizational Unit",
+			"name": "List policies for an Organizational Unit",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n  \"policySchemaFilter\": \"chrome.users.*\",\r\n  \"policyTargetKey\": {\r\n    \"targetResource\": \"orgunits/03ph8a2z1nachpv\"\r\n  },\r\n  \"pageSize\": 100,\r\n  \"pageToken\": \"\"\r\n}",
+					"raw": "{\r\n  \"policySchemaFilter\": \"chrome.users.*\",\r\n  \"policyTargetKey\": {\r\n    \"targetResource\": \"orgunits/03ph8a2z4jbpnn4\"\r\n  },\r\n  \"pageSize\": 2,\r\n  \"pageToken\": \"\"\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -119,7 +120,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n          \"targetResource\": \"orgunits/03ph8a2z1nachpv\"\r\n      },\r\n      \"policyValue\": {\r\n        \"policySchema\": \"chrome.users.ChromeCleanupEnabled\",\r\n        \"value\": {chromeCleanupEnabled: false}\r\n      },\r\n      \"updateMask\": {paths:\"chromeCleanupEnabled\"}\r\n    }\r\n  ]\r\n}\r\n",
+					"raw": "{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n          \"targetResource\": \"orgunits/03ph8a2z4jbpnn4\"\r\n      },\r\n      \"policyValue\": {\r\n        \"policySchema\": \"chrome.users.AutoplayAllowlist\",\r\n        \"value\": {autoplayAllowlist: [\"https://voice.google.com\"]}\r\n      },\r\n      \"updateMask\": {paths:\"autoplayAllowlist\"}\r\n    }\r\n  ]\r\n}\r\n",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -152,7 +153,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n          \"targetResource\": \"orgunits/03ph8a2z1nachpv\"\r\n      },\r\n      \"policyValue\": {\r\n        \"policySchema\": \"chrome.users.ChromeCleanupEnabled\",\r\n        \"value\": {chromeCleanupEnabled: false}\r\n      },\r\n      \"updateMask\": {paths:\"chromeCleanupEnabled\"}\r\n    },\r\n    {\r\n      \"policyTargetKey\": {\r\n          \"targetResource\": \"orgunits/03ph8a2z1nachpv\"\r\n      },\r\n      \"policyValue\": {\r\n        \"policySchema\": \"chrome.users.IncognitoMode\",\r\n        \"value\": {incognitoModeAvailability: 2}\r\n      },\r\n      \"updateMask\": {paths:\"incognitoModeAvailability\"}\r\n    }\r\n  ]\r\n}\r\n",
+					"raw": "{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n          \"targetResource\": \"orgunits/03ph8a2z4jbpnn4\"\r\n      },\r\n      \"policyValue\": {\r\n        \"policySchema\": \"chrome.users.ChromeCleanupEnabled\",\r\n        \"value\": {chromeCleanupEnabled: false}\r\n      },\r\n      \"updateMask\": {paths:\"chromeCleanupEnabled\"}\r\n    },\r\n    {\r\n      \"policyTargetKey\": {\r\n          \"targetResource\": \"orgunits/03ph8a2z4jbpnn4\"\r\n      },\r\n      \"policyValue\": {\r\n        \"policySchema\": \"chrome.users.IncognitoMode\",\r\n        \"value\": {incognitoModeAvailability: 2}\r\n      },\r\n      \"updateMask\": {paths:\"incognitoModeAvailability\"}\r\n    }\r\n  ]\r\n}\r\n",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -185,7 +186,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "\r\n{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z1nachpv\"\r\n      },\r\n      \"policySchema\": \"chrome.users.ChromeCleanupEnabled\"\r\n    },\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z1nachpv\"\r\n      },\r\n      \"policySchema\": \"chrome.users.IncognitoMode\"\r\n    }\r\n  ]\r\n}\r\n",
+					"raw": "\r\n{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z4jbpnn4\"\r\n      },\r\n      \"policySchema\": \"chrome.users.ChromeCleanupEnabled\"\r\n    },\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z4jbpnn4\"\r\n      },\r\n      \"policySchema\": \"chrome.users.IncognitoMode\"\r\n    }\r\n  ]\r\n}\r\n",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -212,13 +213,47 @@
 			"response": []
 		},
 		{
-			"name": "Force install an app in a specific Organizational Unit",
+			"name": "Force install an extension in a specific Organizational Unit",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "\r\n{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z1nachpv\",\r\n        \"additionalTargetKeys\": {\r\n          \"app_id\": \"chrome:ppnbnpeolgkicgegkbkbjmhlideopiji\"\r\n        }\r\n      },\r\n      policyValue: {\r\n          policySchema: \"chrome.users.apps.InstallType\",\r\n          value: {appInstallType: \"FORCED\"}\r\n      },\r\n        updateMask: {paths: \"appInstallType\"}\r\n    }\r\n  ]\r\n}\r\n",
+					"raw": "\r\n{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z4jbpnn4\",\r\n        \"additionalTargetKeys\": {\r\n          \"app_id\": \"chrome:aapbdbdomjkkjkaonfhkkikfgjllcleb\"\r\n        }\r\n      },\r\n      policyValue: {\r\n          policySchema: \"chrome.users.apps.InstallType\",\r\n          value: {appInstallType: \"FORCED\"}\r\n      },\r\n        updateMask: {paths: \"appInstallType\"}\r\n    }\r\n  ]\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://chromepolicy.googleapis.com/v1/customers/my_customer/policies/orgunits:batchModify",
+					"protocol": "https",
+					"host": [
+						"chromepolicy",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"v1",
+						"customers",
+						"my_customer",
+						"policies",
+						"orgunits:batchModify"
+					]
+				},
+				"description": "Force install the Windows 10 Accounts extension in the Dev OU."
+			},
+			"response": []
+		},
+		{
+			"name": "Block an extension from a specific Organizational Unit",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "\r\n{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z4jbpnn4\",\r\n        \"additionalTargetKeys\": {\r\n          \"app_id\": \"chrome:aapbdbdomjkkjkaonfhkkikfgjllcleb\"\r\n        }\r\n      },\r\n      policyValue: {\r\n          policySchema: \"chrome.users.apps.InstallType\",\r\n          value: {appInstallType: \"BLOCKED\"}\r\n      },\r\n        updateMask: {paths: \"appInstallType\"}\r\n    }\r\n  ]\r\n}\r\n",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -252,7 +287,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "\r\n{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z0lovut0\",\r\n        \"additionalTargetKeys\": {\r\n          \"app_id\": \"chrome:cijidiollmnkegoghpfobabpecdkeiah\"\r\n        }\r\n      },\r\n      policyValue: {\r\n          policySchema: \"chrome.users.apps.InstallType\",\r\n          value: {appInstallType: \"ALLOWED\"}\r\n      },\r\n        updateMask: {paths: \"appInstallType\"}\r\n    }\r\n  ]\r\n}\r\n",
+					"raw": "{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z191zmfv\",\r\n        \"additionalTargetKeys\": {\r\n          \"app_id\": \"chrome:ndjpnladcallmjemlbaebfadecfhkepb\"\r\n        }\r\n      },\r\n      policyValue: {\r\n          policySchema: \"chrome.users.apps.InstallType\",\r\n          value: {appInstallType: \"ALLOWED\"}\r\n      },\r\n        updateMask: {paths: \"appInstallType\"}\r\n    },\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z191zmfv\",\r\n        \"additionalTargetKeys\": {\r\n          \"app_id\": \"chrome:inehghpkjjjdgpnagcbogckbonilnidc\"\r\n        }\r\n      },\r\n      policyValue: {\r\n          policySchema: \"chrome.users.apps.InstallType\",\r\n          value: {appInstallType: \"FORCED\"}\r\n      },\r\n        updateMask: {paths: \"appInstallType\"}\r\n    },\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z191zmfv\",\r\n        \"additionalTargetKeys\": {\r\n          \"app_id\": \"chrome:omdakjcmkglenbhjadbccaookpfjihpa\"\r\n        }\r\n      },\r\n      policyValue: {\r\n          policySchema: \"chrome.users.apps.InstallType\",\r\n          value: {appInstallType: \"BLOCKED\"}\r\n      },\r\n        updateMask: {paths: \"appInstallType\"}\r\n    }\r\n  ]\r\n}\r\n",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -280,13 +315,47 @@
 			"response": []
 		},
 		{
-			"name": "Deleting an app",
+			"name": "Batch update extensions in a specific Organizational Unit",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n        requests: [\r\n            {\r\n                policyTargetKey: {\r\n                        targetResource: \"orgunits/03ph8a2z1nachpv\",\r\n                        additionalTargetKeys: {\"app_id\": \"chrome:fklgmciohehgadlafhljjhgdojfjihhk\"}\r\n                        },\r\n                policySchema: \"chrome.users.apps.*\",\r\n            }\r\n        ]\r\n}",
+					"raw": "{\r\n  \"requests\": [\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z4jbpnn4\",\r\n        \"additionalTargetKeys\": {\r\n          \"app_id\": \"chrome:jfbnmfgkohlfclfnplnlenbalpppohkm\"\r\n        }\r\n      },\r\n      \"policyValue\": {\r\n          \"policySchema\": \"chrome.users.apps.InstallType\",\r\n          \"value\": {\"appInstallType\": \"ALLOWED\"}\r\n      },\r\n        \"updateMask\": {\"paths\": \"appInstallType\"}\r\n    },\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z4jbpnn4\",\r\n        \"additionalTargetKeys\": {\r\n          \"app_id\": \"chrome:lpcaedmchfhocbbapmcbpinfpgnhiddi\"\r\n        }\r\n      },\r\n      \"policyValue\": {\r\n          \"policySchema\": \"chrome.users.apps.InstallType\",\r\n          \"value\": {\"appInstallType\": \"FORCED\"}\r\n      },\r\n        \"updateMask\": {\"paths\": \"appInstallType\"}\r\n    },\r\n    {\r\n      \"policyTargetKey\": {\r\n        \"targetResource\": \"orgunits/03ph8a2z4jbpnn4\",\r\n        \"additionalTargetKeys\": {\r\n          \"app_id\": \"chrome:oocalimimngaihdkbihfgmpkcpnmlaoa\"\r\n        }\r\n      },\r\n      \"policyValue\": {\r\n          \"policySchema\": \"chrome.users.apps.InstallType\",\r\n          \"value\": {\"appInstallType\": \"BLOCKED\"}\r\n      },\r\n        \"updateMask\": {\"paths\": \"appInstallType\"}\r\n    }\r\n  ]\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://chromepolicy.googleapis.com/v1/customers/my_customer/policies/orgunits:batchModify",
+					"protocol": "https",
+					"host": [
+						"chromepolicy",
+						"googleapis",
+						"com"
+					],
+					"path": [
+						"v1",
+						"customers",
+						"my_customer",
+						"policies",
+						"orgunits:batchModify"
+					]
+				},
+				"description": "Allow install of Dynatrace Real User Monitoring extension in the Dev OU\n\nhttps://chrome.google.com/webstore/detail/dynatrace-real-user-monit/fklgmciohehgadlafhljjhgdojfjihhk"
+			},
+			"response": []
+		},
+		{
+			"name": "Deleting an extension",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n        requests: [\r\n            {\r\n                policyTargetKey: {\r\n                        targetResource: \"orgunits/03ph8a2z4jbpnn4\",\r\n                        additionalTargetKeys: {\"app_id\": \"chrome:aapbdbdomjkkjkaonfhkkikfgjllcleb\"}\r\n                        },\r\n                policySchema: \"chrome.users.apps.*\",\r\n            }\r\n        ]\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -314,13 +383,13 @@
 			"response": []
 		},
 		{
-			"name": "Get App installation policy for an app in an Organizational Unit",
+			"name": "Get Extension installation policy for an app in an Organizational Unit",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n        policyTargetKey: {\r\n          targetResource: \"orgunits/03ph8a2z1nachpv\",\r\n          additionalTargetKeys: {\"app_id\": \"chrome:fklgmciohehgadlafhljjhgdojfjihhk\"}\r\n        },\r\n        policySchemaFilter: \"chrome.users.apps.InstallType\"\r\n}",
+					"raw": "{\r\n        policyTargetKey: {\r\n          targetResource: \"orgunits/03ph8a2z4jbpnn4\",\r\n          additionalTargetKeys: {\"app_id\": \"chrome:aapbdbdomjkkjkaonfhkkikfgjllcleb\"}\r\n        },\r\n        policySchemaFilter: \"chrome.users.apps.InstallType\"\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -353,7 +422,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n        policyTargetKey: {\r\n          targetResource: \"orgunits/03ph8a2z1nachpv\"\r\n        },\r\n        policySchemaFilter: \"chrome.users.apps.InstallType\"\r\n}",
+					"raw": "{\r\n        policyTargetKey: {\r\n          targetResource: \"orgunits/03ph8a2z4jbpnn4\"\r\n        },\r\n        policySchemaFilter: \"chrome.users.apps.InstallType\"\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -380,13 +449,13 @@
 			"response": []
 		},
 		{
-			"name": "List all policies for an app in an Organizational Unit",
+			"name": "List all policies for an extension in an Organizational Unit",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n        policyTargetKey: {\r\n          targetResource: \"orgunits/03ph8a2z1nachpv\",\r\n          additionalTargetKeys: {\"app_id\": \"chrome:fklgmciohehgadlafhljjhgdojfjihhk\"}\r\n        },\r\n        policySchemaFilter: \"chrome.users.apps.*\"\r\n}",
+					"raw": "{\r\n        policyTargetKey: {\r\n          targetResource: \"orgunits/03ph8a2z4jbpnn4\",\r\n          additionalTargetKeys: {\"app_id\": \"chrome:nbcojefnccbanplpoffopkoepjmhgdgh\"}\r\n        },\r\n        policySchemaFilter: \"chrome.users.apps.*\"\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -413,13 +482,13 @@
 			"response": []
 		},
 		{
-			"name": "List all policies for all apps in an Organizational Unit",
+			"name": "List all policies for all extensions in an Organizational Unit",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n        policyTargetKey: {\r\n          targetResource: \"orgunits/03ph8a2z1nachpv\"\r\n        },\r\n        policySchemaFilter: \"chrome.users.apps.*\"\r\n}",
+					"raw": "{\r\n        policyTargetKey: {\r\n          targetResource: \"orgunits/03ph8a2z4jbpnn4\"\r\n        },\r\n        policySchemaFilter: \"chrome.users.apps.*\"\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
