@@ -1,5 +1,5 @@
-# Reports API
-The [Chrome Browser Cloud Management API]([https://developers.google.com/admin-sdk/reports/v1/get-start/overview](https://support.google.com/chrome/a/answer/9681204)) is a RESTful API you can use to access/update CBCM enrolled Chrome browser information. The Reports API is part of the Admin SDK API.
+# Chrome Browser Cloud Management (CBCM) API
+The [Chrome Browser Cloud Management API]([https://developers.google.com/admin-sdk/reports/v1/get-start/overview](https://support.google.com/chrome/a/answer/9681204)) is a RESTful API you can use to access/update CBCM enrolled Chrome browser information. 
 - Postman collection: [Chrome Browser Cloud Management API.postman_collection.json](https://github.com/google/ChromeBrowserEnterprise/blob/main/postman/Chrome%20Browser%20Cloud%20Management%20API.postman_collection.json)
 - Scope: https://www.googleapis.com/auth/admin.directory.device.chromebrowsers or https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly
 
