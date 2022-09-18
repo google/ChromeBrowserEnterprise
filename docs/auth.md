@@ -12,6 +12,3 @@
 | `https://www.googleapis.com/auth/admin.directory.orgunit.readonly`|Org Units - lets you view organizational units |
 | `https://www.googleapis.com/auth/admin.directory.orgunit`|Org Units - lets you view and modify organizational units |
 | `https://www.googleapis.com/auth/admin.reports.audit.readonly`|Admin Console Reports - lets you view activities done by administrators using the Admin console and oAuth token acivities |
-
-
-## Next > [Postman Collection](postmanColl.md)
