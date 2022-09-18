@@ -1,6 +1,7 @@
 # Reports API
 The [Reports API](https://developers.google.com/admin-sdk/reports/v1/get-start/overview) is a RESTful API you can use to access information about the Chrome browser and CBCM activities. The Reports API is part of the Admin SDK API.
 - Postman collection: [Reports API.postman_collection.json](https://github.com/google/ChromeBrowserEnterprise/blob/main/postman/Reports%20API.postman_collection.json)
+- Scope: https://www.googleapis.com/auth/admin.reports.audit.readonly
 
 ## Retrieve all administrative activities
 To retrieve a report of all administrative activities done for an account, use the following GET HTTP request and include the authorization token.
