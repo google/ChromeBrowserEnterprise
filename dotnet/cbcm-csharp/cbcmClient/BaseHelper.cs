@@ -64,9 +64,9 @@ namespace cbcmClient
                 bearer = task.Result;
 
             }
-            catch (AggregateException ex)
+            catch (Exception ex)
             {
-                throw ex.InnerException;
+                throw ex;
             }
 
             return bearer;

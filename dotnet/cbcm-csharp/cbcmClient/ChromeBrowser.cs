@@ -178,8 +178,12 @@ namespace cbcmClient
                     content = response.Content;
                     browserDevices = BrowserDevices.FromJson(content);
 
+                    if (browserDevices == null)
+                        continue;
+
+
                     //set next page token
-                    nextPageToken = browserDevices.NextPageToken;
+                    nextPageToken = String.IsNullOrEmpty(browserDevices.NextPageToken) ? String.Empty : browserDevices.NextPageToken;
 
                     foreach (var browser in browserDevices.Browsers)
                     {
