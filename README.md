@@ -14,11 +14,11 @@ Use the [Chrome Browser Enterprise (CBE)](https://support.google.com/chrome/a/to
   * [Enrollment Token API](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/Enrollment_Token_api.md)
   * [Reports API](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/Reports_api.md)
 * C#
-  * [CBCM-CSharp](https://github.com/google/ChromeBrowserEnterprise/tree/main/dotnet)
+  * [CBCM-CSharp](https://github.com/google/ChromeBrowserEnterprise/tree/main/dotnet) - a console based app that utilizes above mentioned APIs to perform various use-cases.
 * [Postman Collections](https://github.com/google/ChromeBrowserEnterprise/tree/main/postman)
 * PowerShell 
-  * [Random Scripts](https://github.com/google/ChromeBrowserEnterprise/tree/main/ps/src)
-  * [Random CBCM Scripts](https://github.com/google/ChromeBrowserEnterprise/tree/main/ps/src/cbcm)
+  * [Random Scripts](https://github.com/google/ChromeBrowserEnterprise/tree/main/ps/src) - scripts to wake the browser and force browser to update.
+  * [Random CBCM Scripts](https://github.com/google/ChromeBrowserEnterprise/tree/main/ps/src/cbcm) - script to add the enrollment token to the device and launch the browesr (complete the enrollment process).
 
 
 ## Contributing
