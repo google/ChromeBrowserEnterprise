@@ -74,7 +74,8 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
   "Output": "all-enrolled-browser-data.csv"
 }
 ```
-### Get basic enrolled browser data with an optional argument to query by orgnizational unit. Output columns {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion,policyCount,extensionCount}
+### Get basic enrolled browser data with an optional argument to query by orgnizational unit. 
+Output columns {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion,policyCount,extensionCount}
 ```
 {
   "Agurment": "101" "OU Path"
