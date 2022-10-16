@@ -22,8 +22,8 @@ Dependencies
 ```
 cscript update3web_demo.js {8A69D345-D564-463c-AFF1-A69D9E530F96} 1 3
 ```
-Arg[0] {8A69D345-D564-463c-AFF1-A69D9E530F96} is the Chrome Stable product guid.
+arg[0] {8A69D345-D564-463c-AFF1-A69D9E530F96} is the Chrome Stable product guid.
 
-Arg[1] 1 applies to the Machine.
+arg[1] 1 applies to the Machine.
 
-Arg[2] 3 perform an Update.
+arg[2] 3 perform an Update.
