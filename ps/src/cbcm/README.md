@@ -11,6 +11,17 @@ Dependency
 .\AddEnrollmentTokenThenRegister.ps1
 ```
 
+## Unenroll the browser
+Consider using the [Unenroll Browser script](UnenrollBrowser.ps1) to unenroll a browser from CBCM and delete the CloudManagementEnrollmentToken and device management token from the device. Unenrolling devices from CBCM also deletes the already uploaded data to the Admin console. Platform policies and cloud-based user policies are not affected.
+
+**Note:** You will need to add the customer ID and the OAuth key JSON file to the script to allow an API call to delete an enrolled browser.
+
+Dependency
+
+```
+.\UnenrollBrowser.ps1
+```
+
 ## Get extension list using Takeout API
 Using the [script](extension_query.py) (
 [python 2.7 compatible version](extension_query_py2.py)) to download extensions
