@@ -18,7 +18,7 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
 ### Get All Organizational Units (OU)
 ```
 {
-  "Agurment": 2,
+  "Argument": 2,
   "Usage": "cbcmapp.exe 2",
   "Output": "CBCM_DirectoryOrgUnit.csv"
 }
@@ -26,7 +26,7 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
 ### Find enrolled browsers with missing data (profile, extensions, and policies)
 ```
 {
-  "Agurment": 3,
+  "Argument": 3,
   "Usage": "cbcmapp.exe 3",
   "Output": "CBCM_BrowsersWithMissingData.csv"
 }
@@ -34,7 +34,7 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
 ### Find browsers installed on the user's app data folder. Applies to Windows OS platform only
 ```
 {
-  "Agurment": 4,
+  "Argument": 4,
   "Usage": "cbcmapp.exe 4",
   "Output": "CBCM_BrowserDevicesInstalledOnUserAppDataFolder.csv"
 }
@@ -42,7 +42,7 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
 ### Bulk upload extension IDs to an OU with install policy
 ```
 {
-  "Agurment": "5" "OU ID" "Install Policy (ALLOWED, BLOCKED, FORCED)" "extensions ID csv/txt file",
+  "Argument": "5" "OU ID" "Install Policy (ALLOWED, BLOCKED, FORCED)" "extensions ID csv/txt file",
   "Usage": cbcmapp.exe 5 "03phkw8rsq" "BLOCKED" "C:/Temp/BatchUploadExtensions.[csv|txt]",
   "Output": "BatchUploadExtensionsToOu.txt"
 }
@@ -50,7 +50,7 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
 ### Move Chrome browser Devices between Organization Units
 ```
 {
-  "Agurment": "6" "OU Path" "machine names csvtxt file"
+  "Argument": "6" "OU Path" "machine names csvtxt file"
   "Usage": cbcmapp.exe 6 "/APAC/Tokyo" ""C:/Temp/MoveDevices.[csv|txt]"
   "Output": "moveChromeBrowsersToOu.txt"
 }
@@ -58,7 +58,7 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
 ### Backup policies for an Organizational Unit (OU)
 ```
 {
-  "Agurment": "20" "OU ID"
+  "Argument": "20" "OU ID"
   "Usage": cbcmapp.exe 20 "03phkw8rsq"
   "Output": "policybackup.json"
 }
@@ -68,7 +68,7 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
 {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion,policyCount,machinePolicies,extensionCount,extensionId,extensionName}
 ```
 {
-  "Agurment": "100" "OU Path"
+  "Argument": "100" "OU Path"
   "Usage": cbcmapp.exe 100 "/APAC/Tokyo"
   "Usage": cbcmapp.exe 100
   "Output": "all-enrolled-browser-data.csv"
@@ -78,7 +78,7 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
 Output columns {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime,serialNumber,osPlatform,osArchitecture,osVersion,policyCount,extensionCount}
 ```
 {
-  "Agurment": "101" "OU Path"
+  "Argument": "101" "OU Path"
   "Usage": cbcmapp.exe 101 "/APAC/Tokyo"
   "Output": "all-enrolled-browser-data.csv"
 }
@@ -87,7 +87,7 @@ Output columns {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime
 #### Find browsers in an Organizational Unit (OU) where the last activity date is between given start and end days (format yyyy-MM-dd)
 ```
 {
-  "Agurment": "800"  "OU Path" "Start date" "End date"
+  "Argument": "800"  "OU Path" "Start date" "End date"
   "Usage sample 1": cbcmapp.exe 800  "/North America/Algonquin" "2022-01-01" "2022-04-01"
   "Usage sample 2": cbcmapp.exe 800  "" "2022-01-01" "2022-04-01"
   "Output": "CBCM_BrowsersFilteredByLastActivityDate.csv"
@@ -96,7 +96,7 @@ Output columns {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime
 #### Delete inactive browser in an Organizational Unit (OU) where the last activity date is between given start and end days (format yyyy-MM-dd)
 ```
 {
-  "Agurment": "890"  "OU Path" "Start date" "End date"
+  "Argument": "890"  "OU Path" "Start date" "End date"
   "Usage sample 1": cbcmapp.exe 890  "/North America/Algonquin" "2022-01-01" "2022-04-01"
   "Usage sample 2": cbcmapp.exe 890  "" "2022-01-01" "2022-04-01"
   "Output": none
@@ -106,7 +106,7 @@ Output columns {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime
 #### Delete enrolled browsers from the admin console. Input file must contain a comma-separated list of machine names.
 ```
 {
-  "Agurment": "990" "machine names csv file"
+  "Argument": "990" "machine names csv file"
   "Usage": cbcmapp.exe 990 "C:/Temp/deleteBrowsers.csv"
   "Output": "deleteChromeBrowsers.csv"
 }
@@ -114,7 +114,7 @@ Output columns {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime
 #### Delete enrolled browsers from the admin console. Input file must contain a comma-separated list of deviceIds.
 ```
 {
-  "Agurment": "991" "deviceId csv file"
+  "Argument": "991" "deviceId csv file"
   "Usage": cbcmapp.exe 991 "C:/Temp/deleteBrowsers.csv"
   "Output": "deleteChromeBrowsers.csv"
 }
