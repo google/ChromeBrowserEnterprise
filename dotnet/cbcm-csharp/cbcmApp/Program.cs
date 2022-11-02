@@ -368,17 +368,17 @@ namespace cbcmApp
             string[] separators = { "," };
             string content = File.ReadAllText(filePath);
             string[] lines = content.Split(separators, StringSplitOptions.RemoveEmptyEntries);
-            string[] linesTrimmed = lines.Select(line => line.Trim()).ToArray();
+            //string[] linesTrimmed = lines.Select(line => line.Trim()).ToArray();
+            List<string> result = lines.Select(l => l.Trim()).ToList();
 
-            if (linesTrimmed.Length < 1)
-                throw new ApplicationException("Input file does not have data to process.");
+          
             //max entries allowed for processing.
             int max = 400;
 
-            if (limitEntries == true && linesTrimmed.Length > max)
+            if (limitEntries == true && result.Count > max)
                 throw new ApplicationException(String.Format("{0} contains more than {1} entries. Please limit the entries to {1} or less.", filePath, max));
 
-            return new List<string>(linesTrimmed);
+            return result;
         }
 
         /// <summary>
@@ -391,8 +391,9 @@ namespace cbcmApp
         private static List<string> ImportTXT(string filePath, bool limitEntries)
         {
             List<string> result = File.ReadLines(filePath, System.Text.Encoding.Default)
-                .Where(l => !String.IsNullOrEmpty(l)).ToList();
+                .Select(line => line.Trim()).ToList();
 
+            //max entries allowed for processing.
             int max = 400;
 
             if (limitEntries == true && result.Count > max)
