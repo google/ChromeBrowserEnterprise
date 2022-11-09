@@ -7,6 +7,10 @@ using RestSharp;
 using cbcmSchema.ExtensionPolicy;
 using cbcmSchema.ChromeBrowserPolicy;
 using cbcmSchema.ChromeBrowserPolicyRequest;
+using cbcmSchema.Extension;
+using Newtonsoft.Json.Linq;
+using cbcmSchema.OU;
+using System.Timers;
 
 namespace cbcmClient
 {
@@ -22,6 +26,87 @@ namespace cbcmClient
         }
 
         /// <summary>
+        /// Upload an extension one at a time (slow). Use the batch upload method for bulk import. 
+        /// </summary>
+        /// <param name="extensionIDs">App and Extension IDs</param>
+        /// <param name="orgUnitId">OU ID</param>
+        /// <param name="installPolicy">FORCED, ALLOWED, BLOCKED. Default is ALLOWED</param>
+        /// <returns></returns>
+        public string SingletonUploadExtensionsToOU(List<string> extensionIDs, string orgUnitId, string installPolicy)
+        {
+            //parse install policy
+            string appInstallType = this.ExtensionInstallPolicyParse(installPolicy);
+
+            StringBuilder sb = new StringBuilder();
+
+            //prepare Chrome Web Store validation
+            ChromeBrowser chromeBrowser = new ChromeBrowser(KeyFile, CustomerID, AdminUserToImpersonate);
+            List<ExtensionItem> extensionItemList = chromeBrowser.GetExtesnsionDetailsFromCWS(extensionIDs);
+
+            string[] scope = { "https://www.googleapis.com/auth/chrome.management.policy" };
+            string serviceURL = String.Format("https://chromepolicy.googleapis.com/v1/customers/{0}/policies/orgunits:batchModify", this.CustomerID);
+            Uri baseUrl = new Uri(serviceURL);
+
+            string token = this.GetAuthBearerToken(scope);
+
+
+            foreach (ExtensionItem extensionItem in extensionItemList)
+            {
+                if (extensionItem is null)
+                    continue;
+
+                if (extensionItem.DetailUri is null)
+                {
+                    sb.AppendLine(String.Format("Cannot find extension ID {0} in the Chrome Web Store", extensionItem.UnverifiedExtensionId));
+                    continue;
+                }
+
+                cbcmSchema.ExtensionPolicy.ExtensionMgmtPolicy extensionMgmt = this.BuildExtensionPolicyRequest(appInstallType, extensionItem.AppId, orgUnitId);
+
+                string body = extensionMgmt.ToJson();
+                
+                var request = new RestRequest(Method.POST);
+
+                RestClient client = new RestClient();
+                client.BaseUrl = baseUrl;
+                client.Timeout = base._timeout;
+
+                request.AddHeader("Content-Type", "application/json");
+                request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+
+                request.AddParameter("application/json", body, ParameterType.RequestBody);
+                IRestResponse response = client.Execute(request);
+                sb.AppendLine(String.Format("{0}: App Id {1}. Response content {2}", DateTime.Now.ToString("HH:mm:ss.fff"), extensionItem.AppId, response.Content));
+
+                //[hack] write operation with "modify" - 1QpS. Resolve has a 5QpS limit.
+                this.SetTimer(2000);
+                
+            }
+
+                return sb.ToString();
+        }
+
+        //write operation with "modify" - 1QpS. Resolve has a 5QpS limit.
+        private void SetTimer(double interval)
+        {
+            // Create a timer with the specificed internal (seconds).
+            using (Timer timer = new System.Timers.Timer(interval))
+            {
+                timer.Elapsed += OnTimedEvent;
+                // Have the timer fire repeated events (true is the default)
+                timer.AutoReset = false;
+                // Start the timer
+                timer.Enabled = true;
+            }
+        }
+
+        private  void OnTimedEvent(Object source, ElapsedEventArgs e)
+        {
+            //do nothing
+        }
+
+
+        /// <summary>
         /// Batch update extensions in a specific Organizational Unit Copy
         /// </summary>
         /// <param name="extensionIDs">App and Extension IDs</param>
@@ -30,7 +115,12 @@ namespace cbcmClient
         /// <returns></returns>
         public string BatchUploadExtensionsToOU(List<string> extensionIDs, string orgUnitId, string installPolicy)
         {
+            //prepare Chrome Web Store validation
+            ChromeBrowser chromeBrowser = new ChromeBrowser(KeyFile, CustomerID, AdminUserToImpersonate);
+            List<ExtensionItem> extensionItemList = chromeBrowser.GetExtesnsionDetailsFromCWS(extensionIDs);
+
             string appInstallType = this.ExtensionInstallPolicyParse(installPolicy);
+            StringBuilder sb = new StringBuilder(); 
                        
             cbcmSchema.ExtensionPolicy.PolicyTargetKey policyTargetKey;
             cbcmSchema.ExtensionPolicy.PolicyValue policyValue;
@@ -40,13 +130,22 @@ namespace cbcmClient
             cbcmSchema.ExtensionPolicy.ExtensionMgmtPolicy extensionMgmt = new cbcmSchema.ExtensionPolicy.ExtensionMgmtPolicy();
             List<cbcmSchema.ExtensionPolicy.Request> extensionInstallRequests = new List<cbcmSchema.ExtensionPolicy.Request>();
 
-            foreach (string extensionID in extensionIDs)
+            foreach (ExtensionItem extensionItem in extensionItemList)
             {
+                if (extensionItem is null)
+                    continue;
+
+                if (extensionItem.DetailUri is null)
+                {
+                    sb.AppendLine(String.Format("Cannot find extension ID {0} in the Chrome Web Store", extensionItem.UnverifiedExtensionId));
+                    continue;
+                }
+
                 //policyTargetKey
                 policyTargetKey = new cbcmSchema.ExtensionPolicy.PolicyTargetKey();
                 policyTargetKey.TargetResource = String.Format("orgunits/{0}", orgUnitId);
                 cbcmSchema.ExtensionPolicy.AdditionalTargetKeys additionalTargetKeys = new cbcmSchema.ExtensionPolicy.AdditionalTargetKeys();
-                additionalTargetKeys.AppId = String.Format("chrome:{0}", extensionID);
+                additionalTargetKeys.AppId = String.Format("chrome:{0}", extensionItem.AppId);
                 policyTargetKey.AdditionalTargetKeys = additionalTargetKeys;
 
                 //Value
@@ -89,8 +188,9 @@ namespace cbcmClient
 
             request.AddParameter("application/json", body, ParameterType.RequestBody);
             IRestResponse response = client.Execute(request);
+            sb.AppendLine(String.Format("Response content {0}", response.Content));
 
-            return response.Content;
+            return sb.ToString();
         }
 
         /// <summary>
@@ -216,6 +316,49 @@ namespace cbcmClient
             }
 
             return stringBuilder.ToString();
+        }
+
+        /// <summary>
+        /// Build the extension import policy object.
+        /// </summary>
+        /// <param name="extensionInstallPolicy">FORCED, ALLOWED, BLOCKED. Default is ALLOWED</param>
+        /// <param name="appId">App and Extension ID</param>
+        /// <param name="orgUnitId">OU ID</param>
+        /// <returns></returns>
+        private cbcmSchema.ExtensionPolicy.ExtensionMgmtPolicy BuildExtensionPolicyRequest(string extensionInstallPolicy, string appId, string orgUnitId)
+        {
+            //policyTargetKey
+            cbcmSchema.ExtensionPolicy.PolicyTargetKey policyTargetKey = new cbcmSchema.ExtensionPolicy.PolicyTargetKey();
+            policyTargetKey.TargetResource = String.Format("orgunits/{0}", orgUnitId);
+            cbcmSchema.ExtensionPolicy.AdditionalTargetKeys additionalTargetKeys = new cbcmSchema.ExtensionPolicy.AdditionalTargetKeys();
+            additionalTargetKeys.AppId = String.Format("chrome:{0}", appId);
+            policyTargetKey.AdditionalTargetKeys = additionalTargetKeys;
+
+            //Value
+            cbcmSchema.ExtensionPolicy.Value value = new Value();
+            value.AppInstallType = extensionInstallPolicy;
+            //policyValue
+            cbcmSchema.ExtensionPolicy.PolicyValue policyValue = new cbcmSchema.ExtensionPolicy.PolicyValue();
+            policyValue.Value = value;
+            policyValue.PolicySchema = "chrome.users.apps.InstallType";
+
+            //updateMask
+            cbcmSchema.ExtensionPolicy.UpdateMask updateMask = new cbcmSchema.ExtensionPolicy.UpdateMask();
+            updateMask.Paths = "appInstallType";
+
+            //requests
+            cbcmSchema.ExtensionPolicy.Request request1 = new cbcmSchema.ExtensionPolicy.Request();
+            request1.PolicyTargetKey = policyTargetKey;
+            request1.PolicyValue = policyValue;
+            request1.UpdateMask = updateMask;
+
+            List<cbcmSchema.ExtensionPolicy.Request> extensionInstallRequests = new List<cbcmSchema.ExtensionPolicy.Request>();
+            extensionInstallRequests.Add(request1);
+
+            cbcmSchema.ExtensionPolicy.ExtensionMgmtPolicy extensionMgmt = new cbcmSchema.ExtensionPolicy.ExtensionMgmtPolicy();
+            extensionMgmt.Requests = extensionInstallRequests;
+
+            return extensionMgmt;
         }
 
     }
