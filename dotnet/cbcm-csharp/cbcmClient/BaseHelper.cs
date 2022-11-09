@@ -9,15 +9,16 @@ namespace cbcmClient
 {
     public class BaseHelper
     {
-        private string _keyFile = string.Empty;
+        //private string _keyFile = string.Empty;
         private string _customerID = string.Empty;
         protected int _timeout = 3597;  //client timeout interval in seconds.
-        internal string CustomerID { 
+        protected string CustomerID { 
             get { return String.IsNullOrEmpty(_customerID) ? "my_customer" : this._customerID; }
             set { this._customerID = value; }
         }
+        protected string KeyFile { get; set; }
 
-        internal string AdminUserToImpersonate { get; set; }    
+        protected string AdminUserToImpersonate { get; set; }    
 
         private string[] _scopes = {"https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly"
                 ,"https://www.googleapis.com/auth/admin.directory.device.chromebrowsers"
@@ -33,13 +34,13 @@ namespace cbcmClient
 
         public BaseHelper(string keyFile)
         {
-            this._keyFile = keyFile;
+            this.KeyFile = keyFile;
         }
         
 
         public BaseHelper(string keyFile, string adminUserToImpersonate)
         {
-            this._keyFile = keyFile;
+            this.KeyFile = keyFile;
             this.AdminUserToImpersonate = adminUserToImpersonate;
         }
 
@@ -48,7 +49,7 @@ namespace cbcmClient
             string bearer;
             GoogleCredential credential;
 
-            using (Stream stream = new FileStream(this._keyFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (Stream stream = new FileStream(this.KeyFile, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
                 credential = GoogleCredential.FromStream(stream);
             }
