@@ -48,6 +48,7 @@
     <Compile Include="BrowserDevices.cs" />
     <Compile Include="BrowserPolicyRequest.cs" />
     <Compile Include="ChromeMgmtPolicy.cs" />
+    <Compile Include="ExtensionItem.cs" />
     <Compile Include="ExtensionMgmtPolicy.cs" />
     <Compile Include="MoveChromeBrowsersToOu.cs" />
     <Compile Include="OrgUnits.cs" />
