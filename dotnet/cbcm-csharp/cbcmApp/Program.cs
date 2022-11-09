@@ -57,9 +57,6 @@ namespace cbcmApp
                     case 4: //Find browsers installed on user's app data folder. Applies to Windows OS platform only.
                         Program.GetBrowserDevicesInstalledOnUserAppDataFolder(accountKeyFile, customerID, adminUserToImpersonate);  
                         break;
-                    case 5: //Append to an OU extension installation allow list.
-                        Program.PostExtensions(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2], args[3]);
-                        break;
                     case 6: //Move Chrome browser Devices between Organization Units 
                         Program.MoveChromeBrowserDevicesToOU(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2]);
                         break;
@@ -71,6 +68,14 @@ namespace cbcmApp
                         break;
                     case 101: //get basic data from enrolled browsers as csv.
                         Program.GetAllBasicEnrolledBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty);
+                        break;
+                    case 5:
+                    case 201: //Bulk add extension and install policy to an OU.
+                        Program.PostExtensions(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2], args[3], false);
+                        break;
+                    case 202: //singular add extension and install policy to an OU.
+                        //Program.PostExtensions(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2], args[3], true);
+                        Program.HelpWithArguments();
                         break;
                     case 800: //get browsers where the last activitiy is between start and end dates
                         Program.GetEnrolledBrowsersByLastActivity(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3]);
@@ -106,11 +111,11 @@ namespace cbcmApp
             Console.WriteLine("2 Get All Organizational Units (OU).");
             Console.WriteLine("3 Find enrolled browsers with missing data (profile, extensions, and policies).");
             Console.WriteLine("4 Find browsers installed on the user's app data folder. Applies to Windows OS platform only.");
-            Console.WriteLine(@"5 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV/TXT.\r\n\t Usage: cbcmapp.exe 5  ""OU ID"" ""BLOCKED"" ""C:/Temp/BatchUploadExtensions.[csv|txt]""");
             Console.WriteLine(@"6 Move Chrome browser Devices between Organization Units. Required arguments OU path, and file to CSV/TXT.\r\n\t Usage: cbcmapp.exe 6  ""/OU Name"" ""C:/Temp/MoveDevices.[csv|txt]""");
             Console.WriteLine(@"20 Backup policies for an Organizational Unit (OU). Required arguments OU ID. \r\n\t Usage: cbcmapp.exe 20  ""OU ID""");
             Console.WriteLine(@"100 Get all enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 100 \r\n\t cbcm.exe 100 ""/North America/Algonquin""");
             Console.WriteLine(@"101 Get Basic enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 101 \r\n\t cbcm.exe 101 ""/North America/Algonquin""");
+            Console.WriteLine(@"201 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV/TXT.\r\n\t Usage: cbcmapp.exe 201  ""OU ID"" ""BLOCKED"" ""C:/Temp/BatchUploadExtensions.[csv|txt]""");
             Console.WriteLine(@"800 Find browsers in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 800  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
             Console.WriteLine(@"890 Delete in active browser in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 890  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
             Console.WriteLine(@"990 Delete enrolled browsers from the admin console. Required argument file to CSV/TXT with machine names.\r\n\t Usage: cbcmapp.exe 990  ""C:/Temp/deleteBrowsers.[csv|txt]""");
@@ -176,7 +181,7 @@ namespace cbcmApp
         /// <param name="orgUnitId">OU ID</param>
         /// <param name="extensionInstallType">Extension install type (FORCED, ALLOWED, BLOCKED).</param>
         /// <param name="filePath">File path to CSV with no header data. Limit row count to 400 app IDs.</param>
-        public static void PostExtensions(string accountKeyFile, string customerID, string adminUserToImpersonate, string orgUnitId, string extensionInstallType, string filePath)
+        public static void PostExtensions(string accountKeyFile, string customerID, string adminUserToImpersonate, string orgUnitId, string extensionInstallType, string filePath, bool singleton = false)
         {
             if (String.IsNullOrEmpty(orgUnitId))
                 throw new ArgumentNullException("OrgUnitId is required.");
@@ -186,7 +191,13 @@ namespace cbcmApp
 
             List<string> extensions = Program.ImportData(filePath, true);
             ChrometPolicyResolve chromeMgmtPolicy = new ChrometPolicyResolve(accountKeyFile, customerID, adminUserToImpersonate);
-            string result = chromeMgmtPolicy.BatchUploadExtensionsToOU(extensions, orgUnitId.Trim(), extensionInstallType.Trim());
+
+            string result = String.Empty;
+            if (singleton)
+                result = chromeMgmtPolicy.SingletonUploadExtensionsToOU(extensions, orgUnitId.Trim(), extensionInstallType.Trim());
+            else 
+                result = chromeMgmtPolicy.BatchUploadExtensionsToOU(extensions, orgUnitId.Trim(), extensionInstallType.Trim());
+
             Program.Log(result, "BatchUploadExtensionsToOu.txt");
         }
         /// <summary>
