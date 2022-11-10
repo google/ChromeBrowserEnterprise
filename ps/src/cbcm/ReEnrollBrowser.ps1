@@ -58,7 +58,7 @@ Invoke-CommandAs -ScriptBlock {
     Start-Process "chrome.exe" -ArgumentList $chromeArgList 
 } -AsSystem
 
-Start-Sleep -Seconds 15
+Start-Sleep -Seconds 45
 
 # Execute As System - Find chrome processes running as system and stop the process.
 Invoke-CommandAs -ScriptBlock { 
