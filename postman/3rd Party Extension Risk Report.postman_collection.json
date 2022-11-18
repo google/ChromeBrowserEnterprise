@@ -1,0 +1,119 @@
+{
+	"info": {
+		"_postman_id": "53470829-4f47-4c86-bfa5-474a9700d2ac",
+		"name": "3rd Party Extension Risk Report",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "17723612"
+	},
+	"item": [
+		{
+			"name": "CRXcavator - Retrieve report for all versions of an extension",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://api.crxcavator.io/v1/report/callobklhcbilhphinckomhgkigmfocg?platform=Chrome",
+					"protocol": "https",
+					"host": [
+						"api",
+						"crxcavator",
+						"io"
+					],
+					"path": [
+						"v1",
+						"report",
+						"callobklhcbilhphinckomhgkigmfocg"
+					],
+					"query": [
+						{
+							"key": "platform",
+							"value": "Chrome"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "CRXcavator - Retrieve report  on a specific version of an extension",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://api.crxcavator.io/v1/report/callobklhcbilhphinckomhgkigmfocg/1.44.0?platform=Chrome",
+					"protocol": "https",
+					"host": [
+						"api",
+						"crxcavator",
+						"io"
+					],
+					"path": [
+						"v1",
+						"report",
+						"callobklhcbilhphinckomhgkigmfocg",
+						"1.44.0"
+					],
+					"query": [
+						{
+							"key": "platform",
+							"value": "Chrome"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Spin.AI - Retrieve report for all versions of an extension Copy",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://apg-1.spin.ai/api/v1/assessment/platform/chrome/callobklhcbilhphinckomhgkigmfocg",
+					"protocol": "https",
+					"host": [
+						"apg-1",
+						"spin",
+						"ai"
+					],
+					"path": [
+						"api",
+						"v1",
+						"assessment",
+						"platform",
+						"chrome",
+						"callobklhcbilhphinckomhgkigmfocg"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Spin.AI - Retrieve report  on a specific version of an extension",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://apg-1.spin.ai/api/v1/assessment/platform/chrome/callobklhcbilhphinckomhgkigmfocg/version/1.44.0",
+					"protocol": "https",
+					"host": [
+						"apg-1",
+						"spin",
+						"ai"
+					],
+					"path": [
+						"api",
+						"v1",
+						"assessment",
+						"platform",
+						"chrome",
+						"callobklhcbilhphinckomhgkigmfocg",
+						"version",
+						"1.44.0"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
