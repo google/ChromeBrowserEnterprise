@@ -83,6 +83,56 @@ Output columns {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime
   "Output": "all-enrolled-browser-data.csv"
 }
 ```
+
+### Extensions & Risk Assessment 
+#### Download extensions installed in your enterprise with 3rd party risk scores from [CRXcavator](https://crxcavator.io/) and [Spin.ai](https://spin.ai/platform/google-workspace/apps-security/)
+```
+{
+  "Argument": "300" OU ID (optional)
+  "Usage": cbcmapp.exe 300 03phkw8rsq
+  "Output": "ExtensionRiskSignals_[OU ID].csv"
+}
+```
+Output
+```
+appId,displayName,version,crxcavatorRiskScore,crxcavatorRiskUrl,spinRiskScore,spinRiskUrl,browserDeviceCount,appInstallType
+felcaaldnbdncclmgdcncolpebgiejap,"Sheets",1.2,7,https://crxcavator.io/report/felcaaldnbdncclmgdcncolpebgiejap/1.2,91,https://apps.spin.ai/app?appId=293df632-514f-11ed-81c5-c597d456c319,1,NORMAL
+pjkljhegncpnkpknbcohdijeoejaedia,"Gmail",8.3,13,https://crxcavator.io/report/pjkljhegncpnkpknbcohdijeoejaedia/8.3,92,https://apps.spin.ai/app?appId=29bb2324-514f-11ed-81c5-c597d456c319,1,NORMAL
+apdfllckaahabafndbhieahigkjlhalf,"Google Drive",14.5,37,https://crxcavator.io/report/apdfllckaahabafndbhieahigkjlhalf/14.5,75,https://apps.spin.ai/app?appId=2a3713d1-514f-11ed-81c5-c597d456c319,1,NORMAL
+ghbmnnjooekpmoecnnnilnnbdlolhkhi,"Google Docs Offline",1.50.1,389,https://crxcavator.io/report/ghbmnnjooekpmoecnnnilnnbdlolhkhi/1.50.1,82,https://apps.spin.ai/app?appId=b5480949-4a9b-4d89-9d86-cf207e032a0e,1,SIDELOAD
+aohghmighlieiainnegkcijnfilokake,"Docs",0.10,7,https://crxcavator.io/report/aohghmighlieiainnegkcijnfilokake/0.10,91,https://apps.spin.ai/app?appId=2a396105-514f-11ed-81c5-c597d456c319,1,NORMAL
+blpcfgokakmgnkcojhhkbfbldkacnbeo,"YouTube",4.2.8,9,https://crxcavator.io/report/blpcfgokakmgnkcojhhkbfbldkacnbeo/4.2.8,88,https://apps.spin.ai/app?appId=28f559f6-514f-11ed-81c5-c597d456c319,1,NORMAL
+
+```
+
+#### Download  3rd party risk scores from [CRXcavator](https://crxcavator.io/) and [Spin.ai](https://spin.ai/platform/google-workspace/apps-security/) for {extension,version} input data
+```
+{
+  "Argument": "301" file path
+  "Usage": cbcmapp.exe 301 extensionsignalimport.txt
+  "Output": "ExtensionRiskSignals_FromImport.csv"
+}
+```
+Input
+```
+aapbdbdomjkkjkaonfhkkikfgjllcleb
+blipmdconlkpinefehnmjammfjpmpbjk
+mclkkofklkfljcocdinagocijmpgbhab,10.2.0.2
+lpcaedmchfhocbbapmcbpinfpgnhiddi, 4.22452.1312.1
+ldipcbpaocekfooobnbcddclnhejkcpn , 3.2
+hkgfoiooedgoejojocmhlaklaeopbecg,1.11
+```
+Output
+```
+appId,version,crxcavatorRiskScore,spinRiskScore
+aapbdbdomjkkjkaonfhkkikfgjllcleb,2.0.9,crx:406,spinai:
+blipmdconlkpinefehnmjammfjpmpbjk,100.0.0.0,crx:405,spinai:77
+mclkkofklkfljcocdinagocijmpgbhab,10.2.0.2,crx:435,spinai:76
+lpcaedmchfhocbbapmcbpinfpgnhiddi,4.22452.1312.1,crx:450,spinai:81
+ldipcbpaocekfooobnbcddclnhejkcpn,3.2,crx:396,spinai:75
+hkgfoiooedgoejojocmhlaklaeopbecg,1.11,crx:388,spinai:76
+```
+
 ### Inactive Browser
 #### Find browsers in an Organizational Unit (OU) where the last activity date is between given start and end days (format yyyy-MM-dd)
 ```
