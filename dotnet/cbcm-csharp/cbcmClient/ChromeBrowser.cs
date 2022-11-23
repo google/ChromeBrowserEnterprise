@@ -25,47 +25,6 @@ namespace cbcmClient
             this.CustomerID = customerID;
         }
 
-        internal List<ExtensionItem> GetExtesnsionDetailsFromCWS(List<string> extensionIdList)
-        {
-            List<ExtensionItem> result = new List<ExtensionItem>();
-            string[] scope = { "https://www.googleapis.com/auth/chrome.management.appdetails.readonly" };
-            string token = this.GetAuthBearerToken(scope);
-
-            foreach (string extensionId in extensionIdList)
-            {
-                if (String.IsNullOrEmpty(extensionId))
-                    continue;
-
-                ExtensionItem item = this.GetExtensionDetail(token, extensionId);
-                result.Add(item);
-            }
-
-            return result;
-        }
-
-        internal ExtensionItem GetExtensionDetail(string token, string extensionId)
-        {            
-            string[] scope = { "https://www.googleapis.com/auth/chrome.management.appdetails.readonly" };
-            string authToken = String.IsNullOrEmpty(token) ? this.GetAuthBearerToken(scope) : token;
-
-            string serviceURL = String.Format("https://chromemanagement.googleapis.com/v1/customers/{0}/apps/chrome/{1}",
-                this.CustomerID,
-                extensionId);
-
-            RestClient client = new RestClient(serviceURL);
-            client.Timeout = base._timeout;
-
-
-            var request = new RestRequest(Method.GET);
-            request.AddHeader("Content-Type", "application/json");
-            request.AddHeader("Authorization", String.Format("Bearer {0}", token));
-            IRestResponse response = client.Execute(request);
-
-            ExtensionItem result = ExtensionItem.FromJson(response.Content);
-            result.UnverifiedExtensionId = extensionId;
-
-            return result;
-        }
 
         [ObsoleteAttribute("This method is obsolete. Call AllBasicEnrolledBrowsersSaveToFile instead.", true)]
         /// <summary>
@@ -332,7 +291,7 @@ namespace cbcmClient
         /// <param name="maxResults">Maximum number of results to return. Maximum, is 100.</param>
         /// <returns>Returns a list of Chrome browser devices.</returns>
         /// <exception cref="ApplicationException"></exception>
-        private List<BrowserDevicesBrowser> GetEnrolledBrowsers(string query, string orgUnitPath, string projection, string orderBy, string sortOrder, int maxResults)
+        internal List<BrowserDevicesBrowser> GetEnrolledBrowsers(string query, string orgUnitPath, string projection, string orderBy, string sortOrder, int maxResults)
         {
             return this.GetEnrolledBrowsers(token: String.Empty,
                 query: query,
@@ -355,7 +314,7 @@ namespace cbcmClient
         /// <param name="maxResults">Maximum number of results to return. Maximum, is 100.</param>
         /// <returns>Returns a list of Chrome browser devices.</returns>
         /// <exception cref="ApplicationException"></exception>
-        private List<BrowserDevicesBrowser> GetEnrolledBrowsers(string token, string query, string orgUnitPath, string projection, string orderBy, string sortOrder, int maxResults)
+        internal List<BrowserDevicesBrowser> GetEnrolledBrowsers(string token, string query, string orgUnitPath, string projection, string orderBy, string sortOrder, int maxResults)
         {
             string nextPageToken = String.Empty;
             BrowserDevices browserDevices = null;

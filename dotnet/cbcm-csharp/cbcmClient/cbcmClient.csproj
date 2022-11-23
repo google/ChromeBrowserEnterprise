@@ -72,6 +72,7 @@
     <Compile Include="ChromeBrowser.cs" />
     <Compile Include="ChrometPolicyResolve.cs" />
     <Compile Include="DirectoryOrgUnit.cs" />
+    <Compile Include="ExtensionDetails.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

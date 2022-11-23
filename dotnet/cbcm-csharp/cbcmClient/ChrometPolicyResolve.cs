@@ -40,8 +40,8 @@ namespace cbcmClient
             StringBuilder sb = new StringBuilder();
 
             //prepare Chrome Web Store validation
-            ChromeBrowser chromeBrowser = new ChromeBrowser(KeyFile, CustomerID, AdminUserToImpersonate);
-            List<ExtensionItem> extensionItemList = chromeBrowser.GetExtesnsionDetailsFromCWS(extensionIDs);
+            ExtensionDetails extensionDetails = new ExtensionDetails(KeyFile, CustomerID, AdminUserToImpersonate);
+            List<ExtensionItem> extensionItemList = extensionDetails.LookupExtensionsFromCWS(extensionIDs);
 
             string[] scope = { "https://www.googleapis.com/auth/chrome.management.policy" };
             string serviceURL = String.Format("https://chromepolicy.googleapis.com/v1/customers/{0}/policies/orgunits:batchModify", this.CustomerID);
@@ -116,8 +116,8 @@ namespace cbcmClient
         public string BatchUploadExtensionsToOU(List<string> extensionIDs, string orgUnitId, string installPolicy)
         {
             //prepare Chrome Web Store validation
-            ChromeBrowser chromeBrowser = new ChromeBrowser(KeyFile, CustomerID, AdminUserToImpersonate);
-            List<ExtensionItem> extensionItemList = chromeBrowser.GetExtesnsionDetailsFromCWS(extensionIDs);
+            ExtensionDetails extensionDetails = new ExtensionDetails(KeyFile, CustomerID, AdminUserToImpersonate);
+            List<ExtensionItem> extensionItemList = extensionDetails.LookupExtensionsFromCWS(extensionIDs);
 
             string appInstallType = this.ExtensionInstallPolicyParse(installPolicy);
             StringBuilder sb = new StringBuilder(); 
