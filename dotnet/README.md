@@ -93,7 +93,7 @@ Output columns {deviceId,machineName,orgUnitPath,lastDeviceUser,lastActivityTime
   "Output": "ExtensionRiskSignals_[OU ID].csv"
 }
 ```
-Output
+Sample output
 ```
 appId,displayName,version,crxcavatorRiskScore,crxcavatorRiskUrl,spinRiskScore,spinRiskUrl,browserDeviceCount,appInstallType
 felcaaldnbdncclmgdcncolpebgiejap,"Sheets",1.2,7,https://crxcavator.io/report/felcaaldnbdncclmgdcncolpebgiejap/1.2,91,https://apps.spin.ai/app?appId=293df632-514f-11ed-81c5-c597d456c319,1,NORMAL
@@ -113,7 +113,7 @@ blpcfgokakmgnkcojhhkbfbldkacnbeo,"YouTube",4.2.8,9,https://crxcavator.io/report/
   "Output": "ExtensionRiskSignals_FromImport.csv"
 }
 ```
-Input
+Sample input
 ```
 aapbdbdomjkkjkaonfhkkikfgjllcleb
 blipmdconlkpinefehnmjammfjpmpbjk
@@ -122,7 +122,7 @@ lpcaedmchfhocbbapmcbpinfpgnhiddi, 4.22452.1312.1
 ldipcbpaocekfooobnbcddclnhejkcpn , 3.2
 hkgfoiooedgoejojocmhlaklaeopbecg,1.11
 ```
-Output
+Sample output
 ```
 appId,version,crxcavatorRiskScore,spinRiskScore
 aapbdbdomjkkjkaonfhkkikfgjllcleb,2.0.9,crx:406,spinai:
