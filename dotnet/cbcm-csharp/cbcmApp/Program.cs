@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using cbcmClient;
+using cbcmSchema.OU;
 
 
 namespace cbcmApp
@@ -77,6 +78,12 @@ namespace cbcmApp
                         //Program.PostExtensions(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2], args[3], true);
                         Program.HelpWithArguments();
                         break;
+                    case 300:
+                        Program.GetExtensionSignalsBasedOnOrgUnitId(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty);
+                        break;
+                    case 301: //get extension signal from 3p
+                        Program.GetExtensionSignalsBasedOnImport(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
+                        break;
                     case 800: //get browsers where the last activitiy is between start and end dates
                         Program.GetEnrolledBrowsersByLastActivity(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3]);
                         break;
@@ -104,6 +111,8 @@ namespace cbcmApp
             }
         }
 
+       
+
         private static void HelpWithArguments()
         {
             Console.WriteLine("Please enter a numeric argument. Usage:");
@@ -116,6 +125,8 @@ namespace cbcmApp
             Console.WriteLine(@"100 Get all enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 100 \r\n\t cbcm.exe 100 ""/North America/Algonquin""");
             Console.WriteLine(@"101 Get Basic enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 101 \r\n\t cbcm.exe 101 ""/North America/Algonquin""");
             Console.WriteLine(@"201 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV/TXT.\r\n\t Usage: cbcmapp.exe 201  ""OU ID"" ""BLOCKED"" ""C:/Temp/BatchUploadExtensions.[csv|txt]""");
+            Console.WriteLine(@"300 Download a CSV of extensions installed in an Organizational Unit (OU) and 3p risk scores. \r\n\t Usage: cbcmapp.exe 300  [OU ID]");
+            Console.WriteLine(@"301 Download a CSV of extensions and 3p risk scores based on imported extension data. \r\n\t Usage: cbcmapp.exe 301  File path to data file to import.");
             Console.WriteLine(@"800 Find browsers in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 800  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
             Console.WriteLine(@"890 Delete in active browser in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 890  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
             Console.WriteLine(@"990 Delete enrolled browsers from the admin console. Required argument file to CSV/TXT with machine names.\r\n\t Usage: cbcmapp.exe 990  ""C:/Temp/deleteBrowsers.[csv|txt]""");
@@ -330,6 +341,36 @@ namespace cbcmApp
 
             ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
             chromeBrowser.DeleteInactiveBrowsers(orgUnitPath, startDate, endDate);
+        }
+
+        /// <summary>
+        /// Import ExtensionId, version text file 
+        /// </summary>
+        /// <param name="accountKeyFile">>service account key file</param>
+        /// <param name="customerID">>Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="filePath">File path to CSV with no header data. Limit row count to 400 app IDs</param>
+        /// <exception cref="NotImplementedException"></exception>
+        private static void GetExtensionSignalsBasedOnImport(string accountKeyFile, string customerID, string adminUserToImpersonate, string filePath)
+        {
+            List<string> items = Program.ImportData(filePath, false);
+            ExtensionDetails extensionRiskSignal = new ExtensionDetails(accountKeyFile, customerID, adminUserToImpersonate);
+            string result = extensionRiskSignal.ExtensionRiskMap(items);
+            Program.Log(result, "ExtensionRiskSignals_FromImport.csv");
+        }
+
+        /// <summary>
+        /// Get extension risk signal data based on enrolled browsers in an OU
+        /// </summary>
+        /// <param name="accountKeyFile">service account key file</param>
+        /// <param name="customerID">Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="orgUnitId">OU ID</param>
+        private static void GetExtensionSignalsBasedOnOrgUnitId(string accountKeyFile, string customerID, string adminUserToImpersonate, string orgUnitId)
+        {
+            ExtensionDetails extensionRiskSignal = new ExtensionDetails(accountKeyFile, customerID, adminUserToImpersonate);
+            string result = extensionRiskSignal.ExtensionRiskMap(orgUnitId);
+            Program.Log(result, String.Format("ExtensionRiskSignals_{0}.csv", String.IsNullOrEmpty(orgUnitId) ? "FullDomain" : orgUnitId));
         }
 
 
