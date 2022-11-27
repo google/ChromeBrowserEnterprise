@@ -2,9 +2,6 @@
 ## Wake Browser
 Consider using the [wake browser script](https://github.com/google/ChromeBrowserEnterprise/blob/main/ps/src/WakeBrowser.ps1) to run Chrome silently under the System context to allow version data to update to the Windows registry. 
 
-Dependency
-
-[Invoke-CommandAs](https://github.com/mkellerman/Invoke-CommandAs). Invoke Command as System/User on Local/Remote computer :ok_hand:.
 ```
 .\WakeBrowser.ps1
 ```
