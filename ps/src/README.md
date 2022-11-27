@@ -14,8 +14,6 @@ Consider using the [ForceBrowserUpdate](https://github.com/google/ChromeBrowserE
 
 Dependencies
 
-[Invoke-CommandAs](https://github.com/mkellerman/Invoke-CommandAs). Invoke Command as System/User on Local/Remote computer :ok_hand:.
-
 [update3web_demo](https://github.com/google/ChromeBrowserEnterprise/blob/main/ps/src/update3web_demo.js) from the [Google Omaha team](https://github.com/google/omaha/tree/main/omaha/tools/performondemand) :heart:.
 
 [Wake Browser](https://github.com/google/ChromeBrowserEnterprise/tree/main/ps/src#wake-browser)
