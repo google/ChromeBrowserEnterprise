@@ -84,8 +84,17 @@ namespace cbcmApp
                     case 301: //get extension signal from 3p
                         Program.GetExtensionSignalsBasedOnImport(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
                         break;
+                    case 302: //get devices that have an extension installed
+                        Program.FindDevicesByInstalledExtensionID(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
+                        break;
+                    case 303: //get devices that have extensions installed
+                        Program.FindDeviceByInstalledExtensions(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
+                        break;
                     case 800: //get browsers where the last activitiy is between start and end dates
                         Program.GetEnrolledBrowsersByLastActivity(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3]);
+                        break;
+                    case 810: //move inactive browsers to a specific OU
+                        Program.MoveInactiveBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3]);
                         break;
                     case 890: //delete inactive browsers by last activity start and end dates
                         Program.InactiveBrowserDeletion(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3]);
@@ -111,7 +120,7 @@ namespace cbcmApp
             }
         }
 
-       
+        
 
         private static void HelpWithArguments()
         {
@@ -127,6 +136,8 @@ namespace cbcmApp
             Console.WriteLine(@"201 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV/TXT.\r\n\t Usage: cbcmapp.exe 201  ""OU ID"" ""BLOCKED"" ""C:/Temp/BatchUploadExtensions.[csv|txt]""");
             Console.WriteLine(@"300 Download a CSV of extensions installed in an Organizational Unit (OU) and 3p risk scores. \r\n\t Usage: cbcmapp.exe 300  [OU ID]");
             Console.WriteLine(@"301 Download a CSV of extensions and 3p risk scores based on imported extension data. \r\n\t Usage: cbcmapp.exe 301  File path to data file to import.");
+            Console.WriteLine(@"302 Download s CSV of devices that have an extension installed. \r\n\t Usage: cbcmapp.exe 302  ExtensionId.");
+            Console.WriteLine(@"303 Download s CSV of devices that have an extension installed. \r\n\t Usage: cbcmapp.exe 302  File path to data file to import.");
             Console.WriteLine(@"800 Find browsers in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 800  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
             Console.WriteLine(@"890 Delete in active browser in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 890  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
             Console.WriteLine(@"990 Delete enrolled browsers from the admin console. Required argument file to CSV/TXT with machine names.\r\n\t Usage: cbcmapp.exe 990  ""C:/Temp/deleteBrowsers.[csv|txt]""");
@@ -191,7 +202,7 @@ namespace cbcmApp
         /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
         /// <param name="orgUnitId">OU ID</param>
         /// <param name="extensionInstallType">Extension install type (FORCED, ALLOWED, BLOCKED).</param>
-        /// <param name="filePath">File path to CSV with no header data. Limit row count to 400 app IDs.</param>
+        /// <param name="filePath">File path to data file with no header data. Limit row count to 400 app IDs.</param>
         public static void PostExtensions(string accountKeyFile, string customerID, string adminUserToImpersonate, string orgUnitId, string extensionInstallType, string filePath, bool singleton = false)
         {
             if (String.IsNullOrEmpty(orgUnitId))
@@ -251,7 +262,7 @@ namespace cbcmApp
         /// <param name="accountKeyFile">>service account key file</param>
         /// <param name="customerID">>Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
         /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
-        /// <param name="filePath">File path to CSV with no header data. Limit row count to 400 app IDs</param>
+        /// <param name="filePath">File path to data file with no header data. Limit row count to 400 app IDs.</param>
         private static void DeleteEnrolledBrowserByDeviceId(string accountKeyFile, string customerID, string adminUserToImpersonate, string filePath)
         {
             ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
@@ -323,6 +334,21 @@ namespace cbcmApp
         }
 
         /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="accountKeyFile"></param>
+        /// <param name="customerID"></param>
+        /// <param name="adminUserToImpersonate"></param>
+        /// <param name="sourceOrgUnitId"></param>
+        /// <param name="destinationOrgUnitId"></param>
+        /// <param name="dayCount"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        private static void MoveInactiveBrowsers(string accountKeyFile, string customerID, string adminUserToImpersonate, string sourceOrgUnitId, string destinationOrgUnitId, string dayCount)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
         /// Delete inactive browser where the last activity is between start and end days.
         /// </summary>
         /// <param name="accountKeyFile">service account key file</param>
@@ -349,14 +375,51 @@ namespace cbcmApp
         /// <param name="accountKeyFile">>service account key file</param>
         /// <param name="customerID">>Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
         /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
-        /// <param name="filePath">File path to CSV with no header data. Limit row count to 400 app IDs</param>
-        /// <exception cref="NotImplementedException"></exception>
+        /// <param name="filePath">File path to data file with no header data. Limit row count to 400 app IDs.</param>
         private static void GetExtensionSignalsBasedOnImport(string accountKeyFile, string customerID, string adminUserToImpersonate, string filePath)
         {
             List<string> items = Program.ImportData(filePath, false);
             ExtensionDetails extensionRiskSignal = new ExtensionDetails(accountKeyFile, customerID, adminUserToImpersonate);
             string result = extensionRiskSignal.ExtensionRiskMap(items);
             Program.Log(result, "ExtensionRiskSignals_FromImport.csv");
+        }
+
+        // <summary>
+        /// Import ExtensionId, version text file 
+        /// </summary>
+        /// <param name="accountKeyFile">>service account key file</param>
+        /// <param name="customerID">>Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="extensionId">Extension Id.</param>
+        private static void FindDevicesByInstalledExtensionID(string accountKeyFile, string customerID, string adminUserToImpersonate, string extensionId)
+        {
+            if (String.IsNullOrEmpty(extensionId))
+                throw new ArgumentNullException(extensionId, "extension id cannot be null or empty string.");
+
+            List<string> items = new List<string>();
+            items.Add(extensionId.Trim());
+            
+            ExtensionDetails extensionDetails = new ExtensionDetails(accountKeyFile, customerID, adminUserToImpersonate);
+            string result = extensionDetails.ExtensionInstalledDevices(items);
+
+            Program.Log(result, String.Format("InstalledAppDevices{0}.csv", extensionId));
+        }
+
+        /// <summary>
+        /// Import ExtensionId, version text file 
+        /// </summary>
+        /// <param name="accountKeyFile">>service account key file</param>
+        /// <param name="customerID">>Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="filePath">File path to data file with no header data. Limit row count to 400 app IDs.</param>
+        private static void FindDeviceByInstalledExtensions(string accountKeyFile, string customerID, string adminUserToImpersonate, string filePath)
+        {
+            List<string> items = Program.ImportData(filePath, false);
+
+            ExtensionDetails extensionDetails = new ExtensionDetails(accountKeyFile, customerID, adminUserToImpersonate);
+            string result = extensionDetails.ExtensionInstalledDevices(items);
+
+            Program.Log(result, "InstalledAppDevices.csv");
         }
 
         /// <summary>
