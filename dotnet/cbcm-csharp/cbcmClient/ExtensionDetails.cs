@@ -110,6 +110,61 @@ namespace cbcmClient
             return stringBuilder.ToString();
         }
 
+        public string ExtensionInstalledDevices(List<string> extensionIds)
+        {
+            if (extensionIds == null)
+                return String.Empty;
+
+            
+            List<InstalledApp> installedApps = new List<InstalledApp>();
+
+            foreach (string id in extensionIds)
+            {
+                if (String.IsNullOrEmpty(id))
+                    continue;
+                InstalledApp installedApp = new InstalledApp();
+                installedApp.AppId = id;
+
+                installedApps.Add(installedApp);
+
+            }
+
+            ExtensionInstallReport extensionInstallReport = new ExtensionInstallReport();
+            extensionInstallReport.InstalledApps = installedApps;
+
+            List<ExtensionInstallReport> extensionInstallReports = new List<ExtensionInstallReport>();
+            extensionInstallReports.Add(extensionInstallReport);
+
+            this.AddBrowsersToInstalledAppReport(String.Empty, ref extensionInstallReports);
+
+            StringBuilder stringBuilder = new StringBuilder();
+            //header
+            stringBuilder.AppendLine("appId,deviceId,machine");
+
+            foreach (ExtensionInstallReport extensionInstallReport1 in extensionInstallReports)
+            {
+                if (extensionInstallReport1 == null)
+                    continue;
+
+                foreach(InstalledApp installedApp1 in extensionInstallReport1.InstalledApps)
+                {
+                    if(installedApp1 == null)
+                        continue ;
+                    
+                    foreach(cbcmSchema.InstalledAppsReport.Device device1 in installedApp1.Devices)
+                    {
+                        if (device1 == null)
+                            continue;
+
+                        stringBuilder.AppendLine(installedApp1.AppId + "," + device1.DeviceId + "," + device1.Machine);
+                    } //Device
+                } //InstalledApp
+
+            } //ExtensionInstallReport
+
+            return stringBuilder.ToString();
+        }
+
         /// <summary>
         /// Create the extension install report
         /// </summary>
@@ -197,6 +252,7 @@ namespace cbcmClient
                         continue;
 
                     List<ExtensionInstallDeviceReport> extensionInstallDeviceReports = this.BuildInstalledAppDevicesReport(orgUnitId, installedApp.AppId);
+                    List<cbcmSchema.InstalledAppsReport.Device> installedDevices = new List<cbcmSchema.InstalledAppsReport.Device>();
 
                     if (extensionInstallDeviceReports == null)
                         continue;
@@ -206,10 +262,16 @@ namespace cbcmClient
                         if (extensionInstallDeviceReport.Devices == null)
                             continue;
 
-                        installedApp.Devices = extensionInstallDeviceReport.Devices
-                            .Select(x => new cbcmSchema.InstalledAppsReport.Device { DeviceId = x.DeviceId, Machine = x.Machine })
-                            .ToList();
+                        foreach(cbcmSchema.InstalledAppDevices.Device deviceItem in extensionInstallDeviceReport.Devices)
+                        {
+                            cbcmSchema.InstalledAppsReport.Device installedDevice = new cbcmSchema.InstalledAppsReport.Device();
+                            installedDevice.DeviceId = deviceItem.DeviceId;
+                            installedDevice.Machine = deviceItem.Machine;
+                            installedDevices.Add(installedDevice);
+                        }
                     }
+
+                    installedApp.Devices = installedDevices;
                 }
             }
         }
