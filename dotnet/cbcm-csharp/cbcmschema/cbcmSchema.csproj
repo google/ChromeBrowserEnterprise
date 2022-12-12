@@ -45,6 +45,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BrowserAnnotatedItem.cs" />
     <Compile Include="BrowserDevices.cs" />
     <Compile Include="BrowserPolicyRequest.cs" />
     <Compile Include="ChromeMgmtPolicy.cs" />
