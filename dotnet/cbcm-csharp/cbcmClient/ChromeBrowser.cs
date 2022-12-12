@@ -10,6 +10,11 @@ using cbcmSchema.BrowserToOU;
 using cbcmSchema.Extension;
 using System.Data.SqlClient;
 using cbcmSchema.OU;
+using System.Runtime.InteropServices.ComTypes;
+using System.Collections;
+using System.Net.Http.Headers;
+using cbcmSchema.BrowserAnnotatedField;
+using Newtonsoft.Json.Linq;
 
 namespace cbcmClient
 {
@@ -516,6 +521,67 @@ namespace cbcmClient
 
         }
 
+        public string MoveBrowsersToOUByActivityDate(string sourceOrgUnitPath, string destinationOrgUnitPath, DateTime inactiveSince)
+        {
+            List<BrowserDevicesBrowser> browserDevicesBrowsers = GetBrowsersFilteredByActivityDate(sourceOrgUnitPath, inactiveSince);
+            
+
+            return this.MoveBrowserToOU(browserDevicesBrowsers, destinationOrgUnitPath);
+        }
+
+        private string MoveBrowserToOU(List<BrowserDevicesBrowser> browserDevices, string orgUnitPath)
+        {
+            if (browserDevices == null && String.IsNullOrEmpty(orgUnitPath))
+                return String.Empty;
+
+            string[] deviceIds = new string[browserDevices.Count];
+            List<BrowserAnnotatedItem> browserAnnotatedItems = new List<BrowserAnnotatedItem>();
+            for (int x = 0; x < browserDevices.Count; x++)
+            {
+                deviceIds[x] = browserDevices[x].DeviceId;
+                BrowserAnnotatedItem browserAnnotatedItem = new BrowserAnnotatedItem();
+                browserAnnotatedItem.DeviceId = browserDevices[x].DeviceId;
+                browserAnnotatedItem.AnnotatedLocation = browserDevices[x].OrgUnitPath;
+                browserAnnotatedItems.Add(browserAnnotatedItem);
+            }
+           
+
+            string[] scopes = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
+            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/moveChromeBrowsersToOu", this.CustomerID);
+            string token = this.GetAuthBearerToken(scopes);
+            int bucketSize = 400;
+
+            StringBuilder result = new StringBuilder();
+
+            //loop taking 400 elements each time
+            for (int i = 0; i < deviceIds.Length; i+=bucketSize)
+            {
+                string[] deviceCsv =  deviceIds.Skip(i).Take(bucketSize).ToArray();
+
+                MoveChromeBrowsersToOu chromeBrowsersToOu = new MoveChromeBrowsersToOu();
+                chromeBrowsersToOu.OrgUnitPath = orgUnitPath.Trim();
+                chromeBrowsersToOu.ResourceIds = deviceCsv;
+                string body = chromeBrowsersToOu.ToJson();
+
+                RestClient client = new RestClient();
+                Uri baseUrl = new Uri(serviceURL);
+                client.BaseUrl = baseUrl;
+                client.Timeout = -1;
+                var request = new RestRequest(Method.POST);
+
+                request.AddHeader("Content-Type", "application/json");
+                request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+
+                request.AddParameter("application/json", body, ParameterType.RequestBody);
+                IRestResponse response = client.Execute(request);
+                result.AppendLine(String.Format("Request body [0]. Resonse Code = {1}\r\nResponse Content = {2}", body, response.StatusCode.ToString(), response.Content));
+            }
+
+            string annotationResult = this.UpdateBrowserAnnotatedField(browserAnnotatedItems);
+
+            return result.ToString();       
+        }
+
 
         /// <summary>
         /// Get enrolled browser data based on last activity.
@@ -523,7 +589,7 @@ namespace cbcmClient
         /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
         /// <param name="startDate">Start date</param>
         /// <param name="endDate">End data</param>
-        public void GetBrowsersFilteredByActivityDate(string orgUnitPath, DateTime startDate, DateTime endDate)
+        public string GetBrowsersFilteredByActivityDate(string orgUnitPath, DateTime startDate, DateTime endDate)
         {
             List<BrowserDevicesBrowser> browserList = this.GetEnrolledBrowsers(
                 String.Format("last_activity:{0}..{1}", startDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd")),
@@ -532,6 +598,9 @@ namespace cbcmClient
                 "last_activity",
                 "ASCENDING",
                 100);
+
+            if (browserList == null)
+                return String.Empty;
 
             StringBuilder stringBuilder = new StringBuilder();
             //write the header.
@@ -549,7 +618,20 @@ namespace cbcmClient
                     );
             }
 
-            base.WriteToFile("CBCM_BrowsersFilteredByLastActivityDate", stringBuilder.ToString());
+            return stringBuilder.ToString();
+        }
+
+        private List<BrowserDevicesBrowser> GetBrowsersFilteredByActivityDate (string orgUnitPath, DateTime lastActivity)
+        {
+            List<BrowserDevicesBrowser> browserList = this.GetEnrolledBrowsers(
+                String.Format("last_activity:..{0}", lastActivity.ToString("yyyy-MM-dd")),
+                orgUnitPath,
+                "BASIC",
+                "last_activity",
+                "ASCENDING",
+                100);
+
+            return browserList;
         }
 
         /// <summary>
@@ -659,6 +741,36 @@ namespace cbcmClient
             IRestResponse response = client.Execute(request);
 
             return String.Format("Resonse Code = {0}. Response Content = {1}", response.StatusCode.ToString(), response.Content);
+        }
+
+        private string UpdateBrowserAnnotatedField(List<BrowserAnnotatedItem> browserAnnotatedItems)
+        {
+            string[] scopes = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
+            
+            string token = this.GetAuthBearerToken(scopes);
+
+            StringBuilder builder = new StringBuilder();    
+            foreach (BrowserAnnotatedItem browserAnnotatedItem in browserAnnotatedItems)
+            {
+                string body = browserAnnotatedItem.ToJson();
+                string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/{1}", this.CustomerID, browserAnnotatedItem.DeviceId);
+                Uri baseUrl = new Uri(serviceURL);
+
+                RestClient client = new RestClient();
+                
+                client.BaseUrl = baseUrl;
+                client.Timeout = -1;
+                var request = new RestRequest(Method.PUT);
+
+                request.AddHeader("Content-Type", "application/json");
+                request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+
+                request.AddParameter("application/json", body, ParameterType.RequestBody);
+                IRestResponse response = client.Execute(request);
+                builder.AppendLine(String.Format("Request body [0]. Resonse Code = {1}\r\nResponse Content = {2}", body, response.StatusCode.ToString(), response.Content));
+            }
+
+            return builder.ToString();
         }
 
     }
