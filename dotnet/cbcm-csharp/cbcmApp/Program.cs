@@ -2,9 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using cbcmClient;
-using cbcmSchema.OU;
 
 
 namespace cbcmApp
@@ -71,7 +69,7 @@ namespace cbcmApp
                         Program.GetAllBasicEnrolledBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty);
                         break;
                     case 5:
-                    case 201: //Bulk add extension and install policy to an OU.
+                    case 310: //Bulk add extension and install policy to an OU.
                         Program.PostExtensions(accountKeyFile, customerID, adminUserToImpersonate, args[1], args[2], args[3], false);
                         break;
                     case 202: //singular add extension and install policy to an OU.
@@ -129,19 +127,20 @@ namespace cbcmApp
             Console.WriteLine("2 Get All Organizational Units (OU).");
             Console.WriteLine("3 Find enrolled browsers with missing data (profile, extensions, and policies).");
             Console.WriteLine("4 Find browsers installed on the user's app data folder. Applies to Windows OS platform only.");
-            Console.WriteLine(@"6 Move Chrome browser Devices between Organization Units. Required arguments OU path, and file to CSV/TXT.\r\n\t Usage: cbcmapp.exe 6  ""/OU Name"" ""C:/Temp/MoveDevices.[csv|txt]""");
-            Console.WriteLine(@"20 Backup policies for an Organizational Unit (OU). Required arguments OU ID. \r\n\t Usage: cbcmapp.exe 20  ""OU ID""");
-            Console.WriteLine(@"100 Get all enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 100 \r\n\t cbcm.exe 100 ""/North America/Algonquin""");
-            Console.WriteLine(@"101 Get Basic enrolled browser data with an optional argument to query by orgnizational unit. \r\n\t Usage: cbcmapp.exe 101 \r\n\t cbcm.exe 101 ""/North America/Algonquin""");
-            Console.WriteLine(@"201 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV/TXT.\r\n\t Usage: cbcmapp.exe 201  ""OU ID"" ""BLOCKED"" ""C:/Temp/BatchUploadExtensions.[csv|txt]""");
-            Console.WriteLine(@"300 Download a CSV of extensions installed in an Organizational Unit (OU) and 3p risk scores. \r\n\t Usage: cbcmapp.exe 300  [OU ID]");
-            Console.WriteLine(@"301 Download a CSV of extensions and 3p risk scores based on imported extension data. \r\n\t Usage: cbcmapp.exe 301  File path to data file to import.");
-            Console.WriteLine(@"302 Download s CSV of devices that have an extension installed. \r\n\t Usage: cbcmapp.exe 302  ExtensionId.");
-            Console.WriteLine(@"303 Download s CSV of devices that have an extension installed. \r\n\t Usage: cbcmapp.exe 302  File path to data file to import.");
-            Console.WriteLine(@"800 Find browsers in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 800  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
-            Console.WriteLine(@"890 Delete in active browser in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). \r\n\t Usage: cbcmapp.exe 890  ""/North America/Algonquin"" ""2022-01-01"" ""2022-04-01""");
-            Console.WriteLine(@"990 Delete enrolled browsers from the admin console. Required argument file to CSV/TXT with machine names.\r\n\t Usage: cbcmapp.exe 990  ""C:/Temp/deleteBrowsers.[csv|txt]""");
-            Console.WriteLine(@"991 Delete enrolled browsers from the admin console. Required argument file to CSV/TXT with device IDs.\r\n\t Usage: cbcmapp.exe 991  ""C:/Temp/deleteBrowsers.[csv|txt]""");
+            Console.WriteLine(@"6 Move Chrome browser Devices between Organization Units. Required arguments OU path, and file to CSV/TXT.");
+            Console.WriteLine(@"20 Backup policies for an Organizational Unit (OU). Required arguments OU ID.");
+            Console.WriteLine(@"100 Get all enrolled browser data with an optional argument to query by orgnizational unit.");
+            Console.WriteLine(@"101 Get Basic enrolled browser data with an optional argument to query by orgnizational unit.");            
+            Console.WriteLine(@"300 Download a CSV of extensions installed in an Organizational Unit (OU) and 3p risk scores.");
+            Console.WriteLine(@"301 Download a CSV of extensions and 3p risk scores based on imported extension data. ");
+            Console.WriteLine(@"302 Download s CSV of devices that have an extension installed. ");
+            Console.WriteLine(@"303 Download s CSV of devices that have an extension installed.");
+            Console.WriteLine(@"310 Bulk upload extension IDs to an OU with install policy. Required arguments OU ID, Install policy (ALLOWED, BLOCKED, FORCED), and file to CSV/TXT.");
+            Console.WriteLine(@"800 Find browsers in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.). ");
+            Console.WriteLine(@"810 Move inactive browser from source to destination OU based on last activity date. ");
+            Console.WriteLine(@"890 Delete in active browser in an Organizational Unit (OU) where the last activity data is between given start and end days (format yyyy-MM-dd.).");
+            Console.WriteLine(@"990 Delete enrolled browsers from the admin console. Required argument file to CSV/TXT with machine names.");
+            Console.WriteLine(@"991 Delete enrolled browsers from the admin console. Required argument file to CSV/TXT with device IDs.");
 
         }
 
@@ -330,22 +329,32 @@ namespace cbcmApp
             DateTime endDate = DateTime.Parse(inputEnddate);
 
             ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
-            chromeBrowser.GetBrowsersFilteredByActivityDate(orgUnitPath, startDate, endDate);
+            string result = chromeBrowser.GetBrowsersFilteredByActivityDate(orgUnitPath, startDate, endDate);
+
+            Program.Log(result, "CBCM_BrowsersFilteredByLastActivityDate.csv");
         }
 
         /// <summary>
-        /// 
+        /// Move browsers that haven't been active.
         /// </summary>
-        /// <param name="accountKeyFile"></param>
-        /// <param name="customerID"></param>
-        /// <param name="adminUserToImpersonate"></param>
-        /// <param name="sourceOrgUnitId"></param>
-        /// <param name="destinationOrgUnitId"></param>
-        /// <param name="dayCount"></param>
+        /// <param name="accountKeyFile">service account key file</param>
+        /// <param name="customerID">Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="sourceOrgUnitId">Source OU to find inactive browsers</param>
+        /// <param name="destinationOrgUnitId">Destination OU to move inviactive browsers</param>
+        /// <param name="dayCount">Inactive since date.</param>
         /// <exception cref="NotImplementedException"></exception>
-        private static void MoveInactiveBrowsers(string accountKeyFile, string customerID, string adminUserToImpersonate, string sourceOrgUnitId, string destinationOrgUnitId, string dayCount)
+        private static void MoveInactiveBrowsers(string accountKeyFile, string customerID, string adminUserToImpersonate, string sourceOrgUnitPath, string destinationOrgUnitPath, string dayCount)
         {
-            throw new NotImplementedException();
+            int days = 0;
+            if (!Int32.TryParse(dayCount, out days))
+                return;
+
+            DateTime queryDate = DateTime.Now.AddDays(-1 * days);
+            ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
+            string result = chromeBrowser.MoveBrowsersToOUByActivityDate(sourceOrgUnitPath, destinationOrgUnitPath, queryDate);
+
+            Program.Log(result, "MoveInactiveBrowsers.csv");
         }
 
         /// <summary>
