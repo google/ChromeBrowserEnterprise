@@ -234,9 +234,6 @@ You can import [Collections](https://learning.postman.com/docs/getting-started/c
 > > Description: Revoke an enrollment token.
 > > Reference: [Use the Chrome Browser Enrollment Token API](https://support.google.com/chrome/a/answer/9949706?hl=en&ref_topic=9301744)
 
-## Google Service Account
-> Javascript sample to get OAuth token using a Service Account.
-
 ## [Reports API](/postman/Reports%20API.postman_collection.json)
 > Retrieve all administrative activities
 > > Description: Retrieve a report of all Admin console changes for a specific event name done by a specific administrator.
