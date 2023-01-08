@@ -9,7 +9,7 @@ There are two types:
 ## Configure OAuth consent for Postman
 In the Google Cloud console, go to Menu menu > **APIs & Services > [OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)**.
 
-<img align="right" width="300" height="400" alt="OAuth consent screen scope" src="../../blob/main/docs/images/consent_screen_scope.png"><img align="right" width="300" height="400" alt="OAuth consent screen" src="../../blob/main/docs/images/consent_screen_1.png">
+<img align="right" width="300" height="400" alt="OAuth consent screen scope" src="../../main/docs/images/consent_screen_scope.png"><img align="right" width="300" height="400" alt="OAuth consent screen" src="../../main/docs/images/consent_screen_1.png">
 
 
 1. Enter in the **App name**, the **user support email** (this is your admin account email in the admin console) and you can also choose to display a custom logo.
