@@ -71,5 +71,6 @@ Service accounts represent non-human users. They're intended for scenarios where
 
 Since you are creating [user-managed service accounts](https://cloud.google.com/iam/docs/service-accounts#user-managed-keys) in your project, **You are responsible for managing and securing these accounts**. See [Best practices for working with service accounts](https://cloud.google.com/iam/docs/best-practices-service-accounts)
 
-## Next Step
-Configure the OAuth consent screen for Postman
+## Next Steps
+- Configure the [OAuth consent screen for Postman](https://github.com/google/ChromeBrowserEnterprise/blob/main/postman/README.md)
+- Configure the Service account for automated services that runs as a process - [CBCM-CSharp](https://github.com/google/ChromeBrowserEnterprise/tree/main/dotnet), [Python](https://github.com/google/ChromeBrowserEnterprise/tree/main/Python), and [PowerShell](https://github.com/google/ChromeBrowserEnterprise/tree/main/ps/src/cbcm) scripts.
