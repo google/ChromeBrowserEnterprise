@@ -73,4 +73,4 @@ Since you are creating [user-managed service accounts](https://cloud.google.com/
 
 ## Next Steps
 - Configure the [OAuth consent screen for Postman](https://github.com/google/ChromeBrowserEnterprise/blob/main/postman/README.md)
-- Configure the Service account for automated services that runs as a process - [CBCM-CSharp](https://github.com/google/ChromeBrowserEnterprise/tree/main/dotnet), [Python](https://github.com/google/ChromeBrowserEnterprise/tree/main/Python), and [PowerShell](https://github.com/google/ChromeBrowserEnterprise/tree/main/ps/src/cbcm) scripts.
+- Configure the [Service account](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/service_acct.MD) for automated services that runs as a process - [CBCM-CSharp](https://github.com/google/ChromeBrowserEnterprise/tree/main/dotnet), [Python](https://github.com/google/ChromeBrowserEnterprise/tree/main/Python), and [PowerShell](https://github.com/google/ChromeBrowserEnterprise/tree/main/ps/src/cbcm) scripts.
