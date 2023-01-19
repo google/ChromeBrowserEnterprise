@@ -3,7 +3,7 @@
 Use the [Chrome Browser Enterprise (CBE)](https://support.google.com/chrome/a/topic/9025410?hl=en&ref_topic=4386754) REST API to manage the Chrome browser in your orgnization. 
 
 ## Documentation
-* [Develop on CBCM](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/API_Get_Started.md)
+* [Getting started with CBCM API > start here](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/API_Get_Started.md)
 * [Scopes](docs/auth.md)
 * APIs
   * [App Details API](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/App_Details_api.md)
