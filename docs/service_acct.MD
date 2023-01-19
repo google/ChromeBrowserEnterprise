@@ -50,3 +50,6 @@ Note: This will automatically enable Admin API privileges for Organization Units
 4. Find your service account's "**client_email**" and copy the value to your clipboard. This data is found in the Credential JSON file you downloaded from earlier steps.
 5. Paste the client email into the Add service account and click **Add**.
 6. Click **Assign Role**.
+
+## Next step
+Configure [OAuth consent screen and client Id for Postman](https://github.com/google/ChromeBrowserEnterprise/blob/main/postman/README.md)
