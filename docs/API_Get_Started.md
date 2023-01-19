@@ -1,4 +1,4 @@
-# Develop on CBCM
+# Getting started with CBCM API
 CBCM offers a wide range of APIs that let you integrate your services with CBCM. 
 
 ### 5 steps to get started
