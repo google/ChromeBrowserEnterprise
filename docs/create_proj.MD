@@ -16,4 +16,4 @@ Optional: To edit the **Project ID**, click **Edit**. The project ID can't be ch
 For further information on Google Cloud projects, refer to [Creating and managing projects](https://cloud.google.com/resource-manager/docs/creating-managing-projects).
 
 ## Next step
-[Enable Google CBCM APIs]()
+[Enable Google CBCM APIs](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/proj_apis.MD)
