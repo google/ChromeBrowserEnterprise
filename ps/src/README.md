@@ -7,7 +7,7 @@ Consider using the [wake browser script](https://github.com/google/ChromeBrowser
 ```
 
 ## Force Update
-Consider using the [ForceBrowserUpdate](https://github.com/google/ChromeBrowserEnterprise/blob/main/ps/src/ForceBrowserUpdate.zip) to force an update and run Chrome silently under the System context to allow version data to update to the Windows registry. Note: After unzipping, remember to unblock the contents. Otherwise, Windows will prompt a security warning.
+You can force an update to the browser and run Chrome silently to allow version data to update to the Windows registry. 
 
 Dependencies
 
