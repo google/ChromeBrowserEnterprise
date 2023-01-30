@@ -1,6 +1,9 @@
 # Force the browser to update 
 Start-Process -Filepath cscript.exe -WorkingDirectory "c:\temp" -ArgumentList "update3web_demo.js {8A69D345-D564-463c-AFF1-A69D9E530F96} 1 3" -wait -RedirectStandardOutput "c:\temp\chrome_update.txt"
 
+#Suspends the activity in the script for 60 sec for update to complete
+Start-Sleep -Seconds 60
+
 # Execute As System. Launch chrome browser as system in a temp data dir.
 Write-Output "Launch the browser"
 Invoke-Command -ScriptBlock { 
