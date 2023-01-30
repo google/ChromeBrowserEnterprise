@@ -7,16 +7,20 @@ Consider using the [wake browser script](https://github.com/google/ChromeBrowser
 ```
 
 ## Force Update
-You can force an update to the browser and run Chrome silently to allow version data to update to the Windows registry. 
+You can force an update to the browser and run Chrome silently under the System context to allow version data to update to the Windows registry. 
 
 Dependencies
 
 [update3web_demo](https://github.com/google/ChromeBrowserEnterprise/blob/main/ps/src/update3web_demo.js) from the [Google Omaha team](https://github.com/google/omaha/tree/main/omaha/tools/performondemand) :heart:.
 
-[Wake Browser](https://github.com/google/ChromeBrowserEnterprise/tree/main/ps/src#wake-browser)
+[Force Update Browser](https://github.com/google/ChromeBrowserEnterprise/blob/main/ps/src/ForceUpdateBrowser.ps1)
 ```
-cscript update3web_demo.js {8A69D345-D564-463c-AFF1-A69D9E530F96} 1 3
+.\ForceUpdateBrowser.ps1
 ```
+The [WorkingDirectory](https://github.com/google/ChromeBrowserEnterprise/blob/main/ps/src/ForceUpdateBrowser.ps1#L2) is coded to c:\temp. Feel free to modify the location to fit your needs.
+
+update3web_demo.js script takes three arguments:
+
 arg[0] {8A69D345-D564-463c-AFF1-A69D9E530F96} is the Chrome Stable product guid.
 
 arg[1] 1 applies to the Machine.
