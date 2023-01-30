@@ -323,7 +323,7 @@ function doLoopUntilDone(operation, bundle) {
 ////////////////////////////////////////////////////////////////////////////////
 // Launch chrome when an Update completes.
 ////////////////////////////////////////////////////////////////////////////////
-function luanchChrome() {
+function launchChrome() {
 	var sh = WScript.CreateObject("WScript.Shell");
 	var powshl = sh.Exec('powershell -file WakeBrowser.ps1');
 	return true;
@@ -388,7 +388,7 @@ function parseAndRun() {
       return false;
   }
   
- luanchChrome();
+ //launchChrome();
 
   return true;
 }
