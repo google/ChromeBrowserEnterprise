@@ -284,6 +284,7 @@ namespace cbcmClient
         
         #endregion
 
+
         /// <summary>
         /// Get all Chrome browser devices. 
         /// https://support.google.com/chrome/a/answer/9681204?hl=en
@@ -296,7 +297,7 @@ namespace cbcmClient
         /// <param name="maxResults">Maximum number of results to return. Maximum, is 100.</param>
         /// <returns>Returns a list of Chrome browser devices.</returns>
         /// <exception cref="ApplicationException"></exception>
-        internal List<BrowserDevicesBrowser> GetEnrolledBrowsers(string query, string orgUnitPath, string projection, string orderBy, string sortOrder, int maxResults)
+        public List<BrowserDevicesBrowser> GetEnrolledBrowsers(string query, string orgUnitPath, string projection, string orderBy, string sortOrder, int maxResults)
         {
             return this.GetEnrolledBrowsers(token: String.Empty,
                 query: query,

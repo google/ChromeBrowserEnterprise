@@ -2,6 +2,8 @@
 using System.Text;
 using RestSharp;
 using cbcmSchema.OU;
+using System.Web;
+using System.Collections.Generic;
 
 namespace cbcmClient
 {
@@ -18,6 +20,30 @@ namespace cbcmClient
         public DirectoryOrgUnit(string keyFile, string customerID, string adminUserToImpersonate) : base(keyFile, adminUserToImpersonate)
         {
             this.CustomerID = customerID;
+        }
+
+
+        public List<OrganizationUnit> GetOrgUnitList()
+        {
+            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1/customer/{0}/orgunits?type=ALL", this.CustomerID);
+
+            string token = this.GetAuthBearerToken();
+
+            RestClient client = new RestClient(serviceURL);
+            client.Timeout = base._timeout;
+
+
+            var request = new RestRequest(Method.GET);
+            request.AddHeader("Content-Type", "application/json");
+            request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+            IRestResponse response = client.Execute(request);
+
+            var orgUnits = OrgUnits.FromJson(response.Content);
+            List<OrganizationUnit> orgUnitsList = new List<OrganizationUnit>(); 
+            if (orgUnits != null)
+                orgUnitsList = orgUnits.OrganizationUnits;
+
+            return orgUnitsList;
         }
 
         public string GetAllOrganizationalUnits()
