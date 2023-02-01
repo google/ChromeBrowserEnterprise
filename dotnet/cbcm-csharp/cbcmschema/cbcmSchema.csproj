@@ -50,6 +50,7 @@
     <Compile Include="BrowserPolicyRequest.cs" />
     <Compile Include="ChromeMgmtPolicy.cs" />
     <Compile Include="CrxcavatorRiskItem.cs" />
+    <Compile Include="EnrollmentTokenItem.cs" />
     <Compile Include="ExtensionInstallDeviceReport.cs" />
     <Compile Include="ExtensionInstallReport.cs" />
     <Compile Include="ExtensionItem.cs" />
