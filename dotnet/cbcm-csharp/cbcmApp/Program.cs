@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using cbcmClient;
-
+using cbcmSchema.EnrollmentTokenSchema;
 
 namespace cbcmApp
 {
@@ -443,6 +443,13 @@ namespace cbcmApp
             ExtensionDetails extensionRiskSignal = new ExtensionDetails(accountKeyFile, customerID, adminUserToImpersonate);
             string result = extensionRiskSignal.ExtensionRiskMap(orgUnitId);
             Program.Log(result, String.Format("ExtensionRiskSignals_{0}.csv", String.IsNullOrEmpty(orgUnitId) ? "FullDomain" : orgUnitId));
+        }
+
+        private static void TestEnrollmentToken(string accountKeyFile, string customerID, string adminUserToImpersonate)
+        {
+            CBCMEnrollmentToken cBCMEnrollmentToken = new CBCMEnrollmentToken(accountKeyFile, customerID, adminUserToImpersonate);
+            List<cbcmSchema.EnrollmentTokenSchema.ChromeEnrollmentToken> chromeEnrollmentTokens = cBCMEnrollmentToken.GetAllEnrollmentToken();
+
         }
 
 
