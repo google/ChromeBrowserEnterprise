@@ -156,7 +156,7 @@ Function Test-RegistryValue ($regkey, $name) {
 
 
 #/******* BEGIN: Customer to modify this section *******/
-$customerId = ''
+$customerId = 'C00nmjkhy'
 $machineName = $env:computername
 $secretFile = ''
 #/******* END: Customer to modify this section *******/
