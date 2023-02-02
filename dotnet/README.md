@@ -144,17 +144,16 @@ Sample output
 #### Move inactive browsers to an OU
 ```
 {
-  "Argument": "810"  "Source OU Path" "Destination OU Path" The number of days to specify (as a positive number) to determine the inactive date.
-  "Usage": 810 "North America/Austin/AUS Managed Browser" "North America/Austin/AUS Inactive Browsers" 1394
+  "Argument": "810"  "Source OU Path" "Destination OU Path" The number of days to specify (as a positive number) to determine the inactive date. Query filter, find all devices with machine name that contain the "vdi" word **machine_name:vdi**.
+  "Usage": cbcmapp.exe 810 "/Managed Browser" "/Managed Browser/Inactive Devices" 29 "machine_name:vdi"
   "Output": "MoveInactiveBrowsers.txt"
 }
 ```
 #### Delete inactive browser in an Organizational Unit (OU) where the last activity date is between given start and end days (format yyyy-MM-dd)
 ```
 {
-  "Argument": "890"  "OU Path" "Start date" "End date"
-  "Usage sample 1": cbcmapp.exe 890  "/North America/Algonquin" "2022-01-01" "2022-04-01"
-  "Usage sample 2": cbcmapp.exe 890  "" "2022-01-01" "2022-04-01"
+  "Argument": "890"  "OU Path" The number of days to specify (as a positive number) to determine the inactive date. Query filter, find all devices with machine name that contain the "vdi" word **machine_name:vdi**.
+  "Usage sample 1": cbcmapp.exe 890 "/Managed Browser/Inactive Devices" 29 "machine_name:vdi"
   "Output": none
 }
 ```
