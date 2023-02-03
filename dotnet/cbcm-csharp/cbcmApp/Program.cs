@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using cbcmClient;
 using cbcmSchema.EnrollmentTokenSchema;
 
@@ -91,8 +92,8 @@ namespace cbcmApp
                     case 800: //get browsers where the last activitiy is between start and end dates
                         Program.GetEnrolledBrowsersByLastActivity(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3]);
                         break;
-                    case 810: //move inactive browsers to a specific OU
-                        Program.MoveInactiveBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3]);
+                    case 810: //move inactive browsers with filter query to a specific OU
+                        Program.MoveInactiveBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3], args[4]);
                         break;
                     case 890: //delete inactive browsers by last activity start and end dates
                         Program.InactiveBrowserDeletion(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3]);
@@ -343,18 +344,22 @@ namespace cbcmApp
         /// <param name="sourceOrgUnitId">Source OU to find inactive browsers</param>
         /// <param name="destinationOrgUnitId">Destination OU to move inviactive browsers</param>
         /// <param name="dayCount">Inactive since date.</param>
+        /// <param name="query">Filter Queries</param>
         /// <exception cref="NotImplementedException"></exception>
-        private static void MoveInactiveBrowsers(string accountKeyFile, string customerID, string adminUserToImpersonate, string sourceOrgUnitPath, string destinationOrgUnitPath, string dayCount)
+        private static void MoveInactiveBrowsers(string accountKeyFile, string customerID, string adminUserToImpersonate, string sourceOrgUnitPath, string destinationOrgUnitPath, string dayCount, string filterQuery)
         {
             int days = 0;
             if (!Int32.TryParse(dayCount, out days))
                 return;
 
-            DateTime queryDate = DateTime.Now.AddDays(-1 * days);
-            ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
-            string result = chromeBrowser.MoveBrowsersToOUByActivityDate(sourceOrgUnitPath, destinationOrgUnitPath, queryDate);
+            if (days > 0)
+                days *= -1;
 
-            Program.Log(result, "MoveInactiveBrowsers.csv");
+            DateTime queryDate = DateTime.Now.AddDays(days);
+            ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
+            string result = chromeBrowser.MoveBrowsersToOUByActivityDate(sourceOrgUnitPath, destinationOrgUnitPath, queryDate, filterQuery);
+
+            Program.Log(result, "MoveInactiveBrowsers.txt");
         }
 
         /// <summary>
@@ -366,16 +371,18 @@ namespace cbcmApp
         /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
         /// <param name="inputStartdate">Last activity start date formatted as yyyy-MM-dd.</param>
         /// <param name="inputEnddate">Last activity end  date formatted as yyyy-MM-dd.</param>
-        private static void InactiveBrowserDeletion(string accountKeyFile, string customerID, string adminUserToImpersonate,
-            string orgUnitPath,
-            string inputStartdate,
-            string inputEnddate)
+        private static void InactiveBrowserDeletion(string accountKeyFile, string customerID, string adminUserToImpersonate, string orgUnitPath, string dayCount, string filterQuery)
         {
-            DateTime startDate = DateTime.Parse(inputStartdate);
-            DateTime endDate = DateTime.Parse(inputEnddate);
+            int days = 0;
+            if (!Int32.TryParse(dayCount, out days))
+                return;
 
+            if (days > 0)
+                days *= -1;
+
+            DateTime queryDate = DateTime.Now.AddDays(days);
             ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
-            chromeBrowser.DeleteInactiveBrowsers(orgUnitPath, startDate, endDate);
+            chromeBrowser.DeleteInactiveBrowsers(orgUnitPath, queryDate, filterQuery);
         }
 
         /// <summary>
