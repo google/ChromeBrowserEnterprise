@@ -459,6 +459,39 @@ namespace cbcmClient
         }
 
         /// <summary>
+        /// Move an enrolled browser to a new org unit
+        /// </summary>
+        /// <param name="deviceId">Device ID of the enrolled browser</param>
+        /// <param name="orgUnitPath">Destination Org Unity Path</param>
+        /// <returns>Status of the move</returns>
+        public string MoveChromeBrowserToOrgUnit(string deviceId, string orgUnitPath)
+        {
+            string[] scopes = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
+            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/moveChromeBrowsersToOu", this.CustomerID);
+            string token = this.GetAuthBearerToken(scopes);
+
+            MoveChromeBrowsersToOu chromeBrowsersToOu = new MoveChromeBrowsersToOu();
+            chromeBrowsersToOu.OrgUnitPath = orgUnitPath.Trim();
+            chromeBrowsersToOu.ResourceIds = new string[1] { deviceId };
+            string body = chromeBrowsersToOu.ToJson();
+
+            RestClient client = new RestClient();
+            Uri baseUrl = new Uri(serviceURL);
+            client.BaseUrl = baseUrl;
+            client.Timeout = -1;
+            var request = new RestRequest(Method.POST);
+
+            request.AddHeader("Content-Type", "application/json");
+            request.AddHeader("Authorization", String.Format("Bearer {0}", token));
+
+            request.AddParameter("application/json", body, ParameterType.RequestBody);
+            IRestResponse response = client.Execute(request);
+            string result = String.Format("Device {0} moved to {1}. Resonse Code = {2}\r\nResponse Content = {3}", deviceId, orgUnitPath, response.StatusCode.ToString(), response.Content);
+
+            return result;
+        }
+
+        /// <summary>
         /// Move enrolled browser to a different OU
         /// </summary>
         /// <param name="deviceNames">List of device names</param>
@@ -469,13 +502,9 @@ namespace cbcmClient
             List<BrowserDevicesBrowser> enrolledBrowserList = null;
             StringBuilder result = new StringBuilder();
             string[] scopes = { "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers" };
-            string serviceURL = String.Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/moveChromeBrowsersToOu", this.CustomerID);
             string token = this.GetAuthBearerToken(scopes);
-
-            RestClient client;
-            Uri baseUrl;
             string foundDeviceId;
-            MoveChromeBrowsersToOu chromeBrowsersToOu;
+            string moveStatus;
 
             foreach (string deviceName in deviceNames)
             {
@@ -497,34 +526,18 @@ namespace cbcmClient
 
                 //Take only the first item in the found result set.
                 foundDeviceId = enrolledBrowserList[0].DeviceId;
+                moveStatus = this.MoveChromeBrowserToOrgUnit(foundDeviceId, orgUnitPath);
 
-                chromeBrowsersToOu = new MoveChromeBrowsersToOu();
-                chromeBrowsersToOu.OrgUnitPath = orgUnitPath.Trim();
-                chromeBrowsersToOu.ResourceIds = new string[1] { foundDeviceId };
-                string body = chromeBrowsersToOu.ToJson();
-
-                client = new RestClient();
-                baseUrl = new Uri(serviceURL);
-                client.BaseUrl = baseUrl;
-                client.Timeout = -1;
-                var request = new RestRequest(Method.POST);
-
-                request.AddHeader("Content-Type", "application/json");
-                request.AddHeader("Authorization", String.Format("Bearer {0}", token));
-
-                request.AddParameter("application/json", body, ParameterType.RequestBody);
-                IRestResponse response = client.Execute(request);
-                result.AppendLine(String.Format("Device {0} moved to {1}. Resonse Code = {2}\r\nResponse Content = {3}", deviceName, orgUnitPath, response.StatusCode.ToString(), response.Content));
+                result.AppendLine(moveStatus);
             }
-
 
             return result.ToString();
 
         }
 
-        public string MoveBrowsersToOUByActivityDate(string sourceOrgUnitPath, string destinationOrgUnitPath, DateTime inactiveSince)
+        public string MoveBrowsersToOUByActivityDate(string sourceOrgUnitPath, string destinationOrgUnitPath, DateTime inactiveSince, string filterQuery)
         {
-            List<BrowserDevicesBrowser> browserDevicesBrowsers = GetBrowsersFilteredByActivityDate(sourceOrgUnitPath, inactiveSince);
+            List<BrowserDevicesBrowser> browserDevicesBrowsers = GetBrowsersFilteredByActivityDate(sourceOrgUnitPath, inactiveSince, filterQuery);
             
 
             return this.MoveBrowserToOU(browserDevicesBrowsers, destinationOrgUnitPath);
@@ -578,7 +591,7 @@ namespace cbcmClient
                 result.AppendLine(String.Format("Request body [0]. Resonse Code = {1}\r\nResponse Content = {2}", body, response.StatusCode.ToString(), response.Content));
             }
 
-            string annotationResult = this.UpdateBrowserAnnotatedField(browserAnnotatedItems);
+            //string annotationResult = this.UpdateBrowserAnnotatedField(browserAnnotatedItems);
 
             return result.ToString();       
         }
@@ -622,10 +635,16 @@ namespace cbcmClient
             return stringBuilder.ToString();
         }
 
-        private List<BrowserDevicesBrowser> GetBrowsersFilteredByActivityDate (string orgUnitPath, DateTime lastActivity)
+        private List<BrowserDevicesBrowser> GetBrowsersFilteredByActivityDate (string orgUnitPath, DateTime lastActivity, string additionalQueryFilter)
         {
+            string query = String.Format("last_activity:..{0}", lastActivity.ToString("yyyy-MM-dd"));
+
+            if (!String.IsNullOrEmpty(additionalQueryFilter))
+                query += String.Format(" {0}", additionalQueryFilter);
+                
+
             List<BrowserDevicesBrowser> browserList = this.GetEnrolledBrowsers(
-                String.Format("last_activity:..{0}", lastActivity.ToString("yyyy-MM-dd")),
+                query,
                 orgUnitPath,
                 "BASIC",
                 "last_activity",
@@ -698,10 +717,15 @@ namespace cbcmClient
         /// <param name="orgUnitPath">The full path of the organizational unit or its unique ID.</param>
         /// <param name="startDate">Last activity start date.</param>
         /// <param name="endDate">Last activity end date.</param>
-        public void DeleteInactiveBrowsers(string orgUnitPath, DateTime startDate, DateTime endDate)
+        public void DeleteInactiveBrowsers(string orgUnitPath, DateTime lastActivity, string additionalQueryFilter)
         {
+            string query = String.Format("last_activity:..{0}", lastActivity.ToString("yyyy-MM-dd"));
+
+            if (!String.IsNullOrEmpty(additionalQueryFilter))
+                query += String.Format(" {0}", additionalQueryFilter);
+
             List<BrowserDevicesBrowser> browserList = this.GetEnrolledBrowsers(
-                String.Format("last_activity:{0}..{1}", startDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd")),
+                query,
                 orgUnitPath,
                 "BASIC",
                 "last_activity",
