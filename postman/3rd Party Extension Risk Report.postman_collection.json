@@ -12,7 +12,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://api.crxcavator.io/v1/report/callobklhcbilhphinckomhgkigmfocg?platform=Chrome",
+					"raw": "https://api.crxcavator.io/v1/report/aapbdbdomjkkjkaonfhkkikfgjllcleb?platform=Chrome",
 					"protocol": "https",
 					"host": [
 						"api",
@@ -22,7 +22,7 @@
 					"path": [
 						"v1",
 						"report",
-						"callobklhcbilhphinckomhgkigmfocg"
+						"aapbdbdomjkkjkaonfhkkikfgjllcleb"
 					],
 					"query": [
 						{
@@ -40,7 +40,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://api.crxcavator.io/v1/report/callobklhcbilhphinckomhgkigmfocg/1.44.0?platform=Chrome",
+					"raw": "https://api.crxcavator.io/v1/report/aapbdbdomjkkjkaonfhkkikfgjllcleb/2.0.12?platform=Chrome",
 					"protocol": "https",
 					"host": [
 						"api",
@@ -50,8 +50,8 @@
 					"path": [
 						"v1",
 						"report",
-						"callobklhcbilhphinckomhgkigmfocg",
-						"1.44.0"
+						"aapbdbdomjkkjkaonfhkkikfgjllcleb",
+						"2.0.12"
 					],
 					"query": [
 						{
@@ -69,7 +69,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://apg-1.spin.ai/api/v1/assessment/platform/chrome/callobklhcbilhphinckomhgkigmfocg",
+					"raw": "https://apg-1.spin.ai/api/v1/assessment/platform/chrome/aapbdbdomjkkjkaonfhkkikfgjllcleb",
 					"protocol": "https",
 					"host": [
 						"apg-1",
@@ -82,7 +82,7 @@
 						"assessment",
 						"platform",
 						"chrome",
-						"callobklhcbilhphinckomhgkigmfocg"
+						"aapbdbdomjkkjkaonfhkkikfgjllcleb"
 					]
 				}
 			},
@@ -94,7 +94,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://apg-1.spin.ai/api/v1/assessment/platform/chrome/callobklhcbilhphinckomhgkigmfocg/version/1.44.0",
+					"raw": "https://apg-1.spin.ai/api/v1/assessment/platform/chrome/aapbdbdomjkkjkaonfhkkikfgjllcleb/version/2.0.12",
 					"protocol": "https",
 					"host": [
 						"apg-1",
@@ -107,9 +107,9 @@
 						"assessment",
 						"platform",
 						"chrome",
-						"callobklhcbilhphinckomhgkigmfocg",
+						"aapbdbdomjkkjkaonfhkkikfgjllcleb",
 						"version",
-						"1.44.0"
+						"2.0.12"
 					]
 				}
 			},
