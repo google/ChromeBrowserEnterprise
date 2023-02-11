@@ -3,6 +3,26 @@ Create a new Workspace. You can name it what ever you like. Import the Collectio
 
 # Collections
 
+## 3rd Party Extension Risk Report
+CRXcavator - Retrieve report for all versions of an extension
+```
+curl --location --request GET 'https://api.crxcavator.io/v1/report/aapbdbdomjkkjkaonfhkkikfgjllcleb?platform=Chrome'
+```
+CRXcavator - Retrieve report  on a specific version of an extension
+```
+curl --location --request GET 'https://api.crxcavator.io/v1/report/aapbdbdomjkkjkaonfhkkikfgjllcleb/2.0.12?platform=Chrome'
+```
+Spin.AI - Retrieve report for all versions of an extension
+```
+curl --location --request GET 'https://apg-1.spin.ai/api/v1/assessment/platform/chrome/aapbdbdomjkkjkaonfhkkikfgjllcleb' \
+--header 'Cookie: Path=/'
+```
+Spin.AI - Retrieve report  on a specific version of an extension
+```
+curl --location --request GET 'https://apg-1.spin.ai/api/v1/assessment/platform/chrome/aapbdbdomjkkjkaonfhkkikfgjllcleb/version/2.0.12' \
+--header 'Cookie: Path=/; Path=/'
+```
+
 ## [App Details API](/postman/App%20Details%20API.postman_collection.json)
 > Get a specific app by its resource name
 > > Description: Get detailed information about a given Chrome extension. 
@@ -164,9 +184,6 @@ Create a new Workspace. You can name it what ever you like. Import the Collectio
 > Revoke an enrollment token
 > > Description: Revoke an enrollment token.
 > > Reference: [Use the Chrome Browser Enrollment Token API](https://support.google.com/chrome/a/answer/9949706?hl=en&ref_topic=9301744)
-
-## Google Service Account
-> Javascript sample to get OAuth token using a Service Account.
 
 ## [Reports API](/postman/Reports%20API.postman_collection.json)
 > Retrieve all administrative activities
