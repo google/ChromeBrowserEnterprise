@@ -23,7 +23,7 @@ Consider using the [Unenroll Browser script](UnenrollBrowser.ps1) to unenroll a 
 ```
 
 ## Move Chrome browsers between Organization Units
-Consider using the [Move enrolled browser by Windows OS Name](MoveEnrolledBrowserByWindowsOSName.ps1) to move enrolled browser between Organization Units (OU). The script performs the move if the Windows OS is qualifies as Long-Term Servicing Channel (LTSC, formerly LTSB). However, you can change the qualification rule(s) to fit your business needs.
+Consider using the [Move enrolled browser by Windows OS Name](MoveEnrolledBrowserByWindowsOSName.ps1) to move enrolled browser between Organization Units (OU). The script performs the move if the Windows OS is qualifies as [Long-Term Servicing Channel (LTSC, formerly LTSB)](https://learn.microsoft.com/en-us/windows/client-management/windows-version-search). However, you can change the qualification rule(s) to fit your business needs.
 
 **Note:** You will need to add the customer ID, the service account key JSON file, and the destination OU path to the script. 
 
