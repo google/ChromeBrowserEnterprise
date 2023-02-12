@@ -22,3 +22,19 @@ Consider using the [Unenroll Browser script](UnenrollBrowser.ps1) to unenroll a 
 .\UnenrollBrowser.ps1
 ```
 
+## Move Chrome browsers between Organization Units
+Consider using the [Move enrolled browser by Windows OS Name](MoveEnrolledBrowserByWindowsOSName.ps1) to move enrolled browser between Organization Units (OU). The script performs the move if the Windows OS is qualifies as Long-Term Servicing Channel (LTSC, formerly LTSB). However, you can change the qualification rule(s) to fit your business needs.
+
+**Note:** You will need to add the customer ID, the service account key JSON file, and the destination OU path to the script. 
+
+ :point_right: Add the customer id [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/ps/src/cbcm/MoveEnrolledBrowserByWindowsOSName.ps1#L33). You can find the customer Id by navigating to the  [Google Admin Console](https://admin.google.com)  > Account > Account Settings. 
+ 
+ :point_right: Add the path to the OAuth client secret file [here]((https://github.com/google/ChromeBrowserEnterprise/blob/main/ps/src/cbcm/MoveEnrolledBrowserByWindowsOSName.ps1#L48)). You can download the file from the [Google Developer Console](https://console.developers.google.com/apis/api/admin.googleapis.com/overview?project=_)
+ 
+  :point_right: Add the destination [OU path](https://github.com/google/ChromeBrowserEnterprise/blob/main/ps/src/cbcm/MoveEnrolledBrowserByWindowsOSName.ps1#L50). An example of the  destination OU path 'North America/Austin/AUS Managed User'
+
+
+```
+.\MoveEnrolledBrowserByWindowsOSName.ps1
+```
+
