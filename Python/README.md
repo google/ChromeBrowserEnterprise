@@ -44,3 +44,18 @@ argument names)
 
 Here is an example of what that data will look like:
 ![Sample Results](extension_query_sample.png)
+
+## Move Chrome browsers between Organization Units
+You can use the [moveBrowserToOrgUnit](moveBrowserToOrgUnit.py) to move enrolled browser between Organization Units (OU). 
+
+Note: You will need to add the customer ID, the service account key JSON file, and the destination OU path to the script.
+
+👉 Add the customer id [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/moveBrowserToOrgUnit.py#L12). You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings.
+
+👉 Add the path to the OAuth client secret file [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/moveBrowserToOrgUnit.py#L10). You can download the file from the Google Developer Console
+
+👉 Add the [destination OU path](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/moveBrowserToOrgUnit.py#L14). An example of the destination OU path 'North America/Austin/AUS Managed User'
+
+```
+python moveBrowserToOrgUnit.py
+```
