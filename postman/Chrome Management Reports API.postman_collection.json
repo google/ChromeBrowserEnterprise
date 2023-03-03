@@ -3,7 +3,8 @@
 		"_postman_id": "192d2d5d-eb0c-40ad-9f70-5ec1f6e8bac3",
 		"name": "Chrome Management Reports API",
 		"description": "https://developers.google.com/chrome/management/reference/rest/v1/customers.reports",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "17723612"
 	},
 	"item": [
 		{
@@ -12,7 +13,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:countChromeVersions?pageSize=100&pageSize=100&pageToken",
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:countChromeVersions?filter=last_active_date>=2022-01-01&pageSize=2&pageToken&orgUnitId",
 					"protocol": "https",
 					"host": [
 						"chromemanagement",
@@ -27,24 +28,23 @@
 					],
 					"query": [
 						{
-							"key": "pageSize",
-							"value": "100",
-							"description": "Maximum number of results to return. Maximum and default are 100."
-						},
-						{
 							"key": "filter",
-							"value": "last_active_date>=2021-01-01",
-							"disabled": true
+							"value": "last_active_date>=2022-01-01"
 						},
 						{
 							"key": "pageSize",
-							"value": "100",
+							"value": "2",
 							"description": "Maximum number of results to return. Maximum and default are 100."
 						},
 						{
 							"key": "pageToken",
 							"value": null,
 							"description": "Token to specify the page of the request to be returned."
+						},
+						{
+							"key": "orgUnitId",
+							"value": null,
+							"description": "The ID of the organizational unit."
 						}
 					]
 				},
@@ -104,7 +104,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:findInstalledAppDevices?orgUnitId=03ph8a2z0lovut0&appId=afhcomalholahplbjhnmahkoekoijban&appType=APP&pageSize=100&pageToken",
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:findInstalledAppDevices?orgUnitId=&appId=mefhakmgclhhfbdadeojlkbllmecialg&appType=EXTENSION&pageSize=100&pageToken",
 					"protocol": "https",
 					"host": [
 						"chromemanagement",
@@ -120,17 +120,17 @@
 					"query": [
 						{
 							"key": "orgUnitId",
-							"value": "03ph8a2z0lovut0",
+							"value": "",
 							"description": "The ID of the organizational unit."
 						},
 						{
 							"key": "appId",
-							"value": "afhcomalholahplbjhnmahkoekoijban",
+							"value": "mefhakmgclhhfbdadeojlkbllmecialg",
 							"description": "Unique identifier of the app. For Chrome apps and extensions, the 32-character id (e.g. ehoadneljpdggcbbknedodolkkjodefl). \nTabby Cat\nhttps://chrome.google.com/webstore/detail/mefhakmgclhhfbdadeojlkbllmecialg"
 						},
 						{
 							"key": "appType",
-							"value": "APP",
+							"value": "EXTENSION",
 							"description": "Type of the app.\nhttps://developers.google.com/chrome/management/reference/rest/v1/AppType"
 						},
 						{
@@ -150,12 +150,12 @@
 			"response": []
 		},
 		{
-			"name": "Generate report of app installations by organizational unit",
+			"name": "Generate report of app installations or by organizational unit",
 			"request": {
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:countInstalledApps?orgUnitId=03ph8a2z1uaewos&orderBy=total_install_count&pageSize=100&pageToken=",
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:countInstalledApps?orgUnitId=03ph8a2z0xurpue&orderBy=total_install_count&pageSize=100&pageToken=",
 					"protocol": "https",
 					"host": [
 						"chromemanagement",
@@ -171,7 +171,7 @@
 					"query": [
 						{
 							"key": "orgUnitId",
-							"value": "03ph8a2z1uaewos",
+							"value": "03ph8a2z0xurpue",
 							"description": "The ID of the organizational unit."
 						},
 						{
@@ -196,12 +196,12 @@
 			"response": []
 		},
 		{
-			"name": "Generate report of devices that have a specified app installed",
+			"name": "Chrome Browsers Needing Attention",
 			"request": {
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:findInstalledAppDevices?orgUnitId=03ph8a2z1uaewos&appId=bhloflhklmhfpedakmangadcdofhnnoh&appType=EXTENSION&orderBy=machine&pageSize=100&pageToken=",
+					"raw": "https://chromemanagement.googleapis.com/v1/customers/my_customer/reports:countChromeBrowsersNeedingAttention?orgUnitId=",
 					"protocol": "https",
 					"host": [
 						"chromemanagement",
@@ -212,42 +212,17 @@
 						"v1",
 						"customers",
 						"my_customer",
-						"reports:findInstalledAppDevices"
+						"reports:countChromeBrowsersNeedingAttention"
 					],
 					"query": [
 						{
 							"key": "orgUnitId",
-							"value": "03ph8a2z1uaewos",
-							"description": "The ID of the organizational unit."
-						},
-						{
-							"key": "appId",
-							"value": "bhloflhklmhfpedakmangadcdofhnnoh",
-							"description": "Unique identifier of the app. For Chrome apps and extensions, the 32-character id (e.g. ehoadneljpdggcbbknedodolkkjodefl)"
-						},
-						{
-							"key": "appType",
-							"value": "EXTENSION",
-							"description": "Type of the app"
-						},
-						{
-							"key": "orderBy",
-							"value": "machine",
-							"description": "Field used to order results"
-						},
-						{
-							"key": "pageSize",
-							"value": "100",
-							"description": "Maximum number of results to return. Maximum and default are 100."
-						},
-						{
-							"key": "pageToken",
 							"value": "",
-							"description": "Token to specify the page of the request to be returned."
+							"description": "Optional. The ID of the organizational unit. If omitted, all data will be returned."
 						}
 					]
 				},
-				"description": "https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countInstalledApps"
+				"description": "StartFragment\n\nCount of Chrome Browsers that have been recently enrolled, have new policy to be synced, or have no recent activity.\n\n[Method: customers.reports.countChromeBrowsersNeedingAttention](https://developers.google.com/chrome/management/reference/rest/v1/customers.reports/countChromeBrowsersNeedingAttention)"
 			},
 			"response": []
 		}
