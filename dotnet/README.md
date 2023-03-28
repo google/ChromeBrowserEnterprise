@@ -149,7 +149,7 @@ Sample output
   "Output": "MoveInactiveBrowsers.txt"
 }
 ```
-#### Delete inactive browser in an Organizational Unit (OU) where the last activity date is between given start and end days (format yyyy-MM-dd)
+#### Delete inactive browser in an Organizational Unit (OU).
 ```
 {
   "Argument": "890"  "OU Path" The number of days to specify to determine the inactive date. Query filter, find all devices with machine name that contain the "vdi" word **machine_name:vdi**.
