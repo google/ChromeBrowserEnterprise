@@ -1,4 +1,4 @@
-
+#!/usr/bin/env python
 """Transform CBCM Takeout API Data (Python3)."""
 
 from __future__ import print_function
