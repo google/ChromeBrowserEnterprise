@@ -1,3 +1,4 @@
+import import_declare_test
 import os
 import logging
 import sys
