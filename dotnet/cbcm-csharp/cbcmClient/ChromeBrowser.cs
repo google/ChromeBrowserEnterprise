@@ -535,15 +535,32 @@ namespace cbcmClient
 
         }
 
-        public string MoveBrowsersToOUByActivityDate(string sourceOrgUnitPath, string destinationOrgUnitPath, DateTime inactiveSince, string filterQuery)
+        public string MoveBrowsersToOUOnOrBeforeActivityDate(string sourceOrgUnitPath, string destinationOrgUnitPath, DateTime lastActivity, string filterQuery)
         {
-            List<BrowserDevicesBrowser> browserDevicesBrowsers = GetBrowsersFilteredByActivityDate(sourceOrgUnitPath, inactiveSince, filterQuery);
+            string query = String.Format("last_activity:..{0}", lastActivity.ToString("yyyy-MM-dd"));
+
+            return this.MoveBrowsersToOUByActivityDate(sourceOrgUnitPath, destinationOrgUnitPath, query, filterQuery);
+        }
+
+        public string MoveBrowsersToOUOnOrAfterActivityDate(string sourceOrgUnitPath, string destinationOrgUnitPath, DateTime lastActivity, string filterQuery)
+        {
+            string query = String.Format("last_activity:{0}..", lastActivity.ToString("yyyy-MM-dd"));
+
+            return this.MoveBrowsersToOUByActivityDate(sourceOrgUnitPath, destinationOrgUnitPath, query, filterQuery);
+        }
+
+        private string MoveBrowsersToOUByActivityDate(string sourceOrgUnitPath, string destinationOrgUnitPath, string filterLastActivity, string filterQuery)
+        {
+            if (String.IsNullOrEmpty(filterLastActivity))
+                throw new ArgumentNullException(nameof(filterLastActivity));
+
+            List<BrowserDevicesBrowser> browserDevicesBrowsers = GetBrowsersFilteredByActivityDate(sourceOrgUnitPath, filterLastActivity, filterQuery);
             
 
             return this.MoveBrowserToOU(browserDevicesBrowsers, destinationOrgUnitPath);
         }
 
-        private string MoveBrowserToOU(List<BrowserDevicesBrowser> browserDevices, string orgUnitPath)
+        public string MoveBrowserToOU(List<BrowserDevicesBrowser> browserDevices, string orgUnitPath)
         {
             if (browserDevices == null && String.IsNullOrEmpty(orgUnitPath))
                 return String.Empty;
@@ -635,9 +652,9 @@ namespace cbcmClient
             return stringBuilder.ToString();
         }
 
-        private List<BrowserDevicesBrowser> GetBrowsersFilteredByActivityDate (string orgUnitPath, DateTime lastActivity, string additionalQueryFilter)
+        private List<BrowserDevicesBrowser> GetBrowsersFilteredByActivityDate (string orgUnitPath, string filterLastActivity, string additionalQueryFilter)
         {
-            string query = String.Format("last_activity:..{0}", lastActivity.ToString("yyyy-MM-dd"));
+            string query = filterLastActivity;
 
             if (!String.IsNullOrEmpty(additionalQueryFilter))
                 query += String.Format(" {0}", additionalQueryFilter);
