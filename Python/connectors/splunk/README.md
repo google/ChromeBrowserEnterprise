@@ -1,24 +1,24 @@
 # Splunk Alert Action Quick Setup
-### Option 1 
-1. Zip the `cbcm` folder.
-2. Log in to Splunk Enterprise and navigate to `Apps > Manage Apps`.
+### Option 1 (Splunk Cloud and Splunk Enterprise)
+1. Zip (For Splunk Enterprise) or Tar(For Splunk Cloud and Enterprise) the `cbcm` folder.
+2. Log in to Splunk Cloud/Enterprise and navigate to `Apps > Manage Apps`.
 3. Click `Install app from file`.
-4. Click `Choose File` and select the zip that you want created in Step 1.
+4. For Splunk Enterprise click `Choose File` and select the zip/tar file that you want created in Step 1. For Splunk Cloud click the `Upload App` button and select the tar file that you created in Step 1. (You will have to sign in to your Splunk.com account)
 5. Click on `Upload`.
 
-### Option 2
+### Option 2 (For Splunk Enterprise Only)
 1. Open the `$SPLUNK_HOME/etc/apps/` directory 
 2. Copy the `cbcm` directory into it. 
 3. Restart the Splunk Enterprise instance.
 
 
-# Splunk Alert Action Detailed Setup
+# Splunk Alert Action Detailed Setup For Splunk Enterprise
 
-> Please create the directories that do not exist.
+> While following the below steps please create the directories if they do not exist.
 
 > Please review Splunk guidance [here](https://dev.splunk.com/enterprise/docs/devtools/customalertactions/configappcaa/)
 
-## Manual Setup
+## Manual Setup For Splunk Enterprise
 1. Open the `$SPLUNK_HOME/etc/apps/appname/appserver/static/` directory and place an image for the app icon within the directory. This should be a png file with size 48x48 pixel. In our example the appname is `cbcm` hence the directory path will be `$SPLUNK_HOME/etc/apps/cbcm/`. We have named the file as [app_icon.png](./cbcm/appserver/static/app_icon.png) in our example. Any custom name can be used to name the png file.
 
 2. Open the `$SPLUNK_HOME/etc/apps/cbcm/default/` directory and create a file called [alert_actions.conf](./cbcm/default/alert_actions.conf).
