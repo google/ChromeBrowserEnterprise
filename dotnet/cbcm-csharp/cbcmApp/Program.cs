@@ -93,10 +93,13 @@ namespace cbcmApp
                         Program.GetEnrolledBrowsersByLastActivity(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3]);
                         break;
                     case 810: //move inactive browsers with filter query to a specific OU
-                        Program.MoveInactiveBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3], args[4]);
+                        Program.MoveInactiveBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3], args.Length > 4 ? args[4] : String.Empty);
+                        break;
+                    case 820: //move active browsers with filter query to a specific OU
+                        Program.MoveActiveBrowsers(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3], args.Length > 4 ? args[4] : String.Empty);
                         break;
                     case 890: //delete inactive browsers by last activity start and end dates
-                        Program.InactiveBrowserDeletion(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args[3]);
+                        Program.InactiveBrowserDeletion(accountKeyFile, customerID, adminUserToImpersonate, args.Length > 1 ? args[1] : String.Empty, args[2], args.Length > 3 ? args[3] : String.Empty);
                         break;
                     case 990: //Delete a Chrome browser Device 
                         Program.DeleteEnrolledBrowser(accountKeyFile, customerID, adminUserToImpersonate, args[1]);
@@ -341,8 +344,8 @@ namespace cbcmApp
         /// <param name="accountKeyFile">service account key file</param>
         /// <param name="customerID">Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
         /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
-        /// <param name="sourceOrgUnitId">Source OU to find inactive browsers</param>
-        /// <param name="destinationOrgUnitId">Destination OU to move inviactive browsers</param>
+        /// <param name="sourceOrgUnitPath">Source OU to find inactive browsers</param>
+        /// <param name="destinationOrgUnitPath">Destination OU to move inviactive browsers</param>
         /// <param name="dayCount">Inactive since date.</param>
         /// <param name="query">Filter Queries</param>
         /// <exception cref="NotImplementedException"></exception>
@@ -357,9 +360,36 @@ namespace cbcmApp
 
             DateTime queryDate = DateTime.Now.AddDays(days);
             ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
-            string result = chromeBrowser.MoveBrowsersToOUByActivityDate(sourceOrgUnitPath, destinationOrgUnitPath, queryDate, filterQuery);
+            string result = chromeBrowser.MoveBrowsersToOUOnOrBeforeActivityDate(sourceOrgUnitPath, destinationOrgUnitPath, queryDate, filterQuery);
 
             Program.Log(result, "MoveInactiveBrowsers.txt");
+        }
+
+        /// <summary>
+        /// Move browsers that haven been active.
+        /// </summary>
+        /// <param name="accountKeyFile">service account key file</param>
+        /// <param name="customerID">Customer ID. You can find by navigating to your Google Admin Console instance > Account > Account Settings.</param>
+        /// <param name="adminUserToImpersonate">If you configured domain wide delegation (DwD), then you will have to provide admin/delegated admin account name.</param>
+        /// <param name="sourceOrgUnitPath">Source OU to find inactive browsers</param>
+        /// <param name="destinationOrgUnitPath">Destination OU to move inviactive browsers</param>
+        /// <param name="dayCount">Inactive since date.</param>
+        /// <param name="query">Filter Queries</param>
+        /// <exception cref="NotImplementedException"></exception>
+        private static void MoveActiveBrowsers(string accountKeyFile, string customerID, string adminUserToImpersonate, string sourceOrgUnitPath, string destinationOrgUnitPath, string dayCount, string filterQuery)
+        {
+            int days = 0;
+            if (!Int32.TryParse(dayCount, out days))
+                return;
+
+            if (days > 0)
+                days *= -1;
+
+            DateTime queryDate = DateTime.Now.AddDays(days);
+            ChromeBrowser chromeBrowser = new ChromeBrowser(accountKeyFile, customerID, adminUserToImpersonate);
+            string result = chromeBrowser.MoveBrowsersToOUOnOrAfterActivityDate(sourceOrgUnitPath, destinationOrgUnitPath, queryDate, filterQuery);
+
+            Program.Log(result, "MoveActiveBrowsers.txt");
         }
 
         /// <summary>
