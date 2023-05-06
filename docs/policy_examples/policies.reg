@@ -1,0 +1,19 @@
+Windows Registry Editor Version 5.00
+; chrome version: 112.0.5615.138
+
+[HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome]
+"HomepageLocation"="https://www.google.com"
+"HomepageIsNewTabPage"=dword:00000001
+"RestoreOnStartup"=dword:00000001
+"SafeBrowsingProtectionLevel"=dword:00000001
+"MaxConnectionsPerProxy"=dword:00000099
+"ManagedBookmarks"="[{\"toplevel_name\": \"Managedbookmarksfolder\"},{\"name\": \"Google\",\"url\": \"google.com\"},{\"name\": \"Youtube\",\"url\": \"youtube.com\"},{\"children\": [{\"name\": \"Chromium\",\"url\": \"chromium.org\"},{\"name\": \"ChromiumDevelopers\",\"url\": \"dev.chromium.org\"}],\"name\": \"Chromelinks\"}]"
+
+
+[HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome\ExtensionInstallForcelist]
+"1"="noondiphcddnnabmjcihcjfbhfklnnep"
+"2"="djflhoibgkdhkhhcedjiklpkjnoahfmg"
+
+
+[HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome\Recommended]
+"MetricsReportingEnabled"=dword:00000001
