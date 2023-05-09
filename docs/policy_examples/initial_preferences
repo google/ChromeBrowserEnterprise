@@ -1,17 +1,8 @@
 {
-  "sync_promo": {
-    "show_on_first_run_allowed": false
-  },
   "distribution": {
     "import_bookmarks_from_file": "bookmarks.html",
-    "import_bookmarks": true,
-    "ping_delay": 60,
-    "suppress_first_run_bubble": true,
     "do_not_create_desktop_shortcut": true,
     "do_not_create_quick_launch_shortcut": true,
-    "do_not_launch_chrome": true,
-    "do_not_register_for_update_launch": true,
-    "suppress_first_run_default_browser_prompt": true,
     "system_level": true,
     "verbose_logging": true
   },
