@@ -22,3 +22,11 @@ arg[0] {8A69D345-D564-463c-AFF1-A69D9E530F96} is the Chrome Stable product guid.
 arg[1] 1 applies to the Machine.
 
 arg[2] 3 perform an Update.
+
+
+## Disable Edge default browser settings campaigns
+Use the [disableEdgeDefaultBrowserSettingsCampaigns](https://github.com/google/ChromeBrowserEnterprise/blob/main/ps/src/disableEdgeDefaultBrowserSettingsCampaigns.ps1) script to decline the Microsoft Edge default browser and/or default search engine campaigns. With the [DefaultBrowserSettingsCampaignEnabled](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies#defaultbrowsersettingscampaignenabled) policy set to disabled, users will not be prompted to set Microsoft Edge as the default browser, or to set Microsoft Bing as the default search engine.
+
+```
+.\disableEdgeDefaultBrowserSettingsCampaigns.ps1
+```
