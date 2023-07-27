@@ -59,3 +59,18 @@ Note: You will need to add the customer ID, the service account key JSON file, a
 ```
 python moveBrowserToOrgUnit.py
 ```
+
+## Get Chrome Signed-On User account names
+You can use the [cbcm-profiles-export.py](Python/cbcm-profiles-export.py) to get a CSV export of Signed-On User account names. 
+
+Note: You will need to add the customer ID, the service account key JSON file, and the destination OU path to the script.
+
+👉 Add the customer id [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-profiles-export.py#L24). You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings.
+
+👉 Add the path to the OAuth client secret file [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-profiles-export.py#L22). You can download the file from the Google Developer Console
+
+👉 Optional: Add the [destination OU path](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-profiles-export.py#L26). An example of the destination OU path 'North America/Austin/AUS Managed User'
+
+```
+python cbcm-profiles-export.py
+```
