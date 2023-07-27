@@ -61,7 +61,7 @@ python moveBrowserToOrgUnit.py
 ```
 
 ## Get Chrome Signed-On User account names
-You can use the [cbcm-profiles-export.py](Python/cbcm-profiles-export.py) to get a CSV export of Signed-On User account names. 
+You can use the [cbcm-profiles-export.py](cbcm-profiles-export.py) to get a CSV export of Signed-On User account names. 
 
 Note: You will need to add the customer ID, the service account key JSON file, and the destination OU path to the script.
 
