@@ -35,7 +35,7 @@
 
 6. Open the `$SPLUNK_HOME/etc/apps/cbcm/bin` directory and create a file called [import_declare_test.py](./cbcm/bin/import_declare_test.py). This file helps import your libraries in the `lib` directory.
 
-7. In the `$SPLUNK_HOME/etc/apps/cbcm/lib/` directory manually copy the python dependencies. The lib directory should look something like [this](./cbcm/lib/) once all dependencies have been copied.
+7. Create the `$SPLUNK_HOME/etc/apps/cbcm/lib/` directory. Manually copy the python dependencies. The lib directory should look something like [this](./screenshot/lib.png) once all dependencies have been copied.
 
 
 8. Open the `$SPLUNK_HOME/etc/apps/cbcm/README/` directory and create a file called [savedsearches.conf.spec](./cbcm/README/savedsearches.conf.spec). The line items correspond to the html input elements of `cbcm.html`.
