@@ -74,3 +74,20 @@ Note: You will need to add the customer ID, the service account key JSON file, a
 ```
 python cbcm-profiles-export.py
 ```
+
+## Get extension list with Chrome Profile 
+You can use the [cbcm-browser-extension-profile-export.py](cbcm-browser-extension-profile-export.py) to get a CSV export of all extensions from managed browser including Profile and Signed-On User account names. 
+
+Note: You will need to add the customer ID, the service account key JSON file, and the destination OU path to the script.
+
+👉 Add the customer id [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-profiles-export.py#L24). You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings.
+
+👉 Add the path to the OAuth client secret file [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-profiles-export.py#L22). You can download the file from the Google Developer Console
+
+👉 Optional: Add the [destination OU path](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-profiles-export.py#L26). An example of the destination OU path 'North America/Austin/AUS Managed User'
+
+```
+python cbcm-browser-extension-profile-export.py
+```
+Here is an example of what that data will look like:
+![Sample output](cbcm-browser-extension-profile-export-Capture.PNG)
