@@ -43,8 +43,8 @@ To authenticate as an end user and access user data in your app, you must create
 2. If you are unfamiliar with the Postman interface, take a few minutes to learn [Navigating Postman](https://learning.postman.com/docs/getting-started/navigating-postman/).
 #### Environments
 An **[environment](https://learning.postman.com/docs/sending-requests/managing-environments/#creating-environments)** is a set of **[variables](https://learning.postman.com/docs/sending-requests/variables/)** you can use in your Postman requests.
-1. Create a new environment, select **Environments** on the left, and select **+**
-2. Please enter a **name** for your Environment, and initialize it with the following **variables and values**. **Save** when your changes are complete.
+1. You can get the latest [Chrome Browser Environment](https://www.postman.com/google-chrome-enterprise-apis/workspace/google-chrome-enterprise-public/environment/17723612-9370597d-023e-41b8-9ff4-5359d83ee073) and add to your workspace.
+2. Add the **values** and **Save**.
 
 | Variable     | Type     | Initial Value  | Current Value  |
 | ------------- |:-------:|:--------------:|:--------------:|
@@ -59,10 +59,10 @@ An **[environment](https://learning.postman.com/docs/sending-requests/managing-e
 [Workspaces](https://learning.postman.com/docs/collaborating-in-postman/using-workspaces/creating-workspaces/) enable you to organize your Postman work. To create a new workspace, select **Workspaces** in the header, then select **Create Workspace**. Select the **Environment** you created in the previous step from the environment selector at the top right of the workbench. 
 
 ##### Importing Collections
-You can import [Collections](https://learning.postman.com/docs/getting-started/creating-the-first-collection/) from the [Chrome Enterprise GitHub](https://github.com/google/ChromeBrowserEnterprise/tree/main/postman) or the file import into your Workspace. 
+You can import [Collections](https://www.postman.com/google-chrome-enterprise-apis/workspace/google-chrome-enterprise-public/overview)  into your Workspace. 
 1. You can follow **[these instructions](https://learning.postman.com/docs/getting-started/importing-and-exporting-data/#importing-from-github-repositories)** to import from https://github.com/google/ChromeBrowserEnterprise/tree/main/postman
 2. Alternatively, you can import Collections from the file system.
-    1. Browse to the [Chrome Enterprise GitHub](https://github.com/google/ChromeBrowserEnterprise/tree/main/postman) and select the collection that you want to import. 
+    1. Browse to the [Chrome Enterprise Postman Workspace](https://www.postman.com/google-chrome-enterprise-apis/workspace/google-chrome-enterprise-public/overview) and select the collection that you want to import. 
     2. Click on the **Raw** button
     3. Right-click and save as **.json**.
     4. In Postman, with your **Workspace** chosen, click on **Import ** from the left navigation menu.
@@ -71,7 +71,7 @@ You can import [Collections](https://learning.postman.com/docs/getting-started/c
 3. You should see all of the Collections in your Postman workspace once complete.
 
 ### Collections
-Each collection contains examples for GET, PUT, POST and DEL requests. Review the CBCM Postman [Collections](postmanColl.md) document for details.
+Each collection contains examples for GET, PUT, POST and DEL requests. Review the CBCM Postman [Collections](https://www.postman.com/google-chrome-enterprise-apis/workspace/google-chrome-enterprise-public/overview) document for details.
 
 ### Run 
 1. You will need to get the Bearer token before running a request in a collection. **Bearer tokens** enable requests to authenticate using an access key. The token is a text string, included in the request header. The requests inside the collection will **inherit** the collection level. 
