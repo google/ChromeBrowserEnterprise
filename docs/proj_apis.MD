@@ -3,7 +3,6 @@ Before using Google APIs, you need to turn them on in a Google Cloud project. Yo
 * Admin SDK API
 * Chrome Management API
 * Chrome Policy API
-* Audit API
 
 To enable an API in your Cloud project:
 
