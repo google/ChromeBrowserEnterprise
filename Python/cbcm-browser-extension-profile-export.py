@@ -71,6 +71,7 @@ def computeBrowserProfileList(browserProfileList, data):
                   
                   currrent_profile = {
                      'machineName':device['machineName'],
+                     'lastDeviceUser':device['lastDeviceUser'],
                      'profileName':profile['name'],
                      'chromeSignedInUserEmail':chromeProfile,
                      'extensionId':extensionId,
@@ -118,7 +119,7 @@ def get_enrolledBrowsers():
 def BrowserProfileAsCSV():
    try:
       browserProfileList = get_enrolledBrowsers()
-      columnHeader = ['machineName', 'profileName', 'chromeSignedInUserEmail', 'extensionId', 'extensionName', 'extensionVersion', 'extensionPermissions', 'extensionInstallType']
+      columnHeader = ['machineName', 'lastDeviceUser', 'profileName', 'chromeSignedInUserEmail', 'extensionId', 'extensionName', 'extensionVersion', 'extensionPermissions', 'extensionInstallType']
       
       with open (CSV_FILENAME, mode='w', encoding='utf-8', newline='') as csv_file:
          writer = csv.DictWriter(csv_file, fieldnames=columnHeader)   
@@ -135,5 +136,3 @@ def BrowserProfileAsCSV():
 
 # get profile data
 BrowserProfileAsCSV()
-
-
