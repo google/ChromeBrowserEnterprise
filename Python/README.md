@@ -93,18 +93,18 @@ Here is an example of what that data will look like:
 ![Sample output](cbcm-browser-extension-profile-export-Capture.PNG)
 
 
-# BlockExtensionBasedOnRiskScore Script
+## BlockExtensionBasedOnRiskScore Script
 
 This Python script, `BlockExtensionBasedOnRiskScore.py`, automates the process of identifying and blocking potentially risky Chrome extensions in a Chrome Browser Cloud Management environment. It evaluates extensions based on risk scores obtained from Crxcavator and Spin.ai.
 
 Note: If the risk scores of the newest versions of installed extensions are not available, this script will pick up the scores from the older versions.
 
-## Configuration
+### Configuration
 👉 `SERVICE_ACCOUNT_FILE`: Path to your service account key JSON file.
-👉 `CUSTOMER_ID`: Your Google Workspace customer ID.
+👉 `CUSTOMER_ID`: Your Google Workspace customer ID. You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings.
 👉 `CRX_RISK_THRESHOLD` and `SPIN_RISK_THRESHOLD`: The risk thresholds for Crxcavator and Spin.ai scores.
 👉 `ADMIN_USER_EMAIL`: The email address of an admin user in your Google Workspace.
-👉 `TARGET_OU`: The OU name where extensions will be blocked.
+👉 `TARGET_OU`: The OU name where extensions will be blocked.  An example of the destination OU name would be ’AUS Managed User'
 
 
 ```
