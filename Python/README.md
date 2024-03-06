@@ -100,10 +100,14 @@ This Python script, `BlockExtensionBasedOnRiskScore.py`, automates the process o
 Note: If the risk scores of the newest versions of installed extensions are not available, this script will pick up the scores from the older versions.
 
 ### Configuration
-👉 `SERVICE_ACCOUNT_FILE`: Path to your service account key JSON file.
+👉 `SERVICE_ACCOUNT_FILE`: Path to your service account key JSON file. 
+
 👉 `CUSTOMER_ID`: Your Google Workspace customer ID. You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings.
+
 👉 `CRX_RISK_THRESHOLD` and `SPIN_RISK_THRESHOLD`: The risk thresholds for Crxcavator and Spin.ai scores.
+
 👉 `ADMIN_USER_EMAIL`: The email address of an admin user in your Google Workspace.
+
 👉 `TARGET_OU`: The OU name where extensions will be blocked.  An example of the destination OU name would be ’AUS Managed User'
 
 
