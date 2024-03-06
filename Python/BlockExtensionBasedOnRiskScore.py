@@ -5,23 +5,12 @@ from googleapiclient.discovery import build
 import requests
 import json
 
-# #/******* BEGIN: Customer to modify this section *******/
-# SERVICE_ACCOUNT_FILE = '.json'  # Path to the service account JSON file
-# # Add the customer id here. You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings
-# CUSTOMER_ID = ''  # Your Google Workspace customer ID
-# ADMIN_USER_EMAIL = 'admin@yourdomain.com'  # Admin email for user delegation
-# TARGET_OU = '' # Target Organizational Unit (OU) name * NOT ID or Description
-# CRX_RISK_THRESHOLD = 550  # Threshold for Crxcavator risk score
-# SPIN_RISK_THRESHOLD = 70  # Threshold for Spin risk score
-# EXCEPTION_EXTENSION_IDs = ['callobklhcbilhphinckomhgkigmfocg']
-# #/******* END: Customer to modify this section *******/
-
 #/******* BEGIN: Customer to modify this section *******/
-SERVICE_ACCOUNT_FILE = 'cbcm.json'  # Path to the service account JSON file
+SERVICE_ACCOUNT_FILE = '.json'  # Path to the service account JSON file
 # Add the customer id here. You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings
-CUSTOMER_ID = 'C033fmrgf'  # Your Google Workspace customer ID
-ADMIN_USER_EMAIL = 'daiya@fletcher.bigr.name'  # Admin email for user delegation
-TARGET_OU = 'Osaka' # The unique ID for the target Organizational Unit (OU)
+CUSTOMER_ID = ''  # Your Google Workspace customer ID
+ADMIN_USER_EMAIL = 'admin@yourdomain.com'  # Admin email for user delegation
+TARGET_OU = '' # Target Organizational Unit (OU) name * NOT ID or Description
 CRX_RISK_THRESHOLD = 550  # Threshold for Crxcavator risk score
 SPIN_RISK_THRESHOLD = 70  # Threshold for Spin risk score
 EXCEPTION_EXTENSION_IDs = ['callobklhcbilhphinckomhgkigmfocg']
