@@ -99,7 +99,8 @@ This Python script, `BlockExtensionBasedOnRiskScore.py`, automates the process o
 
 Note: If the risk scores of the newest versions of installed extensions are not available, this script will pick up the scores from the older versions.
 
-### Configuration
+### Configuration 
+
 👉 `SERVICE_ACCOUNT_FILE`: Path to your service account key JSON file. 
 
 👉 `CUSTOMER_ID`: Your Google Workspace customer ID. You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings.
