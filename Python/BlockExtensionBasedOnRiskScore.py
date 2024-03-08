@@ -13,7 +13,7 @@ ADMIN_USER_EMAIL = 'admin@yourdomain.com'  # Admin email for user delegation
 TARGET_OU = '' # Target Organizational Unit (OU) name * NOT ID or Description
 CRX_RISK_THRESHOLD = 550  # Threshold for Crxcavator risk score
 SPIN_RISK_THRESHOLD = 70  # Threshold for Spin risk score
-EXCEPTION_EXTENSION_IDs = ['callobklhcbilhphinckomhgkigmfocg']
+EXCEPTION_EXTENSION_IDs = ['callobklhcbilhphinckomhgkigmfocg'] # Extensions listed here will not be checked for risk scores / won't be blocked.
 #/******* END: Customer to modify this section *******/
 
 
