@@ -8,7 +8,7 @@ Use the [Chrome Browser Enterprise (CBE)](https://support.google.com/chrome/a/to
 * APIs
   * [App Details API](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/App_Details_api.md)
   * [Chrome Browser Cloud Management API](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/CBCM_api.md)
-  * [Chrome Management Reports API](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/Chrome_Management_Reports_api.md)
+  * [Chrome Management API](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/Chrome_Management_Reports_api.md)
   * [Chrome Policy API](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/Chrome_Policy_api.md)
   * [Directory API](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/Directory_api.md)
   * [Enrollment Token API](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/Enrollment_Token_api.md)
