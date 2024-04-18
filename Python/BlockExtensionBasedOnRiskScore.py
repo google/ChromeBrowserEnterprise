@@ -264,7 +264,7 @@ def main():
             # Check if both risk scores are above their respective thresholds.
             # If so, block the extension in the specified Organizational Unit.
             if crxcavator_score is not None and spin_score is not None and \
-            crxcavator_score > CRX_RISK_THRESHOLD and spin_score > SPIN_RISK_THRESHOLD:
+            crxcavator_score > CRX_RISK_THRESHOLD and spin_score < SPIN_RISK_THRESHOLD:
                 print(f"BLOCKING Extension ID: {extension['id']}, Crxcavator Score: {crxcavator_score}, Spin Score: {spin_score}")
                 block_extension(session, CUSTOMER_ID, TARGET_OU_ID, extension['id'])
                 extension_output['status'] = 'Blocked'
