@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 import requests
 import json
 
-#/******* BEGIN: Customer to modify this section *******/
+# #/******* BEGIN: Customer to modify this section *******/
 SERVICE_ACCOUNT_FILE = '.json'  # Path to the service account JSON file
 # Add the customer id here. You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings
 CUSTOMER_ID = ''  # Your Google Workspace customer ID
@@ -13,12 +13,12 @@ ADMIN_USER_EMAIL = 'admin@yourdomain.com'  # Admin email for user delegation
 TARGET_OU = '' # Target Organizational Unit (OU) name * NOT ID or Description
 CRX_RISK_THRESHOLD = 550  # Threshold for Crxcavator risk score
 SPIN_RISK_THRESHOLD = 70  # Threshold for Spin risk score
-EXCEPTION_EXTENSION_IDs = ['callobklhcbilhphinckomhgkigmfocg'] # Extensions listed here will not be checked for risk scores / won't be blocked.
-#/******* END: Customer to modify this section *******/
+EXCEPTION_EXTENSION_IDs = ['callobklhcbilhphinckomhgkigmfocg']
+# #/******* END: Customer to modify this section *******/
 
 
 SCOPES = [
-    'https://www.googleapis.com/auth/admin.directory.device.chromeos',
+    'https://www.googleapis.com/auth/admin.directory.device.chromebrowsers',
     'https://www.googleapis.com/auth/chrome.management.reports.readonly',
     'https://www.googleapis.com/auth/chrome.management.appdetails.readonly',
     'https://www.googleapis.com/auth/chrome.management.policy',
@@ -196,31 +196,32 @@ def get_risk_score(extension_id, version):
     return crxcavator_score, spin_score
 
 
-def find_parent_org_unit_id(customer_id, ou_name, credentials):
+def find_parent_org_unit_id(session, customer_id, ou_name):
     """
     Find the parent organization unit ID for a given organization unit name in Google Workspace.
 
     Args:
+        session (AuthorizedSession): The authorized session for making API requests.
         customer_id (str): The customer ID of the Google Workspace account.
         ou_name (str): The name of the organization unit.
-        credentials (google.oauth2.service_account.Credentials): The authentication credentials for the Google API.
 
     Returns:
         str: The parent organization unit ID of the specified organization unit, or None if not found.
     """
+    # Define the API URL
+    api_url = f'https://admin.googleapis.com/admin/directory/v1/customer/{customer_id}/orgunits?type=all'
 
-    # Build the Admin SDK Directory API client
-    service = build('admin', 'directory_v1', credentials=credentials)
+    # Make the API request
+    response = session.get(api_url)
+    response.raise_for_status()  # Raises an HTTPError for bad responses
+    org_units = response.json().get('organizationUnits', [])
 
-    # Get the list of organization units (including sub-OUs)
-    response = service.orgunits().list(customerId=customer_id, type='all').execute()
-    org_units = response.get('organizationUnits', [])
-
-    # Extract the parentOrgUnitId of the organization unit matching the given OUName
+    # Extract parentOrgUnitId for the specified OU name
     for org_unit in org_units:
         if org_unit.get('name') == ou_name:
-            return org_unit.get('parentOrgUnitId').replace('id:','')
-
+            targetouid = org_unit.get('parentOrgUnitId')
+            targetouid = targetouid.replace('id:','')
+            return targetouid
     return None
 
 
@@ -229,13 +230,13 @@ def main():
     # Load service account credentials from a specified JSON file.
     # These credentials are used to authenticate API requests.
     credentials = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        SERVICE_ACCOUNT_FILE, scopes=SCOPES, subject=ADMIN_USER_EMAIL)
 
     # Create an authorized session with the loaded credentials.
     # This session will be used to make authenticated API requests.
     session = AuthorizedSession(credentials)
 
-    TARGET_OU_ID = find_parent_org_unit_id(CUSTOMER_ID,TARGET_OU,credentials)
+    TARGET_OU_ID = find_parent_org_unit_id(session, CUSTOMER_ID,TARGET_OU)
 
     if TARGET_OU_ID == None:
         print(f"Please check if Target OU name is correct: {TARGET_OU}")
