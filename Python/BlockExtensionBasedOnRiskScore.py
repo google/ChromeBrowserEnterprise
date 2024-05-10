@@ -16,7 +16,6 @@ SPIN_RISK_THRESHOLD = 70  # Threshold for Spin risk score
 EXCEPTION_EXTENSION_IDs = ['callobklhcbilhphinckomhgkigmfocg']
 # #/******* END: Customer to modify this section *******/
 
-
 SCOPES = [
     'https://www.googleapis.com/auth/admin.directory.device.chromebrowsers',
     'https://www.googleapis.com/auth/chrome.management.reports.readonly',
@@ -196,9 +195,9 @@ def get_risk_score(extension_id, version):
     return crxcavator_score, spin_score
 
 
-def find_parent_org_unit_id(session, customer_id, ou_name):
+def find_org_unit_id(session, customer_id, ou_name):
     """
-    Find the parent organization unit ID for a given organization unit name in Google Workspace.
+    Find the organization unit ID for a given organization unit name in Google Workspace.
 
     Args:
         session (AuthorizedSession): The authorized session for making API requests.
@@ -206,7 +205,7 @@ def find_parent_org_unit_id(session, customer_id, ou_name):
         ou_name (str): The name of the organization unit.
 
     Returns:
-        str: The parent organization unit ID of the specified organization unit, or None if not found.
+        str: The organization unit ID of the specified organization unit, or None if not found.
     """
     # Define the API URL
     api_url = f'https://admin.googleapis.com/admin/directory/v1/customer/{customer_id}/orgunits?type=all'
@@ -216,10 +215,10 @@ def find_parent_org_unit_id(session, customer_id, ou_name):
     response.raise_for_status()  # Raises an HTTPError for bad responses
     org_units = response.json().get('organizationUnits', [])
 
-    # Extract parentOrgUnitId for the specified OU name
+    # Extract OrgUnitId for the specified OU name
     for org_unit in org_units:
         if org_unit.get('name') == ou_name:
-            targetouid = org_unit.get('parentOrgUnitId')
+            targetouid = org_unit.get('orgUnitId')
             targetouid = targetouid.replace('id:','')
             return targetouid
     return None
@@ -236,7 +235,7 @@ def main():
     # This session will be used to make authenticated API requests.
     session = AuthorizedSession(credentials)
 
-    TARGET_OU_ID = find_parent_org_unit_id(session, CUSTOMER_ID,TARGET_OU)
+    TARGET_OU_ID = find_org_unit_id(session, CUSTOMER_ID,TARGET_OU)
 
     if TARGET_OU_ID == None:
         print(f"Please check if Target OU name is correct: {TARGET_OU}")
