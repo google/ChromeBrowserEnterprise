@@ -30,3 +30,13 @@ Use the [disableEdgeDefaultBrowserSettingsCampaigns](https://github.com/google/C
 ```
 .\disableEdgeDefaultBrowserSettingsCampaigns.ps1
 ```
+
+## Unenroll a browser
+You can unenroll a browser from the local endpoint by running the [Unenroll-from-CBCM.cmd](https://github.com/google/ChromeBrowserEnterprise/blob/main/ps/src/Unenroll-from-CBCM.cmd) from an administrator mode shell. 
+
+<img src="unenroll-admin-cmd-capture.PNG" width="300" hight=200>
+
+
+```
+ Unenroll-from-CBCM.cmd
+```
