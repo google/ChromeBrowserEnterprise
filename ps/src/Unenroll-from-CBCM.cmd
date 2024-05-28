@@ -10,3 +10,6 @@ reg delete "HKLM\SOFTWARE\Policies\Google\Chrome" /v "CloudManagementEnrollmentT
 :: Remove Device token
 reg delete "HKLM\SOFTWARE\Google\Chrome\Enrollment" /f
 reg delete "HKLM\SOFTWARE\WOW6432Node\Google\Enrollment" /f
+
+::Delete the directory where Google Update writes cached cloud policies
+rmdir /s /q "C:\Program Files (x86)\Google\Policies"
