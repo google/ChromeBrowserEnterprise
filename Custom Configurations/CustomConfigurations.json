@@ -1,26 +1,38 @@
 {
-    "ExtensionSettings": {
-      "*": {
-        "blocked_install_message": "Please contact the IT Service Desk for more information and next steps"
-      },
-        "aapbdbdomjkkjkaonfhkkikfgjllcleb": { "installation_mode": "removed" },
-        "blipmdconlkpinefehnmjammfjpmpbjk": {"blocked_install_message": "Lighthouse is not alllowed for the Sales team.", "installation_mode": "blocked"}
+  "ExtensionSettings": {
+    "*": {
+      "blocked_install_message": "Please contact the IT Service Desk for more information and next steps"
     },
-    "AutoLaunchProtocolsFromOrigins": [
-      {
-        "allowed_origins": [
-          "https://example.com"
-        ],
-        "protocol": "spotify"
-      }
-    ],
-    "RestoreOnStartup": 4,
-    "RestoreOnStartupURLs": [
-      "https://www.chromium.org/chromium-projects/"
-    ],
-    "recommended": [
-      "RestoreOnStartup",
-      "RestoreOnStartupURLs"
-    ]
-  }
-  
+    "aapbdbdomjkkjkaonfhkkikfgjllcleb": {
+      "installation_mode": "removed"
+    },
+    "blipmdconlkpinefehnmjammfjpmpbjk": {
+      "blocked_install_message": "Lighthouse is not alllowed for the Sales team.",
+      "installation_mode": "blocked"
+    }
+  },
+  "AutoLaunchProtocolsFromOrigins": [
+    {
+      "allowed_origins": [
+        "https://example.com"
+      ],
+      "protocol": "spotify"
+    }
+  ],
+  "DownloadDirectory": "/home/${user_name}/Downloads",
+  "HomepageIsNewTabPage": false,
+  "HomepageLocation": "https://www.chromium.org/chromium-projects/",
+  "RestoreOnStartup": 4,
+  "RestoreOnStartupURLs": [
+    "https://www.chromium.org/chromium-projects/"
+  ],
+  "ShowHomeButton": false,
+  "recommended": [
+    "DownloadDirectory",
+    "HomepageIsNewTabPage",
+    "HomepageLocation",
+    "RestoreOnStartup",
+    "RestoreOnStartupURLs",
+    "ShowHomeButton"
+  ]
+}
