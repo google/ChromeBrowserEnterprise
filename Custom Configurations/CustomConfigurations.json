@@ -27,6 +27,9 @@
     "https://www.chromium.org/chromium-projects/"
   ],
   "ShowHomeButton": false,
+  "CloudPrintProxyEnabled": false,
+  "RemoteAccessHostAllowClientPairing": false,
+  "RemoteAccessHostAllowGnubbyAuth": false,
   "recommended": [
     "DownloadDirectory",
     "HomepageIsNewTabPage",
