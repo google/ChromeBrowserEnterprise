@@ -44,7 +44,7 @@ After you build the solution, you can run cbcmApp.exe from the Windows command p
 ```
 {
   "Argument": "6" "OU Path" "machine names csvtxt file"
-  "Usage": cbcmapp.exe 6 "/APAC/Tokyo" ""C:/Temp/MoveDevices.[csv|txt]"
+  "Usage": cbcmapp.exe 6 "/APAC/Tokyo" "C:/Temp/MoveDevices.[csv|txt]"
   "Output": "moveChromeBrowsersToOu.txt"
 }
 ```
