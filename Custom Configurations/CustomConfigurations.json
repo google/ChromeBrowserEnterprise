@@ -19,6 +19,9 @@
       "protocol": "spotify"
     }
   ],
+  "ProxySettings": {
+    "ProxyMode": "system"
+  },
   "DownloadDirectory": "/home/${user_name}/Downloads",
   "HomepageIsNewTabPage": false,
   "HomepageLocation": "https://www.chromium.org/chromium-projects/",
