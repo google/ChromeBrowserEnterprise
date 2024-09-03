@@ -26,6 +26,7 @@
   "ProxySettings": {
     "ProxyMode": "system"
   },
+  "LensOverlaySettings": 1,
   "DownloadDirectory": "/home/${user_name}/Downloads",
   "HomepageIsNewTabPage": false,
   "HomepageLocation": "https://www.chromium.org/chromium-projects/",
