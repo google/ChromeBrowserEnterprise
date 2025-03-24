@@ -117,3 +117,16 @@ python BlockExtensionBasedOnRiskScore.py
 ```
 
 ![Sample output](BlockExtensionBasedOnRiskScoreOutput.png)
+
+## Get information about Chrome browsers that are managed by your organization using Chrome Enterprise Core
+[cbcm-browser-basic-export.py](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-browser-basic-export.py) automates the process of collecting and organizing important details about Chrome browsers managed using Chrome Enterprise Core (CEC), making it easier to keep track of them.
+
+The output include things like:
+* Which computer it's on
+* The browser's version
+* Whether it has any updates waiting
+* Number of installed extensions
+* Number of configured browser policies
+* When it was last used
+
+The code takes all the collected browser information and neatly puts it into a CSV file.
