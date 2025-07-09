@@ -19,8 +19,8 @@ Use the [Chrome Browser Enterprise (CBE)](https://support.google.com/chrome/a/to
   * [Using Postman for CBCM API calls](https://github.com/google/ChromeBrowserEnterprise/blob/main/postman/README.md)
   * [Postman collection](https://www.postman.com/google-chrome-enterprise-apis/workspace/google-chrome-enterprise-public/overview) - requests that utilizes the above mentioned APIs.
 * PowerShell 
-  * [Random Scripts](https://github.com/google/ChromeBrowserEnterprise/tree/main/ps/src) - scripts to wake the browser and force browser to update.
-  * [Random CBCM Scripts](https://github.com/google/ChromeBrowserEnterprise/tree/main/ps/src/cbcm) - script to add the enrollment token to the device and launch the browesr (complete the enrollment process).
+  * [Random Scripts](https://github.com/google/ChromeBrowserEnterprise/tree/main/Windows/PowerShell) - scripts to wake the browser and force browser to update.
+  * [Random CBCM Scripts](https://github.com/google/ChromeBrowserEnterprise/tree/main/Windows/PowerShell/cbcm) - script to add the enrollment token to the device and launch the browesr (complete the enrollment process).
 
 
 ## Contributing
