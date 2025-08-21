@@ -9,10 +9,10 @@ Consider using the [wake browser script](/Windows/PowerShell/WakeBrowser.ps1) to
 ## Force Update
 You can force an update to the browser and run Chrome silently under the System context to allow version data to update to the Windows registry. 
 
-[update3web_demo](/Windows/PowerShell/update3web_demo.js) from the [Google Omaha team](https://github.com/google/omaha/tree/main/omaha/tools/performondemand) :heart:.
+[legacy_update3web.js](https://source.chromium.org/chromium/chromium/src/+/main:chrome/updater/win/test/legacy_update3web.js) from the [Google Omaha team](https://github.com/google/omaha/tree/main/omaha/tools/performondemand) :heart:.
 
 ```
-cscript update3web_demo.js {8A69D345-D564-463c-AFF1-A69D9E530F96} 1 3
+cscript legacy_update3web.js {8A69D345-D564-463c-AFF1-A69D9E530F96} 1 3
 ```
 
 update3web_demo.js script takes three arguments:
