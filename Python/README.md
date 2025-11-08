@@ -155,7 +155,7 @@ A script to automate the migration of Chrome user policies between Organizationa
 
 ### Setup
 
-1.  Place `policy_migrator.py` and your `client_secrets.json` file in the same directory.
+1.  Place [policy_migrator.py](policy_migrator.py) and your `client_secrets.json` file in the same directory.
 2.  Open `policy_migrator.py` in a text editor.
 3.  **Update Configuration:**
     * Set `CUSTOMER_ID` to your Google Workspace customer ID (e.g., `customers/C00xxxxxx`).
