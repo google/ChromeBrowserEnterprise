@@ -130,3 +130,52 @@ The output include things like:
 * When it was last used
 
 The code takes all the collected browser information and neatly puts it into a CSV file.
+
+## Chrome Policy Migrator
+
+A script to automate the migration of Chrome user policies between Organizational Units (OUs) in Manage User Settings using the [Chrome Policy API](https://developers.google.com/chrome/policy/guides/overview).
+
+### Features
+
+* **Full Migration:** Copies the *effective* policy state (inherited + local policies) from a source OU to a destination OU.
+* **Local-Only Migration:** Optional flag (`--local-only`) to copy *only* policies explicitly set at the source OU level, ignoring inherited policies.
+* **Smart Filtering:** automatically skips known restricted policies (e.g., `Root OU Only` policies) to prevent API permission errors.
+* **Batch Processing:** Uses efficient batch requests to apply policies.
+
+### Prerequisites
+
+1.  **Python 3.x** installed.
+2.  **Google Client Libraries:** Install required packages:
+    ```bash
+    pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+    ```
+3.  **GCP Project:** A Google Cloud Platform project with the **Chrome Policy API** enabled.
+4.  **OAuth 2.0 Credentials:** Download the `client_secrets.json` file for a Desktop App OAuth 2.0 client ID.
+5.  **Admin Privileges:** The user authenticating the script must be a Google Workspace Admin with privileges to manage Chrome policies.
+
+### Setup
+
+1.  Place `policy_migrator.py` and your `client_secrets.json` file in the same directory.
+2.  Open `policy_migrator.py` in a text editor.
+3.  **Update Configuration:**
+    * Set `CUSTOMER_ID` to your Google Workspace customer ID (e.g., `customers/C00xxxxxx`).
+    * (Optional) Update `CLIENT_SECRETS_FILE` if your JSON file has a different name or path.
+
+### Usage
+
+Run the script from the command line, providing the Source OU ID and Destination OU ID.
+
+#### Local-Only Migration
+Copies only the policies that are explicitly configured on the source OU.
+```bash
+python policy_migrator.py orgunits/source_id orgunits/destination_id --local-only
+```
+
+#### Migrate Effective Policies
+Copies all policies that apply to users in the source OU, including those inherited from parent OUs.
+```bash
+python policy_migrator.py orgunits/source_id orgunits/destination_id
+```
+
+### First Run
+On the first run, a browser window will open, prompting you to log in with your Google Workspace Admin account and grant the requested permissions. A token.pickle file will be created to save your credentials for future runs.
