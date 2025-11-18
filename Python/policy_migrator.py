@@ -17,12 +17,19 @@
 """
 A Python script to migrate Chrome policies from a source Organizational Unit (OU)
 to a destination Organizational Unit (OU) using the Chrome Policy API.
+
+Features:
+- Dynamic detection of root-restricted policies (filters for 'root').
+- 'Local Only' mode to migrate only explicitly set policies.
+- Batch processing for efficient API usage.
+- Comprehensive logging of exceptions to file when DEBUG is enabled.
 """
 
 import argparse
 import json
 import os.path
 import pickle
+import traceback
 
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -45,12 +52,8 @@ DEBUG = False
 # File to store user's access and refresh tokens.
 TOKEN_PICKLE_FILE = "token.pickle"
 
-# --- Restricted Policy List ---
-# Policies known to have a ROOT_OU_ONLY access restriction.
-# These must be skipped to avoid 403 Permission Denied errors on non-root OUs.
-ROOT_OU_ONLY_POLICIES = [
-    "chrome.users.ChromeBrowserDmtokenDeletionEnabled",
-]
+# Global list to store restricted policies, populated dynamically at runtime.
+ROOT_RESTRICTED_POLICIES = []
 
 def get_credentials():
     """
@@ -82,6 +85,75 @@ def get_credentials():
             print(f"Credentials saved to '{TOKEN_PICKLE_FILE}'.")
 
     return creds
+
+
+def log_exception_to_file(context, error):
+    """
+    Helper function to log exceptions to the debug file if DEBUG is enabled.
+    """
+    if DEBUG:
+        try:
+            with open("debug_log.txt", "a", encoding="utf-8") as f:
+                f.write(f"--- ERROR in {context} ---\n")
+                f.write(f"Error Message: {error}\n")
+                f.write("Traceback:\n")
+                f.write(traceback.format_exc())
+                f.write("\n--------------------------------------------------\n\n")
+        except Exception as log_err:
+            print(f"Failed to write to debug log: {log_err}")
+
+
+def get_root_restricted_policies(service):
+    """
+    Fetches the list of policy schemas that are restricted to the Root OU.
+    This dynamically builds the exclusion list to prevent 403 errors.
+    """
+    print("\nFetching list of root-restricted policies from API...")
+    restricted_policies = []
+    page_token = None
+
+    try:
+        while True:
+            # List policy schemas with a broader filter for 'root' restrictions.
+            # This catches 'ROOT_OU_ONLY' and any other variants containing 'root'.
+            request = service.customers().policySchemas().list(
+                parent=CUSTOMER_ID,
+                filter="access_restrictions=root",
+                pageSize=100,
+                pageToken=page_token
+            )
+            response = request.execute()
+            
+            schemas = response.get("policySchemas", [])
+            for schema in schemas:
+                # We use 'schemaName' directly as it contains the correct fully qualified
+                # name (e.g., chrome.users.ChromeBrowserDmtokenDeletionEnabled).
+                if "schemaName" in schema:
+                    restricted_policies.append(schema["schemaName"])
+            
+            page_token = response.get("nextPageToken")
+            if not page_token:
+                break
+        
+        print(f"Found {len(restricted_policies)} restricted policies.")
+        
+        if DEBUG:
+            print("DEBUG: Restricted policies list:")
+            with open("debug_log.txt", "a", encoding="utf-8") as f:
+                f.write("--- RESTRICTED POLICIES LIST ---\n")
+                f.write(json.dumps(restricted_policies, indent=2))
+                f.write("\n\n")
+
+        return restricted_policies
+
+    except HttpError as error:
+        print(f"An error occurred while fetching policy schemas: {error}")
+        log_exception_to_file("get_root_restricted_policies (HttpError)", error)
+        return []
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        log_exception_to_file("get_root_restricted_policies (Exception)", e)
+        return []
 
 
 def get_resolved_policies(service, org_unit_id, local_only=False):
@@ -138,17 +210,20 @@ def get_resolved_policies(service, org_unit_id, local_only=False):
 
     except HttpError as error:
         print(f"An error occurred while fetching policies: {error}")
+        log_exception_to_file("get_resolved_policies (HttpError)", error)
         return None
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+        log_exception_to_file("get_resolved_policies (Exception)", e)
         return None
 
 
 def is_policy_migratable(policy_schema):
     """
     Checks if a policy is restricted to the Root OU and should be skipped.
+    Uses the globally populated ROOT_RESTRICTED_POLICIES list.
     """
-    if policy_schema in ROOT_OU_ONLY_POLICIES:
+    if policy_schema in ROOT_RESTRICTED_POLICIES:
         print(f"  -> Skipping restricted policy: {policy_schema}")
         return False
     return True
@@ -214,11 +289,15 @@ def batch_update_policies(service, policies, destination_ou_id):
 
     except HttpError as error:
         print(f"An error occurred during the batch update: {error}")
+        log_exception_to_file("batch_update_policies (HttpError)", error)
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+        log_exception_to_file("batch_update_policies (Exception)", e)
 
 
 def main():
+    global ROOT_RESTRICTED_POLICIES
+
     parser = argparse.ArgumentParser(
         description="Migrate Chrome user policies from one OU to another."
     )
@@ -249,14 +328,20 @@ def main():
         service = build("chromepolicy", "v1", credentials=credentials)
     except Exception as e:
         print(f"Failed to build API service: {e}")
+        log_exception_to_file("main (build service)", e)
         return
 
+    # 1. Fetch the dynamic list of restricted policies
+    ROOT_RESTRICTED_POLICIES = get_root_restricted_policies(service)
+
+    # 2. Get all resolved policies from the source OU
     source_policies = get_resolved_policies(
         service, 
         args.source_ou_id, 
         local_only=args.local_only
     )
 
+    # 3. If policies were fetched successfully, apply them to the destination OU
     if source_policies is not None:
         batch_update_policies(service, source_policies, args.destination_ou_id)
 
