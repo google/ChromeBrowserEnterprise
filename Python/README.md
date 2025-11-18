@@ -177,5 +177,10 @@ Copies all policies that apply to users in the source OU, including those inheri
 python policy_migrator.py orgunits/source_id orgunits/destination_id
 ```
 
+### Troubleshooting
+* **Debug Mode:** To see detailed API responses and error stack traces, change `DEBUG = False` to `DEBUG = True` inside the script. Logs will be written to `debug_log.txt`.
+
+* **403 Errors:** If you receive permission errors, ensure your admin account has the correct Chrome Management privileges and that the API is enabled in your GCP project.
+
 ### First Run
 On the first run, a browser window will open, prompting you to log in with your Google Workspace Admin account and grant the requested permissions. A token.pickle file will be created to save your credentials for future runs.
