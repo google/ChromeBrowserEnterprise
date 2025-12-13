@@ -45,7 +45,7 @@ Best for scheduled tasks or CI/CD pipelines.
 3.  Download the JSON key and save it as `service_account.json`.
 4.  Run scripts with the --use-service-account flag.
 
-## 📦 Tool 1: Policy Exporter (`policy_exporter.py`)
+## 📦 Tool 1: Policy Exporter ([`policy_exporter.py`](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/policy_exporter.py))
 Exports policies from a source OU or Group into a timestamped JSON file.
 
 ### Features
@@ -71,7 +71,7 @@ Exports policies from a source OU or Group into a timestamped JSON file.
 ### Output: 
 A file named like `orgunits_03ph8a2z_Dec_12_2025_18-30.json` or `groups_02gq7lqe_...json` will be created.
 
-## 📥 Tool 2: Policy Importer (policy_importer.py)
+## 📥 Tool 2: Policy Importer ([policy_importer.py](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/policy_importer.py))
 Imports a JSON policy file into a target OU or Group.
 ### Features
 - Strict Type Validation: The tool strictly validates the source and target types.
