@@ -7,6 +7,7 @@ A robust set of Python tools designed for Chrome Enterprise administrators to **
 * **Universal Support:** Manage policies for both **OUs** (hierarchical) and **Groups** (flat).
 * **Version Control:** Export policies to JSON to track changes over time using Git.
 * **Disaster Recovery:** Restore complex policy configurations to any OU or Group in seconds.
+* **Migrate:** Seamlessly promote policies from non-prod to prod environments.
 * **Dual Authentication:** Supports both **Local Admin** (OAuth 2.0 browser flow) and **Service Accounts** (CI/CD automation).
 
 ---
