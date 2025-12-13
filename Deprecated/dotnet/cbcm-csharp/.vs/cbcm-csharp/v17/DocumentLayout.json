@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\Users\\nsamarakkody\\source\\repos\\ChromeBrowserEnterprise\\google\\ChromeBrowserEnterprise\\dotnet\\cbcm-csharp\\",
+  "WorkspaceRootPath": "C:\\Users\\nsamarakkody\\source\\repos\\google\\ChromeBrowserEnterprise\\Deprecated\\dotnet\\cbcm-csharp\\",
   "Documents": [],
   "DocumentGroupContainers": [
     {
@@ -13,7 +13,19 @@
           "Children": [
             {
               "$type": "Bookmark",
-              "Name": "ST:0:0:{56df62a4-05a3-4e5b-aa1a-99371ccfb997}"
+              "Name": "ST:128:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:129:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:130:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:131:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
             }
           ]
         }
