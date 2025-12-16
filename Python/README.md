@@ -1,6 +1,6 @@
 # Chrome Enterprise Policy Management Suite
 
-A robust set of Python tools designed for Chrome Enterprise administrators to **export**, **backup**, and **import** Chrome browser policies. This suite fully supports both **Organizational Units (OUs)** and **Google Groups**, handling complex App/Extension policies and intelligent "auto-repair" logic for seamless migrations.
+A robust set of Python tools designed for Chrome Enterprise administrators to **export**, **backup**, **import**, and **clean** Chrome browser policies. This suite fully supports both **Organizational Units (OUs)** and **Google Groups**, handling complex App/Extension policies and intelligent "auto-repair" logic for seamless migrations.
 
 ## 🚀 Key Benefits
 
@@ -8,6 +8,7 @@ A robust set of Python tools designed for Chrome Enterprise administrators to **
 * **Version Control:** Export policies to JSON to track changes over time using Git.
 * **Disaster Recovery:** Restore complex policy configurations to any OU or Group in seconds.
 * **Migrate:** Seamlessly promote policies from non-prod to prod environments.
+* **Policy Hygiene:** Easily revert local overrides to inherited states with the new **Inheritor** tool.
 * **Dual Authentication:** Supports both **Local Admin** (OAuth 2.0 browser flow) and **Service Accounts** (CI/CD automation).
 
 ---
@@ -25,7 +26,7 @@ A robust set of Python tools designed for Chrome Enterprise administrators to **
 
 ## 🔧 Configuration
 
-Before running the scripts, open both `policy_exporter.py` and `policy_importer.py` and update the `CUSTOMER_ID` constant:
+Before running the scripts, open the python files and update the `CUSTOMER_ID` constant:
 
 ```python
 CUSTOMER_ID = "customers/C0xxxxxxx"  # Replace with your actual Customer ID
@@ -33,6 +34,7 @@ CUSTOMER_ID = "customers/C0xxxxxxx"  # Replace with your actual Customer ID
 
 ### Authentication Setup
 The scripts support two modes. You can switch modes via the `--use-service-account` flag.
+
 #### Mode A: Local Admin (Default)
 Best for running scripts manually on your workstation.
 1.  Download your OAuth 2.0 Client credentials from Google Cloud.
@@ -95,6 +97,23 @@ Imports a JSON policy file into a target OU or Group.
     ```Bash
     python policy_importer.py my_backup.json orgunits/03ph8a2z98765 --use-service-account
     ```
+
+## 🧹 Tool 3: Policy Inheritor ([`policy_inheritor.py`](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/policy_inheritor.py))
+A cleanup tool that reverts "Locally Applied" policies on an OU back to their "Inherited" state. This effectively clears local settings.
+
+### Features
+- Smart App Reset: Uses wildcard inheritance (`chrome.users.apps.*`) to cleanly remove locally managed apps without causing API dependency errors.
+- Safety Checks: Automatically filters out Root-Restricted policies that cannot be inherited
+- Scope Protection: Only touches policies explicitly defined on the target OU; inherited settings from parents are left untouched.
+
+#### Usage
+1. Clean an Organizational Unit
+   ```Bash
+    python policy_inheritor.py orgunits/03ph8a2z12345
+    ```
+
+    Note: The script will prompt for confirmation before making changes.
+
 ### 📝 Logging & Debugging
 Both tools include a `DEBUG` toggle at the top of the script:
     ```Python
@@ -102,54 +121,6 @@ Both tools include a `DEBUG` toggle at the top of the script:
     ```
 - Console Output: Shows real-time progress, validation errors, and "Smart Fix" actions.
 - debug_log.txt: If enabled, captures full stack traces, API response details, and input arguments for troubleshooting.
-
-# Chrome Policy Migrator
-
-A script to automate the migration of Chrome user policies between Organizational Units (OUs) in Manage User Settings using the [Chrome Policy API](https://developers.google.com/chrome/policy/guides/overview).
-
-## 🚀 Features
-
-* **Full Migration:** Copies the *effective* policy state (inherited + local policies) from a source OU to a destination OU.
-* **Local-Only Migration:** Optional flag (`--local-only`) to copy *only* policies explicitly set at the source OU level, ignoring inherited policies.
-* **Smart Filtering:** automatically skips known restricted policies (e.g., `Root OU Only` policies) to prevent API permission errors.
-* **Batch Processing:** Uses efficient batch requests to apply policies.
-
-## ⚙️ Prerequisites
-
-1.  **Python 3.x** installed.
-2.  **Google Client Libraries:** Install required packages:
-    ```bash
-    pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
-    ```
-
-## 🔧 Configuration
-
-1.  Place [policy_migrator.py](policy_migrator.py) and your `client_secrets.json` file in the same directory.
-2.  Open `policy_migrator.py` in a text editor.
-3.  **Update Configuration:**
-    * Set `CUSTOMER_ID` to your Google Workspace customer ID (e.g., `customers/C00xxxxxx`).
-    * (Optional) Update `CLIENT_SECRETS_FILE` if your JSON file has a different name or path.
-
-## :package: Usage
-
-Run the script from the command line, providing the Source OU ID and Destination OU ID.
-
-### Local-Only Migration
-Copies only the policies that are explicitly configured on the source OU.
-```bash
-python policy_migrator.py orgunits/source_id orgunits/destination_id --local-only
-```
-
-### Migrate Effective Policies
-Copies all policies that apply to users in the source OU, including those inherited from parent OUs.
-```bash
-python policy_migrator.py orgunits/source_id orgunits/destination_id
-```
-
-##  📝  Troubleshooting
-* **Debug Mode:** To see detailed API responses and error stack traces, change `DEBUG = False` to `DEBUG = True` inside the script. Logs will be written to `debug_log.txt`.
-
-* **403 Errors:** If you receive permission errors, ensure your admin account has the correct Chrome Management privileges and that the API is enabled in your GCP project.
 
 
 # Move Chrome browsers between Organization Units
