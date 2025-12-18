@@ -1,0 +1,6 @@
+# Instructions: Copy this file to 'terraform.tfvars' and fill in your actual values.
+# Do NOT commit your final 'terraform.tfvars' file to version control.
+
+customer_id                = "C0xxxxxxx"
+root_org_unit_id           = "id:03phxxxxxxxx"
+managed_chrome_org_unit_id = "id:03phxxxxxxxx"
