@@ -1,0 +1,13 @@
+# Local variable values (contains sensitive IDs)
+terraform.tfvars
+*.tfvars
+
+# Local state files (Terraform Cloud handles this, but good to have)
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+
+# Log files
+*.log
+crash.log
