@@ -122,6 +122,64 @@ Both tools include a `DEBUG` toggle at the top of the script:
 - Console Output: Shows real-time progress, validation errors, and "Smart Fix" actions.
 - debug_log.txt: If enabled, captures full stack traces, API response details, and input arguments for troubleshooting.
 
+# Chrome Enterprise Extension Inventory Exporter
+
+A Python tool designed for Chrome Enterprise administrators to export a comprehensive, highly-detailed inventory of Chrome extensions installed across their managed browser fleet.
+
+Unlike standard Admin Console reports, this script cross-references multiple Google APIs to map every single extension installation to its specific device, OS, Chrome profile, and signed-in user, alongside rich metadata like requested permissions and risk assessments.
+
+## Features
+
+* **Deep Hierarchy Extraction:** Accurately traverses the `devices -> browsers -> profiles -> extensions` hierarchy using the Admin SDK `v1.1beta1` endpoint.
+* **Rich Extension Metadata:** Augments installation data with Web Store details (Permissions, Risk Level, Display Name) using the [Chrome Management API](https://developers.google.com/chrome/management).
+* **Flexible Authentication:** Supports both User OAuth 2.0 (for interactive administrative runs) and Service Accounts (for automated/cron jobs).
+* **Analyzable Output:** Choose between a grouped JSON output or a **flattened CSV** format perfect for pivot tables and filtering in Excel or Google Sheets.
+
+## ⚙️ Prerequisites
+
+1. **Python 3.8+**
+2. **Google Cloud Project** with the following APIs enabled:
+   * Admin SDK API
+   * Chrome Management API
+3. **Required Python Packages:**
+   ```bash
+   pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+
+## Required OAuth Scopes
+Your application/credentials will need the following scopes:
+
+- `https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly`
+- `https://www.googleapis.com/auth/admin.directory.orgunit.readonly`
+- `https://www.googleapis.com/auth/chrome.management.reports.readonly`
+- `https://www.googleapis.com/auth/chrome.management.appdetails.readonly`
+
+## 🔧 Setup
+1. Clone or download this repository.
+2. Open [chrome_extension_inventory_exporter.py](chrome_extension_inventory_exporter.py) in your text editor.
+3. Update the CUSTOMER_ID variable with your Google Workspace Customer ID (e.g., customers/C0xxxxxxx).
+4. Update the SERVICE_ACCOUNT_FILE and CLIENT_SECRETS_FILE variables to point to your local Google Cloud credential JSON files.
+
+## :factory: Usage
+The script requires a target_id (Organizational Unit ID) as a positional argument.
+
+### Basic Run (JSON Output)
+Exports the data grouped by Extension ID into a .json file.
+```Bash
+python chrome_extension_inventory_exporter.py 03ph8a2z1en
+```
+### CSV Export (Recommended for Analysis)
+Exports a flattened tabular format where every row represents a single installation of an extension on a specific machine/profile.
+
+```Bash
+python chrome_extension_inventory_exporter.py 03ph8a2z1en --format csv
+```
+
+### 📝 Logging & Debugging
+- **Missing Extension Data in JSON/CSV**: Ensure you are passing a specific OU ID. Querying the root without iterating through OUs can cause Google's API to truncate extension payloads.
+
+- **403 Forbidden / 401 Unauthorized#**: Delete the `token_extensions.pickle` file to force a re-authentication and re-consent to the requested scopes. Ensure your Admin account has the required privileges.
+
+- **Debug Logging**: Run the script with the `--debug` flag to generate a debug_log.txt containing full Python tracebacks and HTTP errors.
 
 # Move Chrome browsers between Organization Units
 You can use the [moveBrowserToOrgUnit](moveBrowserToOrgUnit.py) to move enrolled browser between Organization Units (OU). 
@@ -152,24 +210,6 @@ Note: You will need to add the customer ID, the service account key JSON file, a
 ```
 python cbcm-profiles-export.py
 ```
-
-# Get extension list with Chrome Profile 
-You can use the [cbcm-browser-extension-profile-export.py](cbcm-browser-extension-profile-export.py) to get a CSV export of all extensions from managed browser including Profile and Signed-On User account names. 
-
-Note: You will need to add the customer ID, the service account key JSON file, and the destination OU path to the script.
-
-👉 Add the customer id [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-profiles-export.py#L24). You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings.
-
-👉 Add the path to the OAuth client secret file [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-profiles-export.py#L22). You can download the file from the Google Developer Console
-
-👉 Optional: Add the [destination OU path](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-profiles-export.py#L26). An example of the destination OU path 'North America/Austin/AUS Managed User'
-
-```
-python cbcm-browser-extension-profile-export.py
-```
-Here is an example of what that data will look like:
-![Sample output](cbcm-browser-extension-profile-export-Capture.PNG)
-
 
 # BlockExtensionBasedOnRiskScore Script
 
