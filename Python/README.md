@@ -122,6 +122,123 @@ Both tools include a `DEBUG` toggle at the top of the script:
 - Console Output: Shows real-time progress, validation errors, and "Smart Fix" actions.
 - debug_log.txt: If enabled, captures full stack traces, API response details, and input arguments for troubleshooting.
 
+# Chrome Enterprise Premium (CEP) DLP Policy Manager
+
+A robust Python utility designed for Chrome Enterprise administrators to export, backup, and restore Data Loss Prevention (DLP) Rules and Custom Detectors (Regex, Word Lists, URL Lists). 
+
+Unlike standard Admin Console interfaces, this script allows for true "infrastructure as code" management of your Chrome DLP environment. It handles complex dependency mapping automatically, ensuring that rules which rely on custom detectors are restored correctly even when Google generates new backend Policy IDs.
+
+## Features
+
+* **Chrome-Scoped Exports:** Automatically filters the tenant's global Cloud Identity policies to export *only* rules containing `google.workspace.chrome` triggers.
+* **Intelligent Dependency Mapping:** When importing from a backup, the script automatically translates old custom detector IDs in your rules to the newly generated Google backend IDs.
+* **Dual API Support:** Uses the `v1` endpoint for safe read-only exports and the `v1beta1` endpoint for mutations (imports/creations).
+* **Dynamic Scoping:** Restores rules exactly to their original Organizational Units or Groups as defined in the JSON, or allows CLI overrides to push a template of rules to a brand new OU/Group.
+* **Built-in Rate Limiting:** Safely throttles API requests (1.5s delay) to respect Google's strict 1 QPS quota on Beta policy APIs, preventing `429 RESOURCE_EXHAUSTED` errors.
+* **Flexible Authentication:** Supports both User OAuth 2.0 (for interactive admin runs) and Service Accounts (for automated/cron jobs).
+
+---
+
+## ⚠️ Important Note on Custom Detectors & Scoping
+
+Due to the architecture of the Cloud Identity Policies API, **Custom Detectors (Regex, Word Lists, URL Lists) cannot be assigned to Google Groups.** They must be assigned to an Organizational Unit (OU). 
+
+* **Best Practice:** When defining Detectors in your import JSON, always set their `policyQuery.orgUnit` to your **Root OU ID**. This ensures that the detectors are globally available and can be referenced by DLP Rules located anywhere in your domain.
+* **Script Behavior:** If you use the `--group-id` flag during an import to override the targets, the script is smart enough to apply that Group *only* to the DLP Rules. For the Detectors, it will ignore the Group override and safely fall back to the native OU ID defined in your JSON file.
+
+---
+
+## Prerequisites
+
+1. **Python 3.8+**
+2. **Google Cloud Project** with the following APIs enabled:
+   * [Cloud Identity API](https://docs.cloud.google.com/identity/docs/how-to/setup-policies)
+3. **Required Python Packages:**
+   ```bash
+   pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+   ```
+
+---
+
+## Required OAuth Scopes
+Your application/credentials will need the following scopes:
+
+- `https://www.googleapis.com/auth/cloud-identity.policies.readonly` (For Exporting)
+- `https://www.googleapis.com/auth/cloud-identity.policies` (For Importing)
+
+---
+
+## 🔧 Setup
+1. Clone or download this repository.
+2. Open [`cep_dlp_policy_manager.py`](Python/cep_dlp_policy_manager.py) in your text editor.
+3. Update the `CUSTOMER_ID` variable with your Google Workspace Customer ID (e.g., `customers/C0xxxxxxx`).
+4. Update the `SERVICE_ACCOUNT_FILE` and `CLIENT_SECRETS_FILE` variables to point to your local Google Cloud credential JSON files.
+
+## :factory: Usage
+The script is divided into two main commands: `export` and `import`.
+
+### 1. Exporting DLP Configurations
+
+Exports all Chrome-scoped DLP rules, Regex Detectors, Word Lists, and URL Lists into a single, version-controllable JSON file. 
+
+The `--file` parameter is **optional**. If you omit it, the script will automatically generate a timestamped filename (e.g., `chrome_dlp_export_Mar_08_2026_16-00.json`).
+
+**With an auto-generated filename:**
+```bash
+python cep_dlp_policy_manager.py export
+```
+
+### 2. Importing / Restoring (Native Targets)
+
+Reads the backup JSON and restores the detectors and rules exactly as they were defined, applying them to their original OUs and Groups.
+
+```bash
+python cep_dlp_policy_manager.py import --file my_dlp_backup.json
+```
+
+### 3. Importing / Overriding Targets (Template Deployment)
+
+If you want to take a backup file and deploy all of its rules to a completely new Organizational Unit or Group (ignoring the targets saved in the JSON), use the override flags.
+
+**To apply all rules to a specific OU:**
+```bash
+python cep_dlp_policy_manager.py import --file my_dlp_backup.json --ou-id 03ph8a2zXXXX
+```
+
+**To apply all rules to a specific Group:**
+```bash
+python cep_dlp_policy_manager.py import --file my_dlp_backup.json --group-id 041mghmXXXX
+```
+
+### Service Account Authentication
+
+For automated backups, bypass the interactive browser login by appending the Service Account flag to any command:
+
+```bash
+python cep_dlp_policy_manager.py export --use-service-account
+```
+
+### 4. Sample Import Data
+
+A [`cep-dlp-sample_import.json`](Python/cep-dlp-sample_import.json) file is included in this repository to demonstrate the exact payload structure required by the script. 
+
+This sample includes three custom detectors (Regex, Word List, and URL List) and one Chrome DLP Rule that actively references the Regex and URL List. It perfectly demonstrates the script's automatic **Dependency Mapping** feature.
+
+To test the script safely using this sample file, run an override command targeting a safe test Organizational Unit:
+
+```bash
+python cep_dlp_policy_manager.py import --file cep-dlp-sample_import.json --group-id 041mghmXXXX
+```
+
+## 📝 Logging & Debugging
+- **HTTP 400 (INVALID_ARGUMENT):** Usually occurs if you attempt to import a rule that references a custom detector ID that does not exist in the JSON payload or the tenant. Ensure you are importing the entire backup payload so detectors are created first.
+
+- **HTTP 429 (RESOURCE_EXHAUSTED):** The Cloud Identity Policies API has a strict 1 QPS limit. The script handles this automatically with a time.sleep(1.5) throttle. Do not remove this throttle.
+
+- **Debug Logging:** Run the script with the `--debug` flag to generate a `dlp_debug_log.txt` containing full Python tracebacks and raw Google API JSON responses.
+
+---
+
 # Chrome Enterprise Extension Inventory Exporter
 
 A Python tool designed for Chrome Enterprise administrators to export a comprehensive, highly-detailed inventory of Chrome extensions installed across their managed browser fleet.
