@@ -298,35 +298,6 @@ python chrome_extension_inventory_exporter.py 03ph8a2z1en --format csv
 
 - **Debug Logging**: Run the script with the `--debug` flag to generate a debug_log.txt containing full Python tracebacks and HTTP errors.
 
-# Move Chrome browsers between Organization Units
-You can use the [moveBrowserToOrgUnit](moveBrowserToOrgUnit.py) to move enrolled browser between Organization Units (OU). 
-
-Note: You will need to add the customer ID, the service account key JSON file, and the destination OU path to the script.
-
-👉 Add the customer id [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/moveBrowserToOrgUnit.py#L12). You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings.
-
-👉 Add the path to the OAuth client secret file [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/moveBrowserToOrgUnit.py#L10). You can download the file from the Google Developer Console
-
-👉 Add the [destination OU path](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/moveBrowserToOrgUnit.py#L14). An example of the destination OU path 'North America/Austin/AUS Managed User'
-
-```
-python moveBrowserToOrgUnit.py
-```
-
-# Get Chrome Signed-On User account names
-You can use the [cbcm-profiles-export.py](cbcm-profiles-export.py) to get a CSV export of Signed-On User account names. 
-
-Note: You will need to add the customer ID, the service account key JSON file, and the destination OU path to the script.
-
-👉 Add the customer id [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-profiles-export.py#L24). You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings.
-
-👉 Add the path to the OAuth client secret file [here](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-profiles-export.py#L22). You can download the file from the Google Developer Console
-
-👉 Optional: Add the [destination OU path](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-profiles-export.py#L26). An example of the destination OU path 'North America/Austin/AUS Managed User'
-
-```
-python cbcm-profiles-export.py
-```
 
 # BlockExtensionBasedOnRiskScore Script
 
@@ -353,15 +324,3 @@ python BlockExtensionBasedOnRiskScore.py
 
 ![Sample output](BlockExtensionBasedOnRiskScoreOutput.png)
 
-# Get information about Chrome browsers that are managed by your organization using Chrome Enterprise Core
-[cbcm-browser-basic-export.py](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cbcm-browser-basic-export.py) automates the process of collecting and organizing important details about Chrome browsers managed using Chrome Enterprise Core (CEC), making it easier to keep track of them.
-
-The output include things like:
-* Which computer it's on
-* The browser's version
-* Whether it has any updates waiting
-* Number of installed extensions
-* Number of configured browser policies
-* When it was last used
-
-The code takes all the collected browser information and neatly puts it into a CSV file.
