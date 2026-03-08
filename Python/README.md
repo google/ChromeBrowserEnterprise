@@ -170,7 +170,7 @@ Your application/credentials will need the following scopes:
 
 ## 🔧 Setup
 1. Clone or download this repository.
-2. Open [`cep_dlp_policy_manager.py`](Python/cep_dlp_policy_manager.py) in your text editor.
+2. Open [`cep_dlp_policy_manager.py`](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cep_dlp_policy_manager.py) in your text editor.
 3. Update the `CUSTOMER_ID` variable with your Google Workspace Customer ID (e.g., `customers/C0xxxxxxx`).
 4. Update the `SERVICE_ACCOUNT_FILE` and `CLIENT_SECRETS_FILE` variables to point to your local Google Cloud credential JSON files.
 
@@ -220,7 +220,7 @@ python cep_dlp_policy_manager.py export --use-service-account
 
 ### 4. Sample Import Data
 
-A [`cep-dlp-sample_import.json`](Python/cep-dlp-sample_import.json) file is included in this repository to demonstrate the exact payload structure required by the script. 
+A [`cep-dlp-sample_import.json`](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cep-dlp-sample_import.json) file is included in this repository to demonstrate the exact payload structure required by the script. 
 
 This sample includes three custom detectors (Regex, Word List, and URL List) and one Chrome DLP Rule that actively references the Regex and URL List. It perfectly demonstrates the script's automatic **Dependency Mapping** feature.
 
