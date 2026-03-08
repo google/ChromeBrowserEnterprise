@@ -8,7 +8,7 @@ Features:
   - Scopes rule exports EXCLUSIVELY to Chrome DLP rules.
   - Dual API Versions: Uses v1 for Read (Export) and v1beta1 for Mutation (Import/Create).
   - Built-in Rate Limiting (1.5s delay) to prevent 429 errors on Beta APIs.
-  - Dynamic Scoping: Reads targets natively from JSON or overrides via CLI.
+  - Dynamic Scoping: Safely routes Rules to OUs or Groups, while forcing Detectors to OUs.
   - Dependency Mapping: Translates old Detector IDs to new IDs during Rule import.
   - Multi-auth support (Service Account vs User OAuth) & debug logging.
 """
@@ -186,7 +186,8 @@ def export_all_dlp_configs(session, output_file):
 
 def clean_policy_for_import(policy_obj, target_ou_id=None, target_group_id=None):
     """
-    Strips system fields (root and nested) and establishes the policyQuery block.
+    Strips system fields and establishes the correct policyQuery block.
+    Distinguishes between Detectors (OU only) and Rules (OU or Group).
     """
     import_obj = policy_obj.copy()
     
@@ -202,22 +203,39 @@ def clean_policy_for_import(policy_obj, target_ou_id=None, target_group_id=None)
     # 3. Reassign Customer ID
     import_obj['customer'] = CUSTOMER_ID
     
-    # 4. Construct Target Policy Query dynamically
-    if target_ou_id:
-        import_obj['policyQuery'] = {
-            "query": f"entity.org_units.exists(org_unit, org_unit.org_unit_id == orgUnitId('{target_ou_id}'))",
-            "orgUnit": f"orgUnits/{target_ou_id}"
-        }
-    elif target_group_id:
-        import_obj['policyQuery'] = {
-            "query": f"entity.groups.exists(group, group.group_id == groupId('{target_group_id}'))",
-            "group": f"groups/{target_group_id}",
-            "sortOrder": 1
-        }
-    elif 'policyQuery' not in import_obj:
+    # 4. Determine Policy Type
+    policy_type = import_obj.get('setting', {}).get('type', '')
+    is_detector = 'detector' in policy_type
+
+    # 5. Construct Target Policy Query dynamically
+    if is_detector:
+        # Detectors CANNOT be targeted to groups. They must be OUs.
+        if target_ou_id:
+            import_obj['policyQuery'] = {
+                "orgUnit": f"orgUnits/{target_ou_id}",
+                "sortOrder": 1
+            }
+        # If target_group_id was provided, we silently ignore it for the detector
+        # and rely on the native policyQuery already in the JSON file.
+    else:
+        # Rules can be targeted to either OUs or Groups
+        if target_ou_id:
+            import_obj['policyQuery'] = {
+                "query": f"entity.org_units.exists(org_unit, org_unit.org_unit_id == orgUnitId('{target_ou_id}'))",
+                "orgUnit": f"orgUnits/{target_ou_id}",
+                "sortOrder": 1
+            }
+        elif target_group_id:
+            import_obj['policyQuery'] = {
+                "query": f"entity.groups.exists(group, group.group_id == groupId('{target_group_id}'))",
+                "group": f"groups/{target_group_id}",
+                "sortOrder": 1
+            }
+    
+    if 'policyQuery' not in import_obj:
         raise ValueError("No policyQuery found in rule and no CLI override provided.")
     
-    # 5. Prevent Error Code 7 by removing empty nested dictionaries recursively
+    # 6. Prevent Error Code 7 by removing empty nested dictionaries recursively
     def remove_empty_dicts(d):
         if not isinstance(d, dict): return d
         return {k: remove_empty_dicts(v) for k, v in d.items() if v != {}}
@@ -337,15 +355,15 @@ def main():
     
     # Export Command
     parser_export = subparsers.add_parser('export', help='Export Chrome DLP Rules and all Detectors')
-    parser_export.add_argument("--file", help="Output JSON filename.")
+    parser_export.add_argument("--file", help="Output JSON filename (Optional).")
     
     # Import Command
     parser_import = subparsers.add_parser('import', help='Import Detectors and Rules from a JSON export')
     parser_import.add_argument("--file", required=True, help="Input JSON filename to import.")
     
     target_group = parser_import.add_mutually_exclusive_group(required=False)
-    target_group.add_argument("--ou-id", help="Override: Apply all configs to this Target Org Unit ID")
-    target_group.add_argument("--group-id", help="Override: Apply all configs to this Target Group ID")
+    target_group.add_argument("--ou-id", help="Override: Apply rules (and detectors) to this Target Org Unit ID")
+    target_group.add_argument("--group-id", help="Override: Apply rules to this Target Group ID (Detectors fall back to JSON OU)")
 
     # Global Flags
     parser.add_argument("--use-service-account", action="store_true", help="Force Service Account Auth")
