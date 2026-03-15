@@ -1,37 +1,93 @@
-# Getting started with CBCM API
-CBCM offers a wide range of APIs that let you integrate your services with CBCM. 
+# Chrome Enterprise API Setup Guide
 
-## Learn about how authentication & authorization works in the CBCM API
-Authentication and authorization are used to verify identity and access to resources. This document identifies key terms you should know before implementing authentication and authorization in your app.
+This guide provides a unified walkthrough for setting up APIs for **Chrome Enterprise Core** and **Chrome Enterprise Premium (CEP)**. 
 
-### OAuth consent process overview
-Use this credential to authenticate as an end user and requires your app to request and receive consent from the user (helpful in [Postman](https://github.com/google/ChromeBrowserEnterprise/tree/main/postman)).
-The following diagram shows the high-level steps of authentication and authorization for OAuth consent.
-<img align="right" width="300" height="400" alt="OAuth consent process overview" src="https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/images/OAuthConsentProcess.svg">
-1. **Configure your Google Cloud project and app**: During development, you register your app in the Google Cloud console, defining authorization scopes and access credentials to authenticate your app.
+## 1. Prerequisites
+* **Google Admin Console:** Access to [admin.google.com](https://admin.google.com).
+* **Google Cloud Project:** A project created in the [Google Cloud Console](https://console.cloud.google.com).
+* **Licenses:** For Premium features, ensure users/devices have **SKU 1010400001** assigned (Product **101040**).
 
-2. **Authenticate your app for access**: The registered access credentials are evaluated when your app runs. A sign-in prompt might be displayed if your app authenticates as an end user.
+---
 
-3. **Request resources**: When your app needs access to Google resources, it asks Google to use the relevant scopes of access you previously registered.
+## 2. Authentication Strategy: The Hybrid Pattern
+This guide utilizes a **Hybrid Auth Module** that allows developers to swap between Service Accounts and User OAuth without changing core logic.
 
-4. **Ask for user consent**: If your app authenticates as an end user, Google displays the OAuth consent screen so the user can decide whether to grant your app access to the requested data.
+### Method A: User OAuth 2.0 (Interactive)
+Best for local scripts and one-off administrative tasks.
+* **Permissions:** The application inherits the specific permissions of the logged-in administrator.
+* **Setup:** Create an **OAuth Client ID** (Desktop App) in the Google Cloud Console.
+* **Persistence:** Credentials are stored locally (e.g., `token.pickle`) to minimize repeated browser logins.
 
-5. **Send approved request for resources**: If the user consents to the scopes of access, your app bundles the credentials and the user-approved scopes of access into a request. The request is sent to the Google authorization server to obtain an access token.
+### Method B: Service Account (Automation)
+Best for backend servers and CI/CD pipelines.
+* **Security Configuration:** Domain-Wide Delegation (DWD) is discouraged. Instead, assign the Service Account a specific **Admin Role** (e.g., *Chrome Management Admin*) directly in the Google Admin Console.
+* **Setup:** Create a Service Account in GCP, download the **JSON Key**, and copy its **Unique ID** to the Admin Console for role assignment.
 
-6. **Google returns an access token**: The access token contains a list of granted scopes of access. If the returned list of scopes is more limited than the requested scopes of access, your app disables any features limited by the token.
+---
 
-7. **Access requested resources**: Your app uses the access token from Google to invoke the relevant APIs and access the resources.
+## 3. Implementation Pattern: Switchable Auth
+The following implementation is the standard for the Python management suite. It allows a script to adapt its authentication method based on the environment.
 
-### Service Account process overview
-Service accounts represent non-human users. They're intended for scenarios where a workload, such as a custom application, needs to access resources or perform actions without end-user involvement (beneficial for [CBCM-CSharp](https://github.com/google/ChromeBrowserEnterprise/tree/main/dotnet), [Python](https://github.com/google/ChromeBrowserEnterprise/tree/main/Python), and [PowerShell](https://github.com/google/ChromeBrowserEnterprise/tree/main/ps/src/cbcm) scripts). Authorization using a service account does **not** require consent from the user.
+```python
+def get_credentials(use_service_account=False):
+    """
+    Standardized Auth Switch: Supports Service Account Keys or User OAuth.
+    """
+    creds = None
+    if use_service_account:
+        # Load from JSON Key for Server/Headless environments
+        creds = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    else:
+        # Load/Refresh local OAuth token for Interactive environments
+        if os.path.exists(TOKEN_PICKLE_FILE):
+            with open(TOKEN_PICKLE_FILE, "rb") as token:
+                creds = pickle.load(token)
+        
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    CLIENT_SECRETS_FILE, SCOPES)
+                creds = flow.run_local_server(port=0)
+            with open(TOKEN_PICKLE_FILE, "wb") as token:
+                pickle.dump(creds, token)
+    return creds
+```
 
-Since you are creating [user-managed service accounts](https://cloud.google.com/iam/docs/service-accounts#user-managed-keys) in your project, **You are responsible for managing and securing these accounts**. See [Best practices for working with service accounts](https://cloud.google.com/iam/docs/best-practices-service-accounts).
+## 3. The Master Scope Reference
 
-## Follow these steps to set up the CBCM API
-1. [Create a Google Cloud project](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/create_proj.MD) for your Google Workspace app, extension, or integration.
+| Functional Area | Read-Only Scope | Read/Write Scope |
+| :--- | :--- | :--- |
+| **Managed Browsers** | `.../auth/admin.directory.device.chromebrowsers.readonly` | `.../auth/admin.directory.device.chromebrowsers` |
+| **Policies** | `.../auth/chrome.management.policy.readonly` | `.../auth/chrome.management.policy` |
+| **Org Units** | `.../auth/admin.directory.orgunit.readonly` | `.../auth/admin.directory.orgunit` |
+| **Identity/Groups** | `.../auth/cloud-identity.policies.readonly` | `.../auth/cloud-identity.policies` |
+| **App Inventory** | `.../auth/chrome.management.appdetails.readonly` | N/A |
+| **Audit Logs** | `.../auth/admin.reports.audit.readonly` | N/A |
 
-2. [Enable the APIs you want to use](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/proj_apis.MD) in your Google Cloud project.
+## 4. Key Implementation Patterns
 
-3. Create a [service account](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/service_acct.MD).
+### Identifying Your Tier
+Before calling Premium APIs (like DLP events), verify the SKU assignment:
+* **Product ID:** `101040`
+* **Premium SKU ID:** `1010400001`
 
-4. Configure [OAuth consent](https://github.com/google/ChromeBrowserEnterprise/blob/main/postman/README.md) to ensure users can understand and approve what access your app has to their data.
+### Checking Chrome Version Status
+Use the public **Version History API** to verify if your fleet is up to date:
+`GET https://versionhistory.googleapis.com/v1/chrome/platforms/win64/channels/stable/versions/all/releases?order_by=version%20desc&filter=version>=145,pinnable=true`
+
+## 5. Troubleshooting
+* **Error 403 (Forbidden):** Ensure the Service Account has been explicitly assigned an Admin Role in the Admin Console. GCP project permissions alone are insufficient for Workspace data.
+* **Error 401 (Unauthorized):** Your `token.json` has expired or the scopes have changed. Delete the file and re-authenticate.
+* **Scope Issues:** If you add a new scope to your code, you MUST delete your local token and re-authorize.
+* **Secure Storage**: Never commit `service-account.json` or `token.pickle` files to version control.
+
+## 6. Resources
+* [Chrome Management API Reference](https://developers.google.com/chrome/management)
+* [Chrome Policy API Overview](https://developers.google.com/chrome/policy/guides/overview)
+* [Directory API OrgUnits](https://developers.google.com/workspace/admin/directory/reference/rest/v1/orgunits)
+* [Managing Licenses (How-to)](https://www.google.com/search?q=https://developers.google.com/workspace/admin/licensing/v1/how-tos/using%23managing_licenses)
+* [Cloud Identity Documentation](https://docs.cloud.google.com/identity/docs)
+* [Workspace Admin SDK Home](https://developers.google.com/workspace/admin)
