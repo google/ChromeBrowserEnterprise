@@ -4,7 +4,6 @@ Use the [Chrome Browser Enterprise (CBE)](https://support.google.com/chrome/a/to
 
 ## Documentation
 * [Chrome Enterprise API Setup Guide](https://github.com/google/ChromeBrowserEnterprise/blob/main/docs/API_Get_Started.md)
-* [Scopes](docs/auth.md)
 
 * Postman
   * [Postman collection](https://www.postman.com/google-chrome-enterprise-apis/workspace/google-chrome-enterprise-public/overview) - requests that utilizes the above mentioned APIs.
