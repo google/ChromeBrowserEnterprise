@@ -65,6 +65,7 @@ def get_credentials(use_service_account=False):
 | **Org Units** | `.../auth/admin.directory.orgunit.readonly` | `.../auth/admin.directory.orgunit` |
 | **Identity/Groups** | `.../auth/cloud-identity.policies.readonly` | `.../auth/cloud-identity.policies` |
 | **App Inventory** | `.../auth/chrome.management.appdetails.readonly` | N/A |
+| **Reports** | `.../auth/chrome.management.reports.readonly` | N/A |
 | **Audit Logs** | `.../auth/admin.reports.audit.readonly` | N/A |
 
 ## 4. Key Implementation Patterns
