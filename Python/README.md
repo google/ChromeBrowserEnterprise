@@ -299,28 +299,95 @@ python chrome_extension_inventory_exporter.py 03ph8a2z1en --format csv
 - **Debug Logging**: Run the script with the `--debug` flag to generate a debug_log.txt containing full Python tracebacks and HTTP errors.
 
 
-# BlockExtensionBasedOnRiskScore Script
+# Chrome Browser Move Utility
 
-This Python script, `BlockExtensionBasedOnRiskScore.py`, automates the process of identifying and blocking potentially risky Chrome extensions in a Chrome Browser Cloud Management environment. It evaluates extensions based on risk scores obtained from Crxcavator and Spin.ai.
+This script allows you to perform bulk moves of enrolled Chrome browsers to a specific Organizational Unit (OU) using a simple list of machine names.
 
-Note: If the risk scores of the newest versions of installed extensions are not available, this script will pick up the scores from the older versions.
+Because the Google Admin Console and APIs require backend `deviceId` UUIDs to move browsers, this script bridges the gap by automatically translating your human-readable machine names into the necessary IDs before executing the move safely in batches.
 
-### Configuration 
+## Key Features
 
-👉 `SERVICE_ACCOUNT_FILE`: Path to your service account key JSON file. 
+* **Smart Translation:** Automatically queries the `v1.1beta1` Directory API to translate `machine_name`s into Google `deviceId`s.
+* **Pre-Flight Validation:** Validates the target Organizational Unit ID before running to prevent failed API calls.
+* **Safe Batching:** Automatically chunks move requests into batches of 600 to strictly adhere to API limits.
+* **Robust File Parsing:** Supports `.txt` and `.csv` files. Understands both vertical lists (one per line) and horizontal lists (comma-separated on the same line). Automatically filters out duplicate names.
+* **Dual Authentication:** Supports both User OAuth 2.0 (for interactive admin runs) and Service Accounts (for automated background tasks).
+* **Clean Execution Summary:** Provides a neat audit trail in the console and `browser_move_log.txt` detailing exactly how many devices moved and explicitly listing any machine names that could not be found.
 
-👉 `CUSTOMER_ID`: Your Google Workspace customer ID. You can find the customer Id by navigating to the Google Admin Console > Account > Account Settings.
+## ⚙️ Prerequisites
 
-👉 `CRX_RISK_THRESHOLD` and `SPIN_RISK_THRESHOLD`: The risk thresholds for Crxcavator and Spin.ai scores.
+1. **Python 3.8+**
+2. **Google Cloud Project** with the following API enabled:
+   * Admin SDK API
+3. **Required Python Packages:**
+   ```bash
+   pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+   ```
+4. **Required OAuth Scopes:**
+   * `https://www.googleapis.com/auth/admin.directory.device.chromebrowsers`
+   * `https://www.googleapis.com/auth/admin.directory.orgunit.readonly`
 
-👉 `ADMIN_USER_EMAIL`: The email address of an admin user in your Google Workspace.
+## 🔧 Setup
 
-👉 `TARGET_OU`: The OU name where extensions will be blocked.  An example of the destination OU name would be ’AUS Managed User'
+1. Clone or download this script.
+2. Open [`move_chrome_browsers.py`]() in a text editor.
+3. Update the `CUSTOMER_ID` variable with your Google Workspace Customer ID (e.g., `C0xxxxxxx` or `my_customer`).
+4. Ensure your credential files (`service_account.json` or `client_secrets.json`) are in the same directory as the script.
 
+## :factory: Usage
 
+### Input File Format
+
+Create a `.txt` or `.csv` file containing the machine names you wish to move. 
+
+**Vertical Format (Supported):**
+```text
+CLIENT2012
+CLIENT2013
+CLIENT2014
 ```
-python BlockExtensionBasedOnRiskScore.py
+
+**Horizontal Format (Supported):**
+```text
+CLIENT2012, CLIENT2013, CLIENT2014
 ```
 
-![Sample output](BlockExtensionBasedOnRiskScoreOutput.png)
+
+Run the script by passing your input file and the target **Organizational Unit ID**. 
+
+### Standard Run (Interactive OAuth)
+```bash
+python move_chrome_browsers.py --file move_test.csv --ou-id 03ph8a2zXXXX
+```
+
+### Automated Run (Service Account)
+Append the `--use-service-account` flag to bypass the browser login prompt.
+```bash
+python move_chrome_browsers.py --file move_test.csv --ou-id 03ph8a2zXXXX --use-service-account
+```
+
+### Output Example
+
+The script runs quietly during the translation phase and outputs a clean summary upon completion:
+
+```text
+2026-03-16 14:00:00 [INFO] Reading machine names from: move_test.csv
+2026-03-16 14:00:00 [INFO]  -> Found 3 unique machine names to process.
+2026-03-16 14:00:00 [INFO] Starting Device ID lookup phase (this may take a moment)...
+2026-03-16 14:00:02 [INFO] Lookup Complete.
+2026-03-16 14:00:02 [INFO] Starting Move Operation to OU: /Managed Chrome/Austin ...
+2026-03-16 14:00:02 [INFO]  -> Moving batch 1 to 2 of 2...
+2026-03-16 14:00:03 [INFO]     [SUCCESS] Batch moved successfully.
+2026-03-16 14:00:04 [INFO] 
+2026-03-16 14:00:04 [INFO] ==================================================
+2026-03-16 14:00:04 [INFO]                EXECUTION SUMMARY                  
+2026-03-16 14:00:04 [INFO] ==================================================
+2026-03-16 14:00:04 [INFO] Destination OU Path: /Managed Chrome/Austin
+2026-03-16 14:00:04 [INFO] Total Browsers Successfully Moved: 2
+2026-03-16 14:00:04 [INFO] Total Machine Names Not Found: 1
+2026-03-16 14:00:04 [INFO] --------------------------------------------------
+2026-03-16 14:00:04 [INFO] List of Machine Names Not Found in Tenant:
+2026-03-16 14:00:04 [INFO]   • CLIENT2014
+2026-03-16 14:00:04 [INFO] ==================================================
+```
 
