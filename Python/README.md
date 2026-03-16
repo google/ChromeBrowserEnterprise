@@ -330,7 +330,7 @@ Because the Google Admin Console and APIs require backend `deviceId` UUIDs to mo
 ## 🔧 Setup
 
 1. Clone or download this script.
-2. Open [`move_chrome_browsers.py`]() in a text editor.
+2. Open [`move_chrome_browsers.py`](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/move_chrome_browsers.py) in a text editor.
 3. Update the `CUSTOMER_ID` variable with your Google Workspace Customer ID (e.g., `C0xxxxxxx` or `my_customer`).
 4. Ensure your credential files (`service_account.json` or `client_secrets.json`) are in the same directory as the script.
 
