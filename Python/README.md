@@ -391,3 +391,84 @@ The script runs quietly during the translation phase and outputs a clean summary
 2026-03-16 14:00:04 [INFO] ==================================================
 ```
 
+# Chrome Browser Group Assignment Tool
+
+A specialized automation script for Chrome Enterprise administrators to bulk-add enrolled Chrome browsers to Cloud Identity Groups.
+
+## The Challenge
+Google's Cloud Identity API is primarily designed for user management. Standard attempts to add hardware UUIDs (device IDs) to groups often fail with a `400 Invalid Argument` error because the API expects a valid email address. This script solves that by utilizing the specific `cbcm-browser.` prefix required to bind managed browsers to configuration groups.
+
+## Features
+- **Auto-Translation:** Converts machine names from a text or CSV file into backend Google `deviceId`s.
+- **Prefix Injection:** Automatically applies the `cbcm-browser.` prefix to ensure API compatibility.
+- **Group Verification:** Confirms the target group exists and is accessible before processing devices.
+- **Bulk Processing:** Handles comma-separated or line-by-line input files.
+- **Dual Auth:** Supports interactive OAuth 2.0 and Service Account authentication.
+
+## Prerequisites
+- Python 3.8+
+- A Google Cloud Project with the **Admin SDK API** and **Cloud Identity API** enabled.
+- Required Libraries:
+  ```bash
+  pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+  ```
+
+## :factory: Usage
+### Input File Format
+
+Create a `.txt` or `.csv` file containing the machine names you wish to move. 
+
+**Vertical Format (Supported):**
+```text
+CLIENT2012
+CLIENT2013
+CLIENT2014
+```
+
+**Horizontal Format (Supported):**
+```text
+CLIENT2012, CLIENT2013, CLIENT2014
+```
+
+
+Run the script by passing your input file and the target **Group ID**. 
+
+### Standard Run (Interactive OAuth)
+```bash
+python add_browsers_to_group.py --file move_test.csv --group-id 03ph8a2zXXXX
+```
+
+### Automated Run (Service Account)
+Append the `--use-service-account` flag to bypass the browser login prompt.
+```bash
+python add_browsers_to_group.py --file move_test.csv --group-id 03ph8a2zXXXX --use-service-account
+```
+
+### Output Example
+
+The script runs quietly during the translation phase and outputs a clean summary upon completion:
+
+```text
+2026-03-19 11:10:05 [INFO] Mode: User Authentication (OAuth 2.0)
+2026-03-19 11:10:05 [INFO]  -> User credentials loaded.
+2026-03-19 11:10:06 [INFO] Verifying target group: 03ph8a2zXXXX...
+2026-03-19 11:10:06 [INFO]  -> Group verified successfully: marketing-test@yourdomain.com (groups/03ph8a2zXXXX)
+2026-03-19 11:10:06 [INFO] Reading machine names from: ./move_test.csv
+2026-03-19 11:10:06 [INFO]  -> Found 3 unique machine names to process.
+2026-03-19 11:10:06 [INFO] Starting Device ID lookup phase (this may take a moment)...
+2026-03-19 11:10:08 [INFO] Lookup Complete.
+2026-03-19 11:10:08 [INFO] Starting Add Operation to Group: marketing-test@yourdomain.com ...
+2026-03-19 11:10:11 [INFO] 
+2026-03-19 11:10:11 [INFO] ==================================================
+2026-03-19 11:10:11 [INFO]                EXECUTION SUMMARY                  
+2026-03-19 11:10:11 [INFO] ==================================================
+2026-03-19 11:10:11 [INFO] Target Group: marketing-test@yourdomain.com
+2026-03-19 11:10:11 [INFO] Group Resource: groups/03ph8a2zXXXX
+2026-03-19 11:10:11 [INFO] Total Browsers Successfully Processed/Added: 2
+2026-03-19 11:10:11 [INFO] Total Browsers Failed to Add: 0
+2026-03-19 11:10:11 [INFO] Total Machine Names Not Found in Admin Console: 1
+2026-03-19 11:10:11 [INFO] --------------------------------------------------
+2026-03-19 11:10:11 [INFO] List of Machine Names Not Found in Tenant:
+2026-03-19 11:10:11 [INFO]   • unknown-machine-01
+2026-03-19 11:10:11 [INFO] ==================================================
+```
