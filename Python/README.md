@@ -413,6 +413,13 @@ Google's Cloud Identity API is primarily designed for user management. Standard 
   pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
   ```
 
+## 🔧 Setup
+
+1. Clone or download this script.
+2. Open [`add_browsers_to_group.py`](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/add_browsers_to_group.py) in a text editor.
+3. Update the `CUSTOMER_ID` variable with your Google Workspace Customer ID (e.g., `C0xxxxxxx` or `my_customer`).
+4. Ensure your credential files (`service_account.json` or `client_secrets.json`) are in the same directory as the script.
+
 ## :factory: Usage
 ### Input File Format
 
