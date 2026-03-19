@@ -10,7 +10,7 @@ Features:
   - Uses the 'cbcm-browser.' prefix to correctly bypass email validation for Chrome devices.
   - Dual Authentication (OAuth & Service Account).
   - Automatically parses customer IDs to ensure cross-API compatibility.
-  - Generates a clean Execution Summary instead of bloating logs.
+  - Generates a clean Execution Summary with Group Email and Resource ID resolution.
 """
 
 import argparse
@@ -148,37 +148,39 @@ def fetch_device_ids(session, machine_names):
     return device_ids, not_found
 
 def verify_group(cloudidentity_service, group_id):
-    """Looks up the target group by group ID using the Cloud Identity Client Library."""
+    """Looks up target group and returns both Resource Name and Group Email."""
     logger.info(f"Verifying target group: {group_id}...")
     group_name = group_id if str(group_id).startswith('groups/') else f"groups/{group_id}"
     
     try:
         request = cloudidentity_service.groups().get(name=group_name)
         response = request.execute()
-        verified_group_name = response.get("name")
-        logger.info(f" -> Group verified successfully. Resource Name: {verified_group_name}")
-        return verified_group_name
+        
+        verified_res_name = response.get("name")
+        group_email = response.get("groupKey", {}).get("id")
+        
+        logger.info(f" -> Group verified successfully: {group_email} ({verified_res_name})")
+        return verified_res_name, group_email
     except HttpError as e:
-        logger.error(f" -> Group lookup failed for '{group_id}'. HTTP {e.resp.status}: {e.content.decode('utf-8')}")
-        return None
+        logger.error(f" -> Group lookup failed for '{group_id}'. HTTP {e.resp.status}")
+        return None, None
     except Exception as e:
         logger.error(f" -> Group lookup failed for '{group_id}': {e}")
-        return None
+        return None, None
 
-def add_browsers_to_group(cloudidentity_service, device_ids, group_id):
-    """Adds the translated device IDs to the Cloud Identity Group using the Python Client."""
+def add_browsers_to_group(cloudidentity_service, device_ids, group_res_name, group_email):
+    """Adds translated device IDs to the Cloud Identity Group."""
     if not device_ids:
         logger.info("No valid device IDs to add. Skipping add operation.")
         return 0, 0
 
-    logger.info(f"Starting Add Operation to Group: {group_id} ...")
-    parent = group_id if str(group_id).startswith('groups/') else f"groups/{group_id}"
+    logger.info(f"Starting Add Operation to Group: {group_email} ...")
     
     success_count = 0
     failure_count = 0
     
     for idx, dev_id in enumerate(device_ids):
-        # Correctly identifies the entity using the cbcm-browser prefix
+        # Apply the cbcm-browser prefix
         preferred_member_id = f"cbcm-browser.{dev_id}"
         
         payload = {
@@ -190,7 +192,7 @@ def add_browsers_to_group(cloudidentity_service, device_ids, group_id):
         
         try:
             request = cloudidentity_service.groups().memberships().create(
-                parent=parent, 
+                parent=group_res_name, 
                 body=payload
             )
             request.execute()
@@ -198,13 +200,13 @@ def add_browsers_to_group(cloudidentity_service, device_ids, group_id):
             
         except HttpError as e:
             if e.resp.status == 409:
-                logger.info(f"    [SKIP] Device ID {dev_id} is already a member of the group.")
+                logger.info(f"    [SKIP] Device ID {dev_id} is already a member.")
                 success_count += 1
             else:
-                logger.error(f"    [FAILED] HTTP {e.resp.status} for Device {dev_id}: {e.content.decode('utf-8')}")
+                logger.error(f"    [FAILED] HTTP {e.resp.status} for Device {dev_id}")
                 failure_count += 1
         except Exception as e:
-            logger.error(f"    [FAILED] Unexpected error for Device {dev_id}: {e}")
+            logger.error(f"    [FAILED] Error for Device {dev_id}: {e}")
             failure_count += 1
             
         time.sleep(0.1)
@@ -215,10 +217,10 @@ def add_browsers_to_group(cloudidentity_service, device_ids, group_id):
     return success_count, failure_count
 
 def main():
-    parser = argparse.ArgumentParser(description="Add Enrolled Chrome Browsers to a Target Cloud Identity Group.")
-    parser.add_argument("--file", required=True, help="Path to TXT or CSV file containing machine names.")
-    parser.add_argument("--group-id", required=True, help="The target Google Cloud Identity Group email or ID key")
-    parser.add_argument("--use-service-account", action="store_true", help="Force Service Account Authentication")
+    parser = argparse.ArgumentParser(description="Add Enrolled Chrome Browsers to a Cloud Identity Group.")
+    parser.add_argument("--file", required=True, help="Path to input file containing machine names.")
+    parser.add_argument("--group-id", required=True, help="Target Group ID or Email.")
+    parser.add_argument("--use-service-account", action="store_true", help="Use Service Account Auth.")
     
     args = parser.parse_args()
 
@@ -231,9 +233,10 @@ def main():
         logger.error(f"Failed to build Cloud Identity service: {e}")
         return
 
-    target_group_name = verify_group(cloudidentity_service, args.group_id)
-    if not target_group_name:
-        logger.error("Aborting script due to invalid Group ID or missing permissions.")
+    # Verify Group and get both ID and Email
+    target_res_name, target_email = verify_group(cloudidentity_service, args.group_id)
+    if not target_res_name:
+        logger.error("Aborting script due to invalid Group ID.")
         return
 
     machine_names = read_machine_names(args.file)
@@ -241,13 +244,14 @@ def main():
 
     device_ids, not_found = fetch_device_ids(session, machine_names)
     
-    success_count, failure_count = add_browsers_to_group(cloudidentity_service, device_ids, target_group_name)
+    success_count, failure_count = add_browsers_to_group(cloudidentity_service, device_ids, target_res_name, target_email)
     
     logger.info("")
     logger.info("==================================================")
     logger.info("               EXECUTION SUMMARY                  ")
     logger.info("==================================================")
-    logger.info(f"Target Group Resolved: {target_group_name}")
+    logger.info(f"Target Group: {target_email}")
+    logger.info(f"Group Resource: {target_res_name}")
     logger.info(f"Total Browsers Successfully Processed/Added: {success_count}")
     logger.info(f"Total Browsers Failed to Add: {failure_count}")
     logger.info(f"Total Machine Names Not Found in Admin Console: {len(not_found)}")
