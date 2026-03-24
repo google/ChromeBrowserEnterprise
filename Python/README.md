@@ -124,7 +124,7 @@ Both tools include a `DEBUG` toggle at the top of the script:
 
 # Chrome Enterprise Premium (CEP) Policy Manager
 
-The CEP Policy Manager [cep_policy_manager.py]() is a comprehensive Python utility designed to export, backup, and restore Data Loss Prevention (DLP) Rules, Custom Detectors (Regex, Word Lists, URL Lists), Context-Aware Access (CAA) Levels, and Secure Gateway. 
+The CEP Policy Manager [cep_policy_manager.py](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cep_policy_manager.py) is a comprehensive Python utility designed to export, backup, and restore Data Loss Prevention (DLP) Rules, Custom Detectors (Regex, Word Lists, URL Lists), Context-Aware Access (CAA) Levels, and Secure Gateway. 
 
 Unlike standard Admin Console interfaces, this script allows for true "infrastructure as code" management of your CEP environment. It natively handles dependency mapping, making it an ideal tool for cross-tenant migrations (e.g., migrating from a Staging environment to Production).
 
@@ -174,7 +174,7 @@ Due to the architecture of the Cloud Identity Policies API, **Custom Detectors (
 
 ## 🔧 Setup
 1. Clone or download this repository.
-2. Open [cep_policy_manager.py]() in your text editor.
+2. Open [cep_policy_manager.py](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cep_policy_manager.py) in your text editor.
 3. Update the `CONFIGURATION` block at the top of the file with your specific tenant details:
    ```python
    # --- CONFIGURATION ---
