@@ -251,6 +251,28 @@ To migrate configurations from a Staging tenant to a Production tenant:
 
 ---
 
+## 🏗️ Hybrid Terraform Integration
+
+Because the official HashiCorp Google Cloud provider does not natively support Cloud Identity DLP rules yet, you can use a hybrid Terraform approach.
+
+Deploy your Access Levels and Secure Gateways using native `.tf` configuration files, and use a `null_resource` with a `local-exec` provisioner to trigger this Python script to handle the unsupported DLP rules and detectors:
+```Terraform
+resource "null_resource" "cep_dlp_manager" {
+  depends_on = [
+    google_access_context_manager_access_level.all,
+    google_beyondcorp_security_gateway.all
+  ]
+
+  triggers = {
+    export_hash = filemd5("${path.module}/cep_export.json")
+  }
+
+  provisioner "local-exec" {
+    command = "python3 cep_policy_manager.py import --file cep_export.json --use-service-account"
+  }
+}
+```
+
 # Chrome Enterprise Extension Inventory Exporter
 
 A Python tool designed for Chrome Enterprise administrators to export a comprehensive, highly-detailed inventory of Chrome extensions installed across their managed browser fleet.
