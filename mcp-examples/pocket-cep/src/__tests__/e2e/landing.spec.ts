@@ -17,15 +17,21 @@ test.describe("Landing page", () => {
   test("sign-in button initiates OAuth redirect", async ({ page }) => {
     await page.goto("/");
 
+    const matchesAuthRequest = (urlString: string) => {
+      try {
+        const u = new URL(urlString);
+        return u.pathname.startsWith("/api/auth/") || u.hostname === "accounts.google.com";
+      } catch {
+        return false;
+      }
+    };
+
     const [request] = await Promise.all([
-      page.waitForRequest(
-        (req) => req.url().includes("/api/auth/") || req.url().includes("accounts.google.com"),
-      ),
+      page.waitForRequest((req) => matchesAuthRequest(req.url())),
       page.getByRole("button", { name: /Sign in with Google/i }).click(),
     ]);
 
-    const url = request.url();
-    expect(url.includes("/api/auth/") || url.includes("accounts.google.com")).toBe(true);
+    expect(matchesAuthRequest(request.url())).toBe(true);
   });
 });
 
