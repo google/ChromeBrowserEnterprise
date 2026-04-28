@@ -1,0 +1,315 @@
+/**
+ * @file Global styles and design tokens for Pocket CEP.
+ *
+ * Aesthetic: "Investigation Desk" — a refined Google Workspace admin
+ * tool executed with intentional typographic and atmospheric detail.
+ * Serif display for hero moments, grotesque sans for body, monospace
+ * for technical data. Subtle dotted-grid atmosphere under everything.
+ */
+
+@import "tailwindcss";
+
+@theme inline {
+  --color-primary: #1a73e8;
+  --color-primary-hover: #1557b0;
+  --color-primary-light: #e8f0fe;
+  --color-on-primary: #ffffff;
+
+  --color-error: #d93025;
+  --color-error-light: #fce8e6;
+  --color-success: #1e8e3e;
+  --color-success-light: #e6f4ea;
+  --color-warning: #f9ab00;
+  --color-warning-light: #fef7e0;
+
+  --color-surface: #ffffff;
+  --color-surface-dim: #f6f7f9;
+  --color-surface-container: #edeff3;
+  --color-surface-variant: #e4e7ed;
+  --color-outline: #d6dae0;
+  --color-outline-variant: #bfc4cc;
+
+  --color-on-surface: #1a1d21;
+  --color-on-surface-variant: #4f5660;
+  --color-on-surface-muted: #78808c;
+
+  --color-ink: #0b1220;
+  --color-ink-dim: #141a29;
+
+  --font-display: var(--font-sans), "Roboto", "Google Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-sans), "Roboto", "Google Sans Text", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), "Roboto Mono", ui-monospace, monospace;
+
+  --shadow-elevation-1:
+    0 1px 2px 0 rgb(11 18 32 / 0.06),
+    0 1px 3px 0 rgb(11 18 32 / 0.04);
+  --shadow-elevation-2:
+    0 2px 4px -1px rgb(11 18 32 / 0.08),
+    0 4px 12px -2px rgb(11 18 32 / 0.06);
+  --shadow-elevation-3:
+    0 8px 16px -4px rgb(11 18 32 / 0.08),
+    0 16px 32px -8px rgb(11 18 32 / 0.08);
+  --shadow-inset: inset 0 1px 0 0 rgb(255 255 255 / 0.5);
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 28px;
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+body {
+  background-color: var(--color-surface-dim);
+  color: var(--color-on-surface);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.45rem;
+  letter-spacing: -0.006em;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.018em;
+}
+
+::selection {
+  background: rgb(26 115 232 / 0.2);
+  color: var(--color-on-surface);
+}
+
+@utility font-display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.022em;
+}
+
+@utility font-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "ss04", "ss05";
+}
+
+@utility state-layer {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+  &:hover::before {
+    opacity: 0.06;
+  }
+  &:active::before {
+    opacity: 0.1;
+  }
+}
+
+@utility surface-raised {
+  background: var(--color-surface);
+  box-shadow: var(--shadow-elevation-1), var(--shadow-inset);
+  border: 1px solid var(--color-outline);
+}
+
+@utility panel-grid-bg {
+  background-color: var(--color-surface);
+  background-image:
+    linear-gradient(rgb(11 18 32 / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(11 18 32 / 0.025) 1px, transparent 1px);
+  background-size: 44px 44px;
+  background-position: center center;
+}
+
+@utility section-label {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--color-on-surface-muted);
+  text-transform: uppercase;
+}
+
+@utility fade-in {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@utility slide-up {
+  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@utility spin-slow {
+  animation: spin 1.4s linear infinite;
+}
+
+@utility stagger-1 { animation-delay: 40ms; }
+@utility stagger-2 { animation-delay: 80ms; }
+@utility stagger-3 { animation-delay: 120ms; }
+@utility stagger-4 { animation-delay: 160ms; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.4; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+
+.typing-dot {
+  animation: typing-dot 1.2s ease-in-out infinite;
+}
+.typing-dot-1 { animation-delay: 0ms; }
+.typing-dot-2 { animation-delay: 150ms; }
+.typing-dot-3 { animation-delay: 300ms; }
+
+.prose-chat {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--color-on-surface);
+}
+.prose-chat > * + * { margin-top: 0.9em; }
+.prose-chat p { margin: 0; }
+.prose-chat h1, .prose-chat h2, .prose-chat h3, .prose-chat h4 {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  color: var(--color-on-surface);
+  line-height: 1.3;
+  letter-spacing: -0.022em;
+}
+.prose-chat strong { font-weight: 700; }
+.prose-chat > h1 + *,
+.prose-chat > h2 + *,
+.prose-chat > h3 + *,
+.prose-chat > h4 + * {
+  margin-top: 0.4em;
+}
+.prose-chat > * + h1,
+.prose-chat > * + h2,
+.prose-chat > * + h3,
+.prose-chat > * + h4 {
+  margin-top: 1.3em;
+}
+.prose-chat h1 { font-size: 1.25rem; }
+.prose-chat h2 { font-size: 1.125rem; }
+.prose-chat h3 { font-size: 1.0625rem; }
+.prose-chat h4 { font-size: 1rem; }
+.prose-chat strong { color: var(--color-on-surface); }
+.prose-chat em { font-style: italic; }
+.prose-chat a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.prose-chat a:hover { color: var(--color-primary-hover); }
+.prose-chat ul, .prose-chat ol {
+  padding-left: 1.5rem;
+}
+.prose-chat ul { list-style: disc; }
+.prose-chat ol { list-style: decimal; }
+.prose-chat li { margin: 0.3em 0; }
+.prose-chat li::marker { color: var(--color-on-surface-muted); }
+.prose-chat li > p { display: inline; }
+.prose-chat li > ul,
+.prose-chat li > ol { margin-top: 0.3em; }
+.prose-chat code {
+  background: var(--color-surface-container);
+  color: var(--color-ink);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  border: 1px solid var(--color-outline);
+}
+.prose-chat pre {
+  background: var(--color-ink);
+  color: #e5e9f0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  border: 1px solid rgb(0 0 0 / 0.15);
+  box-shadow: 0 1px 2px rgb(11 18 32 / 0.08);
+}
+.prose-chat pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  color: inherit;
+}
+.prose-chat blockquote {
+  border-left: 3px solid var(--color-primary);
+  padding-left: 0.875rem;
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+.prose-chat hr {
+  border: none;
+  border-top: 1px solid var(--color-outline);
+  margin: 1.25em 0;
+}
+.prose-chat table {
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  display: block;
+  overflow-x: auto;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-xs);
+}
+.prose-chat th, .prose-chat td {
+  border-bottom: 1px solid var(--color-outline);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.prose-chat th {
+  background: var(--color-surface-dim);
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+.prose-chat tr:last-child th, .prose-chat tr:last-child td {
+  border-bottom: none;
+}
+
+input, textarea, button, select {
+  font-family: inherit;
+  font-feature-settings: inherit;
+}
+
+button:not(:disabled):not([aria-disabled="true"]),
+[role="button"]:not(:disabled):not([aria-disabled="true"]),
+[role="option"],
+a[href] {
+  cursor: pointer;
+}
