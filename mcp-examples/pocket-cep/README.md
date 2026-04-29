@@ -1,5 +1,8 @@
 # Pocket CEP
 
+<img width="2230" height="1426" alt="Pocket CEP" src="https://github.com/user-attachments/assets/e2058c1e-ed18-4d33-8f77-6677107ef0d8" />
+
+
 An educational companion app for the [Chrome Enterprise Premium MCP server](https://github.com/google/chrome-enterprise-premium-mcp). Pocket CEP demonstrates how to build a web application that connects to an MCP server using OAuth, calls tools **and** server-authored prompts, and integrates an AI-powered chat agent that investigates Chrome Enterprise user issues.
 
 Built with Next.js 16, the Vercel AI SDK v6, BetterAuth, Tailwind CSS 4, and the official MCP SDK.
