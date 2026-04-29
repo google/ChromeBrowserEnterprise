@@ -1,6 +1,7 @@
 # Pocket CEP
 
-<img width="1920" height="1440" alt="Pocket CEP main screen" src="https://github.com/user-attachments/assets/7e46bea5-97bd-41ad-add9-17e3b52bb08a" />
+<img width="1920" height="1280" alt="Pocket CEP main page" src="https://github.com/user-attachments/assets/f572f557-3788-4d46-9f33-d38b599a385f" />
+
 
 An educational companion app for the [Chrome Enterprise Premium MCP server](https://github.com/google/chrome-enterprise-premium-mcp). Pocket CEP demonstrates how to build a web application that connects to an MCP server using OAuth, calls tools **and** server-authored prompts, and integrates an AI-powered chat agent that investigates Chrome Enterprise user issues.
 
