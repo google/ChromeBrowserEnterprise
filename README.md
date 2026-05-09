@@ -21,6 +21,7 @@ The repository is organized by technology stack and operating system to help you
 * **[Custom Configuration](./Custom%20Configurations):** A collection of configuration files for fine-tuning Chrome behavior. This is ideal for administrators needing advanced policy templates not found in standard management consoles.
 * **[Windows](./Windows):** OS-specific resources for Windows environments, including PowerShell and Batch scripts. Notable tools include scripts for enrolling or unenrolling devices from Chrome Enterprise Core (CEC).
 * **[MCP Examples](./mcp-examples):** Reference applications that integrate with the [Chrome Enterprise Premium MCP server](https://github.com/google/chrome-enterprise-premium-mcp). Use these as starting points for building admin tools, AI assistants, or custom dashboards on top of Chrome Enterprise APIs.
+* **[App Script](./AppsScript-examples):** CERA provides a single pane of glass for all Chrome enterprise activity logs, turning raw data into actionable security intelligence.
 
 ---
 
