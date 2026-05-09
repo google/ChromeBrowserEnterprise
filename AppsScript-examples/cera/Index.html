@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chrome Enterprise Reports & Analysis</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- Premium CSS Theme (Mirroring SOC style) --- */
+        body { background-color: #0d1117; color: #c9d1d9; font-family: 'Inter', sans-serif; margin: 0; min-height: 100vh; line-height: 1.5; }
+        .flex-center { display: flex; align-items: center; justify-content: center; }
+        
+        button { font-family: inherit; font-size: 0.95rem; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+        button:disabled { cursor: not-allowed !important; opacity: 0.6; }
+        
+        /* Setup Wizard Styles */
+        .setup-container { width: 100%; max-width: 680px; background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 3rem; box-shadow: 0 12px 48px rgba(0,0,0,0.6); margin: 4rem auto; animation: fadeUp 0.6s ease-out; position: relative; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        h1 { color: #f0f6fc; font-size: 2.2rem; font-weight: 700; margin-top: 0; margin-bottom: 0.75rem; text-align: center; letter-spacing: -0.5px; }
+        p.subtitle { color: #8b949e; text-align: center; margin-bottom: 2.5rem; font-size: 1rem; }
+        
+        .form-group { margin-bottom: 1.8rem; }
+        label { display: block; margin-bottom: 0.6rem; color: #8b949e; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        select, input[type="text"], input[type="password"] { 
+            width: 100%; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; border-radius: 8px; 
+            padding: 0.85rem 1rem; font-family: inherit; font-size: 1rem; box-sizing: border-box; transition: border-color 0.2s;
+        }
+        select:focus, input:focus { outline: none; border-color: #58a6ff; }
+        
+        .input-group { display: flex; gap: 0.75rem; margin-bottom: 1.2rem; }
+        button.btn-add { background: #238636; color: white; padding: 0.85rem 1.8rem; }
+        button.btn-add:hover { background: #2ea043; }
+        
+        button.btn-proceed { background: #58a6ff; color: #0d1117; padding: 1.1rem; width: 100%; margin-top: 2rem; font-size: 1.15rem; box-shadow: 0 4px 12px rgba(88, 166, 255, 0.2); }
+        button.btn-proceed:hover { background: #79c0ff; transform: translateY(-1px); }
+        
+        .tag-list { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1.5rem; max-height: 220px; overflow-y: auto; padding-right: 0.5rem; }
+        .tag-item { display: flex; justify-content: space-between; align-items: center; background: rgba(33, 38, 45, 0.5); border: 1px solid #30363d; padding: 0.85rem 1.2rem; border-radius: 8px; }
+        .tag-text { font-weight: 600; color: #f0f6fc; }
+        button.btn-remove { background: transparent; color: #f85149; font-size: 0.85rem; padding: 0.4rem; border-radius: 4px; }
+        button.btn-remove:hover { background: rgba(248, 81, 73, 0.1); }
+
+        .info-panel { background: rgba(56, 139, 253, 0.08); border: 1px solid rgba(56, 139, 253, 0.25); border-radius: 10px; padding: 1.8rem; margin-bottom: 2rem; }
+        .estimate-box { background: #0d1117; border: 1px solid #30363d; padding: 1.25rem; border-radius: 10px; margin-top: 1.2rem; display: flex; justify-content: space-between; align-items: center; }
+        .est-val { font-size: 1.6rem; font-weight: 700; color: #f0f6fc; }
+        .est-label { color: #8b949e; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+
+        /* Privacy Disclaimer Styles */
+        .disclaimer-box { background: rgba(56, 139, 253, 0.05); border: 1px solid rgba(56, 139, 253, 0.2); border-radius: 10px; padding: 1.5rem; margin-top: 2rem; }
+        .disclaimer-title { color: #58a6ff; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+        .disclaimer-text { font-size: 0.85rem; color: #8b949e; line-height: 1.6; }
+
+        /* Progress Bar Styles */
+        .progress-wrapper { margin-top: 2rem; position: relative; }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+        .progress-label { font-size: 1rem; font-weight: 700; color: #f0f6fc; }
+        .progress-percent { font-size: 1.2rem; font-weight: 800; color: #58a6ff; text-shadow: 0 0 10px rgba(88, 166, 255, 0.3); }
+        .progress-bar-bg { width: 100%; height: 12px; background: #30363d; border-radius: 6px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3); }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #2188ff, #58a6ff); width: 0%; transition: width 0.4s cubic-bezier(0.1, 0.7, 0.1, 1); position: relative; }
+        .progress-bar-fill::after { content: ""; position: absolute; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); animation: sweep 2s infinite; }
+        @keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+        
+        .progress-log-container { background: #010409; border: 1px solid #30363d; border-radius: 8px; margin-top: 1rem; padding: 1rem; min-height: 80px; }
+        .progress-log { font-size: 0.85rem; color: #3fb950; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; margin: 0; white-space: pre-wrap; }
+        .eta-label { font-size: 0.85rem; color: #8b949e; margin-top: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+        .eta-label i { width: 8px; height: 8px; background: #3fb950; border-radius: 50%; display: inline-block; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        /* Dashboard Container */
+        .dashboard-container { max-width: 1440px; margin: 0 auto; padding: 0 2rem 4rem 2rem; }
+        .dashboard-header { background: radial-gradient(circle at top left, #161b22, #0d1117); border-bottom: 1px solid #30363d; padding: 2.5rem 0; margin-bottom: 3rem; }
+        
+        /* Creative H2 - Better for PDF and Web */
+        h2 { 
+            font-size: 1.5rem; font-weight: 700; margin: 4rem 0 2rem 0; color: #f0f6fc; 
+            display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1.5rem;
+            background: linear-gradient(88deg, rgb(56 139 253 / 88%), transparent);
+            border-left: 5px solid #58a6ff; border-radius: 4px;
+        }
+        
+        .metrics-grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
+        .metrics-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
+        .dashboard-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+        @media (max-width: 1100px) { .dashboard-grid-2 { grid-template-columns: 1fr; } }
+        
+        .stat-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 1.8rem; position: relative; overflow: hidden; }
+        .stat-card::after { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: rgba(255,255,255,0.05); }
+        .stat-title { font-size: 0.85rem; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem; font-weight: 700; }
+        .stat-value { font-size: 2.8rem; font-weight: 800; margin: 0; color: #f0f6fc; }
+        .stat-desc { font-size: 0.85rem; color: #8b949e; margin-top: 0.75rem; }
+        
+        .panel { background: #161b22; border: 1px solid #30363d; border-radius: 12px; display: flex; flex-direction: column; height: 100%; }
+        .panel-header { background: rgba(33, 38, 45, 0.4); border-bottom: 1px solid #30363d; padding: 1.25rem 1.8rem; display: flex; justify-content: space-between; align-items: center; }
+        .panel-header h3 { margin: 0; font-size: 1.15rem; color: #f0f6fc; font-weight: 700; }
+        .panel-content { padding: 1.8rem; flex-grow: 1; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+        th, td { padding: 1rem 1.2rem; border-bottom: 1px solid #30363d; font-size: 0.9rem; }
+        th { color: #8b949e; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(240, 246, 252, 0.02); }
+        
+        .text-red { color: #f85149; } .text-yellow { color: #d29922; } .text-blue { color: #58a6ff; } .text-green { color: #3fb950; } .text-purple { color: #a371f7; }
+        .badge { padding: 0.25rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700; }
+        .badge-red { background: rgba(248, 81, 73, 0.1); color: #f85149; }
+        .badge-blue { background: rgba(88, 166, 255, 0.1); color: #58a6ff; }
+
+        /* Print styles for PDF consistency */
+        @media print {
+            body { background-color: #0d1117 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .dashboard-container { max-width: none !important; width: 100% !important; margin: 0 !important; padding: 20px !important; }
+            #headerActions { display: none !important; }
+            .stat-card, .panel { border: 1px solid #30363d !important; background-color: #161b22 !important; page-break-inside: avoid; }
+            h1, h2, h3, .stat-value, td { color: #f0f6fc !important; }
+            /* FORCE h2 background for PDF visibility */
+            h2 { 
+                background: #1f6feb !important; color: #ffffff !important; 
+                border: none !important; border-radius: 6px !important;
+                padding: 15px 25px !important; margin-bottom: 25px !important;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.5) !important;
+            }
+            .stat-title, .stat-desc, th { color: #8b949e !important; }
+            canvas { max-width: 100% !important; height: auto !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="setupView">
+        <div class="setup-container" id="step1">
+            <h1>Chrome Enterprise Reports & Analysis</h1>
+            <p class="subtitle">Search the Google Admin SDK to discover available Chrome Enterprise telemetry.</p>
+            
+            <div class="disclaimer-box" style="margin-bottom: 2rem;">
+                <div class="disclaimer-title">🔒 Internal Data Processing Gateway</div>
+                <div class="disclaimer-text">
+                    This analysis tool operates strictly within your Google Workspace environment. No data is stored or processed 
+                    outside of your organization's own Google Apps Script instance. Your audit logs remain under your 
+                    organization's administrative control at all times.
+                </div>
+            </div>
+
+            <button class="btn-proceed" id="btnCheckLogs" onclick="checkLogs()">Retrieve Chrome Log Events</button>
+            
+            <div id="checkProgress" class="progress-wrapper" style="display:none;">
+                <div class="progress-header">
+                    <span class="progress-label" id="checkProgressLabel">Discovery Phase</span>
+                    <span class="progress-percent" id="checkProgressPercent">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div id="checkProgressBar" class="progress-bar-fill"></div>
+                </div>
+                <div class="progress-log-container">
+                    <pre id="checkProgressLog" class="progress-log">Establishing secure tunnel to Administration API...</pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="setup-container" id="step2" style="display:none;">
+            <h1>Chrome Enterprise Reports & Analysis</h1>
+            <p class="subtitle">Define Extraction Scope</p>
+            <div class="info-panel" id="logInfoPanel"></div>
+            
+            <div class="form-group">
+                <label>Timeframe Strategy</label>
+                <span style="color: #8b949e; font-size: 0.8rem; margin-bottom: 10px; display: block;">Large datasets (30d+) are now optimized with on-the-fly memory management.</span>
+                <select id="timeRange" onchange="updateEstimates()">
+                    <option value="7d">Last 7 Days (Ultra Fast)</option>
+                    <option value="30d" selected>Last 30 Days (Standard Analytics)</option>
+                    <option value="90d">Last 90 Days (Deep Forensic Audit)</option>
+                </select>
+                
+                <div class="estimate-box">
+                    <div>
+                        <div class="est-label">Estimated Payload</div>
+                        <div class="est-val" id="estEvents">~45,000 logs</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div class="est-label">Expected Runtime</div>
+                        <div class="est-val" id="estTime">~30 sec</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 2.5rem;">
+                <label>Sanctioned Infrastructure (Managed Apps)</label>
+                <p style="color: #8b949e; font-size: 0.85rem; margin: -0.2rem 0 1.2rem 0;">
+                    Define corporate-authorized domains. Non-listed interactions are flagged as <b>Shadow IT</b>.
+                </p>
+                <form id="addForm" class="input-group">
+                    <input type="text" id="domainInput" placeholder="Enter keyword (e.g. smartsheet)" required>
+                    <button type="submit" class="btn-add">Add App</button>
+                </form>
+                <div class="tag-list" id="sanctionedList"></div>
+            </div>
+
+            <button class="btn-proceed" id="btnFetch" onclick="startFetching()">Begin Data Streaming &rarr;</button>
+            
+            <div id="fetchProgress" class="progress-wrapper" style="display:none;">
+                <div class="progress-header">
+                    <span class="progress-label">Synchronizing Domain Telemetry...</span>
+                    <span class="progress-percent" id="fetchProgressPercent">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div id="fetchProgressBar" class="progress-bar-fill"></div>
+                </div>
+                <div class="progress-log-container">
+                    <pre id="fetchProgressLog" class="progress-log">Initializing extraction pipeline...</pre>
+                </div>
+                <div id="fetchProgressEta" class="eta-label"><i></i> Estimated time remaining: Calculating...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="dashboardView" style="display:none;">
+        <div class="dashboard-header">
+            <div class="dashboard-container">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <h1 style="text-align: left; margin-bottom: 0.4rem;">Chrome Enterprise Reports & Analysis</h1>
+                        <p style="color: #8b949e; margin: 0; font-size: 1rem;" id="dateContextText">Synchronized via Chrome Management API.</p>
+                    </div>
+                    <div style="display: flex; gap: 0.75rem;" id="headerActions">
+                        <button onclick="exportToPDF()" id="btnPDF" style="background: #238636; color: white; padding: 0.75rem 1.4rem;">
+                            📄 Download PDF Report
+                        </button>
+                        <button onclick="resetSetup()" style="background: rgba(255,255,255,0.05); color: #8b949e; border: 1px solid #30363d; padding: 0.75rem 1.4rem;">
+                            ⚙️ Reset Pipeline
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-container" id="pdfContainer">
+            <h2>Global Risk Overview</h2>
+            <div class="metrics-grid-3">
+                <div class="stat-card">
+                    <div class="stat-title">Sensitive Data Matches</div>
+                    <div class="stat-value text-yellow" id="statDlp">0</div>
+                    <div class="stat-desc">DLP Policy Alerts Triggered</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Unsafe Site Visits</div>
+                    <div class="stat-value text-red" id="statUnsafe">0</div>
+                    <div class="stat-desc">Blocked or Warned Connections</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Total Processed Events</div>
+                    <div class="stat-value text-blue" id="statTotal">0</div>
+                    <div class="stat-desc">Synced Audit Log Entries</div>
+                </div>
+            </div>
+
+            <h2>Shadow IT & Platforms</h2>
+            <div class="metrics-grid-4">
+                <div class="stat-card" style="border-left: 4px solid #58a6ff;">
+                    <div class="stat-title text-blue">Shadow IT Users</div>
+                    <div class="stat-value text-blue" id="statShadowUsers">0</div>
+                    <div class="stat-desc">Active in Unsanctioned Apps</div>
+                </div>
+                <div class="stat-card" style="border-left: 4px solid #f85149;">
+                    <div class="stat-title text-red">Sensitive Exposures</div>
+                    <div class="stat-value text-red" id="statShadowExposures">0</div>
+                    <div class="stat-desc">Risk in Shadow IT Apps</div>
+                </div>
+                <div class="stat-card" style="border-left: 4px solid #3fb950;">
+                    <div class="stat-title text-green">AI Uploads</div>
+                    <div class="stat-value text-green" id="statAiUploads">0</div>
+                    <div class="stat-desc">Docs Shared with AI</div>
+                </div>
+                <div class="stat-card" style="border-left: 4px solid #f85149;">
+                    <div class="stat-title text-red">AI PII Alerts</div>
+                    <div class="stat-value text-red" id="statAiPii">0</div>
+                    <div class="stat-desc">Sensitive Content Detection</div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid-2">
+                <div class="panel">
+                    <div class="panel-header"><h3 class="text-blue">Corporate Ecosystem (Sanctioned)</h3></div>
+                    <div class="panel-content">
+                        <div id="valSancEvents" style="font-size: 1.8rem; font-weight: 800; margin-bottom: 1.5rem;">0 Events</div>
+                        <div style="height: 120px;"><canvas id="chartEcoSanc"></canvas></div>
+                        <p class="stat-desc" id="sancDomainsList">Managed Domains Loading...</p>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><h3 class="text-red">Shadow IT Ecosystem (Unsanctioned)</h3></div>
+                    <div class="panel-content">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                            <div id="valUnsancEvents" style="font-size: 1.8rem; font-weight: 800;">0 Events</div>
+                            <span class="badge badge-red" id="unsancTag">Risk Alert</span>
+                        </div>
+                        <div style="height: 120px;"><canvas id="chartEcoUnsanc"></canvas></div>
+                        <p class="stat-desc">Telemetry from non-verified corporate assets.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid-2" style="margin-top: 2rem;">
+                <div class="panel">
+                    <div class="panel-header"><h3 class="text-green">🤖 Platform Activity (GenAI)</h3></div>
+                    <div class="panel-content">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem;">
+                            <div style="background: rgba(240,246,252,0.03); padding: 1.2rem; border-radius: 8px;">
+                                <div class="stat-title" style="font-size:0.7rem;">Managed AI</div>
+                                <div id="aiSancMain" style="font-size:1.3rem; font-weight:700;">0 Events</div>
+                                <div id="aiSancMb" class="text-green" style="font-size:0.85rem; font-weight:600;">0 MB</div>
+                            </div>
+                            <div style="background: rgba(240,246,252,0.03); padding: 1.2rem; border-radius: 8px;">
+                                <div class="stat-title" style="font-size:0.7rem;">Shadow AI</div>
+                                <div id="aiUnsancMain" style="font-size:1.3rem; font-weight:700;">0 Events</div>
+                                <div id="aiUnsancMb" class="text-red" style="font-size:0.85rem; font-weight:600;">0 MB</div>
+                            </div>
+                        </div>
+                        <table style="font-size: 0.85rem;">
+                            <thead><tr><th>Domain</th><th style="text-align:right">Up / Down / Print</th></tr></thead>
+                            <tbody id="tableAiUnsanc"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><h3 class="text-blue">🏢 Shadow Tech & Services</h3></div>
+                    <div class="panel-content">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem;">
+                            <div style="background: rgba(240,246,252,0.03); padding: 1.2rem; border-radius: 8px;">
+                                <div class="stat-title" style="font-size:0.7rem;">Verified Services</div>
+                                <div id="itSancMain" style="font-size:1.3rem; font-weight:700;">0 Events</div>
+                                <div id="itSancMb" class="text-green" style="font-size:0.85rem; font-weight:600;">0 MB</div>
+                            </div>
+                            <div style="background: rgba(240,246,252,0.03); padding: 1.2rem; border-radius: 8px;">
+                                <div class="stat-title" style="font-size:0.7rem;">Unmanaged IT</div>
+                                <div id="itUnsancMain" style="font-size:1.3rem; font-weight:700;">0 Events</div>
+                                <div id="itUnsancMb" class="text-red" style="font-size:0.85rem; font-weight:600;">0 MB</div>
+                            </div>
+                        </div>
+                        <table style="font-size: 0.85rem;">
+                            <thead><tr><th>Domain</th><th style="text-align:right">Up / Down / Print</th></tr></thead>
+                            <tbody id="tableItUnsanc"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <h2>Data Protection Breakdown</h2>
+            <div class="metrics-grid-3">
+                <div class="panel">
+                    <div class="panel-header"><h3>Policy Violation Split</h3></div>
+                    <div class="panel-content" style="height:350px; position:relative;">
+                        <canvas id="chartDlpTypes"></canvas>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><h3 class="text-blue">Domain Intensity (Managed)</h3></div>
+                    <div class="panel-content" style="height:350px; position:relative;">
+                        <canvas id="chartDlpSanc"></canvas>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><h3 class="text-red">Domain Intensity (Unmanaged)</h3></div>
+                    <div class="panel-content" style="height:350px; position:relative;">
+                        <canvas id="chartDlpUnsanc"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" style="margin-top: 3rem;">
+                <div class="panel-header"><h3>Top Interacted Platforms (Activity Depth)</h3></div>
+                <div class="panel-content" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; padding: 0;">
+                    <div style="padding: 1.8rem; border-right: 1px solid #30363d;">
+                        <h4 class="text-blue" style="margin-top:0;">Managed Assets</h4>
+                        <table style="font-size: 0.8rem;">
+                            <thead><tr><th>#</th><th>Domain</th><th style="text-align:center">Up</th><th style="text-align:center">Down</th><th style="text-align:center">Print</th><th style="text-align:center">Policy</th></tr></thead>
+                            <tbody id="tableDomainSanc"></tbody>
+                        </table>
+                    </div>
+                    <div style="padding: 1.8rem;">
+                        <h4 class="text-red" style="margin-top:0;">Unmanaged Services</h4>
+                        <table style="font-size: 0.8rem;">
+                            <thead><tr><th>#</th><th>Domain</th><th style="text-align:center">Up</th><th style="text-align:center">Down</th><th style="text-align:center">Print</th><th style="text-align:center">Policy</th></tr></thead>
+                            <tbody id="tableDomainUnsanc"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 4rem; color: #484f58; font-size: 0.75rem; border-top: 1px solid #21262d; padding-top: 2rem;">
+                <b>PRIVACY COMPLIANCE:</b> This report is generated internally. All log processing and analysis are conducted within the organization's verified security boundary. 
+                No data is shared with external AI services or third-party providers.
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <script>
+        let sanctionedKeywords = ['google.com','google'];
+        let estimatedTotalLogs = 0;
+        let chartInstances = {};
+        
+        let dashboardState = null;
+        let totalProcessedLogs = 0;
+        let extractionStartTime = 0;
+
+        function getInitialState() {
+            return {
+                overview: { total_events: 0, unsafe_visits: 0, sensitive_transfers: 0, min_date: "9999", max_date: "0000" },
+                topUrlsSanc: {}, topUrlsUnsanc: {}, dlpTypes: {}, topDomainsSanc: {}, topDomainsUnsanc: {},
+                ext: { ai: 0, bypass: 0, unmanaged: 0 },
+                ecoSanc: { events: 0, bytes: 0, uploads: 0, downloads: 0, prints: 0 },
+                ecoUnsanc: { events: 0, bytes: 0, uploads: 0, downloads: 0, prints: 0 },
+                aiExp: { uploads: 0, pii: 0 }, shadow: { users: {}, exposures: 0 },
+                aiInsights: { sanc_events: 0, unsanc_events: 0, sanc_bytes: 0, unsanc_bytes: 0, sanc_users: {}, unsanc_users: {}, domains_sanc: {}, domains_unsanc: {} },
+                itShadow: { sanc_events: 0, unsanc_events: 0, sanc_bytes: 0, unsanc_bytes: 0, sanc_users: {}, unsanc_users: {}, domains_sanc: {}, domains_unsanc: {} }
+            };
+        }
+
+        function updateFill(id, p, log) {
+            const bar = document.getElementById(id + 'ProgressBar');
+            const percent = document.getElementById(id + 'ProgressPercent');
+            const logEl = document.getElementById(id + 'ProgressLog');
+            
+            if (bar && p !== null) bar.style.width = p + '%';
+            if (percent && p !== null) percent.innerText = Math.round(p) + '%';
+            if (logEl && log) {
+                const lines = logEl.innerText.split('\n');
+                if (lines[lines.length - 1] !== log) logEl.innerText = log;
+            }
+        }
+
+        let simProgress = 2;
+        let simulatedProgressInterval = null;
+
+        function checkLogs() {
+            document.getElementById('btnCheckLogs').style.display = 'none';
+            document.getElementById('checkProgress').style.display = 'block';
+            const range = document.getElementById('timeRange') ? document.getElementById('timeRange').value : '30d';
+            
+            simProgress = 2;
+            updateFill('check', simProgress, "Establishing secure tunnel to Administration API...");
+
+            simulatedProgressInterval = setInterval(() => {
+                simProgress += (90 - simProgress) * 0.05;
+                if(simProgress < 90) updateFill('check', simProgress, null);
+            }, 800);
+
+            google.script.run
+                .withSuccessHandler((res) => {
+                    clearInterval(simulatedProgressInterval);
+                    updateFill('check', 100, "Discovery complete. Tunnel established.");
+                    
+                    setTimeout(() => {
+                        document.getElementById('step1').style.display = 'none';
+                        document.getElementById('step2').style.display = 'block';
+                        updateEstimates();
+                        renderSanctionedList();
+                    }, 800);
+                })
+                .withFailureHandler(err => {
+                    clearInterval(simulatedProgressInterval);
+                    alert("Discovery Failed: " + err.message);
+                    document.getElementById('btnCheckLogs').style.display = '';
+                    document.getElementById('checkProgress').style.display = 'none';
+                })
+                .discoveryCheck(range);
+        }
+
+        function updateEstimates() {
+            const range = document.getElementById('timeRange').value;
+            estimatedTotalLogs = (range === '7d' ? 8000 : (range === '90d' ? 100000 : 45000));
+            const estSeconds = Math.ceil(estimatedTotalLogs / 1500) + 5;
+
+            document.getElementById('estEvents').innerText = `~${estimatedTotalLogs.toLocaleString()} logs`;
+            document.getElementById('estTime').innerText = `~${estSeconds} sec`;
+            
+            document.getElementById('logInfoPanel').innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div><div class="est-label">Chrome Log Events</div><div class="est-val">Telemetry Pipeline Active</div></div>
+                    <div style="text-align:right;"><span class="badge badge-blue">Connected</span></div>
+                </div>`;
+        }
+
+        function renderSanctionedList() {
+            const listDiv = document.getElementById('sanctionedList');
+            listDiv.innerHTML = '';
+            sanctionedKeywords.forEach((kw, index) => {
+                const item = document.createElement('div');
+                item.className = 'tag-item';
+                item.innerHTML = `<span class="tag-text">${kw}</span><button class="btn-remove" onclick="removeKeyword(${index})">Remove</button>`;
+                listDiv.appendChild(item);
+            });
+        }
+        
+        document.getElementById('addForm').onsubmit = (e) => {
+            e.preventDefault();
+            const val = document.getElementById('domainInput').value.trim().toLowerCase();
+            if (val && !sanctionedKeywords.includes(val)) { sanctionedKeywords.push(val); renderSanctionedList(); }
+            document.getElementById('domainInput').value = '';
+        };
+        function removeKeyword(index) { sanctionedKeywords.splice(index, 1); renderSanctionedList(); }
+
+        function startFetching() {
+            const range = document.getElementById('timeRange').value;
+            updateEstimates();
+            
+            document.getElementById('btnFetch').style.display = 'none';
+            document.getElementById('fetchProgress').style.display = 'block';
+            
+            dashboardState = getInitialState();
+            totalProcessedLogs = 0;
+            extractionStartTime = Date.now();
+            updateFill('fetch', 2, "Initializing extraction pipeline...");
+            
+            fetchNextChunk(range, null, 1); 
+        }
+
+        function fetchNextChunk(timeRange, pageToken, requestNum) {
+            const fetchStart = Date.now();
+            
+            google.script.run
+                .withSuccessHandler(response => {
+                    const fetchDuration = Math.max(0.1, (Date.now() - fetchStart) / 1000);
+                    
+                    if (response.logs && response.logs.length > 0) {
+                        aggregateChunk(dashboardState, response.logs, sanctionedKeywords);
+                        totalProcessedLogs += response.logs.length;
+                    }
+                    
+                    let basePercent = (totalProcessedLogs / Math.max(estimatedTotalLogs, 1)) * 100;
+                    let percent = Math.min(5 + basePercent, 98); 
+                    
+                    if (response.logs.length === 0 && response.nextPageToken) {
+                        percent = Math.min(percent + (requestNum * 0.3), 98);
+                    }
+                    
+                    let speed = Math.round((response.logs.length || 0) / fetchDuration) || 0;
+                    updateFill('fetch', percent, `Streaming Pipeline | Request: ${requestNum} | Processed: ${totalProcessedLogs.toLocaleString()} logs | Speed: ~${speed}/sec`);
+                    
+                    if (totalProcessedLogs > 100 || requestNum > 2) {
+                        const elapsed = (Date.now() - extractionStartTime) / 1000;
+                        const overallSpeed = Math.max(1, totalProcessedLogs / elapsed);
+                        const remainingEvents = Math.max(estimatedTotalLogs - totalProcessedLogs, 0);
+                        const remainingSecs = Math.ceil(remainingEvents / overallSpeed);
+                        const etaEl = document.getElementById('fetchProgressEta');
+                        
+                        if (etaEl) {
+                            if (remainingSecs > 0 && remainingEvents > 0) {
+                                etaEl.innerHTML = `<i></i> Estimated time remaining: ~${remainingSecs} seconds | Active Streaming`;
+                            } else {
+                                etaEl.innerHTML = `<i></i> Scanning further logs...`;
+                            }
+                        }
+                    }
+
+                    if (response.nextPageToken && totalProcessedLogs < 300000) {
+                        fetchNextChunk(timeRange, response.nextPageToken, requestNum + 1);
+                    } else {
+                        updateFill('fetch', 99, "Phase: Finalizing | Compiling executive summaries...");
+                        const finalData = finalizeResult(dashboardState, sanctionedKeywords);
+                        
+                        updateFill('fetch', 100, "Synchronization complete. Dashboard ready.");
+                        setTimeout(() => {
+                            document.getElementById('setupView').style.display = 'none';
+                            document.getElementById('dashboardView').style.display = 'block';
+                            renderDashboard(finalData);
+                        }, 600);
+                    }
+                })
+                .withFailureHandler(err => {
+                    alert("Extraction Failed: " + err.message + "\nConnection lost. Please reload.");
+                    document.getElementById('btnFetch').style.display = '';
+                    document.getElementById('fetchProgress').style.display = 'none';
+                })
+                .fetchLogChunk(timeRange, pageToken);
+        }
+
+        function aggregateChunk(state, logs, keywords) {
+            logs.forEach(row => {
+                state.overview.total_events++;
+                const dateStr = row['Date'];
+                if (dateStr) {
+                    if (dateStr < state.overview.min_date) state.overview.min_date = dateStr;
+                    if (dateStr > state.overview.max_date) state.overview.max_date = dateStr;
+                }
+                const event = row['Event'], eventReason = row['Event reason'], trigger = row['Trigger type'];
+                const user = row['Profile user'] || row['Web app signed-in account'] || "Unknown";
+                const account = (row['Web app signed-in account'] || "").toLowerCase();
+                const domain = (row['Domain'] || "").toLowerCase();
+                const detectorName = row['Detector Name'], urlCategory = (row['URL category'] || "");
+                const contentSize = parseInt(row['Content size']) || 0;
+                
+                const isPersonalAccount = account.indexOf('@gmail.com') !== -1 && account.indexOf('@corpdomain.com') === -1;
+                const isDlpEvent = (eventReason === 'CONTENT_MATCHED_SENSITIVE_DATA_TYPES');
+                const isUpload = (trigger === 'File upload' || trigger === 'Web content upload' || trigger === 'Content transfer');
+                const isDownload = (trigger === 'File download');
+                const isSanctioned = keywords.some(kw => domain.indexOf(kw) !== -1) && !isPersonalAccount;
+
+                if (event === 'Unsafe site visit' || eventReason === 'UNSAFE_SITE_VISIT_SSL_ERROR') state.overview.unsafe_visits++;
+                
+                if (domain) {
+                    let targetUrlDict = isSanctioned ? state.topUrlsSanc : state.topUrlsUnsanc;
+                    if (!targetUrlDict[domain]) targetUrlDict[domain] = { upload: 0, download: 0, print: 0, dlpCount: 0 };
+                    if (isUpload) targetUrlDict[domain].upload++; else if (isDownload) targetUrlDict[domain].download++; else if (trigger === 'Page print') targetUrlDict[domain].print++;
+                    if (isDlpEvent) targetUrlDict[domain].dlpCount++;
+
+                    let targetDict = isSanctioned ? state.topDomainsSanc : state.topDomainsUnsanc;
+                    if (!targetDict[domain]) targetDict[domain] = { upload: 0, download: 0, print: 0 };
+                    if (isUpload) targetDict[domain].upload++; else if (isDownload) targetDict[domain].download++; else if (trigger === 'Page print') targetDict[domain].print++;
+                }
+                
+                if (isDlpEvent) {
+                    state.overview.sensitive_transfers++;
+                    if (detectorName) state.dlpTypes[detectorName] = (state.dlpTypes[detectorName] || 0) + 1;
+                }
+
+                if (event === 'Browser extension modified' || eventReason === 'BROWSER_EXTENSION_INSTALL') {
+                    const descLine = (row['Description'] || "").toLowerCase();
+                    if (['grammarly', 'quillbot', 'sider', 'ai writing'].some(x => descLine.indexOf(x) !== -1)) state.ext.ai++;
+                    if (['cors', 'vpn', 'proxy', 'unblock', 'cross-domain'].some(x => descLine.indexOf(x) !== -1)) state.ext.bypass++;
+                    if (isPersonalAccount) state.ext.unmanaged++;
+                }
+
+                const isAiDomain = ['chatgpt', 'openai', 'claude', 'poe'].some(x => domain.indexOf(x) !== -1) || urlCategory.toLowerCase().indexOf('generative') !== -1;
+                if (isSanctioned) {
+                    state.ecoSanc.events++; state.ecoSanc.bytes += contentSize;
+                    if (isUpload) state.ecoSanc.uploads++; if (isDownload) state.ecoSanc.downloads++; if (trigger === 'Page print') state.ecoSanc.prints++;
+                } else {
+                    state.ecoUnsanc.events++; state.ecoUnsanc.bytes += contentSize;
+                    if (isUpload) state.ecoUnsanc.uploads++; if (isDownload) state.ecoUnsanc.downloads++; if (trigger === 'Page print') state.ecoUnsanc.prints++;
+                    state.shadow.users[user] = true; if (isDlpEvent) state.shadow.exposures++;
+                }
+
+                if (isAiDomain) {
+                    if (isUpload) state.aiExp.uploads++; if (isDlpEvent) state.aiExp.pii++;
+                    let aiTarget = isSanctioned ? state.aiInsights.domains_sanc : state.aiInsights.domains_unsanc;
+                    let aiOverviewPrefix = isSanctioned ? "sanc" : "unsanc";
+                    state.aiInsights[aiOverviewPrefix + "_events"]++; state.aiInsights[aiOverviewPrefix + "_bytes"] += contentSize; state.aiInsights[aiOverviewPrefix + "_users"][user] = true;
+                    if (!aiTarget[domain]) aiTarget[domain] = { uploads: 0, downloads: 0, other: 0 };
+                    if (isUpload) aiTarget[domain].uploads++; else if (isDownload) aiTarget[domain].downloads++; else aiTarget[domain].other++;
+                }
+                
+                const isItDomain = urlCategory.indexOf('INTERNET_AND_TECHNOLOGY') !== -1 && !isAiDomain;
+                if (isItDomain) {
+                    let itTarget = isSanctioned ? state.itShadow.domains_sanc : state.itShadow.domains_unsanc;
+                    let itOverviewPrefix = isSanctioned ? "sanc" : "unsanc";
+                    state.itShadow[itOverviewPrefix + "_events"]++; state.itShadow[itOverviewPrefix + "_bytes"] += contentSize; state.itShadow[itOverviewPrefix + "_users"][user] = true;
+                    if (!itTarget[domain]) itTarget[domain] = { uploads: 0, downloads: 0, other: 0 };
+                    if (isUpload) itTarget[domain].uploads++; else if (isDownload) itTarget[domain].downloads++; else itTarget[domain].other++;
+                }
+            });
+        }
+
+        function finalizeResult(state, sanctionedKeywords) {
+            const getTopItems = (dict, limit) => Object.keys(dict).map(k => ({ domain: k, stats: dict[k] })).sort((a, b) => (b.stats.uploads || b.stats.upload || 0) + (b.stats.downloads || b.stats.download || 0) + (b.stats.other || b.stats.print || 0) - ((a.stats.uploads || a.stats.upload || 0) + (a.stats.downloads || a.stats.download || 0) + (a.stats.other || a.stats.print || 0))).slice(0, limit);
+            const getTopUrlsAggregated = (dict, limit) => Object.keys(dict).map(k => ({ url: k, stats: dict[k] })).sort((a,b) => (b.stats.upload + b.stats.download + b.stats.print) - (a.stats.upload + a.stats.download + a.stats.print)).filter(x => (x.stats.upload + x.stats.download + x.stats.print) > 0).slice(0, limit);
+
+            return {
+                overview: state.overview,
+                top_urls: { sanctioned: getTopUrlsAggregated(state.topUrlsSanc, 10), unsanctioned: getTopUrlsAggregated(state.topUrlsUnsanc, 10) },
+                dlp: { sensitiveDataBreachTypes: Object.keys(state.dlpTypes).sort((a,b) => state.dlpTypes[b] - state.dlpTypes[a]).slice(0,5).reduce((obj, key) => { obj[key] = state.dlpTypes[key]; return obj; }, {}) },
+                destinations: {
+                    sanctioned: Object.keys(state.topDomainsSanc).sort((a,b) => (state.topDomainsSanc[b].upload + state.topDomainsSanc[b].download + state.topDomainsSanc[b].print) - (state.topDomainsSanc[a].upload + state.topDomainsSanc[a].download + state.topDomainsSanc[a].print)).slice(0,5).reduce((obj, key) => { obj[key] = state.topDomainsSanc[key]; return obj; }, {}),
+                    unsanctioned: Object.keys(state.topDomainsUnsanc).sort((a,b) => (state.topDomainsUnsanc[b].upload + state.topDomainsUnsanc[b].download + state.topDomainsUnsanc[b].print) - (state.topDomainsUnsanc[a].upload + state.topDomainsUnsanc[a].download + state.topDomainsUnsanc[a].print)).slice(0,10).reduce((obj, key) => { obj[key] = state.topDomainsUnsanc[key]; return obj; }, {})
+                },
+                ecosystem: { sanctioned: state.ecoSanc, unsanctioned: state.ecoUnsanc },
+                extensions: { ai_assistants: state.ext.ai, security_bypass: state.ext.unmanaged },
+                ai_exposure: { files_uploaded: state.aiExp.uploads, pii_alerts: state.aiExp.pii },
+                shadow_it: { unique_users: Object.keys(state.shadow.users).length, sensitive_exposures: state.shadow.exposures },
+                ai_insights: {
+                    overview: { sanc_events: state.aiInsights.sanc_events, sanc_mb: Math.round(state.aiInsights.sanc_bytes / (1024*1024) * 100) / 100, sanc_users: Object.keys(state.aiInsights.sanc_users).length, unsanc_events: state.aiInsights.unsanc_events, unsanc_mb: Math.round(state.aiInsights.unsanc_bytes / (1024*1024) * 100) / 100, unsanc_users: Object.keys(state.aiInsights.unsanc_users).length },
+                    domains: { sanctioned: getTopItems(state.aiInsights.domains_sanc, 5), unsanctioned: getTopItems(state.aiInsights.domains_unsanc, 5) }
+                },
+                it_shadow: {
+                    overview: { sanc_events: state.itShadow.sanc_events, sanc_mb: Math.round(state.itShadow.sanc_bytes / (1024*1024) * 100) / 100, sanc_users: Object.keys(state.itShadow.sanc_users).length, unsanc_events: state.itShadow.unsanc_events, unsanc_mb: Math.round(state.itShadow.unsanc_bytes / (1024*1024) * 100) / 100, unsanc_users: Object.keys(state.itShadow.unsanc_users).length },
+                    domains: { sanctioned: getTopItems(state.itShadow.domains_sanc, 5), unsanctioned: getTopItems(state.itShadow.domains_unsanc, 5) }
+                },
+                config: { sanctioned: sanctionedKeywords }
+            };
+        }
+
+        function renderDashboard(data) {
+            if (data.overview.min_date !== "9999") {
+                const d1 = new Date(data.overview.min_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                const d2 = new Date(data.overview.max_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                document.getElementById('dateContextText').innerText = `Report Cycle: ${d1} — ${d2}.`;
+            }
+
+            document.getElementById('statTotal').innerText = data.overview.total_events.toLocaleString();
+            document.getElementById('statDlp').innerText = data.overview.sensitive_transfers.toLocaleString();
+            document.getElementById('statUnsafe').innerText = data.overview.unsafe_visits.toLocaleString();
+
+            document.getElementById('statShadowUsers').innerText = data.shadow_it.unique_users.toLocaleString();
+            document.getElementById('statShadowExposures').innerText = data.shadow_it.sensitive_exposures.toLocaleString();
+            document.getElementById('statAiUploads').innerText = data.ai_exposure.files_uploaded.toLocaleString();
+            document.getElementById('statAiPii').innerText = data.ai_exposure.pii_alerts.toLocaleString();
+
+            document.getElementById('valSancEvents').innerText = `${data.ecosystem.sanctioned.events.toLocaleString()} Events`;
+            document.getElementById('valUnsancEvents').innerText = `${data.ecosystem.unsanctioned.events.toLocaleString()} Events`;
+            document.getElementById('sancDomainsList').innerHTML = `Verified Ecosystem: <strong>${data.config.sanctioned.join(', ')}</strong>`;
+            
+            const upS = data.ecosystem.unsanctioned.uploads;
+            const downS = data.ecosystem.unsanctioned.downloads;
+            document.getElementById('unsancTag').innerText = upS > downS ? 'Policy Bypass Alert' : 'Exfiltration Risk';
+
+            const renderTb = (id, list) => {
+                const tb = document.getElementById(id); tb.innerHTML = '';
+                list.forEach(d => {
+                    tb.innerHTML += `<tr><td><strong>${d.domain}</strong></td><td style="text-align:right"><span class="text-red">${d.stats.uploads} Up</span> | <span class="text-blue">${d.stats.downloads} Down</span> | <span class="text-yellow">${d.stats.other} Pr</span></td></tr>`;
+                });
+            };
+            renderTb('tableAiUnsanc', data.ai_insights.domains.unsanctioned);
+            renderTb('tableItUnsanc', data.it_shadow.domains.unsanctioned);
+            
+            document.getElementById('aiSancMain').innerText = `${data.ai_insights.overview.sanc_events} Events`;
+            document.getElementById('aiUnsancMain').innerText = `${data.ai_insights.overview.unsanc_events} Events`;
+            document.getElementById('aiSancMb').innerText = `${data.ai_insights.overview.sanc_mb} MB`;
+            document.getElementById('aiUnsancMb').innerText = `${data.ai_insights.overview.unsanc_mb} MB`;
+
+            document.getElementById('itSancMain').innerText = `${data.it_shadow.overview.sanc_events} Events`;
+            document.getElementById('itUnsancMain').innerText = `${data.it_shadow.overview.unsanc_events} Events`;
+            document.getElementById('itSancMb').innerText = `${data.it_shadow.overview.sanc_mb} MB`;
+            document.getElementById('itUnsancMb').innerText = `${data.it_shadow.overview.unsanc_mb} MB`;
+
+            createStackedBar('chartEcoSanc', [
+                { label: 'Uploads', data: [data.ecosystem.sanctioned.uploads], color: '#f85149' },
+                { label: 'Downloads', data: [data.ecosystem.sanctioned.downloads], color: '#58a6ff' },
+                { label: 'Prints', data: [data.ecosystem.sanctioned.prints], color: '#d29922' }
+            ], ['Verified Traffic']);
+
+            createStackedBar('chartEcoUnsanc', [
+                { label: 'Uploads', data: [data.ecosystem.unsanctioned.uploads], color: '#da3633' },
+                { label: 'Downloads', data: [data.ecosystem.unsanctioned.downloads], color: '#79c0ff' },
+                { label: 'Prints', data: [data.ecosystem.unsanctioned.prints], color: '#d29922' }
+            ], ['Unmanaged Traffic']);
+            
+            const dlpTypes = Object.keys(data.dlp.sensitiveDataBreachTypes);
+            createDoughnut('chartDlpTypes', dlpTypes, dlpTypes.map(l => data.dlp.sensitiveDataBreachTypes[l]));
+
+            createComplexStacked('chartDlpSanc', data.destinations.sanctioned);
+            createComplexStacked('chartDlpUnsanc', data.destinations.unsanctioned);
+
+            const renderDomainTable = (id, list) => {
+                const tb = document.getElementById(id); tb.innerHTML = '';
+                list.forEach((u, i) => {
+                    tb.innerHTML += `<tr><td>${i+1}</td><td style="font-weight:600">${u.url}</td><td style="text-align:center">${u.stats.upload}</td><td style="text-align:center">${u.stats.download}</td><td style="text-align:center">${u.stats.print}</td><td style="text-align:center">${u.stats.dlpCount > 0 ? '<span class="badge badge-red">'+u.stats.dlpCount+'</span>' : '-'}</td></tr>`;
+                });
+            };
+            renderDomainTable('tableDomainSanc', data.top_urls.sanctioned);
+            renderDomainTable('tableDomainUnsanc', data.top_urls.unsanctioned);
+        }
+
+        function createStackedBar(id, datasets, labels) {
+            if(chartInstances[id]) chartInstances[id].destroy();
+            chartInstances[id] = new Chart(document.getElementById(id), {
+                type: 'bar',
+                data: { labels, datasets: datasets.map(d => ({ label: d.label, data: d.data, backgroundColor: d.color, borderRadius: 4, barThickness: 40 })) },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, 
+                           plugins: { legend: { display: false } },
+                           scales: { x: { stacked: true, display: false }, y: { stacked: true, display: false } } }
+            });
+        }
+
+        function createComplexStacked(id, dict) {
+            if(chartInstances[id]) chartInstances[id].destroy();
+            const sortedKeys = Object.keys(dict).sort((a,b) => {
+                const totalA = dict[a].upload + dict[a].download + dict[a].print;
+                const totalB = dict[b].upload + dict[b].download + dict[b].print;
+                return totalB - totalA;
+            });
+
+            chartInstances[id] = new Chart(document.getElementById(id), {
+                type: 'bar',
+                data: {
+                    labels: sortedKeys,
+                    datasets: [
+                        { label: 'Uploads', data: sortedKeys.map(k => dict[k].upload), backgroundColor: '#f85149' },
+                        { label: 'Downloads', data: sortedKeys.map(k => dict[k].download), backgroundColor: '#1f6feb' },
+                        { label: 'Prints', data: sortedKeys.map(k => dict[k].print), backgroundColor: '#d29922' }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: true, position: 'bottom', labels: { color: '#8b949e', boxWidth: 10 } } },
+                    scales: {
+                        x: { stacked: true, grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+                        y: { stacked: true, grid: { display: false }, ticks: { color: '#c9d1d9' } }
+                    }
+                }
+            });
+        }
+
+        function createDoughnut(id, labels, data) {
+            if(chartInstances[id]) chartInstances[id].destroy();
+            chartInstances[id] = new Chart(document.getElementById(id), {
+                type: 'doughnut', 
+                data: { labels, datasets: [{ data, backgroundColor: ['#f85149', '#d29922', '#58a6ff', '#3fb950', '#a371f7'], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '70%', 
+                           plugins: { legend: { position: 'bottom', labels: { color: '#8b949e', boxWidth: 10 } } } }
+            });
+        }
+
+      function exportToPDF() {
+            const element = document.getElementById('dashboardView');
+            const btn = document.getElementById('btnPDF');
+            const actions = document.getElementById('headerActions');
+            
+            const orig = btn.innerText;
+            btn.innerText = 'Extracting Report...'; 
+            btn.disabled = true;
+
+            actions.style.visibility = 'hidden';
+
+            window.scrollTo(0, 0);
+
+            setTimeout(() => {
+                const w = element.scrollWidth;
+                const h = element.scrollHeight + 20; 
+
+                const opt = {
+                    margin: 0,
+                    filename: 'Chrome_Security_Audit.pdf',
+                    image: { type: 'jpeg', quality: 1.0 },
+                    html2canvas: { 
+                        scale: 2, 
+                        useCORS: true, 
+                        backgroundColor: '#0d1117',
+                        scrollY: 0,
+                        windowWidth: w
+                    },
+                    jsPDF: { 
+                        unit: 'px', 
+                        format: [w, h], 
+                        orientation: 'portrait',
+                        hotfixes: ["px_scaling"]
+                    }
+                };
+
+                html2pdf().set(opt).from(element).save().then(() => {
+                    btn.innerText = orig; 
+                    btn.disabled = false;
+                    actions.style.visibility = 'visible'; 
+                }).catch(e => {
+                    console.error(e); 
+                    btn.innerText = orig; 
+                    btn.disabled = false;
+                    actions.style.visibility = 'visible';
+                });
+            }, 100);
+        }
+    </script>
+</body>
+</html>
