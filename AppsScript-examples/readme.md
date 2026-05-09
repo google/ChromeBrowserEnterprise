@@ -29,7 +29,7 @@ CERA bridges the gap between the high-level visibility of Chrome Enterprise and 
 2. Check the box that says **"Show 'appsscript.json' manifest file in editor"**.  
 3. Return to the **Code Editor** (\<\> icon).  
 4. Select appsscript.json from the file list.  
-5. Replace its contents with the provided [appsscript.json]() code and hit **Save (Ctrl/Cmd \+ S)**.
+5. Replace its contents with the provided [appsscript.json](cera/appsscript.json) code and hit **Save (Ctrl/Cmd \+ S)**.
 
 ### **Step 3: Enable the Admin SDK API**
 
@@ -42,10 +42,10 @@ CERA bridges the gap between the high-level visibility of Chrome Enterprise and 
 
 ### **Step 4: Add Backend & Frontend Code**
 
-1. Select the default Code.gs file. Delete the placeholder code, paste the Code.gs code provided below, and **Save**.  
+1. Select the default Code.gs file. Delete the placeholder code, paste the [Code.gs](cera/Code.gs) code provided below, and **Save**.  
 2. Click the **Plus (+)** button next to "Files" and select **HTML**.  
 3. Name the file exactly Index (case-sensitive, without the .html extension).  
-4. Paste the [Index.html]() code provided below and **Save**.
+4. Paste the [Index.html](cera/Index.html) code provided below and **Save**.
 
 ### **Step 5: Deploy the Application**
 
