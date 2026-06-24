@@ -36,5 +36,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const auth = await getAuth();
-  return toNextJsHandler(auth).POST(request);
+  const res = await toNextJsHandler(auth).POST(request);
+
+  if (request.nextUrl.pathname.includes("/sign-in/social")) {
+    try {
+      const clone = res.clone();
+      const data = await clone.json().catch(() => null);
+      const targetUrl = data?.url || clone.headers.get("location");
+      if (targetUrl && typeof targetUrl === "string") {
+        const u = new URL(targetUrl);
+        const redirectUri = u.searchParams.get("redirect_uri");
+        console.log(`[auth] Initiating Google OAuth flow. Exact redirect_uri sent to Google: "${redirectUri}"`);
+      }
+    } catch (err) {
+      console.warn("[auth] Failed to log redirect_uri:", err);
+    }
+  }
+
+  return res;
 }
