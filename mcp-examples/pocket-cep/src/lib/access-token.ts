@@ -282,6 +282,13 @@ export async function getGoogleAccessToken(options?: {
       "accessToken" in tokenResult &&
       typeof tokenResult.accessToken === "string"
     ) {
+      if ("accessTokenExpiresAt" in tokenResult && tokenResult.accessTokenExpiresAt) {
+        const expiresAt = new Date(tokenResult.accessTokenExpiresAt as string | number | Date);
+        if (!isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+          console.warn(LOG_TAGS.AUTH, "Google OAuth access token expired at:", expiresAt);
+          return undefined;
+        }
+      }
       return tokenResult.accessToken;
     }
 
