@@ -40,6 +40,7 @@ export const CACHE_TAGS = {
   ACTIVITY: "activity",
   TOOLS: "tools",
   PROMPTS: "prompts",
+  INSIGHTS: "insights",
 } as const;
 
 /**
