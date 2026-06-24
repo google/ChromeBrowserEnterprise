@@ -31,6 +31,7 @@ const FALLBACK_ADMIN_SCOPES = [
   "https://www.googleapis.com/auth/chrome.management.reports.readonly",
   "https://www.googleapis.com/auth/chrome.management.profiles.readonly",
   "https://www.googleapis.com/auth/admin.reports.audit.readonly",
+  "https://www.googleapis.com/auth/admin.directory.user.readonly",
   "https://www.googleapis.com/auth/admin.directory.orgunit.readonly",
   "https://www.googleapis.com/auth/admin.directory.customer.readonly",
   "https://www.googleapis.com/auth/apps.licensing",
@@ -53,7 +54,15 @@ async function resolveAdminScopes(mcpUrl: string): Promise<string[]> {
       if (scopeParam) {
         const dynamicScopes = decodeURIComponent(scopeParam).split(/[\s+]/).filter(Boolean);
         if (dynamicScopes.length > 0) {
-          return Array.from(new Set(["openid", "email", "profile", ...dynamicScopes]));
+          return Array.from(
+            new Set([
+              "openid",
+              "https://www.googleapis.com/auth/userinfo.email",
+              "profile",
+              "https://www.googleapis.com/auth/admin.directory.user.readonly",
+              ...dynamicScopes,
+            ]),
+          );
         }
       }
     }
