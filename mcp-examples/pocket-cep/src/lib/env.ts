@@ -124,12 +124,34 @@ function inferLlmProvider(raw: Record<string, unknown>): "claude" | "gemini" {
   return "gemini";
 }
 
+function resolveAuthMode(
+  raw: Record<string, unknown>,
+  isBuildTime: boolean,
+): "service_account" | "user_oauth" {
+  if (isBuildTime) return "user_oauth";
+  const explicit = typeof raw.AUTH_MODE === "string" ? raw.AUTH_MODE : "";
+  const clientId = typeof raw.GOOGLE_CLIENT_ID === "string" ? raw.GOOGLE_CLIENT_ID.trim() : "";
+  const clientSecret =
+    typeof raw.GOOGLE_CLIENT_SECRET === "string" ? raw.GOOGLE_CLIENT_SECRET.trim() : "";
+
+  const hasValidOauth =
+    clientId !== "" &&
+    !clientId.includes("your_client_id_here") &&
+    clientSecret !== "" &&
+    !clientSecret.includes("your_client_secret_here");
+
+  if (explicit === "service_account") return "service_account";
+  if (hasValidOauth) return "user_oauth";
+  return "service_account";
+}
+
 export const serverSchema = z.preprocess((raw) => {
   if (!isRecord(raw)) return raw;
   const isBuildTime = process.env.NEXT_PHASE === "phase-production-build";
+  const authMode = resolveAuthMode(raw, isBuildTime);
   return {
     ...raw,
-    AUTH_MODE: raw.AUTH_MODE || "service_account",
+    AUTH_MODE: authMode,
     LLM_PROVIDER: inferLlmProvider(raw),
     BETTER_AUTH_SECRET:
       raw.BETTER_AUTH_SECRET || (isBuildTime ? "build-time-placeholder-secret-32ch" : undefined),
