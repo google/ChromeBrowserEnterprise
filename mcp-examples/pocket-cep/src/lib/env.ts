@@ -126,10 +126,18 @@ function inferLlmProvider(raw: Record<string, unknown>): "claude" | "gemini" {
 
 export const serverSchema = z.preprocess((raw) => {
   if (!isRecord(raw)) return raw;
+  const isBuildTime = process.env.NEXT_PHASE === "phase-production-build";
   return {
     ...raw,
     AUTH_MODE: raw.AUTH_MODE || "service_account",
     LLM_PROVIDER: inferLlmProvider(raw),
+    BETTER_AUTH_SECRET:
+      raw.BETTER_AUTH_SECRET || (isBuildTime ? "build-time-placeholder-secret-32ch" : undefined),
+    GOOGLE_CLIENT_ID:
+      raw.GOOGLE_CLIENT_ID ||
+      (isBuildTime ? "123456789-placeholder.apps.googleusercontent.com" : undefined),
+    GOOGLE_CLIENT_SECRET:
+      raw.GOOGLE_CLIENT_SECRET || (isBuildTime ? "build-time-placeholder-secret" : undefined),
   };
 }, authSchema.and(llmSchema));
 
