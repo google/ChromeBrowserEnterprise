@@ -172,6 +172,8 @@ function extractMessage(err: unknown): string {
   return "";
 }
 
+import { getEnv } from "./env";
+
 function buildPayload(
   code: AuthErrorCode,
   source: AuthErrorPayload["source"],
@@ -190,7 +192,6 @@ function buildPayload(
 
   const isSaMode = authMode === "service_account";
   const isOauthMode = authMode === "user_oauth";
-
   switch (code) {
     case "dwd_scope_mismatch": {
       const missingText = dwdDiagnostics?.missingScopes?.length

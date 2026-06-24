@@ -22,12 +22,19 @@
  * callback route here.
  */
 
+import { type NextRequest } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { toNextJsHandler } from "better-auth/next-js";
 
 /**
- * Delegates all /api/auth/* requests to BetterAuth. The `toNextJsHandler`
- * adapter converts BetterAuth's generic handler into Next.js App Router
- * GET/POST exports.
+ * Delegates all /api/auth/* requests to BetterAuth.
  */
-export const { GET, POST } = toNextJsHandler(getAuth());
+export async function GET(request: NextRequest) {
+  const auth = await getAuth();
+  return toNextJsHandler(auth).GET(request);
+}
+
+export async function POST(request: NextRequest) {
+  const auth = await getAuth();
+  return toNextJsHandler(auth).POST(request);
+}

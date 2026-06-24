@@ -264,7 +264,13 @@ export async function getGoogleAccessToken(options?: {
   }
 
   try {
-    const auth = getAuth();
+    const auth = await getAuth();
+    /**
+     * BetterAuth's getAccessToken reads the session cookie (via headers()),
+     * looks up the stored Google OAuth token, and returns it. The
+     * `providerId: "google"` tells BetterAuth which social provider's
+     * token we want.
+     */
     const tokenResult = await auth.api.getAccessToken({
       body: { providerId: "google" },
       headers: await headers(),

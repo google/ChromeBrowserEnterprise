@@ -132,17 +132,17 @@ async function chooseAuthMode(current: string | undefined) {
   return ask<"service_account" | "user_oauth">(
     p.select({
       message: "How does Pocket CEP talk to Google APIs?",
-      initialValue: current === "user_oauth" ? "user_oauth" : "service_account",
+      initialValue: current === "service_account" ? "service_account" : "user_oauth",
       options: [
         {
-          label: "Service account (recommended for local demos)",
-          value: "service_account",
-          hint: "Uses `gcloud auth application-default login`. No user sign-in; shared identity.",
-        },
-        {
-          label: "User OAuth (per-user attribution)",
+          label: "User OAuth (recommended — per-user attribution)",
           value: "user_oauth",
           hint: "Users sign in with Google. Their token is forwarded to the MCP server.",
+        },
+        {
+          label: "Service account (local ADC demo fallback)",
+          value: "service_account",
+          hint: "Uses machine ADC credentials. No user sign-in; shared identity.",
         },
       ],
     }),
