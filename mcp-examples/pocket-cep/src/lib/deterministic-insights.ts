@@ -518,7 +518,7 @@ function resolveBucketKey(
       return {
         key: "AUDITED_NAVIGATION",
         label: "Audited URL Navigation",
-        sampleTarget: "monitored URL",
+        sampleTarget: "",
         priority: 6,
       };
     }
@@ -526,7 +526,7 @@ function resolveBucketKey(
       return {
         key: "AUDITED_DLP",
         label: "Audited Workspace Traffic",
-        sampleTarget: "monitored destination",
+        sampleTarget: "",
         priority: 6,
       };
     }
@@ -534,7 +534,7 @@ function resolveBucketKey(
       return {
         key: "AUDITED_DOWNLOAD",
         label: "Monitored Downloads",
-        sampleTarget: "monitored file",
+        sampleTarget: "",
         priority: 6,
       };
     }
@@ -542,7 +542,7 @@ function resolveBucketKey(
       return {
         key: "AUDITED_EXTENSION",
         label: "Audited Extension Install",
-        sampleTarget: "monitored extension",
+        sampleTarget: "",
         priority: 6,
       };
     }
@@ -559,7 +559,7 @@ function resolveBucketKey(
     return {
       key: "MALWARE",
       label: "Malware & Unsafe Sites",
-      sampleTarget: "unsafe destination",
+      sampleTarget: "",
       priority: 1,
     };
   }
@@ -567,7 +567,7 @@ function resolveBucketKey(
     return {
       key: "PASSWORD",
       label: "Password Reuse",
-      sampleTarget: "untrusted site",
+      sampleTarget: "",
       priority: 1,
     };
   }
@@ -575,7 +575,7 @@ function resolveBucketKey(
     return {
       key: "DOWNLOAD",
       label: "Unsafe Downloads",
-      sampleTarget: "unsafe download",
+      sampleTarget: "",
       priority: 1,
     };
   }
@@ -583,7 +583,7 @@ function resolveBucketKey(
     return {
       key: "DLP",
       label: "DLP Rule Violations",
-      sampleTarget: "restricted transfer",
+      sampleTarget: "",
       priority: 2,
     };
   }
@@ -595,7 +595,7 @@ function resolveBucketKey(
     return {
       key: "NAVIGATION",
       label: "Restricted URL Navigation",
-      sampleTarget: "restricted URL",
+      sampleTarget: "",
       priority: 3,
     };
   }
@@ -603,7 +603,7 @@ function resolveBucketKey(
     return {
       key: "EXTENSION",
       label: "Browser Extensions",
-      sampleTarget: "blocked extension",
+      sampleTarget: "",
       priority: 3,
     };
   }
@@ -611,7 +611,7 @@ function resolveBucketKey(
     return {
       key: "LOGIN",
       label: "Suspicious Logins",
-      sampleTarget: "untrusted login",
+      sampleTarget: "",
       priority: 4,
     };
   }
@@ -619,7 +619,7 @@ function resolveBucketKey(
     return {
       key: "OVERRIDE",
       label: "Policy Overrides",
-      sampleTarget: "overridden destination",
+      sampleTarget: "",
       priority: 4,
     };
   }
@@ -628,7 +628,7 @@ function resolveBucketKey(
   return {
     key: dynamicLabel.toUpperCase(),
     label: dynamicLabel,
-    sampleTarget: "restricted address",
+    sampleTarget: "",
     priority: 5,
   };
 }
