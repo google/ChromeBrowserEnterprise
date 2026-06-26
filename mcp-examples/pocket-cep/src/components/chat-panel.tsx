@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
+import { RiskyActivityCard } from "./risky-activity-card";
 import {
   ArrowDown,
   ArrowUpRight,
@@ -171,6 +172,10 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
     [sendMessage],
   );
 
+  const handlePopulateInput = useCallback((text: string) => {
+    setInput(text);
+  }, []);
+
   const handleSubmit = () => {
     handleSend(input);
   };
@@ -233,6 +238,7 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
               prompts={suggestablePrompts}
               expandingName={promptExpanding}
               onRun={runPrompt}
+              onAskFollowUp={handlePopulateInput}
             />
           ) : (
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
@@ -294,11 +300,13 @@ function EmptyState({
   prompts,
   expandingName,
   onRun,
+  onAskFollowUp,
 }: {
   selectedUser: string;
   prompts: Prompt[];
   expandingName: string | null;
   onRun: (prompt: Prompt) => void;
+  onAskFollowUp: (text: string) => void;
 }) {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 pt-6">
@@ -319,6 +327,8 @@ function EmptyState({
             : "Ask anything about your Chrome Enterprise Premium environment. Pick a user from the left to scope questions to them."}
         </p>
       </div>
+
+      <RiskyActivityCard selectedUser={selectedUser} onAskFollowUp={onAskFollowUp} />
 
       {prompts.length > 0 && (
         <div className="flex flex-col gap-2.5">

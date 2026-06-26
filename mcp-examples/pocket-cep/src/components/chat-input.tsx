@@ -47,6 +47,15 @@ export function ChatInput({
     if (!isStreaming) textareaRef.current?.focus();
   }, [isStreaming]);
 
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el && value && document.activeElement !== el) {
+      el.focus();
+      el.selectionStart = el.value.length;
+      el.selectionEnd = el.value.length;
+    }
+  }, [value]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
