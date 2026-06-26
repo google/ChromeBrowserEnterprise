@@ -48,7 +48,7 @@ function sanitizeMessagesForSuggestions(messages: UIMessage[]): UIMessage[] {
         .map((p) => (p as { text?: string }).text ?? "")
         .join("\n")
         .trim();
-      if (!textContent && textParts.length === 0) {
+      if (!textContent) {
         return null;
       }
       return {

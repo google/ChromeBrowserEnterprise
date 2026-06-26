@@ -146,11 +146,12 @@ export async function getMcpToolsSummary(
     .map((t) => {
       const schema = t.inputSchema as { properties?: Record<string, { description?: string; type?: string }> } | undefined;
       const props = schema?.properties;
-      const paramsDesc = props
-        ? Object.entries(props)
-            .map(([k, v]) => `${k} (${v.type || "string"}): ${v.description || ""}`)
-            .join("; ")
-        : "no parameters";
+      const paramsDesc =
+        props && Object.keys(props).length > 0
+          ? Object.entries(props)
+              .map(([k, v]) => `${k} (${v.type || "string"}): ${v.description || ""}`)
+              .join("; ")
+          : "no parameters";
       return `- ${t.name}: ${t.description || "No description"} [Params: ${paramsDesc}]`;
     })
     .join("\n");
