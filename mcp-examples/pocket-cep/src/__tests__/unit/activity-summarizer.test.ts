@@ -80,7 +80,7 @@ describe("summarizeChromeActivity", () => {
     expect(summary).toContain("- **Unsafe Downloads");
     expect(summary).not.toContain("- **DLP Rule Violations");
     expect(summary).toContain(
-      "- **Additional Activity (2 incidents):** 2 other incidents occurred across other categories.",
+      "- **Additional Activity:** 2 other incidents occurred across other categories.",
     );
   });
 

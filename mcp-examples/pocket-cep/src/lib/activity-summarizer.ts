@@ -882,7 +882,7 @@ export function summarizeChromeActivity(eventsData: unknown, selectedUser?: stri
         ? "incident occurred across other categories"
         : "incidents occurred across other categories";
     bullets.push(
-      `- **Additional Activity (${formatCount(overflowTotal)}):** ${countLabel} other ${incidentNoun}.`,
+      `- **Additional Activity:** ${countLabel} other ${incidentNoun}.`,
     );
   }
 
