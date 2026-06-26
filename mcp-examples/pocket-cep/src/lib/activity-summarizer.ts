@@ -61,7 +61,7 @@ function getParameterValue(parameters: ChromeEventParameter[] | undefined, keyNa
  * Formats an incident tally into a bounded label string.
  */
 function formatCount(count: number) {
-  return count > 10 ? "10+ incidents" : `${count} ${count === 1 ? "incident" : "incidents"}`;
+  return count >= 1000 ? "1,000+ incidents" : `${count} ${count === 1 ? "incident" : "incidents"}`;
 }
 
 /**
@@ -83,13 +83,13 @@ function formatOutcome(blockedCount: number, warnedCount: number, totalCount: nu
   if (isAllBlocked) {
     if (totalCount === 2) return "Both attempts were blocked.";
     if (totalCount === 1) return "This attempt was blocked.";
-    return `All ${totalCount > 10 ? "10+" : totalCount} attempts were blocked.`;
+    return `All ${totalCount >= 1000 ? "1,000+" : totalCount} attempts were blocked.`;
   }
 
   if (isAllWarned) {
     if (totalCount === 2) return "Both attempts triggered warnings.";
     if (totalCount === 1) return "This attempt triggered a warning.";
-    return `All ${totalCount > 10 ? "10+" : totalCount} attempts triggered warnings.`;
+    return `All ${totalCount >= 1000 ? "1,000+" : totalCount} attempts triggered warnings.`;
   }
 
   if (blockedCount === 0 && warnedCount === 0) {
@@ -876,7 +876,7 @@ export function summarizeChromeActivity(eventsData: unknown, selectedUser?: stri
   const overflowBuckets = activeBuckets.slice(2);
   if (overflowBuckets.length > 0) {
     const overflowTotal = overflowBuckets.reduce((acc, curr) => acc + curr.totalCount, 0);
-    const countLabel = overflowTotal > 10 ? "10+" : `${overflowTotal}`;
+    const countLabel = overflowTotal >= 1000 ? "1,000+" : `${overflowTotal}`;
     const incidentNoun =
       overflowTotal === 1
         ? "incident occurred across other categories"

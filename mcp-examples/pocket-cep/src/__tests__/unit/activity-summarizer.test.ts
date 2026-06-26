@@ -54,17 +54,17 @@ describe("summarizeChromeActivity", () => {
     expect(summary).toContain('blocked by DLP policy "SSN Protection"');
   });
 
-  it("bounds counts greater than 10 with 10+", () => {
-    const items = Array.from({ length: 15 }, (_, i) => ({
+  it("bounds counts greater than or equal to 1000 with 1,000+", () => {
+    const items = Array.from({ length: 1005 }, (_, i) => ({
       eventName: "URL_FILTERING_POLICY_WARNING",
-      actor: { email: `user${i}@google.com` },
+      actor: { email: `user${i % 15}@google.com` },
       parameters: [{ name: "URL", value: "http://chrome://flags" }],
     }));
 
     const summary = summarizeChromeActivity({ items });
-    expect(summary).toContain("- **Restricted URL Navigation (10+ incidents):**");
+    expect(summary).toContain("- **Restricted URL Navigation (1,000+ incidents):**");
     expect(summary).toContain("15 users attempted to visit chrome://flags");
-    expect(summary).toContain("All 10+ attempts were blocked.");
+    expect(summary).toContain("All 1,000+ attempts were blocked.");
   });
 
   it("appends overflow summary in point 3 when more than 2 buckets are active", () => {
