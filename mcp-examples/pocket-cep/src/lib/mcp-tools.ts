@@ -132,3 +132,26 @@ function extractErrorText(content: unknown): string {
   }
   return "";
 }
+
+/**
+ * Returns a formatted summary of available MCP tools and their parameter fields
+ * for injection into reference prompts (e.g. follow-up suggestion brainstorming).
+ */
+export async function getMcpToolsSummary(
+  serverUrl: string,
+  accessToken?: string,
+): Promise<string> {
+  const mcpTools = await getCachedToolCatalog(serverUrl, accessToken);
+  return mcpTools
+    .map((t) => {
+      const schema = t.inputSchema as { properties?: Record<string, { description?: string; type?: string }> } | undefined;
+      const props = schema?.properties;
+      const paramsDesc = props
+        ? Object.entries(props)
+            .map(([k, v]) => `${k} (${v.type || "string"}): ${v.description || ""}`)
+            .join("; ")
+        : "no parameters";
+      return `- ${t.name}: ${t.description || "No description"} [Params: ${paramsDesc}]`;
+    })
+    .join("\n");
+}

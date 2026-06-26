@@ -8,6 +8,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart } from "ai";
+import type { UIMessage } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { ChatMessage } from "./chat-message";
@@ -99,7 +100,47 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
     [resolveBody, resolveHeaders],
   );
 
-  const { messages, sendMessage, status, stop, error } = useChat({ transport });
+  const [latestSuggestions, setLatestSuggestions] = useState<{ messageId: string; questions: string[] } | null>(null);
+  const messagesRef = useRef<UIMessage[]>([]);
+
+  const fetchSuggestions = useCallback(
+    async (currentMessages: UIMessage[], assistantMsgId: string) => {
+      try {
+        const body = resolveBody();
+        const headers = { ...resolveHeaders(), "Content-Type": "application/json" };
+        const res = await fetch("/api/chat/suggestions", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ ...body, messages: currentMessages }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.questions) && data.questions.length > 0) {
+            setLatestSuggestions({ messageId: assistantMsgId, questions: data.questions });
+          }
+        }
+      } catch {
+        /* silent catch for background suggestions */
+      }
+    },
+    [resolveBody, resolveHeaders],
+  );
+
+  const { messages, sendMessage, status, stop, error } = useChat({
+    transport,
+    onFinish: (event) => {
+      const msg = "message" in event ? event.message : event;
+      const msgs = "messages" in event && Array.isArray(event.messages) ? event.messages : undefined;
+      if (msg && msg.role === "assistant") {
+        const history = msgs ?? [...messagesRef.current, msg];
+        void fetchSuggestions(history, msg.id);
+      }
+    },
+  });
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const isStreaming = status === "streaming" || status === "submitted";
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -151,6 +192,7 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
   const handleSend = useCallback(
     (text: string) => {
       if (!text.trim()) return;
+      setLatestSuggestions(null);
       sendMessage({ text });
       setInput("");
       setIsPinnedToBottom(true);
@@ -185,6 +227,7 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
         });
         const body: { text?: string; error?: string } = await res.json();
         if (!res.ok || !body.text) throw new Error(body.error ?? "Prompt expansion failed");
+        setLatestSuggestions(null);
         await sendMessage({
           text: body.text,
           metadata: { promptName: prompt.name, promptTitle: titleForPrompt(prompt) },
@@ -228,9 +271,30 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
             />
           ) : (
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
-              {messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} />
-              ))}
+              {messages.map((msg, idx) => {
+                const isLastAssistant = idx === messages.length - 1 && msg.role === "assistant";
+                const showSuggestions = latestSuggestions && (latestSuggestions.messageId === msg.id || isLastAssistant) && !isStreaming;
+                return (
+                  <div key={msg.id} className="flex flex-col gap-2">
+                    <ChatMessage message={msg} />
+                    {showSuggestions && (
+                      <div className="fade-in flex flex-wrap items-center gap-2 pl-4">
+                        {latestSuggestions.questions.map((q, qIdx) => (
+                          <button
+                            key={qIdx}
+                            type="button"
+                            onClick={() => handleSend(q)}
+                            className="surface-raised state-layer border-on-surface/10 text-on-surface hover:border-primary/40 hover:text-primary flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
+                          >
+                            <span>💡</span>
+                            <span>{q}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {showTyping && <TypingIndicator />}
             </div>
           )}
