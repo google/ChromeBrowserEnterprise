@@ -74,13 +74,15 @@ export function RiskyActivityCard({ selectedUser, onAskFollowUp }: RiskyActivity
   return (
     <section
       aria-label="Recent audited activity"
-      className="surface-raised border-on-surface/10 flex flex-col gap-3 rounded-[var(--radius-md)] border p-4"
+      className="surface-raised border-on-surface/10 flex flex-col gap-2.5 rounded-[var(--radius-md)] border p-3.5"
     >
       <header className="flex items-center gap-2">
         <span className="bg-warning/15 text-warning grid size-7 shrink-0 place-items-center rounded-[var(--radius-xs)]">
           <ShieldAlert className="size-4" aria-hidden="true" />
         </span>
-        <h3 className="text-on-surface text-sm font-medium">Recent audited activity</h3>
+        <h3 className="text-on-surface text-sm font-medium">
+          {selectedUser ? `Recent audited activity (${selectedUser})` : "Recent audited activity"}
+        </h3>
       </header>
 
       <div className="flex flex-col gap-1.5 py-1">

@@ -54,20 +54,6 @@ function titleForPrompt(p: Prompt): string {
   return bare.charAt(0).toUpperCase() + bare.slice(1);
 }
 
-function PromptBadge({ name, prominent = false }: { name: string; prominent?: boolean }) {
-  return (
-    <span
-      className={
-        prominent
-          ? "bg-primary-light text-primary ring-primary/20 inline-flex items-center rounded-[var(--radius-xs)] px-2 py-0.5 font-mono text-[0.75rem] font-medium ring-1"
-          : "bg-surface-dim text-on-surface-variant ring-on-surface/10 inline-flex items-center rounded-[var(--radius-xs)] px-1.5 py-0.5 font-mono text-[0.6875rem] ring-1"
-      }
-    >
-      {name}
-    </span>
-  );
-}
-
 export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [promptExpanding, setPromptExpanding] = useState<string | null>(null);
@@ -309,29 +295,11 @@ function EmptyState({
   onAskFollowUp: (text: string) => void;
 }) {
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 pt-6">
-      <div className="fade-in flex flex-col gap-1.5">
-        <h2 className="text-on-surface text-2xl font-medium tracking-tight text-balance">
-          {selectedUser ? (
-            <>
-              Investigate{" "}
-              <span className="text-primary font-mono text-xl tracking-tight">{selectedUser}</span>
-            </>
-          ) : (
-            "What would you like to check?"
-          )}
-        </h2>
-        <p className="text-on-surface-variant text-sm text-pretty">
-          {selectedUser
-            ? "Ask anything — the agent can pull audit events, license state, DLP policy, and diagnostics for this user."
-            : "Ask anything about your Chrome Enterprise Premium environment. Pick a user from the left to scope questions to them."}
-        </p>
-      </div>
-
+    <div className="mx-auto flex max-w-2xl flex-col gap-4 pt-2">
       <RiskyActivityCard selectedUser={selectedUser} onAskFollowUp={onAskFollowUp} />
 
       {prompts.length > 0 && (
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-2">
           <div className="flex items-baseline justify-between">
             <h3 className="section-label">Server prompts</h3>
             <span className="text-on-surface-muted font-mono text-[0.6875rem]">
@@ -343,32 +311,28 @@ function EmptyState({
               const Icon = iconForPrompt(prompt.name);
               const busy = expandingName === prompt.name;
               return (
-                <li
-                  key={prompt.name}
-                  className={i === 2 && prompts.length === 3 ? "sm:col-span-2" : undefined}
-                >
+                <li key={prompt.name}>
                   <button
                     type="button"
                     onClick={() => onRun(prompt)}
                     disabled={busy || expandingName !== null}
-                    className={`surface-raised group slide-up stagger-${i + 1} flex h-full w-full cursor-pointer flex-col gap-2 rounded-[var(--radius-sm)] p-3.5 text-left disabled:cursor-wait disabled:opacity-60`}
+                    className={`surface-raised group slide-up stagger-${i + 1} flex w-full flex-col gap-1 rounded-[var(--radius-sm)] p-2.5 text-left cursor-pointer disabled:cursor-wait disabled:opacity-60`}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <span className="bg-primary-light text-primary grid size-7 shrink-0 place-items-center rounded-[var(--radius-xs)]">
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="bg-primary-light text-primary grid size-6 shrink-0 place-items-center rounded-[var(--radius-xs)]">
                         <Icon className="size-3.5" />
                       </span>
-                      <span className="text-on-surface flex-1 text-sm font-medium">
+                      <span className="text-on-surface flex-1 text-xs font-medium truncate">
                         {titleForPrompt(prompt)}
                       </span>
-                      <PromptBadge name={prompt.name} />
                       {busy ? (
-                        <Loader2 className="text-on-surface-muted spin-slow size-3.5" />
+                        <Loader2 className="text-on-surface-muted spin-slow size-3.5 shrink-0" />
                       ) : (
-                        <ArrowUpRight className="text-on-surface-muted size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                        <ArrowUpRight className="text-on-surface-muted size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                       )}
                     </div>
                     {prompt.description && (
-                      <p className="text-on-surface-variant pl-[calc(--spacing(7)+--spacing(2.5))] text-[0.8125rem] leading-5">
+                      <p className="text-on-surface-variant pl-8 text-[0.75rem] leading-4 line-clamp-2">
                         {prompt.description}
                       </p>
                     )}
