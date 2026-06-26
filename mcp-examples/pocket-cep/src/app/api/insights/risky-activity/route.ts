@@ -78,9 +78,12 @@ export async function POST(request: Request) {
     if (isAuthError(error)) {
       return NextResponse.json({ error: error.toPayload() }, { status: 401 });
     }
-    return NextResponse.json({
-      summary:
-        "Risky activity summarization is unavailable due to insufficient account permissions or missing detectors.",
-    });
+    return NextResponse.json(
+      {
+        error:
+          "Risky activity summarization is unavailable due to insufficient account permissions or missing detectors.",
+      },
+      { status: 503 },
+    );
   }
 }

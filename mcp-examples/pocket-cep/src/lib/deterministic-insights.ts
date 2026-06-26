@@ -518,7 +518,7 @@ function resolveBucketKey(
       return {
         key: "AUDITED_NAVIGATION",
         label: "Audited URL Navigation",
-        sampleTarget: "accounts.google.com",
+        sampleTarget: "monitored URL",
         priority: 6,
       };
     }
@@ -526,7 +526,7 @@ function resolveBucketKey(
       return {
         key: "AUDITED_DLP",
         label: "Audited Workspace Traffic",
-        sampleTarget: "Google Workspace service",
+        sampleTarget: "monitored destination",
         priority: 6,
       };
     }
@@ -542,7 +542,7 @@ function resolveBucketKey(
       return {
         key: "AUDITED_EXTENSION",
         label: "Audited Extension Install",
-        sampleTarget: '"PDF Helper"',
+        sampleTarget: "monitored extension",
         priority: 6,
       };
     }
@@ -559,7 +559,7 @@ function resolveBucketKey(
     return {
       key: "MALWARE",
       label: "Malware & Unsafe Sites",
-      sampleTarget: "gleapis.com",
+      sampleTarget: "unsafe destination",
       priority: 1,
     };
   }
@@ -575,7 +575,7 @@ function resolveBucketKey(
     return {
       key: "DOWNLOAD",
       label: "Unsafe Downloads",
-      sampleTarget: "installer.exe",
+      sampleTarget: "unsafe download",
       priority: 1,
     };
   }
@@ -583,7 +583,7 @@ function resolveBucketKey(
     return {
       key: "DLP",
       label: "DLP Rule Violations",
-      sampleTarget: "Slack",
+      sampleTarget: "restricted transfer",
       priority: 2,
     };
   }
@@ -595,7 +595,7 @@ function resolveBucketKey(
     return {
       key: "NAVIGATION",
       label: "Restricted URL Navigation",
-      sampleTarget: "chrome://flags",
+      sampleTarget: "restricted URL",
       priority: 3,
     };
   }
@@ -603,7 +603,7 @@ function resolveBucketKey(
     return {
       key: "EXTENSION",
       label: "Browser Extensions",
-      sampleTarget: '"PDF Helper"',
+      sampleTarget: "blocked extension",
       priority: 3,
     };
   }
@@ -611,7 +611,7 @@ function resolveBucketKey(
     return {
       key: "LOGIN",
       label: "Suspicious Logins",
-      sampleTarget: "unfamiliar IP address",
+      sampleTarget: "untrusted login",
       priority: 4,
     };
   }
@@ -619,7 +619,7 @@ function resolveBucketKey(
     return {
       key: "OVERRIDE",
       label: "Policy Overrides",
-      sampleTarget: "restricted site",
+      sampleTarget: "overridden destination",
       priority: 4,
     };
   }
