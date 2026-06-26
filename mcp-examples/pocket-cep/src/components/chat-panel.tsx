@@ -271,9 +271,8 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
             />
           ) : (
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
-              {messages.map((msg, idx) => {
-                const isLastAssistant = idx === messages.length - 1 && msg.role === "assistant";
-                const showSuggestions = latestSuggestions && (latestSuggestions.messageId === msg.id || isLastAssistant) && !isStreaming;
+              {messages.map((msg) => {
+                const showSuggestions = latestSuggestions && latestSuggestions.messageId === msg.id && !isStreaming;
                 return (
                   <div key={msg.id} className="flex flex-col gap-2">
                     <ChatMessage message={msg} />
