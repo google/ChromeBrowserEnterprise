@@ -465,7 +465,8 @@ const CATEGORY_WEIGHTS: Record<string, number> = {
  */
 const ACTION_MULTIPLIERS = {
   BLOCKED: 1.0,
-  UNBLOCKED: 2.0,
+  WARNED: 2.0,
+  AUDITED: 0.5,
 } as const;
 
 /**
@@ -473,10 +474,10 @@ const ACTION_MULTIPLIERS = {
  * Risk factor sums weighted blocked vs unblocked volume multiplied by threat category severity.
  */
 function computeBucketRiskScore(bucket: CategoryBucket): number {
-  const unblockedCount = Math.max(0, bucket.totalCount - bucket.blockedCount);
   const actionVolume =
     bucket.blockedCount * ACTION_MULTIPLIERS.BLOCKED +
-    unblockedCount * ACTION_MULTIPLIERS.UNBLOCKED;
+    bucket.warnedCount * ACTION_MULTIPLIERS.WARNED +
+    bucket.detectedOnlyCount * ACTION_MULTIPLIERS.AUDITED;
   const categoryWeight =
     CATEGORY_WEIGHTS[bucket.key] ?? (bucket.key.startsWith("AUDITED_") ? 0.1 : 1);
   return actionVolume * categoryWeight;
@@ -827,8 +828,8 @@ export function summarizeChromeActivity(eventsData: unknown, selectedUser?: stri
 
     if (pairScore > current.sampleScore) {
       current.sampleScore = pairScore;
-      if (concreteTarget) current.sampleTarget = concreteTarget;
-      if (ruleVal) current.sampleRule = ruleVal;
+      current.sampleTarget = concreteTarget ?? current.sampleTarget;
+      current.sampleRule = ruleVal ?? current.sampleRule;
     }
   }
 
