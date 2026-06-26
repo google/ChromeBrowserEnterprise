@@ -1,5 +1,5 @@
 /**
- * @file Deterministic aggregation and formatting utilities for Chrome audit activity cards.
+ * @file Aggregation and formatting utilities for Chrome audit activity cards.
  */
 
 /**

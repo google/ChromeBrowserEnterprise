@@ -1,9 +1,9 @@
 /**
- * @file Unit tests for deterministic Chrome audit log summarization.
+ * @file Unit tests for Chrome audit log activity summarization.
  */
 
 import { describe, expect, it } from "vitest";
-import { summarizeChromeActivity } from "@/lib/deterministic-insights";
+import { summarizeChromeActivity } from "@/lib/activity-summarizer";
 
 describe("summarizeChromeActivity", () => {
   it("returns reassuring message when no events are provided", () => {

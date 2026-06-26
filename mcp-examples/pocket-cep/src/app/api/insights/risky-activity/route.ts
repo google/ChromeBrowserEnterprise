@@ -16,7 +16,7 @@ import { callMcpTool } from "@/lib/mcp-client";
 import { requireSession } from "@/lib/session";
 import { isAuthError, toAuthError } from "@/lib/auth-errors";
 import { CACHE_TAGS, getOrFetch } from "@/lib/server-cache";
-import { summarizeChromeActivity } from "@/lib/deterministic-insights";
+import { summarizeChromeActivity } from "@/lib/activity-summarizer";
 
 const INSIGHT_TTL_MS = 5 * 60 * 1000;
 
