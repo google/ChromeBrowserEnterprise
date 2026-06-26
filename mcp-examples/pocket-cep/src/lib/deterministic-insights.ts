@@ -547,7 +547,7 @@ function resolveBucketKey(
     }
     const dynamicLabel = `Audited ${formatEventNameAsLabel(evtName)}`;
     return {
-      key: `AUDITED_${dynamicLabel.toUpperCase()}`,
+      key: `AUDITED_${formatEventNameAsLabel(evtName).toUpperCase()}`,
       label: dynamicLabel,
       sampleTarget: "monitored target",
       priority: 6,
@@ -832,16 +832,6 @@ export function summarizeChromeActivity(eventsData: unknown, selectedUser?: stri
     }
   }
 
-  for (const bucket of buckets.values()) {
-    if (bucket.blockedCount + bucket.warnedCount > 0) {
-      bucket.detectedOnlyCount = Math.max(
-        0,
-        bucket.detectedOnlyCount - (bucket.blockedCount + bucket.warnedCount),
-      );
-      bucket.totalCount = bucket.blockedCount + bucket.warnedCount + bucket.detectedOnlyCount;
-    }
-  }
-
   const activeBuckets = Array.from(buckets.values()).sort((a, b) => {
     const aEnforced = a.blockedCount + a.warnedCount > 0 ? 1 : 0;
     const bEnforced = b.blockedCount + b.warnedCount > 0 ? 1 : 0;
@@ -885,12 +875,13 @@ export function summarizeChromeActivity(eventsData: unknown, selectedUser?: stri
   const overflowBuckets = activeBuckets.slice(2);
   if (overflowBuckets.length > 0) {
     const overflowTotal = overflowBuckets.reduce((acc, curr) => acc + curr.totalCount, 0);
+    const countLabel = overflowTotal > 10 ? "10+" : `${overflowTotal}`;
     const incidentNoun =
       overflowTotal === 1
         ? "incident occurred across other categories"
         : "incidents occurred across other categories";
     bullets.push(
-      `- **Additional Activity (${formatCount(overflowTotal)}):** ${overflowTotal} other ${incidentNoun}.`,
+      `- **Additional Activity (${formatCount(overflowTotal)}):** ${countLabel} other ${incidentNoun}.`,
     );
   }
 
