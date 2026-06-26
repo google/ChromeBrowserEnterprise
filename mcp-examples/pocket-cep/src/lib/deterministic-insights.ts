@@ -360,7 +360,7 @@ function extractEventsArray(eventsData: unknown): ChromeAuditEvent[] {
         const parsed = JSON.parse((first as Record<string, string>).text);
         return extractEventsArray(parsed);
       } catch {
-        return [];
+        /* ignore JSON parse failure and fall through to array processing */
       }
     }
 
