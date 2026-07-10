@@ -4,7 +4,13 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockRequireSession, mockGenerateObject, mockConvertToModelMessages, mockBuildModel, mockResolveModelOption } = vi.hoisted(() => ({
+const {
+  mockRequireSession,
+  mockGenerateObject,
+  mockConvertToModelMessages,
+  mockBuildModel,
+  mockResolveModelOption,
+} = vi.hoisted(() => ({
   mockRequireSession: vi.fn(),
   mockGenerateObject: vi.fn(),
   mockConvertToModelMessages: vi.fn(),

@@ -69,7 +69,14 @@ type SessionChipProps = {
 
 function SessionChip({ isAnonymous, email, onSignOut }: SessionChipProps) {
   if (isAnonymous) {
-    return null;
+    return (
+      <Link
+        href="/sa-setup"
+        className="text-on-surface-muted hover:text-on-surface hover:bg-surface-dim inline-flex h-8 items-center rounded-[var(--radius-sm)] px-2.5 text-[0.8125rem] font-medium transition-colors"
+      >
+        SA Settings
+      </Link>
+    );
   }
 
   return (

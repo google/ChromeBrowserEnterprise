@@ -881,9 +881,7 @@ export function summarizeChromeActivity(eventsData: unknown, selectedUser?: stri
       overflowTotal === 1
         ? "incident occurred across other categories"
         : "incidents occurred across other categories";
-    bullets.push(
-      `- **Additional Activity:** ${countLabel} other ${incidentNoun}.`,
-    );
+    bullets.push(`- **Additional Activity:** ${countLabel} other ${incidentNoun}.`);
   }
 
   return bullets.join("\n");

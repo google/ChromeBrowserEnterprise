@@ -53,7 +53,7 @@ function sanitizeMessagesForSuggestions(messages: UIMessage[]): UIMessage[] {
       }
       return {
         ...msg,
-        content: textContent || msg.content || "",
+        content: textContent || (msg as { content?: string }).content || "",
         parts: textParts.length > 0 ? textParts : undefined,
       };
     })
@@ -110,7 +110,9 @@ export async function POST(request: Request) {
       schema: suggestionsSchema,
       system:
         `You are assisting a Chrome Enterprise Premium administrator${selectedUser ? ` investigating user "${selectedUser}"` : ""}.\n` +
-        (toolsSummary ? `The main assistant has access to these exact live tools:\n${toolsSummary}\n\n` : "") +
+        (toolsSummary
+          ? `The main assistant has access to these exact live tools:\n${toolsSummary}\n\n`
+          : "") +
         "Based on the preceding dialogue, formulate exactly 3 brief, actionable follow-up requests or questions (under 8 words each) that the administrator might submit next. Try to make suggestions natural extensions of the main text that maintain conversational flow and require little thought to understand (i.e. do not propose something subtly different than what the assistant just offered or discussed).\n\n" +
         "Alignment Guidance:\n" +
         "If the assistant's latest response offered specific next steps or options, mirror the exact vocabulary and terminology used by the assistant so the correspondence is instantly clear. If the assistant explicitly enumerated a numbered list (e.g. '1. ... 2. ... 3. ...'), prefix your suggested prompts with matching numbers. If the assistant did not use numbered points in its text, do not prefix your suggestions with numbers.",
