@@ -8,10 +8,12 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart } from "ai";
+import type { UIMessage } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
+import { RiskyActivityCard } from "./risky-activity-card";
 import {
   ArrowDown,
   ArrowUpRight,
@@ -51,20 +53,6 @@ function titleForPrompt(p: Prompt): string {
   if (p.title) return p.title;
   const bare = p.name.includes(":") ? p.name.split(":").slice(1).join(":") : p.name;
   return bare.charAt(0).toUpperCase() + bare.slice(1);
-}
-
-function PromptBadge({ name, prominent = false }: { name: string; prominent?: boolean }) {
-  return (
-    <span
-      className={
-        prominent
-          ? "bg-primary-light text-primary ring-primary/20 inline-flex items-center rounded-[var(--radius-xs)] px-2 py-0.5 font-mono text-[0.75rem] font-medium ring-1"
-          : "bg-surface-dim text-on-surface-variant ring-on-surface/10 inline-flex items-center rounded-[var(--radius-xs)] px-1.5 py-0.5 font-mono text-[0.6875rem] ring-1"
-      }
-    >
-      {name}
-    </span>
-  );
 }
 
 export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser }: ChatPanelProps) {
@@ -112,7 +100,47 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
     [resolveBody, resolveHeaders],
   );
 
-  const { messages, sendMessage, status, stop, error } = useChat({ transport });
+  const [latestSuggestions, setLatestSuggestions] = useState<{ messageId: string; questions: string[] } | null>(null);
+  const messagesRef = useRef<UIMessage[]>([]);
+
+  const fetchSuggestions = useCallback(
+    async (currentMessages: UIMessage[], assistantMsgId: string) => {
+      try {
+        const body = resolveBody();
+        const headers = { ...resolveHeaders(), "Content-Type": "application/json" };
+        const res = await fetch("/api/chat/suggestions", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ ...body, messages: currentMessages }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.questions) && data.questions.length > 0) {
+            setLatestSuggestions({ messageId: assistantMsgId, questions: data.questions });
+          }
+        }
+      } catch {
+        /* silent catch for background suggestions */
+      }
+    },
+    [resolveBody, resolveHeaders],
+  );
+
+  const { messages, sendMessage, status, stop, error } = useChat({
+    transport,
+    onFinish: (event) => {
+      const msg = "message" in event ? event.message : event;
+      const msgs = "messages" in event && Array.isArray(event.messages) ? event.messages : undefined;
+      if (msg && msg.role === "assistant") {
+        const history = msgs ?? [...messagesRef.current, msg];
+        void fetchSuggestions(history, msg.id);
+      }
+    },
+  });
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const isStreaming = status === "streaming" || status === "submitted";
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -164,12 +192,17 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
   const handleSend = useCallback(
     (text: string) => {
       if (!text.trim()) return;
+      setLatestSuggestions(null);
       sendMessage({ text });
       setInput("");
       setIsPinnedToBottom(true);
     },
     [sendMessage],
   );
+
+  const handlePopulateInput = useCallback((text: string) => {
+    setInput(text);
+  }, []);
 
   const handleSubmit = () => {
     handleSend(input);
@@ -194,6 +227,7 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
         });
         const body: { text?: string; error?: string } = await res.json();
         if (!res.ok || !body.text) throw new Error(body.error ?? "Prompt expansion failed");
+        setLatestSuggestions(null);
         await sendMessage({
           text: body.text,
           metadata: { promptName: prompt.name, promptTitle: titleForPrompt(prompt) },
@@ -233,12 +267,33 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
               prompts={suggestablePrompts}
               expandingName={promptExpanding}
               onRun={runPrompt}
+              onAskFollowUp={handlePopulateInput}
             />
           ) : (
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
-              {messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} />
-              ))}
+              {messages.map((msg) => {
+                const showSuggestions = latestSuggestions && latestSuggestions.messageId === msg.id && !isStreaming;
+                return (
+                  <div key={msg.id} className="flex flex-col gap-2">
+                    <ChatMessage message={msg} />
+                    {showSuggestions && (
+                      <div className="fade-in flex flex-wrap items-center gap-2 pl-4">
+                        {latestSuggestions.questions.map((q, qIdx) => (
+                          <button
+                            key={qIdx}
+                            type="button"
+                            onClick={() => handleSend(q)}
+                            className="surface-raised state-layer border-on-surface/10 text-on-surface hover:border-primary/40 hover:text-primary flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
+                          >
+                            <span>💡</span>
+                            <span>{q}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {showTyping && <TypingIndicator />}
             </div>
           )}
@@ -294,34 +349,20 @@ function EmptyState({
   prompts,
   expandingName,
   onRun,
+  onAskFollowUp,
 }: {
   selectedUser: string;
   prompts: Prompt[];
   expandingName: string | null;
   onRun: (prompt: Prompt) => void;
+  onAskFollowUp: (text: string) => void;
 }) {
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 pt-6">
-      <div className="fade-in flex flex-col gap-1.5">
-        <h2 className="text-on-surface text-2xl font-medium tracking-tight text-balance">
-          {selectedUser ? (
-            <>
-              Investigate{" "}
-              <span className="text-primary font-mono text-xl tracking-tight">{selectedUser}</span>
-            </>
-          ) : (
-            "What would you like to check?"
-          )}
-        </h2>
-        <p className="text-on-surface-variant text-sm text-pretty">
-          {selectedUser
-            ? "Ask anything — the agent can pull audit events, license state, DLP policy, and diagnostics for this user."
-            : "Ask anything about your Chrome Enterprise Premium environment. Pick a user from the left to scope questions to them."}
-        </p>
-      </div>
+    <div className="mx-auto flex max-w-2xl flex-col gap-4 pt-2">
+      <RiskyActivityCard selectedUser={selectedUser} onAskFollowUp={onAskFollowUp} />
 
       {prompts.length > 0 && (
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-2">
           <div className="flex items-baseline justify-between">
             <h3 className="section-label">Server prompts</h3>
             <span className="text-on-surface-muted font-mono text-[0.6875rem]">
@@ -333,32 +374,28 @@ function EmptyState({
               const Icon = iconForPrompt(prompt.name);
               const busy = expandingName === prompt.name;
               return (
-                <li
-                  key={prompt.name}
-                  className={i === 2 && prompts.length === 3 ? "sm:col-span-2" : undefined}
-                >
+                <li key={prompt.name}>
                   <button
                     type="button"
                     onClick={() => onRun(prompt)}
                     disabled={busy || expandingName !== null}
-                    className={`surface-raised group slide-up stagger-${i + 1} flex h-full w-full cursor-pointer flex-col gap-2 rounded-[var(--radius-sm)] p-3.5 text-left disabled:cursor-wait disabled:opacity-60`}
+                    className={`surface-raised group slide-up stagger-${i + 1} flex w-full flex-col gap-1 rounded-[var(--radius-sm)] p-2.5 text-left cursor-pointer disabled:cursor-wait disabled:opacity-60`}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <span className="bg-primary-light text-primary grid size-7 shrink-0 place-items-center rounded-[var(--radius-xs)]">
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="bg-primary-light text-primary grid size-6 shrink-0 place-items-center rounded-[var(--radius-xs)]">
                         <Icon className="size-3.5" />
                       </span>
-                      <span className="text-on-surface flex-1 text-sm font-medium">
+                      <span className="text-on-surface flex-1 text-xs font-medium truncate">
                         {titleForPrompt(prompt)}
                       </span>
-                      <PromptBadge name={prompt.name} />
                       {busy ? (
-                        <Loader2 className="text-on-surface-muted spin-slow size-3.5" />
+                        <Loader2 className="text-on-surface-muted spin-slow size-3.5 shrink-0" />
                       ) : (
-                        <ArrowUpRight className="text-on-surface-muted size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                        <ArrowUpRight className="text-on-surface-muted size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                       )}
                     </div>
                     {prompt.description && (
-                      <p className="text-on-surface-variant pl-[calc(--spacing(7)+--spacing(2.5))] text-[0.8125rem] leading-5">
+                      <p className="text-on-surface-variant pl-8 text-[0.75rem] leading-4 line-clamp-2">
                         {prompt.description}
                       </p>
                     )}

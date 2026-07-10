@@ -47,6 +47,7 @@ export function ChatInput({
     if (!isStreaming) textareaRef.current?.focus();
   }, [isStreaming]);
 
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();

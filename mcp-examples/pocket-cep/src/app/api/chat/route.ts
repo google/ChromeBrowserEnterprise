@@ -18,41 +18,14 @@
 import { NextResponse } from "next/server";
 import { streamText, convertToModelMessages, stepCountIs } from "ai";
 import type { LanguageModel, UIMessage } from "ai";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
 import { getGoogleAccessToken } from "@/lib/access-token";
-import { getEnv, type ServerEnv } from "@/lib/env";
+import { getEnv } from "@/lib/env";
 import { getMcpToolsForAiSdk } from "@/lib/mcp-tools";
 import { requireSession } from "@/lib/session";
 import { buildSystemPrompt, LOG_TAGS, MAX_AGENT_ITERATIONS } from "@/lib/constants";
-import {
-  getDefaultModelFor,
-  getModelById,
-  type ModelEnvKey,
-  type ModelOption,
-  type ModelProvider,
-} from "@/lib/models";
 import { BYOK_HEADER, parseByokHeader } from "@/lib/model-preferences";
 import { respondWithApiError, unauthenticatedResponse } from "@/lib/api-response";
-
-/**
- * Per-provider SDK bindings. We always go through the `create` factory
- * with an explicit `apiKey` rather than the env-backed default — the
- * Vercel AI SDK's @ai-sdk/google reads `GOOGLE_GENERATIVE_AI_API_KEY`,
- * which doesn't match our `GOOGLE_AI_API_KEY` env name.
- */
-const PROVIDER_SDK: Record<
-  ModelProvider,
-  {
-    create: (opts: { apiKey: string }) => (id: string) => LanguageModel;
-    envKey: ModelEnvKey;
-  }
-> = {
-  anthropic: { create: createAnthropic, envKey: "ANTHROPIC_API_KEY" },
-  openai: { create: createOpenAI, envKey: "OPENAI_API_KEY" },
-  google: { create: createGoogleGenerativeAI, envKey: "GOOGLE_AI_API_KEY" },
-};
+import { buildModel, resolveModelOption } from "@/lib/build-model";
 
 export async function POST(request: Request) {
   if (!(await requireSession())) {
@@ -103,42 +76,4 @@ export async function POST(request: Request) {
   });
 
   return result.toUIMessageStreamResponse();
-}
-
-/**
- * Looks up a model option by its client-supplied ID. Falls back to the
- * server-configured default when the ID is missing or unrecognised (a
- * stale localStorage value from a previous build, say).
- */
-function resolveModelOption(
-  modelId: string | undefined,
-  fallbackProvider: "claude" | "gemini",
-): ModelOption {
-  if (modelId) {
-    const match = getModelById(modelId);
-    if (match) return match;
-  }
-  return getDefaultModelFor(fallbackProvider);
-}
-
-/**
- * Instantiates the Vercel AI SDK model for the selected provider,
- * preferring a caller-supplied BYOK key, then the server env key.
- * Throws if neither is available so the client can show a helpful
- * "missing key" message instead of the chat silently looping.
- */
-function buildModel(
-  option: ModelOption,
-  byokKey: string | undefined,
-  config: ServerEnv,
-): LanguageModel {
-  const sdk = PROVIDER_SDK[option.provider];
-  const envKey = sdk.envKey;
-  const apiKey = byokKey || (config[envKey] as string | undefined);
-  if (!apiKey) {
-    throw new Error(
-      `${option.label} requires ${envKey}. Set it in .env.local or paste a key via the model picker.`,
-    );
-  }
-  return sdk.create({ apiKey })(option.id);
 }

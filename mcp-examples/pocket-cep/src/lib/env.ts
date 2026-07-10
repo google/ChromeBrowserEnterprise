@@ -106,8 +106,10 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 function inferLlmProvider(raw: Record<string, unknown>): "claude" | "gemini" {
   const explicit = typeof raw.LLM_PROVIDER === "string" ? raw.LLM_PROVIDER : "";
   if (explicit) return explicit as "claude" | "gemini";
-  const hasGemini = typeof raw.GOOGLE_AI_API_KEY === "string" && raw.GOOGLE_AI_API_KEY.trim() !== "";
-  const hasClaude = typeof raw.ANTHROPIC_API_KEY === "string" && raw.ANTHROPIC_API_KEY.trim() !== "";
+  const hasGemini =
+    typeof raw.GOOGLE_AI_API_KEY === "string" && raw.GOOGLE_AI_API_KEY.trim() !== "";
+  const hasClaude =
+    typeof raw.ANTHROPIC_API_KEY === "string" && raw.ANTHROPIC_API_KEY.trim() !== "";
   if (hasGemini && !hasClaude) return "gemini";
   return "claude";
 }
