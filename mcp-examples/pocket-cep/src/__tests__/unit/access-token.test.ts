@@ -9,14 +9,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the dependencies before importing the module under test.
-const { mockGetAccessToken, mockLoadSaKey, mockAuthorize, mockJwtConstructor } = vi.hoisted(
-  () => ({
-    mockGetAccessToken: vi.fn(),
-    mockLoadSaKey: vi.fn(),
-    mockAuthorize: vi.fn(),
-    mockJwtConstructor: vi.fn(),
-  }),
-);
+const { mockGetAccessToken, mockLoadSaKey, mockAuthorize, mockJwtConstructor } = vi.hoisted(() => ({
+  mockGetAccessToken: vi.fn(),
+  mockLoadSaKey: vi.fn(),
+  mockAuthorize: vi.fn(),
+  mockJwtConstructor: vi.fn(),
+}));
 
 vi.mock("@/lib/auth", () => ({
   getAuth: () => ({

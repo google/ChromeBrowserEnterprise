@@ -8,13 +8,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { mockGetEnv, mockGetServiceAccountConfig, mockMintToken, mockClearTokenCache } =
-  vi.hoisted(() => ({
+const { mockGetEnv, mockGetServiceAccountConfig, mockMintToken, mockClearTokenCache } = vi.hoisted(
+  () => ({
     mockGetEnv: vi.fn(),
     mockGetServiceAccountConfig: vi.fn(),
     mockMintToken: vi.fn(),
     mockClearTokenCache: vi.fn(),
-  }));
+  }),
+);
 
 vi.mock("@/lib/env", () => ({
   getEnv: mockGetEnv,
@@ -105,7 +106,9 @@ describe("/api/auth/sa-config", () => {
       const res = await POST(req);
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain("Failed to verify Domain-Wide Delegation token for admin@example.com");
+      expect(body.error).toContain(
+        "Failed to verify Domain-Wide Delegation token for admin@example.com",
+      );
       expect(mockClearTokenCache).toHaveBeenCalled();
     });
 

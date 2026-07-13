@@ -29,6 +29,8 @@ const SA_SCOPES = [
   "https://www.googleapis.com/auth/chrome.management.profiles.readonly",
   "https://www.googleapis.com/auth/chrome.management.securityinsights",
   "https://www.googleapis.com/auth/cloud-identity.policies",
+  "https://www.googleapis.com/auth/service.management",
+  "https://www.googleapis.com/auth/cloud-platform",
 ];
 
 type CachedSaToken = {
