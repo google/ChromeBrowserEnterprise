@@ -289,25 +289,13 @@ export function ServiceAccountHome({
             {authMode === "direct" ? (
               <div className="bg-surface-dim ring-on-surface/10 mt-1 flex flex-col gap-1 rounded-md p-3.5 text-xs ring-1">
                 <p className="text-on-surface-variant leading-relaxed">
-                  The Service Account authenticates using its own machine identity (
-                  <code className="text-on-surface font-mono">{displayEmail}</code>). This supports
-                  most tools right out of the box when assigned the required privileges in{" "}
-                  <a
-                    href="https://admin.google.com/ac/roles"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline hover:opacity-80"
-                  >
-                    Workspace Admin Roles Console
-                  </a>
-                  .
+                  The Service Account authenticates directly as its own machine identity (
+                  <code className="text-on-surface font-mono">{displayEmail}</code>).
                   <br />
                   <br />
-                  <span className="text-on-surface font-medium">
-                    Not supported in Direct mode:
-                  </span>{" "}
-                  Cloud Identity DLP rules/detectors and Workspace Licensing checks require user
-                  impersonation (select Domain-Wide Delegation above).
+                  <span className="text-error font-medium">Warning:</span> Cloud Identity DLP
+                  rules/detectors and Workspace Licensing checks require user impersonation (select
+                  Domain-Wide Delegation above).
                 </p>
               </div>
             ) : (
@@ -317,10 +305,6 @@ export function ServiceAccountHome({
                   account entered below. Because it inherits user directory access and OAuth scopes,{" "}
                   <strong className="text-on-surface">this mode supports all 29 tools</strong>{" "}
                   (including Cloud Identity DLP and Workspace Licensing).
-                  <br />
-                  <br />
-                  If any required DWD scopes are missing from your Admin Console allowlist when you
-                  connect, our diagnostic probe will automatically verify and list them for you.
                 </p>
                 <div className="flex flex-col gap-1.5 pt-1">
                   <label htmlFor="impersonatedUser" className="text-on-surface text-xs font-medium">
