@@ -290,14 +290,8 @@ export function ServiceAccountHome({
               <div className="bg-surface-dim ring-on-surface/10 mt-1 flex flex-col gap-1 rounded-md p-3.5 text-xs ring-1">
                 <p className="text-on-surface-variant leading-relaxed">
                   The Service Account authenticates using its own machine identity (
-                  <code className="text-on-surface font-mono">{displayEmail}</code>). This works
-                  cleanly out of the box for{" "}
-                  <strong className="text-on-surface">Chrome Management APIs</strong> (
-                  <code className="font-mono">security_insights</code>,{" "}
-                  <code className="font-mono">count_browser_versions</code>,{" "}
-                  <code className="font-mono">list_customer_profiles</code>) and{" "}
-                  <strong className="text-on-surface">Directory Org Units</strong> when directly
-                  assigned the required privileges in{" "}
+                  <code className="text-on-surface font-mono">{displayEmail}</code>). This supports
+                  most tools right out of the box when assigned the required privileges in{" "}
                   <a
                     href="https://admin.google.com/ac/roles"
                     target="_blank"
@@ -307,17 +301,26 @@ export function ServiceAccountHome({
                     Workspace Admin Roles Console
                   </a>
                   .
+                  <br />
+                  <br />
+                  <span className="text-on-surface font-medium">
+                    Not supported in Direct mode:
+                  </span>{" "}
+                  Cloud Identity DLP rules/detectors and Workspace Licensing checks require user
+                  impersonation (select Domain-Wide Delegation above).
                 </p>
               </div>
             ) : (
               <div className="bg-surface-dim ring-on-surface/10 mt-1 flex flex-col gap-3 rounded-md p-3.5 text-xs ring-1">
                 <p className="text-on-surface-variant leading-relaxed">
-                  The Service Account will impersonate the Workspace user below to access
-                  user-scoped directory &amp; policy tools (such as{" "}
-                  <strong className="text-on-surface">Cloud Identity DLP rules</strong> and{" "}
-                  <strong className="text-on-surface">Workspace Licensing</strong>). If any required
-                  DWD scopes are missing from your Admin Console allowlist, our diagnostic probe
-                  will verify them automatically when you connect.
+                  The Service Account acts on behalf of (impersonates) the Google Workspace admin
+                  account entered below. Because it inherits user directory access and OAuth scopes,{" "}
+                  <strong className="text-on-surface">this mode supports all 29 tools</strong>{" "}
+                  (including Cloud Identity DLP and Workspace Licensing).
+                  <br />
+                  <br />
+                  If any required DWD scopes are missing from your Admin Console allowlist when you
+                  connect, our diagnostic probe will automatically verify and list them for you.
                 </p>
                 <div className="flex flex-col gap-1.5 pt-1">
                   <label htmlFor="impersonatedUser" className="text-on-surface text-xs font-medium">
