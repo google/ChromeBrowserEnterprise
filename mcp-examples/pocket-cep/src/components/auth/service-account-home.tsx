@@ -60,6 +60,9 @@ export function ServiceAccountHome({
 }: ServiceAccountHomeProps) {
   const [customerId, setCustomerId] = useState(initialCustomerId);
   const [impersonatedUser, setImpersonatedUser] = useState(initialImpersonatedUser);
+  const [authMode, setAuthMode] = useState<"direct" | "dwd">(
+    initialImpersonatedUser ? "dwd" : "direct",
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dwdDiagnostics, setDwdDiagnostics] = useState<DwdDiagnostics | null>(null);
@@ -85,6 +88,10 @@ export function ServiceAccountHome({
       setError("Please enter a valid Customer ID (e.g. C01234567)");
       return;
     }
+    if (authMode === "dwd" && !impersonatedUser.trim()) {
+      setError("Please enter the Workspace user email to impersonate for Domain-Wide Delegation.");
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -96,7 +103,7 @@ export function ServiceAccountHome({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: customerId.trim(),
-          impersonatedUser: impersonatedUser.trim(),
+          impersonatedUser: authMode === "dwd" ? impersonatedUser.trim() : "",
         }),
       });
 
@@ -231,23 +238,103 @@ export function ServiceAccountHome({
             </p>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="impersonatedUser" className="text-on-surface text-sm font-medium">
-              Impersonated User Email{" "}
-              <span className="text-on-surface-muted font-normal">(Optional)</span>
+          <div className="flex flex-col gap-2 pt-1">
+            <label className="text-on-surface text-sm font-medium">
+              Authentication Mode <span className="text-error">*</span>
             </label>
-            <input
-              id="impersonatedUser"
-              type="email"
-              placeholder="e.g. admin@example.com"
-              value={impersonatedUser}
-              onChange={(e) => setImpersonatedUser(e.target.value)}
-              className="bg-surface ring-on-surface/20 focus:ring-primary text-on-surface placeholder:text-on-surface-muted rounded-md px-3 py-2 text-sm ring-1 transition-all outline-none focus:ring-2"
-            />
-            <p className="text-on-surface-muted text-xs">
-              Leave blank for direct machine authentication (Option 2), or enter a Workspace user
-              email for Domain-Wide Delegation (Option 1).
-            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("direct");
+                  setError(null);
+                  setDwdDiagnostics(null);
+                }}
+                className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-all ${
+                  authMode === "direct"
+                    ? "border-primary bg-primary/5 ring-primary ring-1"
+                    : "border-on-surface/15 hover:bg-surface-raised bg-surface"
+                }`}
+              >
+                <span className="text-on-surface text-xs font-semibold">
+                  Direct Role Assignment
+                </span>
+                <span className="text-on-surface-muted text-[0.6875rem]">
+                  No user impersonation
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("dwd");
+                  setError(null);
+                  setDwdDiagnostics(null);
+                }}
+                className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-all ${
+                  authMode === "dwd"
+                    ? "border-primary bg-primary/5 ring-primary ring-1"
+                    : "border-on-surface/15 hover:bg-surface-raised bg-surface"
+                }`}
+              >
+                <span className="text-on-surface text-xs font-semibold">
+                  Domain-Wide Delegation
+                </span>
+                <span className="text-on-surface-muted text-[0.6875rem]">
+                  Impersonate admin user
+                </span>
+              </button>
+            </div>
+
+            {authMode === "direct" ? (
+              <div className="bg-surface-dim ring-on-surface/10 mt-1 flex flex-col gap-1 rounded-md p-3.5 text-xs ring-1">
+                <p className="text-on-surface-variant leading-relaxed">
+                  The Service Account authenticates using its own machine identity (
+                  <code className="text-on-surface font-mono">{displayEmail}</code>). This works
+                  cleanly out of the box for{" "}
+                  <strong className="text-on-surface">Chrome Management APIs</strong> (
+                  <code className="font-mono">security_insights</code>,{" "}
+                  <code className="font-mono">count_browser_versions</code>,{" "}
+                  <code className="font-mono">list_customer_profiles</code>) and{" "}
+                  <strong className="text-on-surface">Directory Org Units</strong> when directly
+                  assigned the required privileges in{" "}
+                  <a
+                    href="https://admin.google.com/ac/roles"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline hover:opacity-80"
+                  >
+                    Workspace Admin Roles Console
+                  </a>
+                  .
+                </p>
+              </div>
+            ) : (
+              <div className="bg-surface-dim ring-on-surface/10 mt-1 flex flex-col gap-3 rounded-md p-3.5 text-xs ring-1">
+                <p className="text-on-surface-variant leading-relaxed">
+                  The Service Account will impersonate the Workspace user below to access
+                  user-scoped directory &amp; policy tools (such as{" "}
+                  <strong className="text-on-surface">Cloud Identity DLP rules</strong> and{" "}
+                  <strong className="text-on-surface">Workspace Licensing</strong>). If any required
+                  DWD scopes are missing from your Admin Console allowlist, our diagnostic probe
+                  will verify them automatically when you connect.
+                </p>
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <label htmlFor="impersonatedUser" className="text-on-surface text-xs font-medium">
+                    Impersonated Admin Email <span className="text-error">*</span>
+                  </label>
+                  <input
+                    id="impersonatedUser"
+                    type="email"
+                    required={authMode === "dwd"}
+                    placeholder="e.g. admin@company.com"
+                    value={impersonatedUser}
+                    onChange={(e) => setImpersonatedUser(e.target.value)}
+                    className="bg-surface ring-on-surface/20 focus:ring-primary text-on-surface placeholder:text-on-surface-muted rounded-md px-3 py-2 text-sm ring-1 transition-all outline-none focus:ring-2"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {dwdDiagnostics ? (
@@ -356,64 +443,6 @@ export function ServiceAccountHome({
             </button>
           </div>
         </form>
-
-        {/* Two Ways to Authenticate Explanation Card */}
-        <div className="bg-surface-dim ring-on-surface/10 flex flex-col gap-4 rounded-lg p-5 text-xs ring-1">
-          <div className="flex items-center gap-2">
-            <Shield className="text-primary size-4" />
-            <h2 className="text-on-surface text-sm font-semibold">
-              How Service Account Authentication Works
-            </h2>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <div className="border-on-surface/10 flex flex-col gap-1 border-l-2 pl-3">
-              <span className="text-on-surface font-semibold">
-                Option 1: Domain-Wide Delegation (With Impersonated User)
-              </span>
-              <p className="text-on-surface-variant leading-relaxed">
-                Enter a Workspace admin/user email above. The Service Account will impersonate that
-                user to access user-scoped directory &amp; policy tools (such as{" "}
-                <strong className="text-on-surface">Cloud Identity DLP rules</strong> and{" "}
-                <strong className="text-on-surface">Workspace Licensing</strong>). If any required
-                DWD scopes are missing from your Admin Console allowlist, our diagnostic probe above
-                will give you exact copy-paste buttons right when you connect.
-              </p>
-            </div>
-
-            <div className="border-on-surface/10 flex flex-col gap-1 border-l-2 pl-3">
-              <span className="text-on-surface font-semibold">
-                Option 2: Direct Role Assignment (No Impersonated User)
-              </span>
-              <p className="text-on-surface-variant leading-relaxed">
-                Leave the Impersonated User Email blank above. The Service Account authenticates as
-                its own machine identity (
-                <code className="text-on-surface font-mono">{displayEmail}</code>). This works
-                cleanly out of the box for{" "}
-                <strong className="text-on-surface">Chrome Management APIs</strong> (
-                <code className="font-mono">security_insights</code>,{" "}
-                <code className="font-mono">count_browser_versions</code>,{" "}
-                <code className="font-mono">list_customer_profiles</code>) and{" "}
-                <strong className="text-on-surface">Directory Org Units</strong> when directly
-                assigned the required privileges in{" "}
-                <a
-                  href="https://admin.google.com/ac/roles"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline hover:opacity-80"
-                >
-                  Workspace Admin Roles Console
-                </a>
-                . Note: A single tool does not require one specific named role; any role or
-                combination of roles granting those privileges will work (including multiple roles,
-                a <strong>Custom Role</strong>, or pre-built roles such as{" "}
-                <strong>Super Admin</strong> or <strong>Delegated Admin</strong>). If a tool lacks
-                required privileges during execution, the agent will dynamically display the exact
-                privilege hierarchy and a direct link to assign it.
-              </p>
-            </div>
-          </div>
-        </div>
       </main>
     </div>
   );
