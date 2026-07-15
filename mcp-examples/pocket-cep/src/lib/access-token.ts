@@ -20,7 +20,7 @@ import { LOG_TAGS } from "./constants";
 import { getServiceAccountConfig } from "./sa-session";
 import { loadServiceAccountKey } from "./sa-identity";
 
-const SA_SCOPES = [
+export const DWD_SCOPES = [
   "https://www.googleapis.com/auth/admin.directory.customer.readonly",
   "https://www.googleapis.com/auth/admin.directory.orgunit.readonly",
   "https://www.googleapis.com/auth/admin.reports.audit.readonly",
@@ -29,9 +29,75 @@ const SA_SCOPES = [
   "https://www.googleapis.com/auth/chrome.management.profiles.readonly",
   "https://www.googleapis.com/auth/chrome.management.securityinsights",
   "https://www.googleapis.com/auth/cloud-identity.policies",
+  "https://www.googleapis.com/auth/apps.licensing",
+];
+
+export const MACHINE_SCOPES = [
+  ...DWD_SCOPES,
   "https://www.googleapis.com/auth/service.management",
   "https://www.googleapis.com/auth/cloud-platform",
 ];
+
+export const SA_SCOPES = MACHINE_SCOPES;
+
+export class DwdScopeVerificationError extends Error {
+  public readonly subject: string;
+  public readonly clientId: string;
+  public readonly authorizedScopes: string[];
+  public readonly missingScopes: string[];
+
+  constructor(
+    subject: string,
+    clientId: string,
+    authorizedScopes: string[],
+    missingScopes: string[],
+    originalMessage?: string,
+  ) {
+    const msg =
+      missingScopes.length > 0
+        ? `Domain-Wide Delegation scope check failed for ${subject}. Out of ${authorizedScopes.length + missingScopes.length} required DWD scopes, ${missingScopes.length} are missing in Google Workspace Admin Console.`
+        : originalMessage || `Domain-Wide Delegation token verification failed for ${subject}.`;
+    super(msg);
+    this.name = "DwdScopeVerificationError";
+    this.subject = subject;
+    this.clientId = clientId;
+    this.authorizedScopes = authorizedScopes;
+    this.missingScopes = missingScopes;
+  }
+}
+
+async function diagnoseDwdScopeFailures(
+  clientEmail: string,
+  privateKey: string,
+  subject: string,
+  scopesToCheck: string[],
+): Promise<{ authorized: string[]; missing: string[] }> {
+  const results = await Promise.allSettled(
+    scopesToCheck.map(async (scope) => {
+      const singleJwt = new JWT({
+        email: clientEmail,
+        key: privateKey,
+        scopes: [scope],
+        subject,
+      });
+      await singleJwt.getAccessToken();
+      return scope;
+    }),
+  );
+
+  const authorized: string[] = [];
+  const missing: string[] = [];
+
+  results.forEach((res, idx) => {
+    if (res.status === "fulfilled") {
+      authorized.push(scopesToCheck[idx]);
+    } else {
+      missing.push(scopesToCheck[idx]);
+    }
+  });
+
+  return { authorized, missing };
+}
 
 type CachedSaToken = {
   token: string;
@@ -76,14 +142,32 @@ export async function mintServiceAccountTokenOrThrow(impersonatedUser?: string):
     throw new Error(`Service Account key loaded from ${loaded.source} is missing private_key.`);
   }
 
+  const scopes = subject ? DWD_SCOPES : MACHINE_SCOPES;
   const jwtClient = new JWT({
     email: clientEmail,
     key: privateKey,
-    scopes: SA_SCOPES,
+    scopes,
     subject,
   });
 
-  const res = await jwtClient.getAccessToken();
+  let res;
+  try {
+    res = await jwtClient.getAccessToken();
+  } catch (error) {
+    if (subject) {
+      const diag = await diagnoseDwdScopeFailures(clientEmail, privateKey, subject, DWD_SCOPES);
+      if (diag.missing.length > 0) {
+        throw new DwdScopeVerificationError(
+          subject,
+          loaded.key.client_id || clientEmail,
+          diag.authorized,
+          diag.missing,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
+    throw error;
+  }
   if (!res.token) {
     throw new Error("Google OAuth returned an empty access token");
   }

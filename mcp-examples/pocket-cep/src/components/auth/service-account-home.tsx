@@ -30,6 +30,13 @@ interface ServiceAccountHomeProps {
   initialImpersonatedUser?: string;
 }
 
+interface DwdDiagnostics {
+  subject: string;
+  clientId: string;
+  authorizedScopes: string[];
+  missingScopes: string[];
+}
+
 const DWD_POLICY_SCOPE = [
   "https://www.googleapis.com/auth/admin.directory.customer.readonly",
   "https://www.googleapis.com/auth/admin.directory.orgunit.readonly",
@@ -39,6 +46,7 @@ const DWD_POLICY_SCOPE = [
   "https://www.googleapis.com/auth/chrome.management.profiles.readonly",
   "https://www.googleapis.com/auth/chrome.management.securityinsights",
   "https://www.googleapis.com/auth/cloud-identity.policies",
+  "https://www.googleapis.com/auth/apps.licensing",
 ].join(",");
 
 export function ServiceAccountHome({
@@ -51,6 +59,7 @@ export function ServiceAccountHome({
   const [impersonatedUser, setImpersonatedUser] = useState(initialImpersonatedUser);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dwdDiagnostics, setDwdDiagnostics] = useState<DwdDiagnostics | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"connect" | "permissions">("connect");
 
@@ -76,6 +85,7 @@ export function ServiceAccountHome({
 
     setLoading(true);
     setError(null);
+    setDwdDiagnostics(null);
 
     try {
       const res = await fetch("/api/auth/sa-config", {
@@ -89,6 +99,9 @@ export function ServiceAccountHome({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        if (data.dwdDiagnostics) {
+          setDwdDiagnostics(data.dwdDiagnostics);
+        }
         throw new Error(data.error || "Failed to save Service Account configuration");
       }
 
@@ -250,10 +263,84 @@ export function ServiceAccountHome({
               </p>
             </div>
 
-            {error && (
-              <div className="bg-error/10 text-error rounded-md p-2.5 text-xs font-medium">
-                {error}
+            {dwdDiagnostics ? (
+              <div className="bg-error/10 border-error/30 text-on-surface flex flex-col gap-3 rounded-lg border p-4 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-error font-semibold">Domain-Wide Delegation Scope Mismatch</p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleCopy("all-missing", dwdDiagnostics.missingScopes.join(","))
+                    }
+                    className="bg-error/20 text-error hover:bg-error/30 flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors"
+                  >
+                    {copiedField === "all-missing" ? (
+                      <>
+                        <Check className="size-3" />
+                        Copied All Missing
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="size-3" />
+                        Copy Missing ({dwdDiagnostics.missingScopes.length})
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-on-surface-variant">
+                  We tested Domain-Wide Delegation for{" "}
+                  <strong className="text-on-surface">{dwdDiagnostics.subject}</strong>. Out of{" "}
+                  {dwdDiagnostics.authorizedScopes.length + dwdDiagnostics.missingScopes.length}{" "}
+                  required DWD scopes,{" "}
+                  <span className="text-error font-semibold">
+                    {dwdDiagnostics.missingScopes.length} are currently missing
+                  </span>{" "}
+                  in your Admin Console allowlist:
+                </p>
+                <div className="bg-surface ring-on-surface/10 flex flex-col gap-1.5 rounded p-2.5 font-mono text-[0.6875rem] ring-1">
+                  {dwdDiagnostics.missingScopes.map((s) => (
+                    <div key={s} className="flex items-center justify-between gap-2">
+                      <span className="text-error truncate">{s}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(s, s)}
+                        className="hover:bg-surface-raised text-on-surface-muted hover:text-on-surface flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[0.625rem] transition-colors"
+                      >
+                        {copiedField === s ? (
+                          <Check className="text-success size-3" />
+                        ) : (
+                          <Copy className="size-3" />
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {dwdDiagnostics.authorizedScopes.length > 0 && (
+                  <p className="text-success text-[0.6875rem] font-medium">
+                    ✓ {dwdDiagnostics.authorizedScopes.length} scopes successfully verified as
+                    authorized.
+                  </p>
+                )}
+                <p className="text-on-surface-muted text-[0.6875rem]">
+                  Add the missing scopes above comma-separated to Client ID{" "}
+                  <code className="text-on-surface font-mono">{dwdDiagnostics.clientId}</code> in{" "}
+                  <a
+                    href="https://admin.google.com/ac/owl/domainwidedelegation"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline hover:opacity-80"
+                  >
+                    Domain-Wide Delegation Settings
+                  </a>
+                  .
+                </p>
               </div>
+            ) : (
+              error && (
+                <div className="bg-error/10 text-error rounded-md p-2.5 text-xs font-medium">
+                  {error}
+                </div>
+              )
             )}
 
             <button

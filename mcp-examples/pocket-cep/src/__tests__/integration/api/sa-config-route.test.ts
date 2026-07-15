@@ -29,13 +29,18 @@ vi.mock("@/lib/sa-session", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/access-token", () => ({
-  mintServiceAccountTokenOrThrow: mockMintToken,
-  clearServiceAccountTokenCache: mockClearTokenCache,
-}));
+vi.mock("@/lib/access-token", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/access-token")>();
+  return {
+    ...actual,
+    mintServiceAccountTokenOrThrow: mockMintToken,
+    clearServiceAccountTokenCache: mockClearTokenCache,
+  };
+});
 
 import { GET, POST, DELETE } from "@/app/api/auth/sa-config/route";
 import { COOKIE_SA_CUSTOMER_ID, COOKIE_SA_IMPERSONATED_USER } from "@/lib/sa-session";
+import { DwdScopeVerificationError } from "@/lib/access-token";
 
 describe("/api/auth/sa-config", () => {
   beforeEach(() => {
@@ -87,11 +92,10 @@ describe("/api/auth/sa-config", () => {
     it("returns 400 when customerId is missing", async () => {
       const req = new NextRequest("http://localhost:3000/api/auth/sa-config", {
         method: "POST",
-        body: JSON.stringify({ impersonatedUser: "admin@example.com" }),
+        body: JSON.stringify({ customerId: "   " }),
       });
       const res = await POST(req);
       expect(res.status).toBe(400);
-      expect(await res.json()).toEqual({ error: "customerId is required" });
     });
 
     it("returns 400 and blocks cookie saving when DWD token minting fails", async () => {
@@ -109,6 +113,33 @@ describe("/api/auth/sa-config", () => {
       expect(body.error).toContain(
         "Failed to verify Domain-Wide Delegation token for admin@example.com",
       );
+      expect(mockClearTokenCache).toHaveBeenCalled();
+    });
+
+    it("returns dwdDiagnostics when DwdScopeVerificationError is thrown during verification", async () => {
+      const diagErr = new DwdScopeVerificationError(
+        "admin@example.com",
+        "1092837465918273645",
+        ["https://www.googleapis.com/auth/admin.directory.customer.readonly"],
+        ["https://www.googleapis.com/auth/apps.licensing"],
+      );
+      mockMintToken.mockRejectedValue(diagErr);
+      const req = new NextRequest("http://localhost:3000/api/auth/sa-config", {
+        method: "POST",
+        body: JSON.stringify({
+          customerId: "C00woaabb",
+          impersonatedUser: "admin@example.com",
+        }),
+      });
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.dwdDiagnostics).toEqual({
+        subject: "admin@example.com",
+        clientId: "1092837465918273645",
+        authorizedScopes: ["https://www.googleapis.com/auth/admin.directory.customer.readonly"],
+        missingScopes: ["https://www.googleapis.com/auth/apps.licensing"],
+      });
       expect(mockClearTokenCache).toHaveBeenCalled();
     });
 

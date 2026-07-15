@@ -13,7 +13,11 @@ import {
   getServiceAccountConfig,
 } from "@/lib/sa-session";
 import { getEnv } from "@/lib/env";
-import { clearServiceAccountTokenCache, mintServiceAccountTokenOrThrow } from "@/lib/access-token";
+import {
+  clearServiceAccountTokenCache,
+  DwdScopeVerificationError,
+  mintServiceAccountTokenOrThrow,
+} from "@/lib/access-token";
 
 /**
  * Returns the currently configured Service Account tenant credentials.
@@ -65,12 +69,26 @@ export async function POST(request: NextRequest) {
     try {
       await mintServiceAccountTokenOrThrow(impersonatedUser);
     } catch (error) {
+      if (error instanceof DwdScopeVerificationError) {
+        return NextResponse.json(
+          {
+            error: error.message,
+            dwdDiagnostics: {
+              subject: error.subject,
+              clientId: error.clientId,
+              authorizedScopes: error.authorizedScopes,
+              missingScopes: error.missingScopes,
+            },
+          },
+          { status: 400 },
+        );
+      }
       const msg = error instanceof Error ? error.message : String(error);
       return NextResponse.json(
         {
           error:
             `Failed to verify Domain-Wide Delegation token for ${impersonatedUser}: ${msg}. ` +
-            "Please ensure your Service Account key file is valid and all 8 scopes are authorized in Google Workspace Admin Console.",
+            "Please ensure your Service Account key file is valid and all required DWD scopes are authorized in Google Workspace Admin Console.",
         },
         { status: 400 },
       );
