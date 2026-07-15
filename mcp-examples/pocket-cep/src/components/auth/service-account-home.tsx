@@ -196,309 +196,195 @@ export function ServiceAccountHome({
           )}
         </div>
 
-        {/* Tab Navigation */}
-        <div className="border-on-surface/10 flex border-b">
-          <button
-            type="button"
-            onClick={() => setActiveTab("connect")}
-            className={`flex-1 border-b-2 pb-2.5 text-sm font-medium transition-colors ${
-              activeTab === "connect"
-                ? "border-primary text-primary"
-                : "text-on-surface-variant hover:text-on-surface border-transparent"
-            }`}
-          >
-            Launch Connection
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("permissions")}
-            className={`flex-1 border-b-2 pb-2.5 text-sm font-medium transition-colors ${
-              activeTab === "permissions"
-                ? "border-primary text-primary"
-                : "text-on-surface-variant hover:text-on-surface border-transparent"
-            }`}
-          >
-            Required Permissions Checklist
-          </button>
-        </div>
+        {/* Connect Form */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="customerId" className="text-on-surface text-sm font-medium">
+              Customer ID <span className="text-error">*</span>
+            </label>
+            <input
+              id="customerId"
+              type="text"
+              required
+              placeholder="e.g. C01234567"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              className="bg-surface ring-on-surface/20 focus:ring-primary text-on-surface placeholder:text-on-surface-muted rounded-md px-3 py-2 text-sm ring-1 transition-all outline-none focus:ring-2"
+            />
+            <p className="text-on-surface-muted text-xs">
+              Your organization&apos;s Google Workspace Customer ID (found in Admin Console under
+              Account Settings).
+            </p>
+          </div>
 
-        {/* Tab Content 1: Connect Form */}
-        {activeTab === "connect" && (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="customerId" className="text-on-surface text-sm font-medium">
-                Customer ID <span className="text-error">*</span>
-              </label>
-              <input
-                id="customerId"
-                type="text"
-                required
-                placeholder="e.g. C01234567"
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-                className="bg-surface ring-on-surface/20 focus:ring-primary text-on-surface placeholder:text-on-surface-muted rounded-md px-3 py-2 text-sm ring-1 transition-all outline-none focus:ring-2"
-              />
-              <p className="text-on-surface-muted text-xs">
-                Your organization&apos;s Google Workspace Customer ID (found in Admin Console under
-                Account Settings).
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="impersonatedUser" className="text-on-surface text-sm font-medium">
+              Impersonated User Email{" "}
+              <span className="text-on-surface-muted font-normal">(Optional)</span>
+            </label>
+            <input
+              id="impersonatedUser"
+              type="email"
+              placeholder="e.g. admin@example.com"
+              value={impersonatedUser}
+              onChange={(e) => setImpersonatedUser(e.target.value)}
+              className="bg-surface ring-on-surface/20 focus:ring-primary text-on-surface placeholder:text-on-surface-muted rounded-md px-3 py-2 text-sm ring-1 transition-all outline-none focus:ring-2"
+            />
+            <p className="text-on-surface-muted text-xs">
+              Leave blank for direct machine authentication (Option 2), or enter a Workspace user
+              email for Domain-Wide Delegation (Option 1).
+            </p>
+          </div>
+
+          {dwdDiagnostics ? (
+            <div className="bg-error/10 border-error/30 text-on-surface flex flex-col gap-3 rounded-lg border p-4 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-error font-semibold">Domain-Wide Delegation Scope Mismatch</p>
+                <button
+                  type="button"
+                  onClick={() => handleCopy("all-missing", dwdDiagnostics.missingScopes.join(","))}
+                  className="bg-error/20 text-error hover:bg-error/30 flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors"
+                >
+                  {copiedField === "all-missing" ? (
+                    <>
+                      <Check className="size-3" />
+                      Copied All Missing
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-3" />
+                      Copy Missing ({dwdDiagnostics.missingScopes.length})
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="text-on-surface-variant">
+                We tested Domain-Wide Delegation for{" "}
+                <strong className="text-on-surface">{dwdDiagnostics.subject}</strong>. Out of{" "}
+                {dwdDiagnostics.authorizedScopes.length + dwdDiagnostics.missingScopes.length}{" "}
+                required DWD scopes,{" "}
+                <span className="text-error font-semibold">
+                  {dwdDiagnostics.missingScopes.length} are currently missing
+                </span>{" "}
+                in your Admin Console allowlist:
               </p>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="impersonatedUser" className="text-on-surface text-sm font-medium">
-                Impersonated User Email{" "}
-                <span className="text-on-surface-muted font-normal">(Optional)</span>
-              </label>
-              <input
-                id="impersonatedUser"
-                type="email"
-                placeholder="e.g. admin@example.com"
-                value={impersonatedUser}
-                onChange={(e) => setImpersonatedUser(e.target.value)}
-                className="bg-surface ring-on-surface/20 focus:ring-primary text-on-surface placeholder:text-on-surface-muted rounded-md px-3 py-2 text-sm ring-1 transition-all outline-none focus:ring-2"
-              />
-              <p className="text-on-surface-muted text-xs">
-                Optional Google Workspace admin email for Domain-Wide Delegation (required when
-                executing Cloud Identity DLP tools).
-              </p>
-            </div>
-
-            {dwdDiagnostics ? (
-              <div className="bg-error/10 border-error/30 text-on-surface flex flex-col gap-3 rounded-lg border p-4 text-xs">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-error font-semibold">Domain-Wide Delegation Scope Mismatch</p>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleCopy("all-missing", dwdDiagnostics.missingScopes.join(","))
-                    }
-                    className="bg-error/20 text-error hover:bg-error/30 flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors"
-                  >
-                    {copiedField === "all-missing" ? (
-                      <>
-                        <Check className="size-3" />
-                        Copied All Missing
-                      </>
-                    ) : (
-                      <>
+              <div className="bg-surface ring-on-surface/10 flex flex-col gap-1.5 rounded p-2.5 font-mono text-[0.6875rem] ring-1">
+                {dwdDiagnostics.missingScopes.map((s) => (
+                  <div key={s} className="flex items-center justify-between gap-2">
+                    <span className="text-error truncate">{s}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(s, s)}
+                      className="hover:bg-surface-raised text-on-surface-muted hover:text-on-surface flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[0.625rem] transition-colors"
+                    >
+                      {copiedField === s ? (
+                        <Check className="text-success size-3" />
+                      ) : (
                         <Copy className="size-3" />
-                        Copy Missing ({dwdDiagnostics.missingScopes.length})
-                      </>
-                    )}
-                  </button>
-                </div>
-                <p className="text-on-surface-variant">
-                  We tested Domain-Wide Delegation for{" "}
-                  <strong className="text-on-surface">{dwdDiagnostics.subject}</strong>. Out of{" "}
-                  {dwdDiagnostics.authorizedScopes.length + dwdDiagnostics.missingScopes.length}{" "}
-                  required DWD scopes,{" "}
-                  <span className="text-error font-semibold">
-                    {dwdDiagnostics.missingScopes.length} are currently missing
-                  </span>{" "}
-                  in your Admin Console allowlist:
-                </p>
-                <div className="bg-surface ring-on-surface/10 flex flex-col gap-1.5 rounded p-2.5 font-mono text-[0.6875rem] ring-1">
-                  {dwdDiagnostics.missingScopes.map((s) => (
-                    <div key={s} className="flex items-center justify-between gap-2">
-                      <span className="text-error truncate">{s}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(s, s)}
-                        className="hover:bg-surface-raised text-on-surface-muted hover:text-on-surface flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[0.625rem] transition-colors"
-                      >
-                        {copiedField === s ? (
-                          <Check className="text-success size-3" />
-                        ) : (
-                          <Copy className="size-3" />
-                        )}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                {dwdDiagnostics.authorizedScopes.length > 0 && (
-                  <p className="text-success text-[0.6875rem] font-medium">
-                    ✓ {dwdDiagnostics.authorizedScopes.length} scopes successfully verified as
-                    authorized.
-                  </p>
-                )}
-                <p className="text-on-surface-muted text-[0.6875rem]">
-                  Add the missing scopes above comma-separated to Client ID{" "}
-                  <code className="text-on-surface font-mono">{dwdDiagnostics.clientId}</code> in{" "}
-                  <a
-                    href="https://admin.google.com/ac/owl/domainwidedelegation"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline hover:opacity-80"
-                  >
-                    Domain-Wide Delegation Settings
-                  </a>
-                  .
-                </p>
+                      )}
+                    </button>
+                  </div>
+                ))}
               </div>
-            ) : (
-              error && (
-                <div className="bg-error/10 text-error rounded-md p-2.5 text-xs font-medium">
-                  {error}
-                </div>
-              )
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-primary text-on-primary hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  Connect &amp; Launch Dashboard
-                  <ArrowRight className="size-4" />
-                </>
+              {dwdDiagnostics.authorizedScopes.length > 0 && (
+                <p className="text-success text-[0.6875rem] font-medium">
+                  ✓ {dwdDiagnostics.authorizedScopes.length} scopes successfully verified as
+                  authorized.
+                </p>
               )}
-            </button>
-          </form>
-        )}
-
-        {/* Tab Content 2: Permissions Guide & UI Links */}
-        {activeTab === "permissions" && (
-          <div className="flex flex-col gap-5 text-sm">
-            {/* Standard Admin Roles Card */}
-            <div className="bg-surface-dim ring-on-surface/10 flex flex-col gap-3 rounded-lg p-4 ring-1">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="text-primary size-4" />
-                <h2 className="text-on-surface font-medium">
-                  1. Chrome Management Admin Privileges
-                </h2>
-              </div>
-              <p className="text-on-surface-variant text-xs leading-relaxed">
-                Chrome Management &amp; Telemetry APIs inspect activity logs, count browser
-                versions, and check security insights. In Google Workspace Admin Console, assign
-                Admin Roles directly to your Service Account email:
+              <p className="text-on-surface-muted text-[0.6875rem]">
+                Add the missing scopes above comma-separated to Client ID{" "}
+                <code className="text-on-surface font-mono">{dwdDiagnostics.clientId}</code> in{" "}
+                <a
+                  href="https://admin.google.com/ac/owl/domainwidedelegation"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline hover:opacity-80"
+                >
+                  Domain-Wide Delegation Settings
+                </a>
+                .
               </p>
-
-              <div className="bg-surface rounded p-2.5 text-xs">
-                <p className="text-on-surface-muted mb-1 font-medium">
-                  Service Account Email to Assign Admin Roles:
-                </p>
-                <div className="flex items-center justify-between gap-2">
-                  <code className="text-on-surface truncate font-mono text-[0.6875rem]">
-                    {displayEmail}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy("adminRolePrincipal", displayEmail)}
-                    className="hover:bg-surface-raised text-on-surface-variant hover:text-on-surface shrink-0 rounded px-2 py-0.5 text-[0.6875rem] font-medium transition-colors"
-                  >
-                    {copiedField === "adminRolePrincipal" ? "Copied" : "Copy Principal Email"}
-                  </button>
-                </div>
+            </div>
+          ) : (
+            error && (
+              <div className="bg-error/10 text-error rounded-md p-2.5 text-xs font-medium">
+                {error}
               </div>
+            )
+          )}
 
-              <p className="text-on-surface-muted text-xs font-medium">
-                Required Workspace Admin Console Role Privileges:
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-primary text-on-primary hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Connecting...
+              </>
+            ) : (
+              <>
+                Connect &amp; Launch Dashboard
+                <ArrowRight className="size-4" />
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Two Ways to Authenticate Explanation Card */}
+        <div className="bg-surface-dim ring-on-surface/10 flex flex-col gap-4 rounded-lg p-5 text-xs ring-1">
+          <div className="flex items-center gap-2">
+            <Shield className="text-primary size-4" />
+            <h2 className="text-on-surface text-sm font-semibold">
+              How Service Account Authentication Works
+            </h2>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="border-on-surface/10 flex flex-col gap-1 border-l-2 pl-3">
+              <span className="text-on-surface font-semibold">
+                Option 1: Domain-Wide Delegation (With Impersonated User)
+              </span>
+              <p className="text-on-surface-variant leading-relaxed">
+                Enter a Workspace admin/user email above. The Service Account will impersonate that
+                user to access user-scoped directory &amp; policy tools (such as{" "}
+                <strong className="text-on-surface">Cloud Identity DLP rules</strong> and{" "}
+                <strong className="text-on-surface">Workspace Licensing</strong>). If any required
+                DWD scopes are missing from your Admin Console allowlist, our diagnostic probe above
+                will give you exact copy-paste buttons right when you connect.
               </p>
-              <ul className="text-on-surface-muted flex list-disc flex-col gap-1.5 pl-5 text-xs">
-                <li>
-                  <span className="text-on-surface font-medium">
-                    Services &gt; Chrome Management &gt; Manage ChromeOS Devices
-                  </span>{" "}
-                  (Read-only)
-                </li>
-                <li>
-                  <span className="text-on-surface font-medium">
-                    Services &gt; Chrome Management &gt; Settings &gt; Managed Browsers
-                  </span>
-                </li>
-                <li>
-                  <span className="text-on-surface font-medium">
-                    Services &gt; Chrome Enterprise Security Insights
-                  </span>
-                </li>
-              </ul>
-              <div className="pt-1">
+            </div>
+
+            <div className="border-on-surface/10 flex flex-col gap-1 border-l-2 pl-3">
+              <span className="text-on-surface font-semibold">
+                Option 2: Direct Role Assignment (No Impersonated User)
+              </span>
+              <p className="text-on-surface-variant leading-relaxed">
+                Leave the Impersonated User Email blank above. The Service Account authenticates as
+                its own machine identity (
+                <code className="text-on-surface font-mono">{displayEmail}</code>). This works
+                cleanly out of the box for{" "}
+                <strong className="text-on-surface">Chrome Management APIs</strong> (
+                <code className="font-mono">security_insights</code>,{" "}
+                <code className="font-mono">count_browser_versions</code>,{" "}
+                <code className="font-mono">list_customer_profiles</code>) when directly assigned
+                the Chrome Management role in{" "}
                 <a
                   href="https://admin.google.com/ac/roles"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-surface ring-on-surface/15 hover:ring-primary text-on-surface hover:text-primary inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium ring-1 transition-all"
+                  className="text-primary underline hover:opacity-80"
                 >
-                  Open Workspace Admin Roles Console
-                  <ExternalLink className="size-3" />
+                  Workspace Admin Roles Console
                 </a>
-              </div>
-            </div>
-
-            {/* DWD Card */}
-            <div className="bg-surface-dim ring-on-surface/10 flex flex-col gap-3 rounded-lg p-4 ring-1">
-              <div className="flex items-center gap-2">
-                <Lock className="text-primary size-4" />
-                <h2 className="text-on-surface font-medium">
-                  2. Domain-Wide Delegation (All 8 Required Scopes)
-                </h2>
-              </div>
-              <p className="text-on-surface-variant text-xs leading-relaxed">
-                Domain-Wide Delegation (<code>admin.google.com/ac/owl/domainwidedelegation</code>)
-                authorizes your Service Account Client ID for all 8 Pocket CEP tool suites (Cloud
-                Identity DLP Rules, Chrome Activity Logs, Org Units, Customer ID, Security Insights,
-                Profiles). Authorize this complete scope list:
+                . If you invoke a tool that strictly requires user impersonation, the agent will
+                guide you with exact remediation instructions.
               </p>
-
-              {identity?.clientId && (
-                <div className="bg-surface rounded p-2.5 text-xs">
-                  <p className="text-on-surface-muted mb-1 font-medium">
-                    Client ID to Authorize in Admin Console:
-                  </p>
-                  <div className="flex items-center justify-between gap-2">
-                    <code className="text-on-surface truncate font-mono text-[0.6875rem]">
-                      {identity.clientId}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy("dwdClientId", identity.clientId!)}
-                      className="hover:bg-surface-raised text-on-surface-variant hover:text-on-surface shrink-0 rounded px-2 py-0.5 text-[0.6875rem] font-medium transition-colors"
-                    >
-                      {copiedField === "dwdClientId" ? "Copied" : "Copy Client ID"}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-surface rounded p-2.5 text-xs">
-                <p className="text-on-surface-muted mb-1 font-medium">
-                  Complete 8-Scope String for Admin Console:
-                </p>
-                <div className="flex items-center justify-between gap-2">
-                  <code className="text-on-surface truncate font-mono text-[0.6875rem]">
-                    {DWD_POLICY_SCOPE}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy("scope", DWD_POLICY_SCOPE)}
-                    className="hover:bg-surface-raised text-on-surface-variant hover:text-on-surface shrink-0 rounded px-2.5 py-1 text-[0.6875rem] font-medium transition-colors"
-                  >
-                    {copiedField === "scope" ? "Copied!" : "Copy All 8 Scopes"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="pt-1">
-                <a
-                  href={dwdConsoleUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-surface ring-on-surface/15 hover:ring-primary text-on-surface hover:text-primary inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium ring-1 transition-all"
-                >
-                  Open Workspace Domain-Wide Delegation Console
-                  <ExternalLink className="size-3" />
-                </a>
-              </div>
             </div>
           </div>
-        )}
+        </div>
       </main>
     </div>
   );
