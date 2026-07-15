@@ -2,17 +2,16 @@
  * @file Verification endpoint for Service Account credentials and tenant permissions.
  *
  * GET /api/auth/sa-verify
- *   Examines current cookie state (`customerId`, `impersonatedUser`), verifies
- *   token minting (`getGoogleAccessToken`), and executes a diagnostic probe
- *   (`diagnose_environment`) against the upstream MCP server to verify that
- *   the Service Account has the required GCP / Google Workspace permissions.
+ *   Examines current cookie state (`customerId`, `impersonatedUser`) and verifies
+ *   token minting and Domain-Wide Delegation OAuth scope authorization
+ *   (`getGoogleAccessToken`). API role assignments (`count_browser_versions`, etc.)
+ *   are checked at tool call time when individual tools are executed in the chat.
  */
 
 import { NextResponse } from "next/server";
 import { getEnv } from "@/lib/env";
 import { getServiceAccountConfig } from "@/lib/sa-session";
 import { getGoogleAccessToken, DwdScopeVerificationError } from "@/lib/access-token";
-import { callMcpTool } from "@/lib/mcp-client";
 import { getErrorMessage } from "@/lib/errors";
 
 export async function GET() {
@@ -29,9 +28,8 @@ export async function GET() {
     );
   }
 
-  let accessToken: string | undefined;
   try {
-    accessToken = await getGoogleAccessToken();
+    await getGoogleAccessToken();
   } catch (error) {
     if (error instanceof DwdScopeVerificationError) {
       return NextResponse.json(
@@ -51,40 +49,15 @@ export async function GET() {
     return NextResponse.json(
       {
         verified: false,
-        error: getErrorMessage(error),
+        error: getErrorMessage(error) || "Failed to mint Service Account access token.",
       },
       { status: 400 },
     );
   }
 
-  try {
-    const result = await callMcpTool(
-      env.MCP_SERVER_URL,
-      "diagnose_environment",
-      { customerId: config.customerId },
-      accessToken,
-    );
-
-    if (result && typeof result === "object" && "isError" in result && result.isError) {
-      const textObj = Array.isArray(result.content)
-        ? result.content.find((c: { type?: string; text?: string }) => c?.type === "text")
-        : null;
-      const errorText = textObj?.text || "Verification probe returned an error.";
-      return NextResponse.json({ verified: false, error: errorText }, { status: 400 });
-    }
-
-    return NextResponse.json({
-      verified: true,
-      customerId: config.customerId,
-      impersonatedUser: config.impersonatedUser || "",
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        verified: false,
-        error: getErrorMessage(error) || "Failed to reach MCP server for verification probe.",
-      },
-      { status: 500 },
-    );
-  }
+  return NextResponse.json({
+    verified: true,
+    customerId: config.customerId,
+    impersonatedUser: config.impersonatedUser || "",
+  });
 }
