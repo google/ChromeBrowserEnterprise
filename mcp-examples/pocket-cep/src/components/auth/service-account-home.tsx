@@ -369,8 +369,9 @@ export function ServiceAccountHome({
                 <strong className="text-on-surface">Chrome Management APIs</strong> (
                 <code className="font-mono">security_insights</code>,{" "}
                 <code className="font-mono">count_browser_versions</code>,{" "}
-                <code className="font-mono">list_customer_profiles</code>) when directly assigned
-                the Chrome Management role in{" "}
+                <code className="font-mono">list_customer_profiles</code>) and{" "}
+                <strong className="text-on-surface">Directory Org Units</strong> when directly
+                assigned the required privileges in{" "}
                 <a
                   href="https://admin.google.com/ac/roles"
                   target="_blank"
@@ -379,8 +380,12 @@ export function ServiceAccountHome({
                 >
                   Workspace Admin Roles Console
                 </a>
-                . If you invoke a tool that strictly requires user impersonation, the agent will
-                guide you with exact remediation instructions.
+                . Note: A single tool does not require one specific named role; any role or
+                combination of roles granting those privileges will work (including multiple roles,
+                a <strong>Custom Role</strong>, or pre-built roles such as{" "}
+                <strong>Super Admin</strong> or <strong>Delegated Admin</strong>). If a tool lacks
+                required privileges during execution, the agent will dynamically display the exact
+                privilege hierarchy and a direct link to assign it.
               </p>
             </div>
           </div>
