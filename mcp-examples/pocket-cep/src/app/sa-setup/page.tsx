@@ -34,6 +34,7 @@ export default async function SaSetupPage() {
       identity={identity}
       initialCustomerId={config?.customerId || ""}
       initialImpersonatedUser={config?.impersonatedUser || ""}
+      isConfigured={!!config?.customerId}
     />
   );
 }

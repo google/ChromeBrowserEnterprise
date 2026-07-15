@@ -15,6 +15,7 @@ import {
   Key,
   ExternalLink,
   ArrowRight,
+  ArrowLeft,
   Loader2,
   Copy,
   Check,
@@ -28,6 +29,7 @@ interface ServiceAccountHomeProps {
   identity?: ServiceAccountIdentity | null;
   initialCustomerId?: string;
   initialImpersonatedUser?: string;
+  isConfigured?: boolean;
 }
 
 interface DwdDiagnostics {
@@ -54,6 +56,7 @@ export function ServiceAccountHome({
   identity,
   initialCustomerId = "",
   initialImpersonatedUser = "",
+  isConfigured = false,
 }: ServiceAccountHomeProps) {
   const [customerId, setCustomerId] = useState(initialCustomerId);
   const [impersonatedUser, setImpersonatedUser] = useState(initialImpersonatedUser);
@@ -119,10 +122,21 @@ export function ServiceAccountHome({
   const dwdConsoleUrl = "https://admin.google.com/ac/owl/domainwidedelegation";
 
   return (
-    <div className="bg-surface-dim flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-10">
-      <main className="bg-surface ring-on-surface/10 my-auto flex w-full max-w-[560px] flex-col gap-6 rounded-[var(--radius-md)] p-8 shadow-[var(--shadow-elevation-1)] ring-1">
+    <div className="bg-surface-dim min-h-screen w-full overflow-y-auto px-4 py-10">
+      <main className="bg-surface ring-on-surface/10 mx-auto flex w-full max-w-[560px] flex-col gap-6 rounded-[var(--radius-md)] p-8 shadow-[var(--shadow-elevation-1)] ring-1">
         {/* Header */}
         <div className="flex flex-col items-center gap-2 text-center">
+          {isConfigured && (
+            <div className="flex w-full justify-start">
+              <a
+                href="/dashboard"
+                className="hover:bg-surface-raised text-on-surface-variant hover:text-on-surface inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors"
+              >
+                <ArrowLeft className="size-3.5" />
+                Back to Dashboard
+              </a>
+            </div>
+          )}
           <div className="bg-primary/10 flex size-12 items-center justify-center rounded-full">
             <Shield className="text-primary size-6" aria-hidden="true" />
           </div>
@@ -314,23 +328,33 @@ export function ServiceAccountHome({
             )
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-primary text-on-primary hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Connecting...
-              </>
-            ) : (
-              <>
-                Connect &amp; Launch Dashboard
-                <ArrowRight className="size-4" />
-              </>
+          <div className="flex items-center gap-3">
+            {isConfigured && (
+              <a
+                href="/dashboard"
+                className="border-on-surface/20 hover:bg-surface-raised text-on-surface flex w-1/3 items-center justify-center rounded-md border py-2.5 text-sm font-medium transition-colors"
+              >
+                Cancel
+              </a>
             )}
-          </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`bg-primary text-on-primary hover:bg-primary/90 flex ${isConfigured ? "w-2/3" : "w-full"} items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors disabled:opacity-50`}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                <>
+                  {isConfigured ? "Update Credentials" : "Connect & Launch Dashboard"}
+                  <ArrowRight className="size-4" />
+                </>
+              )}
+            </button>
+          </div>
         </form>
 
         {/* Two Ways to Authenticate Explanation Card */}
