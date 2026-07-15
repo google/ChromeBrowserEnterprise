@@ -356,13 +356,11 @@ export function ServiceAccountHome({
               {loading ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Saving & Probing Permissions...
+                  Saving & Verifying Credentials...
                 </>
               ) : (
                 <>
-                  {isConfigured
-                    ? "Update Credentials & Check Permissions"
-                    : "Check Permissions & Verify"}
+                  {isConfigured ? "Update & Verify Credentials" : "Verify Credentials & Scopes"}
                   <ArrowRight className="size-4" />
                 </>
               )}
@@ -377,10 +375,10 @@ export function ServiceAccountHome({
               <div className="bg-surface-dim ring-on-surface/10 flex flex-col items-center justify-center gap-3 rounded-lg p-8 text-center ring-1">
                 <Loader2 className="text-primary size-8 animate-spin" />
                 <p className="text-on-surface text-sm font-medium">
-                  Executing diagnostic probe against Google Workspace & GCP...
+                  Verifying Service Account token and OAuth scope authorization...
                 </p>
                 <p className="text-on-surface-muted text-xs">
-                  Verifying permissions for Customer ID{" "}
+                  Validating credentials for Customer ID{" "}
                   <strong className="text-on-surface font-mono">{customerId}</strong>
                 </p>
               </div>
@@ -389,20 +387,20 @@ export function ServiceAccountHome({
                 <div className="flex items-center gap-2.5">
                   <CheckCircle2 className="text-success size-5 shrink-0" />
                   <h3 className="text-on-surface text-sm font-semibold">
-                    Service Account Authentication & Permissions Verified
+                    Service Account Credentials & Scopes Verified
                   </h3>
                 </div>
                 <p className="text-on-surface-variant text-xs leading-relaxed">
                   Your machine identity{" "}
                   <strong className="text-on-surface font-mono">{displayEmail}</strong> successfully
-                  connected to Customer ID{" "}
+                  minted an access token for Customer ID{" "}
                   <strong className="text-on-surface font-mono">{customerId}</strong> in{" "}
                   <strong>
                     {authMode === "dwd"
-                      ? `Domain-Wide Delegation mode (impersonating ${impersonatedUser})`
+                      ? `Domain-Wide Delegation mode (impersonating ${impersonatedUser}) with required OAuth scopes authorized`
                       : "Direct Role Assignment mode"}
                   </strong>
-                  .
+                  . API role permissions will be checked dynamically when individual tools are run.
                 </p>
                 <div className="flex items-center gap-3 pt-2">
                   <button
@@ -518,7 +516,7 @@ export function ServiceAccountHome({
                   >
                     Google Workspace Domain-Wide Delegation
                   </a>{" "}
-                  and click Authorize. Once saved, click Re-Check Permissions below.
+                  and click Authorize. Once saved, click Re-Verify Credentials below.
                 </p>
 
                 <div className="flex items-center gap-3 pt-2">
@@ -534,19 +532,18 @@ export function ServiceAccountHome({
                     onClick={runVerification}
                     className="bg-primary text-on-primary hover:bg-primary/90 flex w-2/3 items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors"
                   >
-                    ↻ Re-Check Permissions
+                    ↻ Re-Verify Credentials
                   </button>
                 </div>
               </div>
             ) : (
               <div className="bg-error/10 border-error/30 text-on-surface flex flex-col gap-4 rounded-lg border p-5 text-xs">
                 <p className="text-error text-sm font-semibold">
-                  ⚠️ Permission Verification Failed
+                  ⚠️ Credential or Scope Verification Failed
                 </p>
                 <p className="text-on-surface-variant leading-relaxed">
-                  The Service Account verification probe encountered an error while validating
-                  access to Customer ID{" "}
-                  <strong className="text-on-surface font-mono">{customerId}</strong>:
+                  We encountered an error while verifying token minting and OAuth scopes for
+                  Customer ID <strong className="text-on-surface font-mono">{customerId}</strong>:
                 </p>
                 {error && (
                   <div className="bg-surface ring-on-surface/10 text-error rounded-md p-3 font-mono text-[0.6875rem] leading-relaxed break-words ring-1">
@@ -555,17 +552,8 @@ export function ServiceAccountHome({
                 )}
                 <p className="text-on-surface-muted text-xs leading-relaxed">
                   Ensure Service Account{" "}
-                  <strong className="text-on-surface font-mono">{displayEmail}</strong> is granted
-                  appropriate roles in{" "}
-                  <a
-                    href="https://admin.google.com/ac/roles"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary font-medium underline hover:opacity-80"
-                  >
-                    Workspace Admin Roles
-                  </a>{" "}
-                  or GCP IAM Console.
+                  <strong className="text-on-surface font-mono">{displayEmail}</strong> is active
+                  and your private key credentials are valid.
                 </p>
                 <div className="flex items-center gap-3 pt-2">
                   <button
@@ -580,7 +568,7 @@ export function ServiceAccountHome({
                     onClick={runVerification}
                     className="bg-primary text-on-primary hover:bg-primary/90 flex w-2/3 items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors"
                   >
-                    ↻ Re-Check Permissions
+                    ↻ Re-Verify Credentials
                   </button>
                 </div>
               </div>
