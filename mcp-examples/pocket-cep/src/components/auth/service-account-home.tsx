@@ -294,17 +294,15 @@ export function ServiceAccountHome({
                   <br />
                   <br />
                   <span className="text-error font-medium">Warning:</span> Cloud Identity DLP
-                  rules/detectors and Workspace Licensing checks require user impersonation (select
-                  Domain-Wide Delegation above).
+                  rules/detectors and Workspace Licensing checks do not work in this mode and
+                  require Domain-Wide Delegation instead.
                 </p>
               </div>
             ) : (
               <div className="bg-surface-dim ring-on-surface/10 mt-1 flex flex-col gap-3 rounded-md p-3.5 text-xs ring-1">
                 <p className="text-on-surface-variant leading-relaxed">
                   The Service Account acts on behalf of (impersonates) the Google Workspace admin
-                  account entered below. Because it inherits user directory access and OAuth scopes,{" "}
-                  <strong className="text-on-surface">this mode supports all 29 tools</strong>{" "}
-                  (including Cloud Identity DLP and Workspace Licensing).
+                  account entered below.
                 </p>
                 <div className="flex flex-col gap-1.5 pt-1">
                   <label htmlFor="impersonatedUser" className="text-on-surface text-xs font-medium">
