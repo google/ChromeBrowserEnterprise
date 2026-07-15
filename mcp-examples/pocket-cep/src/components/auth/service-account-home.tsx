@@ -9,7 +9,7 @@
  * and form controls to connect to the target Customer ID (`customerId`).
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Shield,
   Key,
@@ -60,6 +60,19 @@ export function ServiceAccountHome({
   const displayEmail =
     identity?.clientEmail || clientEmail || "Service Account Credentials Configured";
 
+  useEffect(() => {
+    if (
+      step === "verify" &&
+      initialCustomerId &&
+      !verified &&
+      !verifying &&
+      !error &&
+      !dwdDiagnostics
+    ) {
+      runVerification();
+    }
+  }, [step]);
+
   async function handleCopy(field: string, text: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -81,13 +94,15 @@ export function ServiceAccountHome({
         if (data.dwdDiagnostics) {
           setDwdDiagnostics(data.dwdDiagnostics);
         }
-        throw new Error(data.error || "Permission verification failed.");
+        throw new Error(data.error || "Permission verification check failed.");
       }
       setVerified(true);
     } catch (err) {
       setVerified(false);
       setError(
-        err instanceof Error ? err.message : "An unexpected error occurred during verification.",
+        err instanceof Error && err.message
+          ? err.message
+          : "Permission verification probe failed or could not reach server.",
       );
     } finally {
       setVerifying(false);
