@@ -310,6 +310,19 @@ export function ServiceAccountHome({
                     <code className="text-on-surface font-mono">{displayEmail}</code>).
                     <br />
                     <br />
+                    To assign direct machine roles or custom IAM permissions for this identity,
+                    visit the{" "}
+                    <a
+                      href="https://console.cloud.google.com/iam-admin/iam"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary font-medium underline hover:opacity-80"
+                    >
+                      Google Cloud IAM Console
+                    </a>
+                    .
+                    <br />
+                    <br />
                     <span className="text-error font-medium">Warning:</span> Cloud Identity DLP
                     rules/detectors and Workspace Licensing checks do not work in this mode and
                     require Domain-Wide Delegation instead.
