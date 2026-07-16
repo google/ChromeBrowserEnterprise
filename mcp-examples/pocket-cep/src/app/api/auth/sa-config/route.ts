@@ -65,34 +65,37 @@ export async function POST(request: NextRequest) {
 
   clearServiceAccountTokenCache();
 
-  if (impersonatedUser) {
-    try {
-      await mintServiceAccountTokenOrThrow(impersonatedUser);
-    } catch (error) {
-      if (error instanceof DwdScopeVerificationError) {
-        return NextResponse.json(
-          {
-            error: error.message,
-            dwdDiagnostics: {
-              subject: error.subject,
-              clientId: error.clientId,
-              authorizedScopes: error.authorizedScopes,
-              missingScopes: error.missingScopes,
-            },
-          },
-          { status: 400 },
-        );
-      }
-      const msg = error instanceof Error ? error.message : String(error);
+  try {
+    await mintServiceAccountTokenOrThrow(impersonatedUser || undefined);
+  } catch (error) {
+    if (error instanceof DwdScopeVerificationError) {
       return NextResponse.json(
         {
-          error:
-            `Failed to verify Domain-Wide Delegation token for ${impersonatedUser}: ${msg}. ` +
-            "Please ensure your Service Account key file is valid and all required DWD scopes are authorized in Google Workspace Admin Console.",
+          error: error.message,
+          dwdDiagnostics: {
+            subject: error.subject,
+            clientId: error.clientId,
+            authorizedScopes: error.authorizedScopes,
+            missingScopes: error.missingScopes,
+          },
         },
         { status: 400 },
       );
     }
+    const msg = error instanceof Error ? error.message : String(error);
+    const targetDesc = impersonatedUser
+      ? `Domain-Wide Delegation token for ${impersonatedUser}`
+      : "direct Service Account token";
+    return NextResponse.json(
+      {
+        error:
+          `Failed to verify ${targetDesc}: ${msg}. ` +
+          (impersonatedUser
+            ? "Please ensure your Service Account key file is valid and all required DWD scopes are authorized in Google Workspace Admin Console."
+            : "Please ensure your Service Account key file is valid and active in GCP IAM."),
+      },
+      { status: 400 },
+    );
   }
 
   const response = NextResponse.json({ success: true, customerId, impersonatedUser });

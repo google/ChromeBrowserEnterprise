@@ -162,6 +162,44 @@ describe("/api/auth/sa-config", () => {
       expect(res.cookies.get(COOKIE_SA_CUSTOMER_ID)?.value).toBe("C00woaabb");
       expect(res.cookies.get(COOKIE_SA_IMPERSONATED_USER)?.value).toBe("admin@example.com");
     });
+
+    it("returns 400 and blocks cookie saving when Option 2 (Direct Mode) token minting fails", async () => {
+      mockMintToken.mockRejectedValue(new Error("Service Account key file could not be loaded"));
+      const req = new NextRequest("http://localhost:3000/api/auth/sa-config", {
+        method: "POST",
+        body: JSON.stringify({
+          customerId: "C00woaabb",
+          impersonatedUser: "",
+        }),
+      });
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toContain(
+        "Failed to verify direct Service Account token: Service Account key file could not be loaded",
+      );
+      expect(mockClearTokenCache).toHaveBeenCalled();
+    });
+
+    it("saves customerId cookie and deletes impersonation cookie when Option 2 (Direct Mode) token minting passes", async () => {
+      mockMintToken.mockResolvedValue("mock-direct-jwt-access-token-456");
+      const req = new NextRequest("http://localhost:3000/api/auth/sa-config", {
+        method: "POST",
+        body: JSON.stringify({
+          customerId: "C00woaabb",
+          impersonatedUser: "",
+        }),
+      });
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        success: true,
+        customerId: "C00woaabb",
+        impersonatedUser: "",
+      });
+      expect(res.cookies.get(COOKIE_SA_CUSTOMER_ID)?.value).toBe("C00woaabb");
+      expect(res.cookies.get(COOKIE_SA_IMPERSONATED_USER)?.value).toBe("");
+    });
   });
 
   describe("DELETE", () => {
