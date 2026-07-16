@@ -434,30 +434,9 @@ export function ServiceAccountHome({
               </div>
             ) : dwdDiagnostics ? (
               <div className="bg-error/10 border-error/30 text-on-surface flex flex-col gap-4 rounded-lg border p-5 text-xs">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-error text-sm font-semibold">
-                    ⚠️ Domain-Wide Delegation Required / Scope Mismatch
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleCopy("all-missing", dwdDiagnostics.missingScopes.join(","))
-                    }
-                    className="bg-error/20 text-error hover:bg-error/30 flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors"
-                  >
-                    {copiedField === "all-missing" ? (
-                      <>
-                        <Check className="size-3" />
-                        Copied All Missing Scopes
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="size-3" />
-                        Copy Missing ({dwdDiagnostics.missingScopes.length})
-                      </>
-                    )}
-                  </button>
-                </div>
+                <p className="text-error text-sm font-semibold">
+                  ⚠️ Domain-Wide Delegation Required / Scope Mismatch
+                </p>
                 <p className="text-on-surface-variant leading-relaxed">
                   To use Domain-Wide Delegation for{" "}
                   <strong className="text-on-surface">{dwdDiagnostics.subject}</strong>, you must
@@ -493,9 +472,30 @@ export function ServiceAccountHome({
                 </div>
 
                 <div className="bg-surface ring-on-surface/10 flex flex-col gap-2 rounded-md p-3 ring-1">
-                  <span className="text-on-surface-muted text-[0.6875rem] font-semibold tracking-wider uppercase">
-                    2. Copy Missing OAuth Scopes ({dwdDiagnostics.missingScopes.length})
-                  </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-on-surface-muted text-[0.6875rem] font-semibold tracking-wider uppercase">
+                      2. Copy Missing OAuth Scopes ({dwdDiagnostics.missingScopes.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleCopy("all-missing", dwdDiagnostics.missingScopes.join(","))
+                      }
+                      className="hover:bg-surface-raised text-on-surface-variant hover:text-on-surface flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.6875rem] font-medium transition-colors"
+                    >
+                      {copiedField === "all-missing" ? (
+                        <>
+                          <Check className="text-success size-3" />
+                          Copied All
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="size-3" />
+                          Copy All
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <div className="flex max-h-36 flex-col gap-1.5 overflow-y-auto font-mono text-[0.6875rem]">
                     {dwdDiagnostics.missingScopes.map((s) => (
                       <div
