@@ -13,11 +13,19 @@
  * hatch — we'd rather show a generic "re-authenticate" nudge than miss
  * a classification entirely.
  */
+import { getEnv } from "@/lib/env";
+
+/**
+ * Discriminated auth-error codes. `unknown_auth` is a deliberate escape
+ * hatch — we'd rather show a generic "re-authenticate" nudge than miss
+ * a classification entirely.
+ */
 export type AuthErrorCode =
   | "invalid_rapt"
   | "invalid_grant"
   | "no_adc"
   | "unauthenticated"
+  | "dwd_scope_mismatch"
   | "unknown_auth";
 
 /**
@@ -31,6 +39,12 @@ export interface AuthErrorPayload {
   remedy: string;
   command?: string;
   docsUrl?: string;
+  dwdDiagnostics?: {
+    subject: string;
+    clientId: string;
+    authorizedScopes: string[];
+    missingScopes: string[];
+  };
 }
 
 /**
@@ -44,6 +58,7 @@ export class AuthError extends Error implements AuthErrorPayload {
   readonly remedy: string;
   readonly command?: string;
   readonly docsUrl?: string;
+  readonly dwdDiagnostics?: AuthErrorPayload["dwdDiagnostics"];
 
   /**
    * Human-readable summary. Stored separately because `this.message` is
@@ -66,6 +81,7 @@ export class AuthError extends Error implements AuthErrorPayload {
     this.remedy = payload.remedy;
     this.command = payload.command;
     this.docsUrl = payload.docsUrl;
+    this.dwdDiagnostics = payload.dwdDiagnostics;
   }
 
   /**
@@ -80,6 +96,7 @@ export class AuthError extends Error implements AuthErrorPayload {
       remedy: this.remedy,
       command: this.command,
       docsUrl: this.docsUrl,
+      dwdDiagnostics: this.dwdDiagnostics,
     };
   }
 }
@@ -92,7 +109,10 @@ export class AuthError extends Error implements AuthErrorPayload {
 export function isAuthError(err: unknown): err is AuthError {
   return (
     err instanceof AuthError ||
-    (typeof err === "object" && err !== null && (err as { name?: string }).name === "AuthError")
+    (typeof err === "object" && err !== null && (err as { name?: string }).name === "AuthError") ||
+    (typeof err === "object" &&
+      err !== null &&
+      (err as { name?: string }).name === "DwdScopeVerificationError")
   );
 }
 
@@ -155,51 +175,93 @@ function buildPayload(
   code: AuthErrorCode,
   source: AuthErrorPayload["source"],
   docsUrl?: string,
+  dwdDiagnostics?: AuthErrorPayload["dwdDiagnostics"],
 ): AuthErrorPayload {
+  let isSaMode = false;
+  try {
+    isSaMode = getEnv().AUTH_MODE === "service_account";
+  } catch {
+    isSaMode = false;
+  }
+
   switch (code) {
+    case "dwd_scope_mismatch": {
+      const missingText = dwdDiagnostics?.missingScopes?.length
+        ? ` (${dwdDiagnostics.missingScopes.join(", ")})`
+        : "";
+      return {
+        code,
+        source,
+        message: `Domain-Wide Delegation scope authorization required${missingText}.`,
+        remedy:
+          "Authorize this Service Account and required OAuth scopes in your Google Workspace Admin Console (admin.google.com/ac/owl/domainwidedelegation).",
+        docsUrl: docsUrl || "https://admin.google.com/ac/owl/domainwidedelegation",
+        dwdDiagnostics,
+      };
+    }
     case "invalid_rapt":
       return {
         code,
         source,
-        message: "Google requires you to re-authenticate.",
-        remedy: "Run `gcloud auth login` and retry.",
-        command: "gcloud auth login",
+        message: isSaMode
+          ? "Service Account re-authentication required."
+          : "Google requires you to re-authenticate.",
+        remedy: isSaMode
+          ? "Verify your credentials and OAuth scopes on the /sa-setup page."
+          : "Run `gcloud auth login` and retry.",
+        command: isSaMode ? undefined : "gcloud auth login",
         docsUrl,
       };
     case "invalid_grant":
       return {
         code,
         source,
-        message: "Your Google credentials are no longer valid.",
-        remedy: "Run `gcloud auth login` to refresh them.",
-        command: "gcloud auth login",
+        message: isSaMode
+          ? "Your Service Account credentials or Domain-Wide Delegation are no longer valid."
+          : "Your Google credentials are no longer valid.",
+        remedy: isSaMode
+          ? "Verify your Service Account key and Domain-Wide Delegation on the /sa-setup page."
+          : "Run `gcloud auth login` to refresh them.",
+        command: isSaMode ? undefined : "gcloud auth login",
         docsUrl,
       };
     case "no_adc":
       return {
         code,
         source,
-        message: "Google Application Default Credentials aren't configured.",
-        remedy: "Run `gcloud auth application-default login` to set them up.",
-        command: "gcloud auth application-default login",
+        message: isSaMode
+          ? "Service Account key file could not be loaded."
+          : "Google Application Default Credentials aren't configured.",
+        remedy: isSaMode
+          ? "Configure your Service Account credentials on the /sa-setup page."
+          : "Run `gcloud auth application-default login` to set them up.",
+        command: isSaMode ? undefined : "gcloud auth application-default login",
         docsUrl,
       };
     case "unauthenticated":
       return {
         code,
         source,
-        message: "Google rejected the request (UNAUTHENTICATED).",
-        remedy: "Run `gcloud auth login` and confirm your account has access.",
-        command: "gcloud auth login",
+        message: isSaMode
+          ? "Google rejected the Service Account request (UNAUTHENTICATED)."
+          : "Google rejected the request (UNAUTHENTICATED).",
+        remedy: isSaMode
+          ? "Ensure your Service Account has valid Domain-Wide Delegation scopes on the /sa-setup page."
+          : "Run `gcloud auth login` and confirm your account has access.",
+        command: isSaMode ? undefined : "gcloud auth login",
         docsUrl,
       };
     case "unknown_auth":
       return {
         code,
         source,
-        message: "Pocket CEP couldn't authenticate the request to Google.",
-        remedy: "Run `gcloud auth login` and retry.",
-        command: "gcloud auth login",
+        message: isSaMode
+          ? "Pocket CEP couldn't authenticate the Service Account request to Google."
+          : "Pocket CEP couldn't authenticate the request to Google.",
+        remedy: isSaMode
+          ? "Re-verify your Service Account setup on the /sa-setup page."
+          : "Run `gcloud auth login` and retry.",
+        command: isSaMode ? undefined : "gcloud auth login",
         docsUrl,
       };
   }
@@ -216,6 +278,29 @@ function buildPayload(
  *   - MCP tool-error strings like "API Error: invalid_grant - ..."
  */
 export function toAuthError(err: unknown, source: AuthErrorPayload["source"]): AuthError | null {
+  if (err instanceof AuthError) return err;
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { name?: string }).name === "DwdScopeVerificationError"
+  ) {
+    const diagObj = (err as { dwdDiagnostics?: AuthErrorPayload["dwdDiagnostics"] })
+      .dwdDiagnostics || {
+      subject: (err as { subject?: string }).subject || "",
+      clientId: (err as { clientId?: string }).clientId || "",
+      authorizedScopes: (err as { authorizedScopes?: string[] }).authorizedScopes || [],
+      missingScopes: (err as { missingScopes?: string[] }).missingScopes || [],
+    };
+    return new AuthError(buildPayload("dwd_scope_mismatch", source, undefined, diagObj));
+  }
+
+  let isSaMode = false;
+  try {
+    isSaMode = getEnv().AUTH_MODE === "service_account";
+  } catch {
+    isSaMode = false;
+  }
+
   const body = extractOAuthBody(err);
   if (body) {
     const docsUrl = body.error_uri;
@@ -226,12 +311,22 @@ export function toAuthError(err: unknown, source: AuthErrorPayload["source"]): A
       return new AuthError(buildPayload("invalid_grant", source, docsUrl));
     }
     if (body.error === "unauthorized_client" || body.error === "access_denied") {
+      if (isSaMode) {
+        return new AuthError(buildPayload("dwd_scope_mismatch", source, docsUrl));
+      }
       return new AuthError(buildPayload("unauthenticated", source, docsUrl));
     }
   }
 
   const message = extractMessage(err);
   if (!message) return null;
+
+  if (
+    isSaMode &&
+    /unauthorized_client|Domain-Wide Delegation|DWD scope check failed/i.test(message)
+  ) {
+    return new AuthError(buildPayload("dwd_scope_mismatch", source));
+  }
 
   if (/invalid_rapt/i.test(message)) {
     return new AuthError(buildPayload("invalid_rapt", source));
@@ -245,6 +340,9 @@ export function toAuthError(err: unknown, source: AuthErrorPayload["source"]): A
     return new AuthError(buildPayload("no_adc", source));
   }
   if (/UNAUTHENTICATED|unauthorized/i.test(message)) {
+    if (isSaMode && /unauthorized_client|client not authorized/i.test(message)) {
+      return new AuthError(buildPayload("dwd_scope_mismatch", source));
+    }
     return new AuthError(buildPayload("unauthenticated", source));
   }
 

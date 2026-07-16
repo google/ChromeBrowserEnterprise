@@ -19,6 +19,7 @@ import { getEnv } from "./env";
 import { LOG_TAGS } from "./constants";
 import { getServiceAccountConfig } from "./sa-session";
 import { loadServiceAccountKey } from "./sa-identity";
+import { AuthError } from "./auth-errors";
 
 export const DWD_SCOPES = [
   "https://www.googleapis.com/auth/admin.directory.customer.readonly",
@@ -40,7 +41,7 @@ export const MACHINE_SCOPES = [
 
 export const SA_SCOPES = MACHINE_SCOPES;
 
-export class DwdScopeVerificationError extends Error {
+export class DwdScopeVerificationError extends AuthError {
   public readonly subject: string;
   public readonly clientId: string;
   public readonly authorizedScopes: string[];
@@ -57,7 +58,20 @@ export class DwdScopeVerificationError extends Error {
       missingScopes.length > 0
         ? `Domain-Wide Delegation scope check failed for ${subject}. Out of ${authorizedScopes.length + missingScopes.length} required DWD scopes, ${missingScopes.length} are missing in Google Workspace Admin Console.`
         : originalMessage || `Domain-Wide Delegation token verification failed for ${subject}.`;
-    super(msg);
+    super({
+      code: "dwd_scope_mismatch",
+      source: "adc",
+      message: msg,
+      remedy:
+        "Authorize this Service Account and required OAuth scopes in your Google Workspace Admin Console (admin.google.com/ac/owl/domainwidedelegation).",
+      docsUrl: "https://admin.google.com/ac/owl/domainwidedelegation",
+      dwdDiagnostics: {
+        subject,
+        clientId,
+        authorizedScopes,
+        missingScopes,
+      },
+    });
     this.name = "DwdScopeVerificationError";
     this.subject = subject;
     this.clientId = clientId;
