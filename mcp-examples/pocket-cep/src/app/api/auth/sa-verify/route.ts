@@ -29,7 +29,7 @@ export async function GET() {
   }
 
   try {
-    await getGoogleAccessToken();
+    await getGoogleAccessToken({ subject: config.impersonatedUser || undefined });
   } catch (error) {
     if (error instanceof DwdScopeVerificationError) {
       return NextResponse.json(

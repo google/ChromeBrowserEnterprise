@@ -209,16 +209,20 @@ export async function getServiceAccountAccessToken(
  * - In service_account mode: mints/returns Service Account JWT token.
  * - In user_oauth mode: retrieves human OAuth token from BetterAuth session.
  */
-export async function getGoogleAccessToken(): Promise<string | undefined> {
+export async function getGoogleAccessToken(options?: {
+  subject?: string;
+}): Promise<string | undefined> {
   const config = getEnv();
 
   if (config.AUTH_MODE === "service_account") {
-    let subject: string | undefined;
-    try {
-      const saConfig = await getServiceAccountConfig();
-      subject = saConfig?.impersonatedUser || process.env.CEP_IMPERSONATE_SUBJECT;
-    } catch {
-      subject = process.env.CEP_IMPERSONATE_SUBJECT;
+    let subject = options?.subject;
+    if (subject === undefined) {
+      try {
+        const saConfig = await getServiceAccountConfig();
+        subject = saConfig?.impersonatedUser || process.env.CEP_IMPERSONATE_SUBJECT;
+      } catch {
+        subject = process.env.CEP_IMPERSONATE_SUBJECT;
+      }
     }
     return getServiceAccountAccessToken(subject);
   }
