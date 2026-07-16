@@ -54,16 +54,29 @@ describe("getServiceAccountConfig", () => {
     delete process.env.CEP_IMPERSONATE_SUBJECT;
   });
 
-  it("falls back to CEP_IMPERSONATE_SUBJECT when no customer session cookie has been saved yet", async () => {
+  it("falls back to CEP_IMPERSONATE_SUBJECT when no customer session cookie has been saved yet but CEP_CUSTOMER_ID is set", async () => {
+    process.env.CEP_CUSTOMER_ID = "C09876543";
     process.env.CEP_IMPERSONATE_SUBJECT = "env-admin@example.com";
     mockCookieHas = (_name: string): boolean => false;
     mockCookieGet = () => undefined;
 
     const config = await getServiceAccountConfig();
     expect(config).toEqual({
-      customerId: "",
+      customerId: "C09876543",
       impersonatedUser: "env-admin@example.com",
     });
+    delete process.env.CEP_CUSTOMER_ID;
+    delete process.env.CEP_IMPERSONATE_SUBJECT;
+  });
+
+  it("returns null when customerId is empty even if CEP_IMPERSONATE_SUBJECT is set", async () => {
+    delete process.env.CEP_CUSTOMER_ID;
+    process.env.CEP_IMPERSONATE_SUBJECT = "env-admin@example.com";
+    mockCookieHas = (_name: string): boolean => false;
+    mockCookieGet = () => undefined;
+
+    const config = await getServiceAccountConfig();
+    expect(config).toBeNull();
     delete process.env.CEP_IMPERSONATE_SUBJECT;
   });
 });

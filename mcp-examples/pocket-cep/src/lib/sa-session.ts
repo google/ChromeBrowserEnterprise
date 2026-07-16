@@ -40,12 +40,12 @@ export async function getServiceAccountConfig(): Promise<ServiceAccountConfig | 
     : (rawImpersonated && rawImpersonated.length > 0 ? rawImpersonated : undefined) ||
       process.env.CEP_IMPERSONATE_SUBJECT?.trim();
 
-  if (!customerId && !impersonatedUser && !hasCustomerCookie) {
+  if (!customerId) {
     return null;
   }
 
   return {
-    customerId: customerId || "",
+    customerId,
     impersonatedUser,
   };
 }
