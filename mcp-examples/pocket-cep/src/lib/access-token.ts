@@ -92,7 +92,18 @@ async function diagnoseDwdScopeFailures(
     if (res.status === "fulfilled") {
       authorized.push(scopesToCheck[idx]);
     } else {
-      missing.push(scopesToCheck[idx]);
+      const errMsg = res.reason instanceof Error ? res.reason.message : String(res.reason);
+      const isScopeError =
+        /unauthorized_client|client not authorized|access_denied|invalid_grant: (?:Invalid email|User not authorized|Client is unauthorized)/i.test(
+          errMsg,
+        ) &&
+        !/invalid_grant: (?:Invalid JWT Signature|Account disabled|Invalid PKCS#8|Private key)/i.test(
+          errMsg,
+        );
+
+      if (isScopeError) {
+        missing.push(scopesToCheck[idx]);
+      }
     }
   });
 
@@ -155,15 +166,26 @@ export async function mintServiceAccountTokenOrThrow(impersonatedUser?: string):
     res = await jwtClient.getAccessToken();
   } catch (error) {
     if (subject) {
-      const diag = await diagnoseDwdScopeFailures(clientEmail, privateKey, subject, DWD_SCOPES);
-      if (diag.missing.length > 0) {
-        throw new DwdScopeVerificationError(
-          subject,
-          loaded.key.client_id || clientEmail,
-          diag.authorized,
-          diag.missing,
-          error instanceof Error ? error.message : String(error),
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const isScopeOrAuthorizationError =
+        /unauthorized_client|client not authorized|access_denied|invalid_grant: (?:Invalid email|User not authorized|Client is unauthorized)/i.test(
+          errMsg,
+        ) &&
+        !/invalid_grant: (?:Invalid JWT Signature|Account disabled|Invalid PKCS#8|Private key)/i.test(
+          errMsg,
         );
+
+      if (isScopeOrAuthorizationError) {
+        const diag = await diagnoseDwdScopeFailures(clientEmail, privateKey, subject, DWD_SCOPES);
+        if (diag.missing.length > 0) {
+          throw new DwdScopeVerificationError(
+            subject,
+            loaded.key.client_id || clientEmail,
+            diag.authorized,
+            diag.missing,
+            errMsg,
+          );
+        }
       }
     }
     throw error;
