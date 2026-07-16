@@ -28,15 +28,19 @@ export interface ServiceAccountConfig {
  */
 export async function getServiceAccountConfig(): Promise<ServiceAccountConfig | null> {
   const cookieStore = await cookies();
+  const hasCustomerCookie = cookieStore.has(COOKIE_SA_CUSTOMER_ID);
   const customerId =
     cookieStore.get(COOKIE_SA_CUSTOMER_ID)?.value?.trim() || process.env.CEP_CUSTOMER_ID?.trim();
 
   const rawImpersonated = cookieStore.get(COOKIE_SA_IMPERSONATED_USER)?.value?.trim();
-  const impersonatedUser =
-    (rawImpersonated && rawImpersonated.length > 0 ? rawImpersonated : undefined) ||
-    process.env.CEP_IMPERSONATE_SUBJECT?.trim();
+  const impersonatedUser = hasCustomerCookie
+    ? rawImpersonated && rawImpersonated.length > 0
+      ? rawImpersonated
+      : undefined
+    : (rawImpersonated && rawImpersonated.length > 0 ? rawImpersonated : undefined) ||
+      process.env.CEP_IMPERSONATE_SUBJECT?.trim();
 
-  if (!customerId && !impersonatedUser) {
+  if (!customerId && !impersonatedUser && !hasCustomerCookie) {
     return null;
   }
 
