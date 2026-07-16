@@ -349,18 +349,26 @@ function extractEventsArray(eventsData: unknown): ChromeAuditEvent[] {
   if (!eventsData) return [];
 
   if (Array.isArray(eventsData)) {
-    const first = eventsData[0];
-    if (
-      first &&
-      typeof first === "object" &&
-      "text" in first &&
-      typeof (first as Record<string, unknown>).text === "string"
-    ) {
-      try {
-        const parsed = JSON.parse((first as Record<string, string>).text);
-        return extractEventsArray(parsed);
-      } catch {
-        /* ignore JSON parse failure and fall through to array processing */
+    for (const block of eventsData) {
+      if (
+        block &&
+        typeof block === "object" &&
+        "text" in block &&
+        typeof (block as Record<string, unknown>).text === "string"
+      ) {
+        try {
+          const parsed = JSON.parse((block as Record<string, string>).text);
+          if (
+            Array.isArray(parsed) ||
+            (parsed &&
+              typeof parsed === "object" &&
+              ("events" in parsed || "activities" in parsed || "items" in parsed || "id" in parsed))
+          ) {
+            return extractEventsArray(parsed);
+          }
+        } catch {
+          /* ignore non-JSON or unrelated text blocks and check next block */
+        }
       }
     }
 
@@ -368,6 +376,15 @@ function extractEventsArray(eventsData: unknown): ChromeAuditEvent[] {
     for (const item of eventsData) {
       if (item && typeof item === "object") {
         const record = item as Record<string, unknown>;
+        if (
+          typeof record.text === "string" &&
+          !record.events &&
+          !record.eventName &&
+          !record.actor &&
+          !record.id
+        ) {
+          continue;
+        }
         if (Array.isArray(record.events)) {
           const idVal = record.id as ChromeAuditEvent["id"];
           const actorVal = record.actor as ChromeAuditEvent["actor"];
