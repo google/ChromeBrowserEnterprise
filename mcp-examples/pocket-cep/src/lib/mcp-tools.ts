@@ -63,6 +63,7 @@ export function invalidateToolCatalog(serverUrl?: string): void {
 export async function getMcpToolsForAiSdk(
   serverUrl: string,
   accessToken?: string,
+  customerId?: string,
 ): Promise<ToolSet> {
   const mcpTools = await getCachedToolCatalog(serverUrl, accessToken);
   const tools: ToolSet = {};
@@ -73,12 +74,12 @@ export async function getMcpToolsForAiSdk(
       inputSchema: jsonSchema(t.inputSchema as JSONSchema7),
       execute: async (args) => {
         console.log(LOG_TAGS.MCP, `Tool: ${t.name}`);
-        const result = await callMcpTool(
-          serverUrl,
-          t.name,
-          args as Record<string, unknown>,
-          accessToken,
-        );
+        const callArgs: Record<string, unknown> = { ...(args as Record<string, unknown>) };
+        if (customerId && (!callArgs.customerId || callArgs.customerId === "my_customer")) {
+          callArgs.customerId = customerId;
+        }
+
+        const result = await callMcpTool(serverUrl, t.name, callArgs, accessToken);
 
         /**
          * Auth-shaped tool errors get promoted to thrown AuthError so the
@@ -118,6 +119,7 @@ export async function getMcpToolsForAiSdk(
  */
 function extractErrorText(content: unknown): string {
   if (!Array.isArray(content)) return "";
+  const texts: string[] = [];
   for (const block of content) {
     if (
       block &&
@@ -127,24 +129,23 @@ function extractErrorText(content: unknown): string {
       "text" in block &&
       typeof block.text === "string"
     ) {
-      return block.text;
+      texts.push(block.text);
     }
   }
-  return "";
+  return texts.join("\n");
 }
 
 /**
  * Returns a formatted summary of available MCP tools and their parameter fields
  * for injection into reference prompts (e.g. follow-up suggestion brainstorming).
  */
-export async function getMcpToolsSummary(
-  serverUrl: string,
-  accessToken?: string,
-): Promise<string> {
+export async function getMcpToolsSummary(serverUrl: string, accessToken?: string): Promise<string> {
   const mcpTools = await getCachedToolCatalog(serverUrl, accessToken);
   return mcpTools
     .map((t) => {
-      const schema = t.inputSchema as { properties?: Record<string, { description?: string; type?: string }> } | undefined;
+      const schema = t.inputSchema as
+        | { properties?: Record<string, { description?: string; type?: string }> }
+        | undefined;
       const props = schema?.properties;
       const paramsDesc =
         props && Object.keys(props).length > 0
