@@ -197,7 +197,7 @@ function buildPayload(
         source,
         message: `Domain-Wide Delegation scope authorization required${missingText}.`,
         remedy:
-          "Authorize this Service Account and required OAuth scopes in your Google Workspace Admin Console (admin.google.com/ac/owl/domainwidedelegation).",
+          "Authorize this Service Account and required OAuth scopes on the [Service Account Setup](/sa-setup) page or in your [Google Workspace Admin Console](https://admin.google.com/ac/owl/domainwidedelegation).",
         docsUrl: docsUrl || "https://admin.google.com/ac/owl/domainwidedelegation",
         dwdDiagnostics,
       };
