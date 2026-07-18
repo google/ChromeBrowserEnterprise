@@ -210,7 +210,7 @@ function buildPayload(
           ? "Service Account re-authentication required."
           : "Google requires you to re-authenticate.",
         remedy: isSaMode
-          ? "Verify your credentials and OAuth scopes on the Service Account Setup page."
+          ? "Verify your credentials and OAuth scopes on the [Service Account Setup](/sa-setup) page."
           : "Run `gcloud auth login` and retry.",
         command: isSaMode ? undefined : "gcloud auth login",
         docsUrl,
@@ -223,7 +223,7 @@ function buildPayload(
           ? "Your Service Account credentials or Domain-Wide Delegation are no longer valid."
           : "Your Google credentials are no longer valid.",
         remedy: isSaMode
-          ? "Verify your Service Account key and Domain-Wide Delegation on the Service Account Setup page."
+          ? "Verify your Service Account key and Domain-Wide Delegation on the [Service Account Setup](/sa-setup) page."
           : "Run `gcloud auth login` to refresh them.",
         command: isSaMode ? undefined : "gcloud auth login",
         docsUrl,
@@ -236,7 +236,7 @@ function buildPayload(
           ? "Service Account key file could not be loaded."
           : "Google Application Default Credentials aren't configured.",
         remedy: isSaMode
-          ? "Configure your Service Account credentials on the Service Account Setup page."
+          ? "Configure your Service Account credentials on the [Service Account Setup](/sa-setup) page."
           : "Run `gcloud auth application-default login` to set them up.",
         command: isSaMode ? undefined : "gcloud auth application-default login",
         docsUrl,
@@ -248,11 +248,11 @@ function buildPayload(
         if (!saImpersonatedUser) {
           message = "Service Account is missing an Impersonated User subject for Workspace APIs.";
           remedy =
-            "Workspace APIs (such as DLP and Org Units) require an admin user to impersonate. Set an Impersonated User email on the Service Account Setup page.";
+            "Workspace APIs (such as DLP and Org Units) require an admin user to impersonate. Set an Impersonated User email on the [Service Account Setup](/sa-setup) page.";
         } else {
           message = `Google rejected Service Account impersonation for ${saImpersonatedUser}.`;
           remedy =
-            "Ensure Domain-Wide Delegation is enabled for client ID and authorized scopes in Google Workspace Admin Console, or check your settings on the Service Account Setup page.";
+            "Ensure Domain-Wide Delegation is enabled for client ID and authorized scopes in Google Workspace Admin Console, or check your settings on the [Service Account Setup](/sa-setup) page.";
         }
       }
       return {
@@ -272,7 +272,7 @@ function buildPayload(
           ? "Pocket CEP couldn't authenticate the Service Account request to Google."
           : "Pocket CEP couldn't authenticate the request to Google.",
         remedy: isSaMode
-          ? "Re-verify your Service Account setup on the Service Account Setup page."
+          ? "Re-verify your Service Account setup on the [Service Account Setup](/sa-setup) page."
           : "Run `gcloud auth login` and retry.",
         command: isSaMode ? undefined : "gcloud auth login",
         docsUrl,

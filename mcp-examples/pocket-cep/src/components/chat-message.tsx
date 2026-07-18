@@ -351,6 +351,24 @@ function parseAuthPayload(errorText: unknown): AuthErrorPayload | null {
 }
 
 function renderRemedyText(remedy: string) {
+  const markdownMatch = remedy.match(/\[([^\]]+)\]\(([^)]+)\)/);
+  if (markdownMatch) {
+    const [full, label, url] = markdownMatch;
+    const parts = remedy.split(full);
+    return (
+      <>
+        {parts[0]}
+        <Link
+          href={url}
+          className="font-semibold text-warning underline underline-offset-2 hover:text-primary transition-colors"
+        >
+          {label}
+        </Link>
+        {parts[1]}
+      </>
+    );
+  }
+
   const target = remedy.includes("Service Account Setup")
     ? "Service Account Setup"
     : remedy.includes("/sa-setup")
