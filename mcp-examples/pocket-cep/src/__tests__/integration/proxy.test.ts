@@ -29,8 +29,11 @@ import { NextRequest } from "next/server";
 import { proxy } from "@/proxy";
 import { EnvValidationError } from "@/lib/env";
 
-function makeRequest(url = "http://localhost:3000/"): NextRequest {
-  return new NextRequest(new URL(url));
+function makeRequest(
+  url = "http://localhost:3000/",
+  init?: { headers?: Record<string, string> },
+): NextRequest {
+  return new NextRequest(new URL(url), init);
 }
 
 describe("proxy — env validation failure", () => {
@@ -106,13 +109,39 @@ describe("proxy — normal auth routing", () => {
     expect(res.headers.get("location")).toContain("/api/auth/auto-session");
   });
 
-  it("service_account + session + root → redirects to /dashboard", async () => {
+  it("service_account + session + root → redirects to /sa-setup", async () => {
     mockGetEnv.mockReturnValue({ AUTH_MODE: "service_account" });
     mockGetSessionCookie.mockReturnValue("signed-cookie");
 
     const res = await proxy(makeRequest("http://localhost:3000/"));
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/dashboard");
+    expect(res.headers.get("location")).toContain("/sa-setup");
+  });
+
+  it("service_account + session + /sa-setup → allows viewing SA setup screen", async () => {
+    mockGetEnv.mockReturnValue({ AUTH_MODE: "service_account" });
+    mockGetSessionCookie.mockReturnValue("signed-cookie");
+
+    const res = await proxy(makeRequest("http://localhost:3000/sa-setup"));
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("service_account + session + unconfigured SA + /dashboard → redirects to /sa-setup", async () => {
+    mockGetEnv.mockReturnValue({ AUTH_MODE: "service_account" });
+    mockGetSessionCookie.mockReturnValue("signed-cookie");
+
+    const res = await proxy(makeRequest("http://localhost:3000/dashboard"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/sa-setup");
+  });
+
+  it("user_oauth + session + /sa-setup → redirects to /", async () => {
+    mockGetEnv.mockReturnValue({ AUTH_MODE: "user_oauth" });
+    mockGetSessionCookie.mockReturnValue("signed-cookie");
+
+    const res = await proxy(makeRequest("http://localhost:3000/sa-setup"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toMatch(/\/$/);
   });
 
   it("user_oauth + session + root → redirects to /dashboard", async () => {
@@ -168,7 +197,11 @@ describe("proxy — MCP reachability gate", () => {
 
     const { proxy: proxyImpl } = await import("@/proxy");
     const { NextRequest: Req } = await import("next/server");
-    const res = await proxyImpl(new Req(new URL("http://localhost:3000/dashboard")));
+    const res = await proxyImpl(
+      new Req(new URL("http://localhost:3000/dashboard"), {
+        headers: { cookie: "cep_sa_customer_id=C01234567" },
+      }),
+    );
 
     expect(res.status).toBe(503);
     expect(res.headers.get("content-type")).toMatch(/text\/html/);
@@ -195,7 +228,11 @@ describe("proxy — MCP reachability gate", () => {
 
     const { proxy: proxyImpl } = await import("@/proxy");
     const { NextRequest: Req } = await import("next/server");
-    const res = await proxyImpl(new Req(new URL("http://localhost:3000/dashboard")));
+    const res = await proxyImpl(
+      new Req(new URL("http://localhost:3000/dashboard"), {
+        headers: { cookie: "cep_sa_customer_id=C01234567" },
+      }),
+    );
 
     // NextResponse.next() lets the request continue: no 503 short-circuit,
     // no redirect, no HTML body content-type set on the response.
@@ -240,8 +277,16 @@ describe("proxy — MCP reachability gate", () => {
 
     const { proxy: proxyImpl } = await import("@/proxy");
     const { NextRequest: Req } = await import("next/server");
-    await proxyImpl(new Req(new URL("http://localhost:3000/dashboard")));
-    await proxyImpl(new Req(new URL("http://localhost:3000/dashboard/extra")));
+    await proxyImpl(
+      new Req(new URL("http://localhost:3000/dashboard"), {
+        headers: { cookie: "cep_sa_customer_id=C01234567" },
+      }),
+    );
+    await proxyImpl(
+      new Req(new URL("http://localhost:3000/dashboard/extra"), {
+        headers: { cookie: "cep_sa_customer_id=C01234567" },
+      }),
+    );
 
     expect(probe).toHaveBeenCalledTimes(1);
   });

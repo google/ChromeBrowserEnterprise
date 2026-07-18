@@ -13,18 +13,25 @@
  * a separate client component imported below.
  */
 
+import { redirect } from "next/navigation";
 import { Shield } from "lucide-react";
 import { SignInButton } from "@/components/sign-in-button";
+import { getEnv } from "@/lib/env";
 
 /**
- * Static landing page with a Google-style centered sign-in card.
- * Deliberately simple: no data fetching, no session check. The
- * middleware handles redirect logic before this component renders.
+ * Static landing page:
+ * - In service_account mode, redirects to /sa-setup to configure target Customer ID and checklists.
+ * - In user_oauth mode, displays standard Google-style centered sign-in card.
  */
-export default function LandingPage() {
+export default async function LandingPage() {
+  const env = getEnv();
+  if (env.AUTH_MODE === "service_account") {
+    redirect("/sa-setup");
+  }
+
   return (
-    <div className="bg-surface-dim flex flex-1 items-center justify-center px-4">
-      <main className="bg-surface ring-on-surface/10 flex w-full max-w-[400px] flex-col items-center gap-6 rounded-[var(--radius-md)] px-10 py-10 shadow-[var(--shadow-elevation-1)] ring-1">
+    <div className="bg-surface-dim flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8">
+      <main className="bg-surface ring-on-surface/10 my-auto flex w-full max-w-[400px] flex-col items-center gap-6 rounded-[var(--radius-md)] px-10 py-10 shadow-[var(--shadow-elevation-1)] ring-1">
         <div className="flex flex-col items-center gap-2">
           <Shield className="text-primary size-8" aria-hidden="true" />
           <h1 className="text-on-surface text-[1.375rem] font-medium text-balance">Pocket CEP</h1>

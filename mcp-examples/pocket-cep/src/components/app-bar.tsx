@@ -11,12 +11,15 @@
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { SA_EMAIL_DOMAIN } from "@/lib/constants";
+import { useMode } from "@/components/mode-provider";
 import { ModeBadges } from "@/components/mode-badges";
 
 export function AppBar() {
+  const mode = useMode();
   const session = authClient.useSession();
   const user = session.data?.user;
-  const isAnonymous = user?.email?.endsWith(`@${SA_EMAIL_DOMAIN}`);
+  const isSA = mode.authMode === "service_account";
+  const isAnonymous = isSA || !!user?.email?.endsWith(`@${SA_EMAIL_DOMAIN}`);
 
   const handleSignOut = async () => {
     await authClient.signOut();
@@ -69,7 +72,14 @@ type SessionChipProps = {
 
 function SessionChip({ isAnonymous, email, onSignOut }: SessionChipProps) {
   if (isAnonymous) {
-    return null;
+    return (
+      <Link
+        href="/sa-setup"
+        className="text-on-surface-muted hover:text-on-surface hover:bg-surface-dim inline-flex h-8 items-center rounded-[var(--radius-sm)] px-2.5 text-[0.8125rem] font-medium transition-colors"
+      >
+        SA Settings
+      </Link>
+    );
   }
 
   return (

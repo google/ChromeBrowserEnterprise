@@ -40,6 +40,16 @@ const baseFields = {
   BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
   MCP_SERVER_URL: z.string().url().default(DEFAULT_MCP_URL),
   LLM_MODEL: z.string().default(""),
+  CEP_IMPERSONATE_SUBJECT: z
+    .string()
+    .email("CEP_IMPERSONATE_SUBJECT must be a valid Workspace admin email.")
+    .optional()
+    .or(z.literal("")),
+  CEP_CUSTOMER_ID: z
+    .string()
+    .regex(/^C[a-zA-Z0-9]+$/, "CEP_CUSTOMER_ID must start with 'C' (e.g. C01234567).")
+    .optional()
+    .or(z.literal("")),
 };
 
 /**
