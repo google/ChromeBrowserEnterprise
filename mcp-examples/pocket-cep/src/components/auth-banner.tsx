@@ -17,7 +17,30 @@
 import { useState } from "react";
 import { ShieldAlert, Copy, Check, RefreshCw } from "lucide-react";
 import { useAuthHealth } from "@/components/auth-health-provider";
+import Link from "next/link";
 import { isAuthErrorPayload } from "@/lib/auth-errors";
+
+function renderRemedyText(remedy: string) {
+  const target = remedy.includes("Service Account Setup")
+    ? "Service Account Setup"
+    : remedy.includes("/sa-setup")
+      ? "/sa-setup"
+      : null;
+  if (!target) return remedy;
+  const parts = remedy.split(target);
+  return (
+    <>
+      {parts[0]}
+      <Link
+        href="/sa-setup"
+        className="font-semibold text-warning underline underline-offset-2 hover:text-primary transition-colors"
+      >
+        {target}
+      </Link>
+      {parts[1]}
+    </>
+  );
+}
 
 /**
  * Renders the banner only when the context holds an error. Keeping the
@@ -66,7 +89,7 @@ export function AuthBanner() {
     >
       <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
       <div className="flex-1">
-        <p className="font-medium text-pretty">{error.remedy}</p>
+        <p className="font-medium text-pretty">{renderRemedyText(error.remedy)}</p>
         <p className="text-on-surface-variant text-pretty">{error.message}</p>
       </div>
 
