@@ -15,13 +15,14 @@
  * persisted.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { streamText, convertToModelMessages, stepCountIs } from "ai";
 import type { LanguageModel, UIMessage } from "ai";
 import { getGoogleAccessToken } from "@/lib/access-token";
 import { getEnv } from "@/lib/env";
 import { getMcpToolsForAiSdk } from "@/lib/mcp-tools";
 import { requireSession } from "@/lib/session";
+import { getActiveCustomerId } from "@/lib/sa-session";
 import { buildSystemPrompt, LOG_TAGS, MAX_AGENT_ITERATIONS } from "@/lib/constants";
 import { BYOK_HEADER, parseByokHeader } from "@/lib/model-preferences";
 import { respondWithApiError, unauthenticatedResponse } from "@/lib/api-response";
@@ -33,18 +34,15 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const {
-    messages,
-    selectedUser = "",
-    modelId,
-  }: { messages: UIMessage[]; selectedUser?: string; modelId?: string } = body;
-
-  if (!messages) {
-    return NextResponse.json({ error: "messages is required" }, { status: 400 });
-  }
+  const messages: UIMessage[] = Array.isArray(body.messages) ? body.messages : [];
+  const selectedUser: string = typeof body.selectedUser === "string" ? body.selectedUser : "";
+  const modelId: string | undefined = typeof body.modelId === "string" ? body.modelId : undefined;
 
   const config = getEnv();
-  const accessToken = await getGoogleAccessToken();
+  const [accessToken, customerId] = await Promise.all([
+    getGoogleAccessToken(),
+    getActiveCustomerId(),
+  ]);
 
   console.log(
     LOG_TAGS.CHAT,
@@ -53,7 +51,7 @@ export async function POST(request: Request) {
 
   let tools;
   try {
-    tools = await getMcpToolsForAiSdk(config.MCP_SERVER_URL, accessToken);
+    tools = await getMcpToolsForAiSdk(config.MCP_SERVER_URL, accessToken, customerId);
   } catch (error) {
     return respondWithApiError(error, { fallbackStatus: 502 });
   }
@@ -69,7 +67,7 @@ export async function POST(request: Request) {
 
   const result = streamText({
     model,
-    system: buildSystemPrompt(selectedUser),
+    system: buildSystemPrompt(selectedUser, customerId),
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: stepCountIs(MAX_AGENT_ITERATIONS),

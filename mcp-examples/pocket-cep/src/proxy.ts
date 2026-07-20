@@ -95,10 +95,20 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/api/auth/auto-session", request.url));
     }
     if (pathname === "/") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return NextResponse.redirect(new URL("/sa-setup", request.url));
     }
-    // service_account + session + /dashboard → fall through
+    const hasSaCustomer = Boolean(
+      request.cookies.get("cep_sa_customer_id")?.value?.trim() ||
+      process.env.CEP_CUSTOMER_ID?.trim(),
+    );
+    if (pathname.startsWith("/dashboard") && !hasSaCustomer) {
+      return NextResponse.redirect(new URL("/sa-setup", request.url));
+    }
+    // service_account + session + configured SA -> fall through
   } else {
+    if (pathname === "/sa-setup") {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
     if (sessionCookie && pathname === "/") {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
@@ -124,10 +134,10 @@ export async function proxy(request: NextRequest) {
 }
 
 /**
- * Next.js proxy matcher. Only intercepts the landing page and
+ * Next.js proxy matcher. Only intercepts the landing page, /sa-setup, and
  * dashboard routes -- API routes and static files are excluded so they
  * are not slowed down by the proxy.
  */
 export const config = {
-  matcher: ["/", "/dashboard/:path*"],
+  matcher: ["/", "/sa-setup", "/dashboard/:path*"],
 };

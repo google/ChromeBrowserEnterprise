@@ -13,6 +13,7 @@ import type { UIMessage } from "ai";
 import { toolPartLabel, type InvocationPart } from "@/lib/tool-part";
 import { reportAuthErrorGlobally } from "@/lib/auth-aware-fetch";
 import { isAuthErrorPayload, type AuthErrorPayload } from "@/lib/auth-errors";
+import Link from "next/link";
 import { JsonTree } from "./json-tree";
 
 /**
@@ -68,28 +69,39 @@ export function ChatMessage({ message }: ChatMessageProps) {
             : "bg-surface text-on-surface ring-on-surface/5 ring-1",
         )}
       >
-        {message.parts.map((part, i) => {
-          if (part.type === "text" && part.text) {
-            if (isUser) {
+        {(() => {
+          let lastAuthCode: string | null = null;
+          return message.parts.map((part, i) => {
+            if (part.type === "text" && part.text) {
+              if (isUser) {
+                return (
+                  <div key={`text-${i}`} className="leading-5 text-pretty whitespace-pre-wrap">
+                    {part.text}
+                  </div>
+                );
+              }
               return (
-                <div key={`text-${i}`} className="leading-5 text-pretty whitespace-pre-wrap">
-                  {part.text}
+                <div key={`text-${i}`} className="prose-chat">
+                  <ReactMarkdown remarkPlugins={MARKDOWN_PLUGINS}>{part.text}</ReactMarkdown>
                 </div>
               );
             }
-            return (
-              <div key={`text-${i}`} className="prose-chat">
-                <ReactMarkdown remarkPlugins={MARKDOWN_PLUGINS}>{part.text}</ReactMarkdown>
-              </div>
-            );
-          }
 
-          if (isToolUIPart(part)) {
-            return <ToolPartCard key={part.toolCallId ?? `tool-${i}`} part={part} />;
-          }
+            if (isToolUIPart(part)) {
+              const errorText = "errorText" in part ? part.errorText : undefined;
+              const authPayload = parseAuthPayload(errorText);
+              if (authPayload) {
+                if (lastAuthCode === authPayload.code) {
+                  return null;
+                }
+                lastAuthCode = authPayload.code;
+              }
+              return <ToolPartCard key={part.toolCallId ?? `tool-${i}`} part={part} />;
+            }
 
-          return null;
-        })}
+            return null;
+          });
+        })()}
 
         {!isUser && <CopyButton parts={message.parts} />}
       </div>
@@ -338,6 +350,46 @@ function parseAuthPayload(errorText: unknown): AuthErrorPayload | null {
   }
 }
 
+function renderRemedyText(remedy: string) {
+  const markdownMatch = remedy.match(/\[([^\]]+)\]\(([^)]+)\)/);
+  if (markdownMatch) {
+    const [full, label, url] = markdownMatch;
+    const parts = remedy.split(full);
+    return (
+      <>
+        {parts[0]}
+        <Link
+          href={url}
+          className="font-semibold text-warning underline underline-offset-2 hover:text-primary transition-colors"
+        >
+          {label}
+        </Link>
+        {parts[1]}
+      </>
+    );
+  }
+
+  const target = remedy.includes("Service Account Setup")
+    ? "Service Account Setup"
+    : remedy.includes("/sa-setup")
+      ? "/sa-setup"
+      : null;
+  if (!target) return remedy;
+  const parts = remedy.split(target);
+  return (
+    <>
+      {parts[0]}
+      <Link
+        href="/sa-setup"
+        className="font-semibold text-warning underline underline-offset-2 hover:text-primary transition-colors"
+      >
+        {target}
+      </Link>
+      {parts[1]}
+    </>
+  );
+}
+
 /**
  * Distinguished auth-error card. Amber (call to action) instead of red
  * (failure), so the user's eye goes straight to the remedy.
@@ -350,7 +402,7 @@ function AuthToolCard({ payload }: { payload: AuthErrorPayload }) {
   return (
     <div className="bg-warning-light text-warning ring-warning/30 my-1.5 rounded-[var(--radius-sm)] px-3 py-2 text-sm ring-1">
       <p className="font-semibold">Authentication required</p>
-      <p className="text-warning/80 mt-0.5 text-pretty">{payload.remedy}</p>
+      <p className="text-warning/80 mt-0.5 text-pretty">{renderRemedyText(payload.remedy)}</p>
       {payload.command && (
         <code className="bg-surface-container text-on-surface-variant mt-1.5 inline-block rounded-[var(--radius-xs)] px-1.5 py-0.5 font-mono text-[0.6875rem]">
           {payload.command}

@@ -17,6 +17,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import type { Prompt, PromptMessage } from "@modelcontextprotocol/sdk/types.js";
 import { LOG_TAGS } from "./constants";
 import { getErrorMessage } from "./errors";
+import { getActiveCustomerId } from "./sa-session";
 
 export type { Prompt, PromptMessage };
 
@@ -116,23 +117,31 @@ export async function callMcpTool(
   args: Record<string, unknown>,
   accessToken?: string,
 ): Promise<McpToolResult> {
-  /**
-   * We construct the raw request object before calling the SDK so we can
-   * return it for the inspector panel. This mirrors what the SDK sends
-   * on the wire (JSON-RPC 2.0 tools/call method).
-   */
+  const callArgs: Record<string, unknown> = { ...args };
+  if (
+    process.env.AUTH_MODE === "service_account" &&
+    (!callArgs.customerId || callArgs.customerId === "my_customer")
+  ) {
+    try {
+      const customerId = await getActiveCustomerId();
+      if (customerId) {
+        callArgs.customerId = customerId;
+      }
+    } catch {}
+  }
+
   const rawRequest = {
     jsonrpc: "2.0",
     method: "tools/call",
-    params: { name: toolName, arguments: args },
+    params: { name: toolName, arguments: callArgs },
   };
 
-  console.log(LOG_TAGS.MCP, `Calling tool: ${toolName}`, JSON.stringify(args));
+  console.log(LOG_TAGS.MCP, `Calling tool: ${toolName}`, JSON.stringify(callArgs));
 
   const { client } = await connect(serverUrl, accessToken);
 
   try {
-    const result = await client.callTool({ name: toolName, arguments: args });
+    const result = await client.callTool({ name: toolName, arguments: callArgs });
 
     const rawResponse = {
       jsonrpc: "2.0",

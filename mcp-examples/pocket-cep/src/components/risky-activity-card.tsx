@@ -93,7 +93,8 @@ export function RiskyActivityCard({ selectedUser, onAskFollowUp }: RiskyActivity
           </div>
         ) : error ? (
           <p className="text-error text-sm">
-            Unable to generate summarization. Please verify MCP credentials and system configuration.
+            Unable to generate summarization. Please verify MCP credentials and system
+            configuration.
           </p>
         ) : (
           <div className="prose-chat text-sm leading-5">

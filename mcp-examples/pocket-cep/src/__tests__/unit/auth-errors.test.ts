@@ -70,6 +70,12 @@ describe("toAuthError", () => {
     expect(result?.code).toBe("unauthenticated");
   });
 
+  it("classifies CEP MCP remediation and strict-mode error strings", () => {
+    expect(toAuthError("Authentication required. The inbound Bearer token has expired or is invalid.", "mcp-tool")?.code).toBe("unauthenticated");
+    expect(toAuthError("Sign-in is needed before this tool can run. The cached OAuth token is missing.", "mcp-tool")?.code).toBe("unauthenticated");
+    expect(toAuthError("Authentication failed: Server is configured in strict \"bearer-only\" mode, but no Authorization token was passed in the request.", "mcp-tool")?.code).toBe("unauthenticated");
+  });
+
   it("classifies a 'no ADC' / 'Could not load default credentials' error", () => {
     const err = new Error(
       "Could not load the default credentials. Browse to https://developers.google.com/accounts/docs/application-default-credentials",

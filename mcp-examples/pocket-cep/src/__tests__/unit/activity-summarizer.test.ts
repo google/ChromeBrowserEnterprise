@@ -335,4 +335,24 @@ describe("summarizeChromeActivity", () => {
     expect(wlSummary).toContain('flagged by Safe Browsing policy "SafeBrowsingProtectionLevel"');
     expect(wlSummary).toContain("This attempt triggered a warning.");
   });
+
+  it("iterates through all content blocks to find JSON event payloads in multi-block responses", () => {
+    const multiBlockResponse = [
+      { type: "text", text: "Query executed successfully in 14ms" },
+      {
+        type: "text",
+        text: JSON.stringify({
+          events: [
+            {
+              eventName: "UNSAFE_SITE_VISIT",
+              actor: { email: "dylan@google.com" },
+              parameters: [{ name: "URL", value: "https://malware.example.com" }],
+            },
+          ],
+        }),
+      },
+    ];
+    const summary = summarizeChromeActivity(multiBlockResponse);
+    expect(summary).toContain("malware.example.com");
+  });
 });

@@ -100,7 +100,10 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
     [resolveBody, resolveHeaders],
   );
 
-  const [latestSuggestions, setLatestSuggestions] = useState<{ messageId: string; questions: string[] } | null>(null);
+  const [latestSuggestions, setLatestSuggestions] = useState<{
+    messageId: string;
+    questions: string[];
+  } | null>(null);
   const messagesRef = useRef<UIMessage[]>([]);
 
   const fetchSuggestions = useCallback(
@@ -130,7 +133,8 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
     transport,
     onFinish: (event) => {
       const msg = "message" in event ? event.message : event;
-      const msgs = "messages" in event && Array.isArray(event.messages) ? event.messages : undefined;
+      const msgs =
+        "messages" in event && Array.isArray(event.messages) ? event.messages : undefined;
       if (msg && msg.role === "assistant") {
         const history = msgs ?? [...messagesRef.current, msg];
         void fetchSuggestions(history, msg.id);
@@ -272,7 +276,8 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
           ) : (
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
               {messages.map((msg) => {
-                const showSuggestions = latestSuggestions && latestSuggestions.messageId === msg.id && !isStreaming;
+                const showSuggestions =
+                  latestSuggestions && latestSuggestions.messageId === msg.id && !isStreaming;
                 return (
                   <div key={msg.id} className="flex flex-col gap-2">
                     <ChatMessage message={msg} />
@@ -283,7 +288,7 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
                             key={qIdx}
                             type="button"
                             onClick={() => handleSend(q)}
-                            className="surface-raised state-layer border-on-surface/10 text-on-surface hover:border-primary/40 hover:text-primary flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
+                            className="surface-raised state-layer border-on-surface/10 text-on-surface hover:border-primary/40 hover:text-primary flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
                           >
                             <span>💡</span>
                             <span>{q}</span>
@@ -379,13 +384,13 @@ function EmptyState({
                     type="button"
                     onClick={() => onRun(prompt)}
                     disabled={busy || expandingName !== null}
-                    className={`surface-raised group slide-up stagger-${i + 1} flex w-full flex-col gap-1 rounded-[var(--radius-sm)] p-2.5 text-left cursor-pointer disabled:cursor-wait disabled:opacity-60`}
+                    className={`surface-raised group slide-up stagger-${i + 1} flex w-full cursor-pointer flex-col gap-1 rounded-[var(--radius-sm)] p-2.5 text-left disabled:cursor-wait disabled:opacity-60`}
                   >
-                    <div className="flex items-center gap-2 w-full">
+                    <div className="flex w-full items-center gap-2">
                       <span className="bg-primary-light text-primary grid size-6 shrink-0 place-items-center rounded-[var(--radius-xs)]">
                         <Icon className="size-3.5" />
                       </span>
-                      <span className="text-on-surface flex-1 text-xs font-medium truncate">
+                      <span className="text-on-surface flex-1 truncate text-xs font-medium">
                         {titleForPrompt(prompt)}
                       </span>
                       {busy ? (
@@ -395,7 +400,7 @@ function EmptyState({
                       )}
                     </div>
                     {prompt.description && (
-                      <p className="text-on-surface-variant pl-8 text-[0.75rem] leading-4 line-clamp-2">
+                      <p className="text-on-surface-variant line-clamp-2 pl-8 text-[0.75rem] leading-4">
                         {prompt.description}
                       </p>
                     )}

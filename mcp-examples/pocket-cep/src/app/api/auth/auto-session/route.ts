@@ -23,7 +23,7 @@ import { getEnv } from "@/lib/env";
  * Creates an anonymous session and redirects to the dashboard.
  * Only active in service_account mode; returns 404 otherwise.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const config = getEnv();
 
   if (config.AUTH_MODE !== "service_account") {
@@ -31,10 +31,12 @@ export async function GET() {
   }
 
   /**
-   * Use BETTER_AUTH_URL as the redirect base (not request.url) so a
-   * spoofed Host header can't turn this into an open redirect.
+   * Derive base from request.url so port shifts (e.g. Next.js running on
+   * 3001 when 3000 is occupied) fetch the active server instance instead
+   * of timing out against an offline port.
    */
-  const base = config.BETTER_AUTH_URL;
+  const reqUrl = new URL(request.url);
+  const base = `${reqUrl.protocol}//${reqUrl.host}`;
 
   let response: Response;
   try {

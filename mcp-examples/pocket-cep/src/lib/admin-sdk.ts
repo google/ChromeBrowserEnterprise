@@ -6,6 +6,7 @@ import { getErrorMessage } from "./errors";
 import { LOG_TAGS } from "./constants";
 import { getADCToken, buildGoogleApiHeaders } from "./adc";
 import { isAuthError, toAuthError } from "./auth-errors";
+import { getActiveCustomerId } from "./sa-session";
 
 /**
  * Converts a user-typed search string into Admin SDK query syntax.
@@ -43,8 +44,9 @@ export async function searchUsers(
   accessToken?: string,
   maxResults = 20,
 ): Promise<DirectoryUser[]> {
+  const customerId = await getActiveCustomerId();
   const params = new URLSearchParams({
-    customer: "my_customer",
+    customer: customerId || "my_customer",
     maxResults: String(maxResults),
     orderBy: "email",
     projection: "basic",
@@ -58,7 +60,7 @@ export async function searchUsers(
   const token = accessToken ?? (await getADCToken());
 
   try {
-    const headers = await buildGoogleApiHeaders(token, !accessToken);
+    const headers = await buildGoogleApiHeaders(token, false);
 
     const response = await fetch(url, {
       headers,
