@@ -126,19 +126,16 @@ Pocket CEP supports two authentication modes that control how it communicates wi
 .env: AUTH_MODE=service_account
 ```
 
-**How it works:** The user signs into Pocket CEP with basic Google OAuth (just `openid`, `email`, `profile` scopes) for UI access. The MCP server uses its own Application Default Credentials (ADC) to call Google APIs. ADC comes from running `gcloud auth application-default login` as a Workspace admin.
+**How it works:** The user signs into Pocket CEP with basic Google OAuth (just `openid`, `email`, `profile` scopes) for UI access. The server calls Google APIs using either Application Default Credentials (ADC) or a Google Cloud Service Account with Domain-Wide Delegation (DWD).
 
 **Best for:**
-- Local development and demos
-- Environments where you've already run `gcloud auth application-default login`
-- Quick setup when you don't need per-user audit trails
-- Workshops where attendees don't have Workspace admin access
+- Local development, workshops, and automated server deployments
+- Environments where a central Service Account key or ADC is configured
+- Quick setup when per-user OAuth consent is not viable
 
 **Requirements:**
-- Run `gcloud auth application-default login` with the admin scopes (see [Quick Start](#quick-start))
-- Set a quota project: `gcloud auth application-default set-quota-project YOUR_PROJECT_ID`
-
-**Note:** A service account JSON key alone won't work — the upstream MCP server's `GoogleAuth` call doesn't pass a `subject` for domain-wide delegation. ADC from `gcloud auth application-default login` (where a human admin authenticates) is the supported path.
+- **Option A (DWD Key)**: Upload your Service Account JSON key and set your Impersonated User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` in `.env.local`). Ensure the Service Account's Client ID is authorized in Google Workspace Admin Console (`admin.google.com/ac/owl/domainwidedelegation`).
+- **Option B (gcloud ADC)**: Run `gcloud auth application-default login` with admin scopes and set `gcloud auth application-default set-quota-project YOUR_PROJECT_ID`.
 
 ### `user_oauth`
 

@@ -70,7 +70,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
         )}
       >
         {(() => {
-          let lastAuthCode: string | null = null;
+          const seenAuthCodes = new Set<string>();
           return message.parts.map((part, i) => {
             if (part.type === "text" && part.text) {
               if (isUser) {
@@ -91,10 +91,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
               const errorText = "errorText" in part ? part.errorText : undefined;
               const authPayload = parseAuthPayload(errorText);
               if (authPayload) {
-                if (lastAuthCode === authPayload.code) {
+                if (seenAuthCodes.has(authPayload.code)) {
                   return null;
                 }
-                lastAuthCode = authPayload.code;
+                seenAuthCodes.add(authPayload.code);
               }
               return <ToolPartCard key={part.toolCallId ?? `tool-${i}`} part={part} />;
             }
@@ -360,7 +360,7 @@ function renderRemedyText(remedy: string) {
         {parts[0]}
         <Link
           href={url}
-          className="font-semibold text-warning underline underline-offset-2 hover:text-primary transition-colors"
+          className="text-warning hover:text-primary font-semibold underline underline-offset-2 transition-colors"
         >
           {label}
         </Link>
@@ -381,7 +381,7 @@ function renderRemedyText(remedy: string) {
       {parts[0]}
       <Link
         href="/sa-setup"
-        className="font-semibold text-warning underline underline-offset-2 hover:text-primary transition-colors"
+        className="text-warning hover:text-primary font-semibold underline underline-offset-2 transition-colors"
       >
         {target}
       </Link>
