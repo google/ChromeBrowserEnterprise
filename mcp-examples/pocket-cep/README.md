@@ -61,16 +61,18 @@ npm install
 #    gcloud ADC, and the MCP URL with live validation at each step
 npm run setup
 
-# 3. Verify your configuration
+# 3. (Optional) Verify your configuration before starting
 npm run doctor
 
 # 4. Start Pocket CEP + the MCP server together (two named log streams)
 npm run dev:full
 ```
 
+Prefer manual setup? Copy `.env.local.example` to `.env.local`, fill in your secrets, and set `AUTH_MODE` (`service_account` or `user_oauth`). See [Configuration](#configuration) for details.
+
 ### Service Account Setup Options
 
-Service-account mode (`AUTH_MODE=service_account`) supports two authentication options:
+Service-account mode (`AUTH_MODE=service_account`, default) supports two authentication options:
 
 - **Option A (Domain-Wide Delegation JSON Key — Recommended)**: Upload your Service Account JSON key and set your Impersonated Admin User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` in `.env.local`). For the 4-step Google Workspace Admin Console setup and OAuth scope allowlist, see the [MCP Server DWD Guide](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/configuration.md#service-account--domain-wide-delegation-dwd).
 - **Option B (gcloud ADC)**: Run `gcloud auth application-default login` with admin scopes:
@@ -89,9 +91,9 @@ Open http://localhost:3000 and sign in with Google.
 
 ---
 
-## Environment Diagnostics
+## Environment Diagnostics (Optional)
 
-Run `npm run doctor` before starting the app to catch configuration issues early. Output is rendered with `@clack/prompts`:
+Run `npm run doctor` at any time to catch configuration issues early. Output is rendered with `@clack/prompts`:
 
 ```
 ┌  Pocket CEP — Environment Check
