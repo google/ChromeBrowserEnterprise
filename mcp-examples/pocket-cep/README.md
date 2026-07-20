@@ -55,8 +55,10 @@ Copy `.env.local.example` to `.env.local`, fill in the secrets at the
 top, uncomment any overrides you need, then run `npm run doctor` to
 verify. See [Configuration](#configuration) for the full breakdown.
 
-Service-account mode also needs ADC — paste this single-line command
-(do not break it across lines):
+Service-account mode supports two authentication options:
+
+- **Option A (Domain-Wide Delegation JSON Key — Recommended)**: Upload your Service Account JSON key and set your Impersonated Admin User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` in `.env.local`). For the 4-step Google Workspace Admin Console setup and OAuth scope allowlist, see the [MCP Server DWD Guide](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/configuration.md#service-account--domain-wide-delegation-dwd).
+- **Option B (gcloud ADC)**: Run `gcloud auth application-default login` with admin scopes:
 
 ```bash
 gcloud auth application-default login --scopes="https://www.googleapis.com/auth/chrome.management.policy,https://www.googleapis.com/auth/chrome.management.reports.readonly,https://www.googleapis.com/auth/chrome.management.profiles.readonly,https://www.googleapis.com/auth/admin.reports.audit.readonly,https://www.googleapis.com/auth/admin.reports.usage.readonly,https://www.googleapis.com/auth/admin.directory.user.readonly,https://www.googleapis.com/auth/admin.directory.orgunit.readonly,https://www.googleapis.com/auth/admin.directory.customer.readonly,https://www.googleapis.com/auth/cloud-identity.policies,https://www.googleapis.com/auth/apps.licensing,https://www.googleapis.com/auth/cloud-platform"
