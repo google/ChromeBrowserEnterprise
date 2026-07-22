@@ -36,7 +36,7 @@ describe("serverSchema", () => {
     expect(serverSchema.safeParse(VALID_GEMINI_OAUTH).success).toBe(true);
   });
 
-  it("applies defaults when optional fields are omitted", () => {
+  it("applies defaults when optional fields are omitted (only Claude key)", () => {
     const result = serverSchema.safeParse({
       BETTER_AUTH_SECRET: "my-secret",
       ANTHROPIC_API_KEY: "sk-ant-key",
@@ -46,6 +46,39 @@ describe("serverSchema", () => {
       expect(result.data.AUTH_MODE).toBe("service_account");
       expect(result.data.LLM_PROVIDER).toBe("claude");
       expect(result.data.MCP_SERVER_URL).toBe("http://localhost:4000/mcp");
+    }
+  });
+
+  it("defaults to gemini when both keys are omitted", () => {
+    const result = serverSchema.safeParse({
+      BETTER_AUTH_SECRET: "my-secret",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.LLM_PROVIDER).toBe("gemini");
+    }
+  });
+
+  it("defaults to gemini when both keys are present", () => {
+    const result = serverSchema.safeParse({
+      BETTER_AUTH_SECRET: "my-secret",
+      ANTHROPIC_API_KEY: "sk-ant-key",
+      GOOGLE_AI_API_KEY: "ai-gemini-key",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.LLM_PROVIDER).toBe("gemini");
+    }
+  });
+
+  it("defaults to gemini when only Gemini key is present", () => {
+    const result = serverSchema.safeParse({
+      BETTER_AUTH_SECRET: "my-secret",
+      GOOGLE_AI_API_KEY: "ai-gemini-key",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.LLM_PROVIDER).toBe("gemini");
     }
   });
 

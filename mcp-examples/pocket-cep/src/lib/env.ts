@@ -120,8 +120,8 @@ function inferLlmProvider(raw: Record<string, unknown>): "claude" | "gemini" {
     typeof raw.GOOGLE_AI_API_KEY === "string" && raw.GOOGLE_AI_API_KEY.trim() !== "";
   const hasClaude =
     typeof raw.ANTHROPIC_API_KEY === "string" && raw.ANTHROPIC_API_KEY.trim() !== "";
-  if (hasGemini && !hasClaude) return "gemini";
-  return "claude";
+  if (hasClaude && !hasGemini) return "claude";
+  return "gemini";
 }
 
 export const serverSchema = z.preprocess((raw) => {
