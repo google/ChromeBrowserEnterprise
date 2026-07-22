@@ -142,6 +142,8 @@ describe("toAuthError", () => {
         BETTER_AUTH_URL: "http://localhost:3000",
         MCP_SERVER_URL: "http://localhost:4000/mcp",
         LLM_MODEL: "",
+        GOOGLE_CLIENT_ID: "",
+        GOOGLE_CLIENT_SECRET: "",
         LLM_PROVIDER: "gemini",
         ANTHROPIC_API_KEY: "",
         GOOGLE_AI_API_KEY: "",
