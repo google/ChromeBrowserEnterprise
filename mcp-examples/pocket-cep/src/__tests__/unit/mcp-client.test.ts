@@ -76,6 +76,21 @@ describe("callMcpTool", () => {
     expect(options.requestInit.headers["Authorization"]).toBeUndefined();
   });
 
+  it("passes abort signal to transport when provided", async () => {
+    const controller = new AbortController();
+    await callMcpTool(
+      "http://localhost:3000/mcp",
+      "get_customer_id",
+      {},
+      undefined,
+      controller.signal,
+    );
+
+    const transportCall = vi.mocked(StreamableHTTPClientTransport).mock.calls[0];
+    const options = transportCall[1] as { requestInit: { signal: AbortSignal } };
+    expect(options.requestInit.signal).toBe(controller.signal);
+  });
+
   it("captures rawRequest and rawResponse for the inspector panel", async () => {
     const result = await callMcpTool("http://localhost:3000/mcp", "list_dlp_rules", {
       filter: "active",

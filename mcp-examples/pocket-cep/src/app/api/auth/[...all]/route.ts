@@ -46,7 +46,9 @@ export async function POST(request: NextRequest) {
       if (targetUrl && typeof targetUrl === "string") {
         const u = new URL(targetUrl);
         const redirectUri = u.searchParams.get("redirect_uri");
-        console.log(`[auth] Initiating Google OAuth flow. Exact redirect_uri sent to Google: "${redirectUri}"`);
+        console.log(
+          `[auth] Initiating Google OAuth flow. Exact redirect_uri sent to Google: "${redirectUri}"`,
+        );
       }
     } catch (err) {
       console.warn("[auth] Failed to log redirect_uri:", err);

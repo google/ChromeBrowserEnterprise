@@ -45,7 +45,8 @@ const FALLBACK_ADMIN_SCOPES = [
  */
 async function resolveAdminScopes(mcpUrl: string): Promise<string[]> {
   try {
-    const res = await callMcpTool(mcpUrl, "cep_auth", { authMethod: "manual" });
+    const signal = AbortSignal.timeout(2500);
+    const res = await callMcpTool(mcpUrl, "cep_auth", { authMethod: "manual" }, undefined, signal);
     const text = typeof res.content === "string" ? res.content : JSON.stringify(res.content);
     const match = text.match(/https:\/\/accounts\.google\.com[^\s"']+/);
     if (match) {
@@ -67,7 +68,10 @@ async function resolveAdminScopes(mcpUrl: string): Promise<string[]> {
       }
     }
   } catch (err) {
-    console.warn("[auth] Could not fetch dynamic scopes from MCP cep_auth tool, using fallback scopes:", err);
+    console.warn(
+      "[auth] Could not fetch dynamic scopes from MCP cep_auth tool, using fallback scopes:",
+      err,
+    );
   }
   return FALLBACK_ADMIN_SCOPES;
 }
