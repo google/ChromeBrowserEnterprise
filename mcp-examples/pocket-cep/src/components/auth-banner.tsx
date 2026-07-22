@@ -30,7 +30,7 @@ function renderRemedyText(remedy: string) {
         {parts[0]}
         <Link
           href={url}
-          className="font-semibold text-warning underline underline-offset-2 hover:text-primary transition-colors"
+          className="text-warning hover:text-primary font-semibold underline underline-offset-2 transition-colors"
         >
           {label}
         </Link>
@@ -51,7 +51,7 @@ function renderRemedyText(remedy: string) {
       {parts[0]}
       <Link
         href="/sa-setup"
-        className="font-semibold text-warning underline underline-offset-2 hover:text-primary transition-colors"
+        className="text-warning hover:text-primary font-semibold underline underline-offset-2 transition-colors"
       >
         {target}
       </Link>

@@ -178,15 +178,18 @@ function buildPayload(
   docsUrl?: string,
   dwdDiagnostics?: AuthErrorPayload["dwdDiagnostics"],
 ): AuthErrorPayload {
-  let isSaMode = false;
+  let authMode: "service_account" | "user_oauth" = "service_account";
   let saImpersonatedUser = "";
   try {
     const env = getEnv();
-    isSaMode = env.AUTH_MODE === "service_account";
+    authMode = env.AUTH_MODE;
     saImpersonatedUser = (env.CEP_IMPERSONATE_SUBJECT || "").trim();
   } catch {
-    isSaMode = false;
+    authMode = "service_account";
   }
+
+  const isSaMode = authMode === "service_account";
+  const isOauthMode = authMode === "user_oauth";
 
   switch (code) {
     case "dwd_scope_mismatch": {
@@ -209,11 +212,15 @@ function buildPayload(
         source,
         message: isSaMode
           ? "Service Account re-authentication required."
-          : "Google requires you to re-authenticate.",
+          : isOauthMode
+            ? "Your session has expired. Please sign in again."
+            : "Google requires you to re-authenticate.",
         remedy: isSaMode
           ? "Verify your credentials and OAuth scopes on the [Service Account Setup](/sa-setup) page."
-          : "Run `gcloud auth login` and retry.",
-        command: isSaMode ? undefined : "gcloud auth login",
+          : isOauthMode
+            ? "Click the Sign In button to log back into your Google account."
+            : "Run `gcloud auth login` and retry.",
+        command: isSaMode || isOauthMode ? undefined : "gcloud auth login",
         docsUrl,
       };
     case "invalid_grant":
@@ -222,11 +229,15 @@ function buildPayload(
         source,
         message: isSaMode
           ? "Your Service Account credentials or Domain-Wide Delegation are no longer valid."
-          : "Your Google credentials are no longer valid.",
+          : isOauthMode
+            ? "Your Google sign-in session is no longer valid."
+            : "Your Google credentials are no longer valid.",
         remedy: isSaMode
           ? "Verify your Service Account key and Domain-Wide Delegation on the [Service Account Setup](/sa-setup) page."
-          : "Run `gcloud auth login` to refresh them.",
-        command: isSaMode ? undefined : "gcloud auth login",
+          : isOauthMode
+            ? "Please sign out and sign in again to refresh your session."
+            : "Run `gcloud auth login` to refresh them.",
+        command: isSaMode || isOauthMode ? undefined : "gcloud auth login",
         docsUrl,
       };
     case "no_adc":
@@ -235,16 +246,22 @@ function buildPayload(
         source,
         message: isSaMode
           ? "Service Account key file could not be loaded."
-          : "Google Application Default Credentials aren't configured.",
+          : isOauthMode
+            ? "Google authentication session is missing."
+            : "Google Application Default Credentials aren't configured.",
         remedy: isSaMode
           ? "Configure your Service Account credentials on the [Service Account Setup](/sa-setup) page."
-          : "Run `gcloud auth application-default login` to set them up.",
-        command: isSaMode ? undefined : "gcloud auth application-default login",
+          : isOauthMode
+            ? "Please sign in with your Google account."
+            : "Run `gcloud auth application-default login` to set them up.",
+        command: isSaMode || isOauthMode ? undefined : "gcloud auth application-default login",
         docsUrl,
       };
     case "unauthenticated": {
       let message = "Google rejected the request (UNAUTHENTICATED).";
-      let remedy = "Run `gcloud auth login` and confirm your account has access.";
+      let remedy = isOauthMode
+        ? "Please sign in with your Google account to access this resource."
+        : "Run `gcloud auth login` and confirm your account has access.";
       if (isSaMode) {
         if (!saImpersonatedUser) {
           message = "Service Account is missing an Impersonated User subject for Workspace APIs.";
@@ -261,7 +278,7 @@ function buildPayload(
         source,
         message,
         remedy,
-        command: isSaMode ? undefined : "gcloud auth login",
+        command: isSaMode || isOauthMode ? undefined : "gcloud auth login",
         docsUrl,
       };
     }
@@ -280,14 +297,19 @@ function buildPayload(
         source,
         message: isSaMode
           ? "Pocket CEP couldn't authenticate the Service Account request to Google."
-          : "Pocket CEP couldn't authenticate the request to Google.",
+          : isOauthMode
+            ? "Pocket CEP couldn't authenticate your Google session."
+            : "Pocket CEP couldn't authenticate the request to Google.",
         remedy: isSaMode
           ? "Re-verify your Service Account setup on the [Service Account Setup](/sa-setup) page."
-          : "Run `gcloud auth login` and retry.",
-        command: isSaMode ? undefined : "gcloud auth login",
+          : isOauthMode
+            ? "Please sign out and sign in again."
+            : "Run `gcloud auth login` and retry.",
+        command: isSaMode || isOauthMode ? undefined : "gcloud auth login",
         docsUrl,
       };
   }
+
 }
 
 /**
