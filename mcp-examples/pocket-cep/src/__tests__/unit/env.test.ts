@@ -36,33 +36,32 @@ describe("serverSchema", () => {
     expect(serverSchema.safeParse(VALID_GEMINI_OAUTH).success).toBe(true);
   });
 
-  it("applies defaults when optional fields are omitted (only Claude key)", () => {
+  it("applies defaults when optional fields are omitted", () => {
     const result = serverSchema.safeParse({
       BETTER_AUTH_SECRET: "my-secret",
-      ANTHROPIC_API_KEY: "sk-ant-key",
     });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.AUTH_MODE).toBe("service_account");
-      expect(result.data.LLM_PROVIDER).toBe("claude");
+      expect(result.data.LLM_PROVIDER).toBe("gemini");
       expect(result.data.MCP_SERVER_URL).toBe("http://localhost:4000/mcp");
     }
   });
 
-  it("defaults to gemini when both keys are omitted", () => {
-    const result = serverSchema.safeParse({
-      BETTER_AUTH_SECRET: "my-secret",
-    });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.LLM_PROVIDER).toBe("gemini");
-    }
-  });
-
-  it("defaults to gemini when both keys are present", () => {
+  it("infers provider from present key when provider is unset (only Claude key)", () => {
     const result = serverSchema.safeParse({
       BETTER_AUTH_SECRET: "my-secret",
       ANTHROPIC_API_KEY: "sk-ant-key",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.LLM_PROVIDER).toBe("claude");
+    }
+  });
+
+  it("infers provider from present key when provider is unset (only Gemini key)", () => {
+    const result = serverSchema.safeParse({
+      BETTER_AUTH_SECRET: "my-secret",
       GOOGLE_AI_API_KEY: "ai-gemini-key",
     });
     expect(result.success).toBe(true);
@@ -71,9 +70,10 @@ describe("serverSchema", () => {
     }
   });
 
-  it("defaults to gemini when only Gemini key is present", () => {
+  it("defaults to gemini when provider is unset and both keys are present", () => {
     const result = serverSchema.safeParse({
       BETTER_AUTH_SECRET: "my-secret",
+      ANTHROPIC_API_KEY: "sk-ant-key",
       GOOGLE_AI_API_KEY: "ai-gemini-key",
     });
     expect(result.success).toBe(true);
