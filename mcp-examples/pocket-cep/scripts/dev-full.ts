@@ -21,35 +21,18 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
+import { loadEnvConfig } from "@next/env";
 import { MCP_NPX_COMMAND } from "../src/lib/constants";
 
-/**
- * Loads `.env` then `.env.local` into `process.env`, leaving
- * shell-exported variables untouched (they take precedence). Mirrors
- * Next.js's load order so the dev script and the running app see
- * the same configuration.
- */
-function loadEnvFiles(): void {
-  for (const filename of [".env", ".env.local"]) {
-    const filepath = resolve(process.cwd(), filename);
-    if (!existsSync(filepath)) continue;
-    const content = readFileSync(filepath, "utf-8");
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eq = trimmed.indexOf("=");
-      if (eq === -1) continue;
-      const key = trimmed.slice(0, eq).trim();
-      const value = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
-      if (process.env[key] === undefined) process.env[key] = value;
-    }
-  }
-}
+// Load environment variables using Next.js official loader (correct precedence)
+loadEnvConfig(process.cwd());
 
-loadEnvFiles();
+console.log("\x1b[36m%s\x1b[0m", "┌  Pocket CEP — Developer Server Bootstrap");
+console.log("\x1b[36m%s\x1b[0m", `│  AUTH_MODE     ${process.env.AUTH_MODE}`);
+console.log("\x1b[36m%s\x1b[0m", `│  LLM_PROVIDER  ${process.env.LLM_PROVIDER || "default"}`);
+console.log("\x1b[36m%s\x1b[0m", `│  MCP_SERVER    ${process.env.MCP_SERVER_URL || "http://localhost:4000/mcp"}`);
+console.log("\x1b[36m%s\x1b[0m", "└───────────────────────────────────────────────────");
+
 
 // Default to the canonical npx command — see `MCP_NPX_COMMAND` for
 // the flag rationale. `MCP_SERVER_CMD` from `.env.local` (or the
