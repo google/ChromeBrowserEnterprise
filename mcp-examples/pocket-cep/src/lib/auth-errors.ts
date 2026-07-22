@@ -26,6 +26,7 @@ export type AuthErrorCode =
   | "no_adc"
   | "unauthenticated"
   | "dwd_scope_mismatch"
+  | "invalid_customer_id"
   | "unknown_auth";
 
 /**
@@ -182,7 +183,7 @@ function buildPayload(
   try {
     const env = getEnv();
     isSaMode = env.AUTH_MODE === "service_account";
-    saImpersonatedUser = (env.SA_IMPERSONATED_USER || "").trim();
+    saImpersonatedUser = (env.CEP_IMPERSONATE_SUBJECT || "").trim();
   } catch {
     isSaMode = false;
   }
@@ -264,6 +265,15 @@ function buildPayload(
         docsUrl,
       };
     }
+    case "invalid_customer_id":
+      return {
+        code,
+        source,
+        message: "Google Workspace Customer ID is invalid or not found.",
+        remedy:
+          "Set your active Workspace Customer ID (e.g. `my_customer` or `C0...`) on the [Service Account Setup](/sa-setup) page.",
+        docsUrl,
+      };
     case "unknown_auth":
       return {
         code,
@@ -355,6 +365,9 @@ export function toAuthError(err: unknown, source: AuthErrorPayload["source"]): A
   }
   if (/invalid_grant/i.test(message)) {
     return new AuthError(buildPayload("invalid_grant", source));
+  }
+  if (/Invalid Customer Id|Invalid value for customer id/i.test(message)) {
+    return new AuthError(buildPayload("invalid_customer_id", source));
   }
   if (
     /Could not load the default credentials|application[- ]default[- ]credentials/i.test(message)
