@@ -99,6 +99,24 @@ export function ModelSelector() {
   const readyModels = MODEL_OPTIONS.filter((m) => isReady(m));
   const needsKeyModels = MODEL_OPTIONS.filter((m) => !isReady(m));
 
+  // Auto-default to a ready model if the currently selected one is not ready
+  useEffect(() => {
+    const currentOpt = getModelById(selected);
+    if (!currentOpt || !isReady(currentOpt)) {
+      // Fallback 1: Server default
+      const serverDefaultOpt = getModelById(mode.llmModel);
+      if (serverDefaultOpt && isReady(serverDefaultOpt)) {
+        setSelected(mode.llmModel);
+        return;
+      }
+      // Fallback 2: First ready model
+      const firstReady = MODEL_OPTIONS.find((m) => isReady(m));
+      if (firstReady) {
+        setSelected(firstReady.id);
+      }
+    }
+  }, [selected, mode.llmModel, byokKeys, setSelected]);
+
   function selectModel(opt: ModelOption) {
     if (!isReady(opt)) {
       setKeyEditorFor(opt.id);
