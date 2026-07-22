@@ -138,7 +138,7 @@ Pocket CEP supports two authentication modes that control how it communicates wi
 .env: AUTH_MODE=service_account
 ```
 
-**How it works:** The user signs into Pocket CEP with basic Google OAuth (just `openid`, `email`, `profile` scopes) for UI access. The server calls Google APIs using either a Google Cloud Service Account with Domain-Wide Delegation (DWD) or Application Default Credentials (ADC).
+**How it works:** Pocket CEP automatically creates an anonymous session for UI access (no Google Sign-In is required to use the web app). The server calls Google APIs using either a Google Cloud Service Account with Domain-Wide Delegation (DWD) or Application Default Credentials (ADC).
 
 **Best for:**
 - Local development, workshops, and automated server deployments
