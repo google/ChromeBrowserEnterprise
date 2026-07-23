@@ -7,6 +7,7 @@ import { LOG_TAGS } from "./constants";
 import { buildGoogleApiHeaders } from "./access-token";
 import { AuthError, isAuthError, toAuthError } from "./auth-errors";
 import { getActiveCustomerId } from "./sa-session";
+import { getEnv } from "./env";
 
 /**
  * Converts a user-typed search string into Admin SDK query syntax.
@@ -29,21 +30,21 @@ export type DirectoryUser = {
 
 /**
  * Searches the Google Workspace user directory via the Admin SDK REST API.
- *
- * Throws `AuthError` on credential failure so API routes can return a
- * structured 401. Non-auth failures return an empty array (existing
- * behavior) — they're logged but treated as "no results".
- *
- * Supports Admin SDK query syntax:
- *   - "email:alice*" for email prefix
- *   - Plain text for general name/email search
- *   - Empty string returns the first page of all users
  */
 export async function searchUsers(
   query: string,
   accessToken?: string,
   maxResults = 20,
 ): Promise<DirectoryUser[]> {
+  if (getEnv().AUTH_MODE === "user_oauth" && !accessToken) {
+    throw new AuthError({
+      code: "unauthenticated",
+      source: "admin-sdk",
+      message: "Your Google OAuth session is missing or expired.",
+      remedy: "Sign out and sign back in with Google to refresh your credentials.",
+    });
+  }
+
   const customerId = await getActiveCustomerId();
   const params = new URLSearchParams({
     customer: customerId || "my_customer",

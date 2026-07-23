@@ -12,8 +12,11 @@
  * error on the next user-driven fetch (e.g. the user-search call).
  */
 
+import { redirect } from "next/navigation";
 import { DashboardClient } from "./dashboard-client";
 import { getActivitySafe } from "@/lib/activity-data";
+import { getGoogleAccessToken } from "@/lib/access-token";
+import { getEnv } from "@/lib/env";
 
 /**
  * Per-user data — never pre-render at build time. Without this, Next
@@ -24,6 +27,13 @@ import { getActivitySafe } from "@/lib/activity-data";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const config = getEnv();
+  if (config.AUTH_MODE === "user_oauth") {
+    const token = await getGoogleAccessToken();
+    if (!token) {
+      redirect("/");
+    }
+  }
   const initialActivity = await getActivitySafe();
   return <DashboardClient initialActivity={initialActivity} />;
 }

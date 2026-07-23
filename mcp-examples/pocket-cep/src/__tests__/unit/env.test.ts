@@ -82,13 +82,17 @@ describe("serverSchema", () => {
     }
   });
 
-  it("rejects user_oauth without valid Google Client ID", () => {
-    expect(serverSchema.safeParse({ ...VALID_GEMINI_OAUTH, GOOGLE_CLIENT_ID: "" }).success).toBe(
-      false,
-    );
-    expect(
-      serverSchema.safeParse({ ...VALID_GEMINI_OAUTH, GOOGLE_CLIENT_ID: "not-valid" }).success,
-    ).toBe(false);
+  it("falls back to service_account if user_oauth is configured with empty Google Client ID", () => {
+    const result = serverSchema.safeParse({ ...VALID_GEMINI_OAUTH, GOOGLE_CLIENT_ID: "" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.AUTH_MODE).toBe("service_account");
+    }
+  });
+
+  it("rejects invalid Google Client ID format", () => {
+    const result = serverSchema.safeParse({ ...VALID_GEMINI_OAUTH, GOOGLE_CLIENT_ID: "not-valid" });
+    expect(result.success).toBe(false);
   });
 
   it("accepts claude without ANTHROPIC_API_KEY (BYOK supplies the key at request time)", () => {
@@ -107,8 +111,15 @@ describe("serverSchema", () => {
     }
   });
 
-  it("rejects invalid enum values", () => {
-    expect(serverSchema.safeParse({ ...VALID_CLAUDE_SA, AUTH_MODE: "magic" }).success).toBe(false);
+  it("falls back to service_account for invalid AUTH_MODE values", () => {
+    const result = serverSchema.safeParse({ ...VALID_CLAUDE_SA, AUTH_MODE: "magic" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.AUTH_MODE).toBe("service_account");
+    }
+  });
+
+  it("rejects invalid LLM_PROVIDER values", () => {
     expect(serverSchema.safeParse({ ...VALID_CLAUDE_SA, LLM_PROVIDER: "gpt4" }).success).toBe(
       false,
     );

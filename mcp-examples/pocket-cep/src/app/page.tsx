@@ -30,23 +30,48 @@ export default async function LandingPage() {
   }
 
   return (
-    <div className="bg-surface-dim flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8">
-      <main className="bg-surface ring-on-surface/10 my-auto flex w-full max-w-[400px] flex-col items-center gap-6 rounded-[var(--radius-md)] px-10 py-10 shadow-[var(--shadow-elevation-1)] ring-1">
-        <div className="flex flex-col items-center gap-2">
-          <Shield className="text-primary size-8" aria-hidden="true" />
-          <h1 className="text-on-surface text-[1.375rem] font-medium text-balance">Pocket CEP</h1>
+    <div className="bg-surface-dim flex flex-1 items-center justify-center px-4">
+      <main className="bg-surface ring-on-surface/10 flex w-full max-w-[440px] flex-col items-center gap-6 rounded-[var(--radius-md)] px-8 py-10 shadow-[var(--shadow-elevation-1)] ring-1">
+        <div className="flex flex-col items-center gap-1 text-center">
+          <div className="bg-primary/10 text-primary mb-1 flex size-12 items-center justify-center rounded-full">
+            <Shield className="size-6" aria-hidden="true" />
+          </div>
+          <h1 className="text-on-surface text-xl font-semibold tracking-tight">Pocket CEP</h1>
+          <p className="text-on-surface-variant text-xs font-medium tracking-wider uppercase">
+            Chrome Enterprise Premium
+          </p>
         </div>
 
-        <p className="text-on-surface-variant text-center text-pretty">
-          An educational companion for the Chrome Enterprise Premium MCP server. Investigate user
-          activity and chat with an AI agent.
-        </p>
+        <div className="text-on-surface-variant flex w-full flex-col gap-3 text-sm">
+          <p className="text-center font-normal text-pretty">
+            Your AI-powered administrative command center. Sign in to get started:
+          </p>
+          <ul className="text-on-surface/85 flex flex-col gap-2 rounded-lg bg-black/5 p-3.5 text-xs dark:bg-white/5">
+            <li className="flex items-center gap-2.5">
+              <span className="bg-primary flex size-1.5 shrink-0 rounded-full" />
+              <span>
+                <strong>Investigate</strong> user audit activity logs & telemetry
+              </span>
+            </li>
+            <li className="flex items-center gap-2.5">
+              <span className="bg-primary flex size-1.5 shrink-0 rounded-full" />
+              <span>
+                <strong>Learn</strong> about new Chrome security features
+              </span>
+            </li>
+            <li className="flex items-center gap-2.5">
+              <span className="bg-primary flex size-1.5 shrink-0 rounded-full" />
+              <span>
+                <strong>Manage</strong> your existing security controls & DLP rules
+              </span>
+            </li>
+          </ul>
+        </div>
 
         <SignInButton />
 
-        <p className="text-on-surface-muted text-center text-sm text-pretty">
-          Sign in with your Google Workspace account. Your credentials authenticate with the MCP
-          server.
+        <p className="text-on-surface-muted text-center text-xs text-pretty">
+          Sign in with your Google Workspace admin account to authenticate against the MCP server.
         </p>
       </main>
 

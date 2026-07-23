@@ -264,7 +264,13 @@ export async function getGoogleAccessToken(options?: {
   }
 
   try {
-    const auth = getAuth();
+    const auth = await getAuth();
+    /**
+     * BetterAuth's getAccessToken reads the session cookie (via headers()),
+     * looks up the stored Google OAuth token, and returns it. The
+     * `providerId: "google"` tells BetterAuth which social provider's
+     * token we want.
+     */
     const tokenResult = await auth.api.getAccessToken({
       body: { providerId: "google" },
       headers: await headers(),
@@ -276,6 +282,13 @@ export async function getGoogleAccessToken(options?: {
       "accessToken" in tokenResult &&
       typeof tokenResult.accessToken === "string"
     ) {
+      if ("accessTokenExpiresAt" in tokenResult && tokenResult.accessTokenExpiresAt) {
+        const expiresAt = new Date(tokenResult.accessTokenExpiresAt as string | number | Date);
+        if (!isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+          console.warn(LOG_TAGS.AUTH, "Google OAuth access token expired at:", expiresAt);
+          return undefined;
+        }
+      }
       return tokenResult.accessToken;
     }
 
