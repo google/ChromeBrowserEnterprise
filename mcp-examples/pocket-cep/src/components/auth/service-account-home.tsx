@@ -109,8 +109,7 @@ export function ServiceAccountHome({
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function saveAndVerify() {
     if (!customerId.trim()) {
       setError("Please enter a valid Customer ID (e.g. C01234567)");
       return;
@@ -148,11 +147,16 @@ export function ServiceAccountHome({
 
       setStep("verify");
       setLoading(false);
-      runVerification();
+      await runVerification();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
       setLoading(false);
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await saveAndVerify();
   }
 
   return (
@@ -384,11 +388,13 @@ export function ServiceAccountHome({
         {/* STEP 2: VERIFICATION & DIAGNOSTICS */}
         {step === "verify" && (
           <div className="flex flex-col gap-5">
-            {verifying ? (
+            {verifying || loading ? (
               <div className="bg-surface-dim ring-on-surface/10 flex flex-col items-center justify-center gap-3 rounded-lg p-8 text-center ring-1">
                 <Loader2 className="text-primary size-8 animate-spin" />
                 <p className="text-on-surface text-sm font-medium">
-                  Verifying Service Account token and OAuth scope authorization...
+                  {loading
+                    ? "Saving Service Account configuration..."
+                    : "Verifying Service Account token and OAuth scope authorization..."}
                 </p>
                 <p className="text-on-surface-muted text-xs">
                   Validating credentials for Customer ID{" "}
@@ -542,10 +548,18 @@ export function ServiceAccountHome({
                   </button>
                   <button
                     type="button"
-                    onClick={runVerification}
-                    className="bg-primary text-on-primary hover:bg-primary/90 flex w-2/3 items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors"
+                    disabled={loading || verifying}
+                    onClick={saveAndVerify}
+                    className="bg-primary text-on-primary hover:bg-primary/90 flex w-2/3 items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
                   >
-                    ↻ Re-Verify Credentials
+                    {loading || verifying ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Re-Verifying...
+                      </>
+                    ) : (
+                      "↻ Re-Verify Credentials"
+                    )}
                   </button>
                 </div>
               </div>
@@ -578,10 +592,18 @@ export function ServiceAccountHome({
                   </button>
                   <button
                     type="button"
-                    onClick={runVerification}
-                    className="bg-primary text-on-primary hover:bg-primary/90 flex w-2/3 items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors"
+                    disabled={loading || verifying}
+                    onClick={saveAndVerify}
+                    className="bg-primary text-on-primary hover:bg-primary/90 flex w-2/3 items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
                   >
-                    ↻ Re-Verify Credentials
+                    {loading || verifying ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Re-Verifying...
+                      </>
+                    ) : (
+                      "↻ Re-Verify Credentials"
+                    )}
                   </button>
                 </div>
               </div>
