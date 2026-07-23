@@ -53,6 +53,9 @@ The app is deliberately educational. An **MCP Inspector** panel shows every JSON
 ## Quick Start
 
 ```bash
+# Navigate to the Pocket CEP directory
+cd mcp-examples/pocket-cep
+
 # 1. Install dependencies (postinstall prints a setup hint if needed)
 npm install
 
@@ -67,13 +70,15 @@ npm run doctor
 npm run dev:full
 ```
 
+Open the local URL printed in the Next.js console logs (usually labeled `- Local:` e.g., `http://localhost:3000`) in your browser to use the dashboard.
+
 Prefer manual setup? Copy `.env.local.example` to `.env.local`, fill in your secrets, and set `AUTH_MODE` (`service_account` or `user_oauth`). See [Configuration](#configuration) for details.
 
 ### Service Account Setup
 
 Service-account mode (`AUTH_MODE=service_account`, default) requires a Service Account with Domain-Wide Delegation (DWD):
 
-*   **Domain-Wide Delegation JSON Key**: Upload your Service Account JSON key and set your Impersonated Admin User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` or `CEP_SERVICE_ACCOUNT_KEY_JSON` in `.env.local`). For the 4-step Google Workspace Admin Console setup and OAuth scope allowlist, see the [MCP Server DWD Guide](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/configuration.md#service-account--domain-wide-delegation-dwd).
+*   **Domain-Wide Delegation JSON Key**: Upload your Service Account JSON key and set your Impersonated Admin User email in the web application by clicking the **"SA Settings"** button in the top-right header (or by manually navigating to the `/sa-setup` route on your running port). You can also configure this by setting `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` or `CEP_SERVICE_ACCOUNT_KEY_JSON` in `.env.local`. For the 4-step Google Workspace Admin Console setup and OAuth scope allowlist, see the [MCP Server DWD Guide](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/configuration.md#service-account--domain-wide-delegation-dwd).
 
 ---
 
@@ -132,7 +137,7 @@ Pocket CEP supports two authentication modes that control how it communicates wi
 - Quick setup when per-user OAuth consent is not viable
 
 **Requirements:**
-- **DWD Key**: Upload your Service Account JSON key and set your Impersonated User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` or `CEP_SERVICE_ACCOUNT_KEY_JSON` in `.env.local`). Ensure the Service Account's Client ID is authorized in Google Workspace Admin Console (`admin.google.com/ac/owl/domainwidedelegation`).
+- **DWD Key**: Upload your Service Account JSON key and set your Impersonated User email via the **"SA Settings"** button in the top-right header of the web app (which opens the `/sa-setup` route), or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` or `CEP_SERVICE_ACCOUNT_KEY_JSON` in `.env.local`. Ensure the Service Account's Client ID is authorized in Google Workspace Admin Console (`admin.google.com/ac/owl/domainwidedelegation`).
 
 ### `user_oauth`
 
