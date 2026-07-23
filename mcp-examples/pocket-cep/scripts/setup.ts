@@ -17,21 +17,19 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
 import * as p from "@clack/prompts";
 
 import {
-  probeAdcToken,
   probeAnthropicKey,
   probeGeminiKey,
   probeMcpServer,
 } from "../src/lib/doctor-checks";
-import { formatGcloudLoginCommand } from "../src/lib/google-scopes";
 import { DEFAULT_MCP_URL } from "../src/lib/constants";
+import { getErrorMessage } from "../src/lib/errors";
 import { inferLlmProvider, type EnvMap } from "./setup-helpers";
 
 const ENV_PATH = resolve(process.cwd(), ".env.local");
@@ -79,7 +77,15 @@ function readExistingEnv(): EnvMap {
  */
 function writeEnv(env: EnvMap): void {
   const ordered: Array<[string, string[]]> = [
-    ["Secrets", ["BETTER_AUTH_SECRET", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY"]],
+    [
+      "Secrets",
+      [
+        "BETTER_AUTH_SECRET",
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_AI_API_KEY",
+        "CEP_SERVICE_ACCOUNT_KEY_JSON",
+      ],
+    ],
     ["Google OAuth (user_oauth mode only)", ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]],
     ["Mode", ["AUTH_MODE", "LLM_PROVIDER", "LLM_MODEL"]],
     ["URLs", ["BETTER_AUTH_URL", "MCP_SERVER_URL"]],
@@ -362,306 +368,86 @@ async function promptGoogleOAuth(current: EnvMap) {
   return { clientId: clientId.trim(), clientSecret: clientSecret.trim() };
 }
 
-/**
- * Returns true if the `gcloud` CLI is on PATH. ADC depends on it, so
- * we preflight before the ADC probe to give a clearer error when it's
- * missing entirely (the probe's "no credentials" message is confusing
- * if the real cause is "gcloud isn't installed yet").
- */
-function isGcloudInstalled(): boolean {
-  return spawnSync("gcloud", ["--version"], { stdio: "ignore" }).status === 0;
-}
+
 
 /**
- * Returns the platform-appropriate install hint as one block of text
- * suitable for `p.note()`. Extracted so both the "not installed" and
- * "still not installed after re-check" branches render the same
- * guidance.
+ * Step 5 (service_account mode): prompts the user to configure a Service
+ * Account JSON key. If they provide one, we validate it and write it to
+ * .env.local as CEP_SERVICE_ACCOUNT_KEY_JSON.
  */
-function gcloudInstallHints(): string {
-  let install: string;
-  if (process.platform === "darwin") {
-    install =
-      "  brew install --cask google-cloud-sdk\n" +
-      "  or see https://cloud.google.com/sdk/docs/install-sdk";
-  } else if (process.platform === "linux") {
-    install = "  https://cloud.google.com/sdk/docs/install-sdk#linux";
-  } else if (process.platform === "win32") {
-    install = "  https://cloud.google.com/sdk/docs/install-sdk#windows";
-  } else {
-    install = "  https://cloud.google.com/sdk/docs/install-sdk";
-  }
-  return (
-    "The Google Cloud CLI is required for service-account mode —\n" +
-    "Pocket CEP uses your Application Default Credentials.\n\n" +
-    install +
-    "\n\nTip: open a new shell after installing so PATH updates take effect."
+async function walkServiceAccountSetup(): Promise<string | undefined> {
+  p.log.step("Step 5/6 · Service Account Key");
+
+  const hasKey = await ask(
+    p.confirm({
+      message: "Do you have a Service Account JSON key file? (Recommended for service_account mode)",
+      initialValue: true,
+    }),
   );
-}
 
-/**
- * Loops on "re-check or skip" until gcloud is installed or the user
- * chooses to defer. Returns true when gcloud is ready, false when the
- * user opted to skip ADC entirely.
- */
-async function ensureGcloudInstalled(): Promise<boolean> {
-  const s = p.spinner();
-  s.start("Checking for `gcloud`");
-  if (isGcloudInstalled()) {
-    s.stop("`gcloud` is installed");
-    return true;
+  if (!hasKey) {
+    p.log.warn(
+      "Service Account mode requires a key file to function.\n" +
+        "You will need to manually set CEP_SERVICE_ACCOUNT_KEY_JSON in .env.local later.",
+    );
+    return undefined;
   }
-  s.stop("`gcloud` is not installed");
 
   for (;;) {
-    p.note(gcloudInstallHints(), "Install gcloud");
-    const next = await ask<"recheck" | "skip">(
-      p.select({
-        message: "When you're ready:",
-        initialValue: "recheck",
-        options: [
-          {
-            label: "I've installed gcloud — re-check now",
-            value: "recheck",
-            hint: "Verifies `gcloud --version` succeeds, then continues with ADC.",
-          },
-          {
-            label: "Skip ADC for now",
-            value: "skip",
-            hint: "Finish writing .env.local; run `npm run doctor` to verify later.",
-          },
-        ],
-      }),
-    );
-
-    if (next === "skip") {
-      p.note(
-        "Once gcloud is installed:\n" +
-          "  gcloud auth application-default login\n" +
-          "  npm run doctor",
-        "Skipping ADC",
-      );
-      return false;
-    }
-
-    const recheck = p.spinner();
-    recheck.start("Re-checking for `gcloud`");
-    if (isGcloudInstalled()) {
-      recheck.stop("`gcloud` is installed");
-      return true;
-    }
-    recheck.stop("Still not found. Open a new shell to refresh PATH.");
-  }
-}
-
-/**
- * Loops on "re-check or skip" until the ADC token exchange succeeds
- * or the user opts out. Assumes gcloud is already installed. Returns
- * true on a successful login (so the caller can chain quota-project
- * setup) or false on skip.
- */
-async function ensureAdcLogin(): Promise<boolean> {
-  for (;;) {
-    const s = p.spinner();
-    s.start("Checking Google ADC");
-    const result = await probeAdcToken();
-    if (result.ok) {
-      s.stop("ADC is configured and working");
-      return true;
-    }
-    s.stop(`ADC not ready — ${result.message}`);
-
-    p.note(
-      "Pocket CEP needs a Workspace admin's ADC to call Chrome\n" +
-        "Management, Admin SDK Directory + Reports, Cloud Identity,\n" +
-        "and Licensing APIs.\n\n" +
-        "Run this in another terminal — paste as a single line:\n\n" +
-        formatGcloudLoginCommand() +
-        "\n\nSetup will help pin a quota project once login succeeds.",
-      "ADC login",
-    );
-
-    const next = await ask<"recheck" | "skip">(
-      p.select({
-        message: "When you're ready:",
-        initialValue: "recheck",
-        options: [
-          {
-            label: "I've logged in — re-check now",
-            value: "recheck",
-            hint: "Verifies the token exchange succeeds.",
-          },
-          {
-            label: "Skip for now",
-            value: "skip",
-            hint: "`npm run doctor` will verify once you've logged in.",
-          },
-        ],
-      }),
-    );
-
-    if (next === "skip") {
-      p.log.info("Skipping ADC check. Run `npm run doctor` after logging in to verify.");
-      return false;
-    }
-  }
-}
-
-/**
- * Reads the quota_project_id from the ADC credentials file directly
- * (uncached, sync) so a quota project freshly written by gcloud is
- * visible immediately. Returns null when the file is missing, the
- * field is absent, or the JSON is malformed.
- */
-function readAdcQuotaProject(): string | null {
-  try {
-    const credPath = join(homedir(), ".config", "gcloud", "application_default_credentials.json");
-    if (!existsSync(credPath)) return null;
-    const raw: unknown = JSON.parse(readFileSync(credPath, "utf-8"));
-    if (raw && typeof raw === "object" && "quota_project_id" in raw) {
-      const value = (raw as { quota_project_id?: unknown }).quota_project_id;
-      return typeof value === "string" && value.length > 0 ? value : null;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Returns the project the user already has configured as their gcloud
- * default (`gcloud config get-value project`). Used as the pre-filled
- * answer for the quota-project prompt — covers the 99% case where
- * someone already has a working gcloud config and just wants to pin
- * the same project for ADC. Returns null if the value is `(unset)`,
- * gcloud is missing, or any other failure.
- */
-function detectDefaultGcloudProject(): string | null {
-  const result = spawnSync("gcloud", ["config", "get-value", "project", "--quiet"], {
-    encoding: "utf-8",
-  });
-  if (result.status !== 0) return null;
-  const value = result.stdout.trim();
-  if (!value || value === "(unset)") return null;
-  return value;
-}
-
-/**
- * Project IDs: 6-30 chars, lowercase letters/digits/hyphens, must
- * start with a letter and end with letter/digit. Caught here as a
- * paste-error guard before the gcloud subprocess call.
- */
-const PROJECT_ID_RE = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
-
-/**
- * Pins a quota project on the user's ADC credentials. Avoids
- * `gcloud projects list` because organisations frequently have
- * 100K+ projects and listing them all is slow and useless as a
- * picker. Instead we read any existing quota_project_id, fall back
- * to `gcloud config get-value project`, and prompt the user with
- * that as the default. Loops on retry-or-skip if gcloud rejects the
- * ID (wrong project or no access).
- */
-async function ensureQuotaProject(): Promise<void> {
-  const existing = readAdcQuotaProject();
-  if (existing) {
-    p.log.success(`ADC quota project already set: ${existing}`);
-    return;
-  }
-
-  const detected = detectDefaultGcloudProject();
-  if (detected) {
-    p.log.info(`Your gcloud config has \`project=${detected}\` — pre-filled as the default.`);
-  } else {
-    p.note(
-      "ADC has no quota project pinned yet. Pocket CEP needs one\n" +
-        "so Workspace API calls bill and rate-limit against your project.\n\n" +
-        "If you don't know the project ID:\n" +
-        "  • `gcloud config get-value project` shows your gcloud default\n" +
-        "  • Visit https://console.cloud.google.com/projectselector2 —\n" +
-        "    find your project, copy the value in the **ID** column\n" +
-        "    (not the display name and not the numeric project number).",
-      "Pin a quota project",
-    );
-  }
-
-  // Loop until set-quota-project succeeds or the user opts out.
-  // gcloud rejects IDs the user has no access to even when the syntax
-  // is valid; the regex can't catch that, so retry-with-a-different-ID
-  // is the natural recovery path.
-  let suggestedDefault = detected ?? undefined;
-  for (;;) {
-    const projectId = await ask(
+    const keyPath = await ask(
       p.text({
-        message: "Project ID for ADC quota",
-        defaultValue: suggestedDefault,
-        validate: (v) => {
-          if (!v) return "Project ID is required";
-          const trimmed = v.trim();
-          if (!trimmed) return "Project ID is required";
-          if (!PROJECT_ID_RE.test(trimmed)) {
-            return "Project IDs are 6-30 chars, lowercase letters/digits/hyphens, starting with a letter";
-          }
+        message: "Path to Service Account JSON key file",
+        placeholder: "/path/to/key.json",
+        validate: (value) => {
+          if (!value) return "Path is required";
+          const trimmed = value.trim();
+          if (!trimmed) return "Path is required";
           return undefined;
         },
       }),
     );
 
-    const trimmed = projectId.trim();
-    const s = p.spinner();
-    s.start(`Setting quota project to ${trimmed}`);
-    const set = spawnSync(
-      "gcloud",
-      ["auth", "application-default", "set-quota-project", trimmed],
-      { stdio: "ignore" },
-    );
-    if (set.status === 0) {
-      s.stop(`Quota project set to ${trimmed}`);
-      return;
+    const resolvedPath = resolve(process.cwd(), keyPath.trim());
+    if (!existsSync(resolvedPath)) {
+      p.log.error(`File not found: ${resolvedPath}`);
+      const next = await retryOrSkipPrompt();
+      if (next === "skip") return undefined;
+      continue;
     }
-    s.stop(`\`gcloud\` rejected ${trimmed} — wrong ID, or no access?`);
 
-    const next = await ask<"retry" | "skip">(
-      p.select({
-        message: "What next?",
-        initialValue: "retry",
-        options: [
-          { label: "Try a different project ID", value: "retry" },
-          {
-            label: "Skip — set it manually later",
-            value: "skip",
-            hint: "Run `gcloud auth application-default set-quota-project <id>` yourself.",
-          },
-        ],
-      }),
-    );
+    try {
+      const content = readFileSync(resolvedPath, "utf-8");
+      const json = JSON.parse(content);
+      if (json.type !== "service_account") {
+        p.log.error("JSON file is not a Service Account key (missing type: 'service_account')");
+        const next = await retryOrSkipPrompt();
+        if (next === "skip") return undefined;
+        continue;
+      }
 
-    if (next === "skip") {
-      p.log.info(
-        "Run manually once you have the right project ID:\n" +
-          "  gcloud auth application-default set-quota-project YOUR_PROJECT_ID",
-      );
-      return;
+      // Minify and return
+      const minified = JSON.stringify(json);
+      p.log.success("Service Account key loaded and validated.");
+      return minified;
+    } catch (e) {
+      p.log.error(`Failed to parse JSON: ${getErrorMessage(e)}`);
+      const next = await retryOrSkipPrompt();
+      if (next === "skip") return undefined;
     }
-    suggestedDefault = undefined;
   }
 }
 
-/**
- * Step 5 (service_account mode): walks three Google ADC checkpoints
- * with a re-check-or-skip loop at each — install gcloud, log in to
- * ADC, then pin a quota project. The user controls the pace; any
- * step can be skipped and verified later with `npm run doctor`.
- * Mutually exclusive with the user_oauth-mode `promptGoogleOAuth`
- * above.
- */
-async function walkAdcSetup() {
-  p.log.step("Step 5/6 · Google ADC");
-  const gcloudOk = await ensureGcloudInstalled();
-  if (!gcloudOk) return;
-  const loggedIn = await ensureAdcLogin();
-  if (!loggedIn) return;
-  await ensureQuotaProject();
+async function retryOrSkipPrompt(): Promise<"retry" | "skip"> {
+  return ask<"retry" | "skip">(
+    p.select({
+      message: "What next?",
+      initialValue: "retry",
+      options: [
+        { label: "Try a different path", value: "retry" },
+        { label: "Skip for now", value: "skip" },
+      ],
+    }),
+  );
 }
 
 /**
@@ -806,12 +592,14 @@ async function main() {
 
   let clientId = "";
   let clientSecret = "";
+  let saKeyJson = "";
   if (authMode === "user_oauth") {
     const creds = await promptGoogleOAuth(existing);
     clientId = creds.clientId;
     clientSecret = creds.clientSecret;
   } else {
-    await walkAdcSetup();
+    const key = await walkServiceAccountSetup();
+    if (key) saKeyJson = key;
   }
 
   const mcpUrl = await chooseMcpUrl(existing.MCP_SERVER_URL);
@@ -825,6 +613,10 @@ async function main() {
     MCP_SERVER_URL: mcpUrl,
     LLM_MODEL: modelOverride,
   };
+
+  if (saKeyJson) {
+    merged.CEP_SERVICE_ACCOUNT_KEY_JSON = saKeyJson;
+  }
 
   // Only set the chosen provider's key; leave any previously-set keys
   // for the other provider(s) intact. The Zod schema discriminates on

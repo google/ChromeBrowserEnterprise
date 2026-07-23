@@ -36,9 +36,9 @@ The app is deliberately educational. An **MCP Inspector** panel shows every JSON
 - **User investigation** — search the Google Workspace directory (Admin SDK REST). Pocket CEP pulls users with recent Chrome audit activity to the top of the list, and the "Recent activity" sidebar lists the most-active users from the last 10 days.
 - **Server-authored prompts** — MCP `prompts/list` and `prompts/get` drive the suggested-action cards. Clicking a prompt expands it server-side and sends its authored text (including any formatting contract) to the model.
 - **Dual LLM support** — Claude (Anthropic) or Gemini (Google) via the Vercel AI SDK v6's `@ai-sdk/anthropic` and `@ai-sdk/google` providers.
-- **Two auth modes** — Service Account (DWD or ADC) for automated server execution, or forward the signed-in user's Google OAuth token for per-user attribution.
+- **Two auth modes** — Service Account (DWD) for automated server execution, or forward the signed-in user's Google OAuth token for per-user attribution.
 - **MCP Inspector** — a collapsible drawer showing every MCP tool call's input, state, and output, synthesized from the streamed `ToolUIPart` events the AI SDK produces.
-- **Environment diagnostics** — `npm run doctor` validates env, probes ADC + the LLM provider, and reaches the MCP server.
+- **Environment diagnostics** — `npm run doctor` validates env, probes the Service Account + the LLM provider, and reaches the MCP server.
 
 ---
 
@@ -47,7 +47,6 @@ The app is deliberately educational. An **MCP Inspector** panel shows every JSON
 - **Node.js** 18 or later
 - **Google Cloud project** with the [required Workspace and Chrome APIs enabled](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/auth-bring-your-own-oauth-client.md#enable-required-apis) and OAuth 2.0 credentials or a Service Account configured
 - **LLM API key** for either Anthropic (Claude) or Google AI (Gemini)
-- **Google Cloud CLI** (`gcloud`) for `service_account` mode ADC setup
 
 ---
 
@@ -58,7 +57,7 @@ The app is deliberately educational. An **MCP Inspector** panel shows every JSON
 npm install
 
 # 2. Configure interactively — walks through auth mode, API keys,
-#    gcloud ADC, and the MCP URL with live validation at each step
+#    Service Account key, and the MCP URL with live validation
 npm run setup
 
 # 3. (Optional) Verify your configuration before starting
@@ -70,24 +69,11 @@ npm run dev:full
 
 Prefer manual setup? Copy `.env.local.example` to `.env.local`, fill in your secrets, and set `AUTH_MODE` (`service_account` or `user_oauth`). See [Configuration](#configuration) for details.
 
-### Service Account Setup Options
+### Service Account Setup
 
-Service-account mode (`AUTH_MODE=service_account`, default) supports two authentication options:
+Service-account mode (`AUTH_MODE=service_account`, default) requires a Service Account with Domain-Wide Delegation (DWD):
 
-- **Option A (Domain-Wide Delegation JSON Key — Recommended)**: Upload your Service Account JSON key and set your Impersonated Admin User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` in `.env.local`). For the 4-step Google Workspace Admin Console setup and OAuth scope allowlist, see the [MCP Server DWD Guide](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/configuration.md#service-account--domain-wide-delegation-dwd).
-- **Option B (gcloud ADC)**: Run `gcloud auth application-default login` with admin scopes:
-
-```bash
-gcloud auth application-default login --scopes="https://www.googleapis.com/auth/chrome.management.policy,https://www.googleapis.com/auth/chrome.management.reports.readonly,https://www.googleapis.com/auth/chrome.management.profiles.readonly,https://www.googleapis.com/auth/admin.reports.audit.readonly,https://www.googleapis.com/auth/admin.reports.usage.readonly,https://www.googleapis.com/auth/admin.directory.user.readonly,https://www.googleapis.com/auth/admin.directory.orgunit.readonly,https://www.googleapis.com/auth/admin.directory.customer.readonly,https://www.googleapis.com/auth/cloud-identity.policies,https://www.googleapis.com/auth/apps.licensing,https://www.googleapis.com/auth/cloud-platform"
-```
-
-Then pin a quota project:
-
-```bash
-gcloud auth application-default set-quota-project YOUR_PROJECT_ID
-```
-
-Open http://localhost:3000 and sign in with Google.
+*   **Domain-Wide Delegation JSON Key**: Upload your Service Account JSON key and set your Impersonated Admin User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` or `CEP_SERVICE_ACCOUNT_KEY_JSON` in `.env.local`). For the 4-step Google Workspace Admin Console setup and OAuth scope allowlist, see the [MCP Server DWD Guide](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/configuration.md#service-account--domain-wide-delegation-dwd).
 
 ---
 
@@ -112,8 +98,8 @@ Run `npm run doctor` at any time to catch configuration issues early. Output is 
 │  ✓ Environment variables valid (Zod schema passed)
 │  ✓ BETTER_AUTH_SECRET is set to a real value
 │
-◇  Google credentials — ADC / Service Account mode
-│  ✓ Google access token acquired
+◇  Google credentials — Service Account mode
+│  ✓ Google Service Account token acquired
 │
 ◇  LLM provider — claude via Vercel AI SDK
 │  ✓ Anthropic key accepted
@@ -138,16 +124,15 @@ Pocket CEP supports two authentication modes that control how it communicates wi
 .env: AUTH_MODE=service_account
 ```
 
-**How it works:** Pocket CEP automatically creates an anonymous session for UI access (no Google Sign-In is required to use the web app). The server calls Google APIs using either a Google Cloud Service Account with Domain-Wide Delegation (DWD) or Application Default Credentials (ADC).
+**How it works:** Pocket CEP automatically creates an anonymous session for UI access (no Google Sign-In is required to use the web app). The server calls Google APIs using a Google Cloud Service Account with Domain-Wide Delegation (DWD).
 
 **Best for:**
 - Local development, workshops, and automated server deployments
-- Environments where a central Service Account key or ADC is configured
+- Environments where a central Service Account key is configured
 - Quick setup when per-user OAuth consent is not viable
 
 **Requirements:**
-- **Option A (DWD Key)**: Upload your Service Account JSON key and set your Impersonated User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` in `.env.local`). Ensure the Service Account's Client ID is authorized in Google Workspace Admin Console (`admin.google.com/ac/owl/domainwidedelegation`).
-- **Option B (gcloud ADC)**: Run `gcloud auth application-default login` with admin scopes.
+- **DWD Key**: Upload your Service Account JSON key and set your Impersonated User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` or `CEP_SERVICE_ACCOUNT_KEY_JSON` in `.env.local`). Ensure the Service Account's Client ID is authorized in Google Workspace Admin Console (`admin.google.com/ac/owl/domainwidedelegation`).
 
 ### `user_oauth`
 
@@ -159,7 +144,7 @@ Pocket CEP supports two authentication modes that control how it communicates wi
 
 **Best for:**
 - Production-like deployments where actions should be attributed to the signed-in user
-- Environments where ADC/DWD isn't configured on the server
+- Environments where DWD isn't configured on the server
 - Multi-tenant setups where different users have different permissions
 - When you need per-user audit trails in Google Admin logs
 
@@ -218,7 +203,7 @@ Copy `.env.local.example` to `.env.local` and fill in your secrets.
 |----------|---------|-------------|
 | `BETTER_AUTH_SECRET` | *(required)* | Session signing secret. `openssl rand -base64 32`. |
 | `BETTER_AUTH_URL` | `http://localhost:3000` | Canonical URL where Pocket CEP is running. |
-| `AUTH_MODE` | `service_account` | `service_account` (DWD/ADC on server) or `user_oauth` (forward user token). |
+| `AUTH_MODE` | `service_account` | `service_account` (DWD on server) or `user_oauth` (forward user token). |
 | `GOOGLE_CLIENT_ID` | — | Required in `user_oauth` mode. |
 | `GOOGLE_CLIENT_SECRET` | — | Required in `user_oauth` mode. |
 | `LLM_PROVIDER` | `claude` | `claude` or `gemini`. |
@@ -305,7 +290,7 @@ pocket-cep/
 | `npm run setup` | Interactive `.env.local` builder with live validation. |
 | `npm run dev` | Start `next dev` on port 3000 (Pocket CEP only). |
 | `npm run dev:full` | Start Pocket CEP + MCP server in parallel. |
-| `npm run doctor` | Probe env, ADC/DWD, LLM provider, and MCP server. |
+| `npm run doctor` | Probe env, DWD, LLM provider, and MCP server. |
 | `npm run check` | Run typecheck, lint, unit, and integration tests. |
 
 ---

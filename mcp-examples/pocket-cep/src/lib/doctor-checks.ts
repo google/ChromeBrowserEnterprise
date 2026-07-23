@@ -111,27 +111,32 @@ export async function probeGeminiKey(apiKey: string): Promise<CheckResult> {
 }
 
 /**
- * Probes Google ADC by requesting an access token. Catches AuthError
- * and returns its remedy so the doctor can tell the user exactly what
- * to run — no more "ADC looks fine until the chat call fails".
+ * Probes Google Service Account credentials by requesting an access token.
+ * Verifies that the Service Account key is configured and valid.
  */
-export async function probeAdcToken(): Promise<CheckResult> {
+export async function probeServiceAccountToken(): Promise<CheckResult> {
   try {
-    const { getADCToken } = await import("./adc");
-    await getADCToken();
-    return { ok: true, message: "Google ADC token acquired" };
+    const { getGoogleAccessToken } = await import("./access-token");
+    const token = await getGoogleAccessToken();
+    if (!token) {
+      return {
+        ok: false,
+        message:
+          "Google Service Account token could not be acquired. Check your SA key configuration.",
+      };
+    }
+    return { ok: true, message: "Google Service Account token acquired" };
   } catch (error) {
     const { isAuthError } = await import("./auth-errors");
     if (isAuthError(error)) {
-      const cmd = error.command ? ` (run: ${error.command})` : "";
       return {
         ok: false,
-        message: `Google ADC unavailable — ${error.remedy}${cmd}`,
+        message: `Google Service Account auth failed: ${error.remedy}`,
       };
     }
     return {
       ok: false,
-      message: `Google ADC probe failed — ${getErrorMessage(error)}`,
+      message: `Google Service Account probe failed — ${getErrorMessage(error)}`,
     };
   }
 }

@@ -47,10 +47,10 @@ describe("toAuthError", () => {
         error_uri: "https://support.google.com/a/answer/9368756",
         error_subtype: "invalid_rapt",
       };
-      const result = toAuthError(err, "adc");
+      const result = toAuthError(err, "admin-sdk");
       expect(result).toBeInstanceOf(AuthError);
       expect(result?.code).toBe("invalid_rapt");
-      expect(result?.source).toBe("adc");
+      expect(result?.source).toBe("admin-sdk");
       expect(result?.command).toBeUndefined(); // No gcloud command in SA mode
       expect(result?.remedy).toContain("/sa-setup");
     });
@@ -60,18 +60,18 @@ describe("toAuthError", () => {
         error: "invalid_grant",
         error_description: "Bad Request",
       };
-      const result = toAuthError(err, "adc");
+      const result = toAuthError(err, "admin-sdk");
       expect(result?.code).toBe("invalid_grant");
       expect(result?.command).toBeUndefined();
       expect(result?.remedy).toContain("/sa-setup");
     });
 
-    it("classifies a 'no ADC' / 'Could not load default credentials' error", () => {
+    it("classifies a 'no credentials' / 'Could not load default credentials' error", () => {
       const err = new Error(
         "Could not load the default credentials. Browse to https://developers.google.com/accounts/docs/application-default-credentials",
       );
-      const result = toAuthError(err, "adc");
-      expect(result?.code).toBe("no_adc");
+      const result = toAuthError(err, "admin-sdk");
+      expect(result?.code).toBe("no_credentials");
       expect(result?.command).toBeUndefined();
       expect(result?.remedy).toContain("/sa-setup");
     });
@@ -103,10 +103,10 @@ describe("toAuthError", () => {
         error_uri: "https://support.google.com/a/answer/9368756",
         error_subtype: "invalid_rapt",
       };
-      const result = toAuthError(err, "adc");
+      const result = toAuthError(err, "admin-sdk");
       expect(result).toBeInstanceOf(AuthError);
       expect(result?.code).toBe("invalid_rapt");
-      expect(result?.source).toBe("adc");
+      expect(result?.source).toBe("admin-sdk");
       expect(result?.command).toBeUndefined();
       expect(result?.remedy).toContain("Sign In button");
     });
@@ -116,18 +116,18 @@ describe("toAuthError", () => {
         error: "invalid_grant",
         error_description: "Bad Request",
       };
-      const result = toAuthError(err, "adc");
+      const result = toAuthError(err, "admin-sdk");
       expect(result?.code).toBe("invalid_grant");
       expect(result?.command).toBeUndefined();
       expect(result?.remedy).toContain("sign out and sign in again");
     });
 
-    it("classifies a 'no ADC' / 'Could not load default credentials' error", () => {
+    it("classifies a 'no credentials' / 'Could not load default credentials' error", () => {
       const err = new Error(
         "Could not load the default credentials. Browse to https://developers.google.com/accounts/docs/application-default-credentials",
       );
-      const result = toAuthError(err, "adc");
-      expect(result?.code).toBe("no_adc");
+      const result = toAuthError(err, "admin-sdk");
+      expect(result?.code).toBe("no_credentials");
       expect(result?.command).toBeUndefined();
       expect(result?.remedy).toContain("Please sign in with your Google account");
     });
@@ -207,11 +207,11 @@ describe("toAuthError", () => {
     });
 
     it("returns null for unrelated errors", () => {
-      expect(toAuthError(new TypeError("bad"), "adc")).toBeNull();
+      expect(toAuthError(new TypeError("bad"), "admin-sdk")).toBeNull();
       expect(toAuthError("network blip", "mcp-tool")).toBeNull();
-      expect(toAuthError(null, "adc")).toBeNull();
-      expect(toAuthError(undefined, "adc")).toBeNull();
-      expect(toAuthError({ foo: "bar" }, "adc")).toBeNull();
+      expect(toAuthError(null, "admin-sdk")).toBeNull();
+      expect(toAuthError(undefined, "admin-sdk")).toBeNull();
+      expect(toAuthError({ foo: "bar" }, "admin-sdk")).toBeNull();
     });
   });
 });
@@ -220,7 +220,7 @@ describe("isAuthError", () => {
   it("narrows AuthError instances", () => {
     const err = new AuthError({
       code: "invalid_grant",
-      source: "adc",
+      source: "admin-sdk",
       message: "m",
       remedy: "r",
     });

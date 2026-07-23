@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { GOOGLE_API_SCOPES, formatGcloudLoginCommand } from "@/lib/google-scopes";
+import { GOOGLE_API_SCOPES } from "@/lib/google-scopes";
 
 describe("GOOGLE_API_SCOPES", () => {
   it("includes every scope the CEP MCP server documents", () => {
@@ -44,28 +44,5 @@ describe("GOOGLE_API_SCOPES", () => {
     for (const scope of GOOGLE_API_SCOPES) {
       expect(scope).toMatch(/^https:\/\/www\.googleapis\.com\/auth\//);
     }
-  });
-});
-
-describe("formatGcloudLoginCommand", () => {
-  it("emits a single line (no backslash continuations)", () => {
-    const cmd = formatGcloudLoginCommand();
-    expect(cmd.includes("\n")).toBe(false);
-    expect(cmd.includes("\\")).toBe(false);
-  });
-
-  it("starts with `gcloud auth application-default login` and quotes the scopes", () => {
-    const cmd = formatGcloudLoginCommand();
-    expect(cmd.startsWith('gcloud auth application-default login --scopes="')).toBe(true);
-    expect(cmd.endsWith('"')).toBe(true);
-  });
-
-  it("includes every scope from GOOGLE_API_SCOPES, comma-separated", () => {
-    const cmd = formatGcloudLoginCommand();
-    for (const scope of GOOGLE_API_SCOPES) {
-      expect(cmd).toContain(scope);
-    }
-    const commaCount = (cmd.match(/,/g) ?? []).length;
-    expect(commaCount).toBe(GOOGLE_API_SCOPES.length - 1);
   });
 });
