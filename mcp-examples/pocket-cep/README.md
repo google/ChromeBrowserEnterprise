@@ -36,9 +36,9 @@ The app is deliberately educational. An **MCP Inspector** panel shows every JSON
 - **User investigation** — search the Google Workspace directory (Admin SDK REST). Pocket CEP pulls users with recent Chrome audit activity to the top of the list, and the "Recent activity" sidebar lists the most-active users from the last 10 days.
 - **Server-authored prompts** — MCP `prompts/list` and `prompts/get` drive the suggested-action cards. Clicking a prompt expands it server-side and sends its authored text (including any formatting contract) to the model.
 - **Dual LLM support** — Claude (Anthropic) or Gemini (Google) via the Vercel AI SDK v6's `@ai-sdk/anthropic` and `@ai-sdk/google` providers.
-- **Two auth modes** — Service Account (DWD or ADC) for automated server execution, or forward the signed-in user's Google OAuth token for per-user attribution.
+- **Two auth modes** — Service Account (DWD) for automated server execution, or forward the signed-in user's Google OAuth token for per-user attribution.
 - **MCP Inspector** — a collapsible drawer showing every MCP tool call's input, state, and output, synthesized from the streamed `ToolUIPart` events the AI SDK produces.
-- **Environment diagnostics** — `npm run doctor` validates env, probes ADC + the LLM provider, and reaches the MCP server.
+- **Environment diagnostics** — `npm run doctor` validates env, probes the Service Account + the LLM provider, and reaches the MCP server.
 
 ---
 
@@ -98,8 +98,8 @@ Run `npm run doctor` at any time to catch configuration issues early. Output is 
 │  ✓ Environment variables valid (Zod schema passed)
 │  ✓ BETTER_AUTH_SECRET is set to a real value
 │
-◇  Google credentials — ADC / Service Account mode
-│  ✓ Google access token acquired
+◇  Google credentials — Service Account mode
+│  ✓ Google Service Account token acquired
 │
 ◇  LLM provider — claude via Vercel AI SDK
 │  ✓ Anthropic key accepted
@@ -144,7 +144,7 @@ Pocket CEP supports two authentication modes that control how it communicates wi
 
 **Best for:**
 - Production-like deployments where actions should be attributed to the signed-in user
-- Environments where ADC/DWD isn't configured on the server
+- Environments where DWD isn't configured on the server
 - Multi-tenant setups where different users have different permissions
 - When you need per-user audit trails in Google Admin logs
 
@@ -203,7 +203,7 @@ Copy `.env.local.example` to `.env.local` and fill in your secrets.
 |----------|---------|-------------|
 | `BETTER_AUTH_SECRET` | *(required)* | Session signing secret. `openssl rand -base64 32`. |
 | `BETTER_AUTH_URL` | `http://localhost:3000` | Canonical URL where Pocket CEP is running. |
-| `AUTH_MODE` | `service_account` | `service_account` (DWD/ADC on server) or `user_oauth` (forward user token). |
+| `AUTH_MODE` | `service_account` | `service_account` (DWD on server) or `user_oauth` (forward user token). |
 | `GOOGLE_CLIENT_ID` | — | Required in `user_oauth` mode. |
 | `GOOGLE_CLIENT_SECRET` | — | Required in `user_oauth` mode. |
 | `LLM_PROVIDER` | `claude` | `claude` or `gemini`. |
@@ -290,7 +290,7 @@ pocket-cep/
 | `npm run setup` | Interactive `.env.local` builder with live validation. |
 | `npm run dev` | Start `next dev` on port 3000 (Pocket CEP only). |
 | `npm run dev:full` | Start Pocket CEP + MCP server in parallel. |
-| `npm run doctor` | Probe env, ADC/DWD, LLM provider, and MCP server. |
+| `npm run doctor` | Probe env, DWD, LLM provider, and MCP server. |
 | `npm run check` | Run typecheck, lint, unit, and integration tests. |
 
 ---
