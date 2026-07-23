@@ -6,7 +6,7 @@ import { getErrorMessage } from "./errors";
 import { LOG_TAGS } from "./constants";
 import { buildGoogleApiHeaders } from "./access-token";
 import { AuthError, isAuthError, toAuthError } from "./auth-errors";
-import { getActiveCustomerId } from "./sa-session";
+import { getActiveCustomerId, getServiceAccountConfig } from "./sa-session";
 
 /**
  * Converts a user-typed search string into Admin SDK query syntax.
@@ -45,6 +45,8 @@ export async function searchUsers(
   maxResults = 20,
 ): Promise<DirectoryUser[]> {
   const customerId = await getActiveCustomerId();
+  const saConfig = await getServiceAccountConfig();
+  const impersonatedUser = saConfig?.impersonatedUser;
   const params = new URLSearchParams({
     customer: customerId || "my_customer",
     maxResults: String(maxResults),
@@ -84,7 +86,7 @@ export async function searchUsers(
        * classify — route it through the same AuthError contract so the
        * banner still lights up.
        */
-      const authErr = toAuthError(body, "admin-sdk");
+      const authErr = toAuthError(body, "admin-sdk", { impersonatedUser });
       if (authErr) throw authErr;
       console.error(LOG_TAGS.USERS, `Admin SDK users.list failed (${response.status}):`, body);
       return [];

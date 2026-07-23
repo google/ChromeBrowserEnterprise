@@ -15,6 +15,7 @@ import { buildCallerCacheKey } from "./cache-key";
 import { LOG_TAGS } from "./constants";
 import { getErrorMessage } from "./errors";
 import { getOrFetch, CACHE_TAGS } from "./server-cache";
+import { getServiceAccountConfig } from "./sa-session";
 
 /**
  * Per-user activity summary: event count and most recent event timestamp.
@@ -64,13 +65,15 @@ export async function getCachedActivity(
       remedy: "Configure your credentials or sign in.",
     });
   }
+  const saConfig = config.AUTH_MODE === "service_account" ? await getServiceAccountConfig() : null;
+  const impersonatedUser = saConfig?.impersonatedUser;
   const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken);
 
   return getOrFetch({
     key: `activity:${callerKey}:${days}`,
     ttlMs: ACTIVITY_TTL_MS,
     tags: [CACHE_TAGS.ACTIVITY],
-    fetcher: () => fetchActivity(accessToken, days),
+    fetcher: () => fetchActivity(accessToken, days, impersonatedUser),
   });
 }
 
@@ -97,7 +100,7 @@ export async function getActivitySafe(days: number = DEFAULT_ACTIVITY_DAYS): Pro
  * Pulls and groups Chrome audit events for the given caller, scoped to
  * `days` of history. Pagination stops at {@link ACTIVITY_MAX_EVENTS}.
  */
-async function fetchActivity(tokenToUse: string, days: number): Promise<ActivityMap> {
+async function fetchActivity(tokenToUse: string, days: number, impersonatedUser?: string): Promise<ActivityMap> {
   const requestHeaders = await buildGoogleApiHeaders(tokenToUse);
 
   const baseUrl = new URL(
@@ -126,7 +129,7 @@ async function fetchActivity(tokenToUse: string, days: number): Promise<Activity
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      const authErr = toAuthError(body, "admin-sdk");
+      const authErr = toAuthError(body, "admin-sdk", { impersonatedUser });
       if (authErr) throw authErr;
       console.log(LOG_TAGS.USERS, "Activity fetch failed with status:", response.status, body);
       break;
