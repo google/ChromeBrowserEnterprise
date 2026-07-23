@@ -20,6 +20,6 @@ import { getAuth } from "./auth";
  * inside a request context (route handler or server action).
  */
 export async function requireSession() {
-  const auth = await getAuth();
+  const auth = getAuth();
   return auth.api.getSession({ headers: await headers() });
 }

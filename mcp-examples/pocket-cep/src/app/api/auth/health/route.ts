@@ -17,7 +17,8 @@ import { requireSession } from "@/lib/session";
 import { getErrorMessage } from "@/lib/errors";
 
 /**
- * Probes Google credentials by checking the user's OAuth token or ADC.
+ * Probes ADC by requesting a fresh access token. Returns 200 if Google
+ * issues one and 401 with the structured payload if it refuses.
  */
 export async function GET() {
   if (!(await requireSession())) {
