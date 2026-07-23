@@ -45,7 +45,7 @@ The app is deliberately educational. An **MCP Inspector** panel shows every JSON
 ## Prerequisites
 
 - **Node.js** 18 or later
-- **Google Cloud project** with OAuth 2.0 credentials or a Service Account configured
+- **Google Cloud project** with the [required Workspace and Chrome APIs enabled](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/auth-bring-your-own-oauth-client.md#enable-required-apis) and OAuth 2.0 credentials or a Service Account configured
 - **LLM API key** for either Anthropic (Claude) or Google AI (Gemini)
 - **Google Cloud CLI** (`gcloud`) for `service_account` mode ADC setup
 
@@ -164,8 +164,8 @@ Pocket CEP supports two authentication modes that control how it communicates wi
 - When you need per-user audit trails in Google Admin logs
 
 **Requirements:**
+- **Custom OAuth Client**: A custom Google Cloud **OAuth client ID ("Web application" type)**. Unlike the MCP CLI, Pocket CEP does not ship with a bundled Google-managed OAuth client. You must create your own and configure the redirect URI `http://localhost:3000/api/auth/callback/google` (see [Configuration](#configuration)).
 - The signed-in user must be a Google Workspace administrator
-- The MCP server should be started with `OAUTH_ENABLED=true`
 
 ---
 
