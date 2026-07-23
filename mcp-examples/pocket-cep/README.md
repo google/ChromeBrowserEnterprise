@@ -53,6 +53,9 @@ The app is deliberately educational. An **MCP Inspector** panel shows every JSON
 ## Quick Start
 
 ```bash
+# Navigate to the Pocket CEP directory
+cd mcp-examples/pocket-cep
+
 # 1. Install dependencies (postinstall prints a setup hint if needed)
 npm install
 
@@ -66,6 +69,8 @@ npm run doctor
 # 4. Start Pocket CEP + the MCP server together (two named log streams)
 npm run dev:full
 ```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser to use the dashboard.
 
 Prefer manual setup? Copy `.env.local.example` to `.env.local`, fill in your secrets, and set `AUTH_MODE` (`service_account` or `user_oauth`). See [Configuration](#configuration) for details.
 
