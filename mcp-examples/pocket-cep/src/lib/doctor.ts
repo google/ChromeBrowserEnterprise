@@ -45,7 +45,7 @@ import {
   probeMcpServer,
   probeAnthropicKey,
   probeGeminiKey,
-  probeAdcToken,
+  probeServiceAccountToken,
   type CheckResult,
 } from "./doctor-checks";
 
@@ -479,9 +479,9 @@ async function main() {
 
   let restoreConsole = muteLibraryLogs();
 
-  const needsAdc = data.AUTH_MODE === "service_account";
-  const adcPromise: Promise<CheckResult | null> = needsAdc
-    ? probeAdcToken()
+  const needsSaKey = data.AUTH_MODE === "service_account";
+  const saKeyPromise: Promise<CheckResult | null> = needsSaKey
+    ? probeServiceAccountToken()
     : Promise.resolve(null);
 
   const providerKey =
@@ -494,8 +494,8 @@ async function main() {
 
   const mcpPromise = probeMcpServer(data.MCP_SERVER_URL);
 
-  const [adcResult, providerResult, initialMcpResult] = await Promise.all([
-    adcPromise,
+  const [saKeyResult, providerResult, initialMcpResult] = await Promise.all([
+    saKeyPromise,
     providerPromise,
     mcpPromise,
   ]);
@@ -540,22 +540,22 @@ async function main() {
     process.exit(1);
   });
 
-  const adcLines: CheckLine[] = [];
-  if (adcResult) {
-    adcLines.push(
+  const saLines: CheckLine[] = [];
+  if (saKeyResult) {
+    saLines.push(
       probeLine(
-        adcResult,
-        "Why: in service_account mode, the app uses your ADC token to call the Admin SDK and Admin Reports API.",
-        "Fix: gcloud auth application-default login (and set a quota project)",
+        saKeyResult,
+        "Why: in service_account mode, the app uses your Service Account key to call the Admin SDK and Admin Reports API.",
+        "Fix: set CEP_SERVICE_ACCOUNT_KEY_JSON in .env.local or run npm run setup",
       ),
     );
   } else {
-    adcLines.push({
+    saLines.push({
       status: "skip",
-      title: "ADC probe skipped (user_oauth mode)",
+      title: "Service Account probe skipped (user_oauth mode)",
       details: [
-        "User OAuth mode uses the signed-in user's token instead of ADC.",
-        "Switch to service_account mode in .env.local if you want ADC exercised.",
+        "User OAuth mode uses the signed-in user's token instead of a Service Account.",
+        "Switch to service_account mode in .env.local if you want Service Account exercised.",
       ],
     });
   }
@@ -651,15 +651,15 @@ async function main() {
   printPhase("Static", "files + env schema", staticLines);
   printPhase(
     "Google credentials",
-    needsAdc ? "ADC — service_account mode" : "User OAuth — ADC not used",
-    adcLines,
+    needsSaKey ? "Service Account mode" : "User OAuth — Service Account not used",
+    saLines,
   );
   printPhase("LLM provider", `${data.LLM_PROVIDER} via Vercel AI SDK`, providerLines);
   printPhase("MCP server", `JSON-RPC 2.0 over HTTP @ ${data.MCP_SERVER_URL}`, mcpLines);
 
   if (mcpChild && !mcpChild.killed) mcpChild.kill("SIGTERM");
 
-  const allLines = [...staticLines, ...adcLines, ...providerLines, ...mcpLines];
+  const allLines = [...staticLines, ...saLines, ...providerLines, ...mcpLines];
   finishWithSummary(countFailures(allLines), countPasses(allLines));
 }
 

@@ -7,9 +7,9 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockGetSession, mockGetADCToken } = vi.hoisted(() => ({
+const { mockGetSession, mockGetGoogleAccessToken } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
-  mockGetADCToken: vi.fn(),
+  mockGetGoogleAccessToken: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -20,8 +20,8 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 
-vi.mock("@/lib/adc", () => ({
-  getADCToken: mockGetADCToken,
+vi.mock("@/lib/access-token", () => ({
+  getGoogleAccessToken: mockGetGoogleAccessToken,
 }));
 
 import { GET } from "@/app/api/auth/health/route";
@@ -33,30 +33,23 @@ describe("GET /api/auth/health", () => {
     mockGetSession.mockResolvedValue({ user: { id: "u1" } });
   });
 
-  it("returns 200 { ok: true } when ADC succeeds", async () => {
-    mockGetADCToken.mockResolvedValue("ya29.abc");
+  it("returns 200 { ok: true } when token acquisition succeeds", async () => {
+    mockGetGoogleAccessToken.mockResolvedValue("ya29.abc");
 
     const res = await GET();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
   });
 
-  it("returns 401 with AuthErrorPayload when ADC throws AuthError", async () => {
-    mockGetADCToken.mockRejectedValue(
-      new AuthError({
-        code: "invalid_rapt",
-        source: "adc",
-        message: "Google requires you to re-authenticate.",
-        remedy: "Run `gcloud auth login` and retry.",
-        command: "gcloud auth login",
-      }),
-    );
+  it("returns 401 with AuthErrorPayload when token acquisition fails", async () => {
+    mockGetGoogleAccessToken.mockResolvedValue(undefined);
 
     const res = await GET();
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.ok).toBe(false);
-    expect(body.error.code).toBe("invalid_rapt");
+    expect(body.error.code).toBe("no_credentials");
+    expect(body.error.source).toBe("admin-sdk");
   });
 
   it("returns 401 when no session exists", async () => {

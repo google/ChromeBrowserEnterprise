@@ -47,7 +47,6 @@ The app is deliberately educational. An **MCP Inspector** panel shows every JSON
 - **Node.js** 18 or later
 - **Google Cloud project** with the [required Workspace and Chrome APIs enabled](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/auth-bring-your-own-oauth-client.md#enable-required-apis) and OAuth 2.0 credentials or a Service Account configured
 - **LLM API key** for either Anthropic (Claude) or Google AI (Gemini)
-- **Google Cloud CLI** (`gcloud`) for `service_account` mode ADC setup
 
 ---
 
@@ -58,7 +57,7 @@ The app is deliberately educational. An **MCP Inspector** panel shows every JSON
 npm install
 
 # 2. Configure interactively — walks through auth mode, API keys,
-#    gcloud ADC, and the MCP URL with live validation at each step
+#    Service Account key, and the MCP URL with live validation
 npm run setup
 
 # 3. (Optional) Verify your configuration before starting
@@ -70,24 +69,11 @@ npm run dev:full
 
 Prefer manual setup? Copy `.env.local.example` to `.env.local`, fill in your secrets, and set `AUTH_MODE` (`service_account` or `user_oauth`). See [Configuration](#configuration) for details.
 
-### Service Account Setup Options
+### Service Account Setup
 
-Service-account mode (`AUTH_MODE=service_account`, default) supports two authentication options:
+Service-account mode (`AUTH_MODE=service_account`, default) requires a Service Account with Domain-Wide Delegation (DWD):
 
-- **Option A (Domain-Wide Delegation JSON Key — Recommended)**: Upload your Service Account JSON key and set your Impersonated Admin User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` in `.env.local`). For the 4-step Google Workspace Admin Console setup and OAuth scope allowlist, see the [MCP Server DWD Guide](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/configuration.md#service-account--domain-wide-delegation-dwd).
-- **Option B (gcloud ADC)**: Run `gcloud auth application-default login` with admin scopes:
-
-```bash
-gcloud auth application-default login --scopes="https://www.googleapis.com/auth/chrome.management.policy,https://www.googleapis.com/auth/chrome.management.reports.readonly,https://www.googleapis.com/auth/chrome.management.profiles.readonly,https://www.googleapis.com/auth/admin.reports.audit.readonly,https://www.googleapis.com/auth/admin.reports.usage.readonly,https://www.googleapis.com/auth/admin.directory.user.readonly,https://www.googleapis.com/auth/admin.directory.orgunit.readonly,https://www.googleapis.com/auth/admin.directory.customer.readonly,https://www.googleapis.com/auth/cloud-identity.policies,https://www.googleapis.com/auth/apps.licensing,https://www.googleapis.com/auth/cloud-platform"
-```
-
-Then pin a quota project:
-
-```bash
-gcloud auth application-default set-quota-project YOUR_PROJECT_ID
-```
-
-Open http://localhost:3000 and sign in with Google.
+*   **Domain-Wide Delegation JSON Key**: Upload your Service Account JSON key and set your Impersonated Admin User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` or `CEP_SERVICE_ACCOUNT_KEY_JSON` in `.env.local`). For the 4-step Google Workspace Admin Console setup and OAuth scope allowlist, see the [MCP Server DWD Guide](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/configuration.md#service-account--domain-wide-delegation-dwd).
 
 ---
 
@@ -138,16 +124,15 @@ Pocket CEP supports two authentication modes that control how it communicates wi
 .env: AUTH_MODE=service_account
 ```
 
-**How it works:** Pocket CEP automatically creates an anonymous session for UI access (no Google Sign-In is required to use the web app). The server calls Google APIs using either a Google Cloud Service Account with Domain-Wide Delegation (DWD) or Application Default Credentials (ADC).
+**How it works:** Pocket CEP automatically creates an anonymous session for UI access (no Google Sign-In is required to use the web app). The server calls Google APIs using a Google Cloud Service Account with Domain-Wide Delegation (DWD).
 
 **Best for:**
 - Local development, workshops, and automated server deployments
-- Environments where a central Service Account key or ADC is configured
+- Environments where a central Service Account key is configured
 - Quick setup when per-user OAuth consent is not viable
 
 **Requirements:**
-- **Option A (DWD Key)**: Upload your Service Account JSON key and set your Impersonated User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` in `.env.local`). Ensure the Service Account's Client ID is authorized in Google Workspace Admin Console (`admin.google.com/ac/owl/domainwidedelegation`).
-- **Option B (gcloud ADC)**: Run `gcloud auth application-default login` with admin scopes.
+- **DWD Key**: Upload your Service Account JSON key and set your Impersonated User email on the [`/sa-setup`](http://localhost:3000/sa-setup) page (or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` or `CEP_SERVICE_ACCOUNT_KEY_JSON` in `.env.local`). Ensure the Service Account's Client ID is authorized in Google Workspace Admin Console (`admin.google.com/ac/owl/domainwidedelegation`).
 
 ### `user_oauth`
 

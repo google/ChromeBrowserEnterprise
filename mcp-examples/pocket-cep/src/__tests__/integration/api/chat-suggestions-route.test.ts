@@ -36,6 +36,10 @@ vi.mock("@/lib/build-model", () => ({
   resolveModelOption: mockResolveModelOption,
 }));
 
+vi.mock("@/lib/access-token", () => ({
+  getGoogleAccessToken: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/env", () => ({
   getEnv: () => ({ LLM_PROVIDER: "google" }),
 }));

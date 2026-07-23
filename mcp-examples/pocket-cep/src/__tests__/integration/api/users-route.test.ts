@@ -75,7 +75,7 @@ describe("GET /api/users", () => {
     mockSearchUsers.mockRejectedValue(
       new AuthError({
         code: "invalid_rapt",
-        source: "adc",
+        source: "admin-sdk",
         message: "Google requires you to re-authenticate.",
         remedy: "Run `gcloud auth login` and retry.",
         command: "gcloud auth login",
@@ -87,7 +87,7 @@ describe("GET /api/users", () => {
     const body = await res.json();
     expect(body.error).toEqual({
       code: "invalid_rapt",
-      source: "adc",
+      source: "admin-sdk",
       message: "Google requires you to re-authenticate.",
       remedy: "Run `gcloud auth login` and retry.",
       command: "gcloud auth login",
@@ -138,7 +138,7 @@ describe("GET /api/users", () => {
     mockSearchUsers.mockRejectedValue(
       new AuthError({
         code: "invalid_rapt",
-        source: "adc",
+        source: "admin-sdk",
         message: "x",
         remedy: "y",
       }),

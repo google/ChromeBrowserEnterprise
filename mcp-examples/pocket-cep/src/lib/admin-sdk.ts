@@ -4,8 +4,8 @@
 
 import { getErrorMessage } from "./errors";
 import { LOG_TAGS } from "./constants";
-import { getADCToken, buildGoogleApiHeaders } from "./adc";
-import { isAuthError, toAuthError } from "./auth-errors";
+import { buildGoogleApiHeaders } from "./access-token";
+import { AuthError, isAuthError, toAuthError } from "./auth-errors";
 import { getActiveCustomerId } from "./sa-session";
 
 /**
@@ -57,10 +57,18 @@ export async function searchUsers(
   }
 
   const url = `https://admin.googleapis.com/admin/directory/v1/users?${params}`;
-  const token = accessToken ?? (await getADCToken());
+  const token = accessToken;
+  if (!token) {
+    throw new AuthError({
+      code: "no_credentials",
+      source: "admin-sdk",
+      message: "No Google access token available.",
+      remedy: "Configure your credentials or sign in.",
+    });
+  }
 
   try {
-    const headers = await buildGoogleApiHeaders(token, false);
+    const headers = await buildGoogleApiHeaders(token);
 
     const response = await fetch(url, {
       headers,

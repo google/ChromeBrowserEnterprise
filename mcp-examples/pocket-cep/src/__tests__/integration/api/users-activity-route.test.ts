@@ -9,16 +9,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const {
-  mockGetSession,
-  mockGetADCToken,
-  mockGetQuotaProject,
-  mockGetGoogleAccessToken,
-  mockGetEnv,
-} = vi.hoisted(() => ({
+const { mockGetSession, mockGetGoogleAccessToken, mockGetEnv } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
-  mockGetADCToken: vi.fn(),
-  mockGetQuotaProject: vi.fn(),
   mockGetGoogleAccessToken: vi.fn(),
   mockGetEnv: vi.fn(),
 }));
@@ -31,24 +23,17 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 
-vi.mock("@/lib/access-token", () => ({
-  getGoogleAccessToken: mockGetGoogleAccessToken,
-}));
+vi.mock("@/lib/access-token", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/access-token")>("@/lib/access-token");
+  return {
+    ...actual,
+    getGoogleAccessToken: mockGetGoogleAccessToken,
+  };
+});
 
 vi.mock("@/lib/env", () => ({
   getEnv: mockGetEnv,
 }));
-
-// Keep the real `buildGoogleApiHeaders` so the route's header construction
-// runs end-to-end; only mock the credential accessors.
-vi.mock("@/lib/adc", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/adc")>("@/lib/adc");
-  return {
-    ...actual,
-    getADCToken: mockGetADCToken,
-    getQuotaProject: mockGetQuotaProject,
-  };
-});
 
 import { GET } from "@/app/api/users/activity/route";
 import { AuthError } from "@/lib/auth-errors";
@@ -74,7 +59,6 @@ describe("GET /api/users/activity", () => {
     clearCache();
     mockGetSession.mockResolvedValue({ user: { id: "u1" } });
     mockGetEnv.mockReturnValue({ MCP_SERVER_URL: "http://localhost:4000/mcp" });
-    mockGetQuotaProject.mockResolvedValue(null);
     mockGetGoogleAccessToken.mockResolvedValue(`token-${Math.random()}`);
   });
 
@@ -96,24 +80,14 @@ describe("GET /api/users/activity", () => {
     expect(body.activity["a@x.test"].eventCount).toBe(1);
   });
 
-  it("returns 401 with AuthErrorPayload when getADCToken throws AuthError", async () => {
-    // Force the ADC fallback path by returning no user token.
+  it("returns 401 with AuthErrorPayload when getGoogleAccessToken returns undefined", async () => {
     mockGetGoogleAccessToken.mockResolvedValue(undefined);
-    mockGetADCToken.mockRejectedValue(
-      new AuthError({
-        code: "invalid_rapt",
-        source: "adc",
-        message: "Google requires you to re-authenticate.",
-        remedy: "Run `gcloud auth login` and retry.",
-        command: "gcloud auth login",
-      }),
-    );
 
     const res = await GET(makeRequest());
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.error.code).toBe("invalid_rapt");
-    expect(body.error.source).toBe("adc");
+    expect(body.error.code).toBe("no_credentials");
+    expect(body.error.source).toBe("admin-sdk");
   });
 
   it("returns 401 when the Admin Reports call responds with a 401 invalid_grant body", async () => {

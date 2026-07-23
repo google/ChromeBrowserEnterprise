@@ -60,7 +60,7 @@ export class DwdScopeVerificationError extends AuthError {
         : originalMessage || `Domain-Wide Delegation token verification failed for ${subject}.`;
     super({
       code: "dwd_scope_mismatch",
-      source: "adc",
+      source: "admin-sdk",
       message: msg,
       remedy:
         "Authorize this Service Account and required OAuth scopes in your Google Workspace Admin Console (admin.google.com/ac/owl/domainwidedelegation).",
@@ -285,4 +285,13 @@ export async function getGoogleAccessToken(options?: {
     console.error(LOG_TAGS.AUTH, "Failed to get Google access token:", error);
     return undefined;
   }
+}
+
+/**
+ * Constructs authorization headers for Google API HTTP requests.
+ */
+export async function buildGoogleApiHeaders(token: string): Promise<Record<string, string>> {
+  return {
+    Authorization: `Bearer ${token}`,
+  };
 }

@@ -9,9 +9,8 @@
  */
 
 import { getEnv } from "./env";
-import { getGoogleAccessToken } from "./access-token";
-import { getADCToken, buildGoogleApiHeaders } from "./adc";
-import { isAuthError, toAuthError } from "./auth-errors";
+import { getGoogleAccessToken, buildGoogleApiHeaders } from "./access-token";
+import { AuthError, isAuthError, toAuthError } from "./auth-errors";
 import { buildCallerCacheKey } from "./cache-key";
 import { LOG_TAGS } from "./constants";
 import { getErrorMessage } from "./errors";
@@ -57,14 +56,21 @@ export async function getCachedActivity(
 ): Promise<ActivityMap> {
   const config = getEnv();
   const accessToken = await getGoogleAccessToken();
-  const tokenToUse = accessToken ?? (await getADCToken());
-  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, tokenToUse);
+  if (!accessToken) {
+    throw new AuthError({
+      code: "no_credentials",
+      source: "admin-sdk",
+      message: "No Google access token available.",
+      remedy: "Configure your credentials or sign in.",
+    });
+  }
+  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken);
 
   return getOrFetch({
     key: `activity:${callerKey}:${days}`,
     ttlMs: ACTIVITY_TTL_MS,
     tags: [CACHE_TAGS.ACTIVITY],
-    fetcher: () => fetchActivity(tokenToUse, !accessToken, days),
+    fetcher: () => fetchActivity(accessToken, days),
   });
 }
 
@@ -91,12 +97,8 @@ export async function getActivitySafe(days: number = DEFAULT_ACTIVITY_DAYS): Pro
  * Pulls and groups Chrome audit events for the given caller, scoped to
  * `days` of history. Pagination stops at {@link ACTIVITY_MAX_EVENTS}.
  */
-async function fetchActivity(
-  tokenToUse: string,
-  useADCQuotaProject: boolean,
-  days: number,
-): Promise<ActivityMap> {
-  const requestHeaders = await buildGoogleApiHeaders(tokenToUse, useADCQuotaProject);
+async function fetchActivity(tokenToUse: string, days: number): Promise<ActivityMap> {
+  const requestHeaders = await buildGoogleApiHeaders(tokenToUse);
 
   const baseUrl = new URL(
     "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome",

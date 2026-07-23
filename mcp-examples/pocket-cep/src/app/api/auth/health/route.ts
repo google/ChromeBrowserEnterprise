@@ -11,8 +11,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { getADCToken } from "@/lib/adc";
-import { isAuthError } from "@/lib/auth-errors";
+import { getGoogleAccessToken } from "@/lib/access-token";
+import { AuthError, isAuthError } from "@/lib/auth-errors";
 import { requireSession } from "@/lib/session";
 import { getErrorMessage } from "@/lib/errors";
 
@@ -26,7 +26,15 @@ export async function GET() {
   }
 
   try {
-    await getADCToken();
+    const token = await getGoogleAccessToken();
+    if (!token) {
+      throw new AuthError({
+        code: "no_credentials",
+        source: "admin-sdk",
+        message: "No Google access token available.",
+        remedy: "Configure your credentials or sign in.",
+      });
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (isAuthError(error)) {
