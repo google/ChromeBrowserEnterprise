@@ -70,7 +70,7 @@ npm run doctor
 npm run dev:full
 ```
 
-Open the local URL printed in your console (usually [http://localhost:3000](http://localhost:3000)) in your browser to use the dashboard.
+Open the local URL printed in the Next.js console logs (usually labeled `- Local:` e.g., `http://localhost:3000`) in your browser to use the dashboard.
 
 Prefer manual setup? Copy `.env.local.example` to `.env.local`, fill in your secrets, and set `AUTH_MODE` (`service_account` or `user_oauth`). See [Configuration](#configuration) for details.
 
@@ -78,7 +78,7 @@ Prefer manual setup? Copy `.env.local.example` to `.env.local`, fill in your sec
 
 Service-account mode (`AUTH_MODE=service_account`, default) requires a Service Account with Domain-Wide Delegation (DWD):
 
-*   **Domain-Wide Delegation JSON Key**: Upload your Service Account JSON key and set your Impersonated Admin User email on the [/sa-setup](http://localhost:3000/sa-setup) page (or matching your active port, e.g. `http://localhost:3001/sa-setup` if port 3000 is busy, or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` or `CEP_SERVICE_ACCOUNT_KEY_JSON` in `.env.local`). For the 4-step Google Workspace Admin Console setup and OAuth scope allowlist, see the [MCP Server DWD Guide](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/configuration.md#service-account--domain-wide-delegation-dwd).
+*   **Domain-Wide Delegation JSON Key**: Upload your Service Account JSON key and set your Impersonated Admin User email on the `/sa-setup` page of the running web app (e.g., `http://localhost:<port>/sa-setup`, matching your active port, or configure via `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` or `CEP_SERVICE_ACCOUNT_KEY_JSON` in `.env.local`). For the 4-step Google Workspace Admin Console setup and OAuth scope allowlist, see the [MCP Server DWD Guide](https://github.com/google/chrome-enterprise-premium-mcp/blob/main/docs/configuration.md#service-account--domain-wide-delegation-dwd).
 
 ---
 
@@ -137,7 +137,7 @@ Pocket CEP supports two authentication modes that control how it communicates wi
 - Quick setup when per-user OAuth consent is not viable
 
 **Requirements:**
-- **DWD Key**: Upload your Service Account JSON key and set your Impersonated User email on the [/sa-setup](http://localhost:3000/sa-setup) page (or matching your active port, or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` or `CEP_SERVICE_ACCOUNT_KEY_JSON` in `.env.local`). Ensure the Service Account's Client ID is authorized in Google Workspace Admin Console (`admin.google.com/ac/owl/domainwidedelegation`).
+- **DWD Key**: Upload your Service Account JSON key and set your Impersonated User email on the `/sa-setup` page of the running web app (e.g., `http://localhost:<port>/sa-setup`, or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` or `CEP_SERVICE_ACCOUNT_KEY_JSON` in `.env.local`). Ensure the Service Account's Client ID is authorized in Google Workspace Admin Console (`admin.google.com/ac/owl/domainwidedelegation`).
 
 ### `user_oauth`
 
