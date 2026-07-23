@@ -66,7 +66,6 @@ export type McpToolDefinition = {
 async function connect(
   serverUrl: string,
   accessToken?: string,
-  signal?: AbortSignal,
 ): Promise<{ client: Client; transport: StreamableHTTPClientTransport }> {
   const headers: Record<string, string> = {};
 
@@ -75,7 +74,7 @@ async function connect(
   }
 
   const transport = new StreamableHTTPClientTransport(new URL(serverUrl), {
-    requestInit: { headers, signal },
+    requestInit: { headers },
   });
 
   const client = new Client({ name: "pocket-cep", version: "1.0.0" });
@@ -117,7 +116,6 @@ export async function callMcpTool(
   toolName: string,
   args: Record<string, unknown>,
   accessToken?: string,
-  signal?: AbortSignal,
 ): Promise<McpToolResult> {
   const callArgs: Record<string, unknown> = { ...args };
   if (
@@ -140,7 +138,7 @@ export async function callMcpTool(
 
   console.log(LOG_TAGS.MCP, `Calling tool: ${toolName}`, JSON.stringify(callArgs));
 
-  const { client } = await connect(serverUrl, accessToken, signal);
+  const { client } = await connect(serverUrl, accessToken);
 
   try {
     const result = await client.callTool({ name: toolName, arguments: callArgs });

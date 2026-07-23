@@ -189,6 +189,8 @@ function buildPayload(
   }
 
   const isSaMode = authMode === "service_account";
+  const isOauthMode = authMode === "user_oauth";
+
   switch (code) {
     case "dwd_scope_mismatch": {
       const missingText = dwdDiagnostics?.missingScopes?.length
