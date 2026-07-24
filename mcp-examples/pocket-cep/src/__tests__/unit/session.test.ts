@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockGetSession, mockCookies } = vi.hoisted(() => ({
+const { mockGetSession, mockCookies, mockGetEnv } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockCookies: {
     getAll: vi.fn(() => [] as { name: string; value: string }[]),
     delete: vi.fn(),
   },
+  mockGetEnv: vi.fn(() => ({
+    AUTH_MODE: "service_account" as "service_account" | "user_oauth",
+    BETTER_AUTH_SECRET: "mock-secret",
+  })),
 }));
 
 vi.mock("next/headers", () => ({
@@ -22,10 +26,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 vi.mock("@/lib/env", () => ({
-  getEnv: () => ({
-    AUTH_MODE: "service_account",
-    BETTER_AUTH_SECRET: "mock-secret",
-  }),
+  getEnv: mockGetEnv,
 }));
 
 import { requireSession } from "@/lib/session";
@@ -33,10 +34,14 @@ import { requireSession } from "@/lib/session";
 describe("requireSession", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetEnv.mockReturnValue({
+      AUTH_MODE: "service_account",
+      BETTER_AUTH_SECRET: "mock-secret",
+    });
   });
 
   it("returns session when getSession succeeds", async () => {
-    const mockSession = { user: { id: "u1" } };
+    const mockSession = { user: { id: "u1", email: "user@example.com" } };
     mockGetSession.mockResolvedValue(mockSession);
 
     const session = await requireSession();
@@ -64,5 +69,35 @@ describe("requireSession", () => {
     const session = await requireSession();
     expect(session).toBeNull();
     expect(mockCookies.delete).not.toHaveBeenCalled();
+  });
+
+  describe("in user_oauth mode", () => {
+    beforeEach(() => {
+      mockGetEnv.mockReturnValue({
+        AUTH_MODE: "user_oauth",
+        BETTER_AUTH_SECRET: "mock-secret",
+      });
+    });
+
+    it("returns session when getSession succeeds with a normal user email", async () => {
+      const mockSession = { user: { id: "u1", email: "admin@company.com" } };
+      mockGetSession.mockResolvedValue(mockSession);
+
+      const session = await requireSession();
+      expect(session).toBe(mockSession);
+      expect(mockCookies.delete).not.toHaveBeenCalled();
+    });
+
+    it("invalidates session and deletes cookies when session is anonymous (service-account.local)", async () => {
+      const mockSession = { user: { id: "u1", email: "anon-123@service-account.local" } };
+      mockGetSession.mockResolvedValue(mockSession);
+      mockCookies.getAll.mockReturnValue([
+        { name: "better-auth.session_token", value: "anon-cookie-val" },
+      ]);
+
+      const session = await requireSession();
+      expect(session).toBeNull();
+      expect(mockCookies.delete).toHaveBeenCalledWith("better-auth.session_token");
+    });
   });
 });
