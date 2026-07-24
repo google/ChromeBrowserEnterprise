@@ -26,6 +26,10 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
+  cookies: async () => ({
+    getAll: () => [],
+    delete: vi.fn(),
+  }),
 }));
 
 vi.mock("@/lib/access-token", () => ({

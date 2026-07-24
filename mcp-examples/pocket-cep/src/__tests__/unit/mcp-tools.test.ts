@@ -18,6 +18,10 @@ vi.mock("@/lib/mcp-client", () => ({
   callMcpTool: mockCallMcpTool,
 }));
 
+vi.mock("@/lib/sa-session", () => ({
+  getServiceAccountConfig: vi.fn().mockResolvedValue(null),
+}));
+
 import { getMcpToolsForAiSdk, invalidateToolCatalog } from "@/lib/mcp-tools";
 import { isAuthError, AuthError } from "@/lib/auth-errors";
 

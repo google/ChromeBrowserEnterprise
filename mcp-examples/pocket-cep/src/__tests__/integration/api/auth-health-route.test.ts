@@ -18,6 +18,10 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
+  cookies: async () => ({
+    getAll: () => [],
+    delete: vi.fn(),
+  }),
 }));
 
 vi.mock("@/lib/access-token", () => ({
@@ -34,7 +38,7 @@ describe("GET /api/auth/health", () => {
   });
 
   it("returns 200 { ok: true } when token acquisition succeeds", async () => {
-    mockGetGoogleAccessToken.mockResolvedValue("ya29.abc");
+    mockGetGoogleAccessToken.mockResolvedValue("mock-oauth-token");
 
     const res = await GET();
     expect(res.status).toBe(200);
