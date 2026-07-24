@@ -80,9 +80,8 @@ describe("GET /api/users", () => {
       new AuthError({
         code: "invalid_rapt",
         source: "admin-sdk",
-        message: "Google requires you to re-authenticate.",
-        remedy: "Run `gcloud auth login` and retry.",
-        command: "gcloud auth login",
+        message: "Your session has expired. Please sign in again.",
+        remedy: "Click the Sign In button to log back into your Google account.",
       }),
     );
 
@@ -92,9 +91,8 @@ describe("GET /api/users", () => {
     expect(body.error).toEqual({
       code: "invalid_rapt",
       source: "admin-sdk",
-      message: "Google requires you to re-authenticate.",
-      remedy: "Run `gcloud auth login` and retry.",
-      command: "gcloud auth login",
+      message: "Your session has expired. Please sign in again.",
+      remedy: "Click the Sign In button to log back into your Google account.",
       docsUrl: undefined,
     });
   });

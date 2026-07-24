@@ -1,6 +1,5 @@
 /**
- * @file Tests for the canonical Google API scope list and the
- * `gcloud auth application-default login` formatter that consumes it.
+ * @file Tests for the canonical Google API scope list.
  */
 
 import { describe, it, expect } from "vitest";
