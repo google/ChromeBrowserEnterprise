@@ -52,30 +52,38 @@ export function AuthHealthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     function handler(event: Event) {
       const detail = (event as CustomEvent<AuthErrorPayload>).detail;
-      if (detail && detail.code === "unauthenticated" && mode.authMode === "service_account") {
-        console.warn(
-          "AuthHealthProvider: Stale session detected in Service Account mode. " +
-            "Attempting background silent refresh...",
-        );
-        fetch("/api/auth/auto-session", {
-          headers: { Accept: "application/json" },
-        })
-          .then((res) => {
-            if (res.ok) {
-              console.log("AuthHealthProvider: Silent session refresh succeeded.");
-              clear();
-            } else {
-              console.error(
-                `AuthHealthProvider: Silent refresh failed with status ${res.status}. ` +
-                  "Fallback to hard redirect.",
-              );
-              window.location.href = "/api/auth/auto-session";
-            }
+      if (detail && detail.code === "unauthenticated") {
+        if (mode.authMode === "service_account") {
+          console.warn(
+            "AuthHealthProvider: Stale session detected in Service Account mode. " +
+              "Attempting background silent refresh...",
+          );
+          fetch("/api/auth/auto-session", {
+            headers: { Accept: "application/json" },
           })
-          .catch((err) => {
-            console.error("AuthHealthProvider: Silent refresh network error:", err);
-            window.location.href = "/api/auth/auto-session";
-          });
+            .then((res) => {
+              if (res.ok) {
+                console.log("AuthHealthProvider: Silent session refresh succeeded.");
+                clear();
+              } else {
+                console.error(
+                  `AuthHealthProvider: Silent refresh failed with status ${res.status}. ` +
+                    "Fallback to hard redirect.",
+                );
+                window.location.href = "/api/auth/auto-session";
+              }
+            })
+            .catch((err) => {
+              console.error("AuthHealthProvider: Silent refresh network error:", err);
+              window.location.href = "/api/auth/auto-session";
+            });
+        } else {
+          console.warn(
+            "AuthHealthProvider: Stale session detected in User OAuth mode. " +
+              "Redirecting to login page.",
+          );
+          window.location.href = "/";
+        }
       } else if (detail && typeof detail.code === "string") {
         setError(detail);
       }
