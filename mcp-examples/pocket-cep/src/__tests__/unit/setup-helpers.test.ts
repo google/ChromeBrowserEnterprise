@@ -37,16 +37,16 @@ describe("inferLlmProvider", () => {
     expect(result.reason).toContain("ANTHROPIC_API_KEY");
   });
 
-  it("falls back to claude when both keys are present (no signal)", () => {
+  it("falls back to gemini when both keys are present (no signal)", () => {
     const result = inferLlmProvider({
       ANTHROPIC_API_KEY: "sk-ant-x",
       GOOGLE_AI_API_KEY: "y",
     });
-    expect(result).toEqual({ value: "claude" });
+    expect(result).toEqual({ value: "gemini" });
   });
 
-  it("falls back to claude when no keys are set", () => {
-    expect(inferLlmProvider({})).toEqual({ value: "claude" });
+  it("falls back to gemini when no keys are set", () => {
+    expect(inferLlmProvider({})).toEqual({ value: "gemini" });
   });
 
   it("treats whitespace-only key values as unset", () => {
