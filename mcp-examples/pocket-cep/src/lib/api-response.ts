@@ -44,5 +44,15 @@ export function respondWithApiError(
  * protected route.
  */
 export function unauthenticatedResponse(): NextResponse {
-  return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  return NextResponse.json(
+    {
+      error: {
+        code: "unauthenticated",
+        source: "admin-sdk",
+        message: "Not authenticated",
+        remedy: "Sign in to access this resource.",
+      },
+    },
+    { status: 401 },
+  );
 }

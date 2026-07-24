@@ -17,6 +17,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import type { ReactNode } from "react";
 import type { AuthErrorPayload } from "@/lib/auth-errors";
 import { AUTH_ERROR_EVENT } from "@/lib/auth-aware-fetch";
+import { useMode } from "./mode-provider";
 
 /**
  * Value exposed by the AuthHealthContext. `clear()` drops the current
@@ -38,6 +39,7 @@ const AuthHealthContext = createContext<AuthHealthValue | null>(null);
  */
 export function AuthHealthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<AuthErrorPayload | null>(null);
+  const mode = useMode();
 
   const report = useCallback((payload: AuthErrorPayload) => {
     setError(payload);
@@ -50,13 +52,37 @@ export function AuthHealthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     function handler(event: Event) {
       const detail = (event as CustomEvent<AuthErrorPayload>).detail;
-      if (detail && typeof detail.code === "string") {
+      if (detail && detail.code === "unauthenticated" && mode.authMode === "service_account") {
+        console.warn(
+          "AuthHealthProvider: Stale session detected in Service Account mode. " +
+            "Attempting background silent refresh...",
+        );
+        fetch("/api/auth/auto-session", {
+          headers: { Accept: "application/json" },
+        })
+          .then((res) => {
+            if (res.ok) {
+              console.log("AuthHealthProvider: Silent session refresh succeeded.");
+              clear();
+            } else {
+              console.error(
+                `AuthHealthProvider: Silent refresh failed with status ${res.status}. ` +
+                  "Fallback to hard redirect.",
+              );
+              window.location.href = "/api/auth/auto-session";
+            }
+          })
+          .catch((err) => {
+            console.error("AuthHealthProvider: Silent refresh network error:", err);
+            window.location.href = "/api/auth/auto-session";
+          });
+      } else if (detail && typeof detail.code === "string") {
         setError(detail);
       }
     }
     window.addEventListener(AUTH_ERROR_EVENT, handler);
     return () => window.removeEventListener(AUTH_ERROR_EVENT, handler);
-  }, []);
+  }, [clear, mode.authMode]);
 
   return (
     <AuthHealthContext.Provider value={{ error, report, clear }}>
