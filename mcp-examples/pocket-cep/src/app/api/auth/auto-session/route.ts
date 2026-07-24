@@ -38,6 +38,8 @@ export async function GET(request: Request) {
   const reqUrl = new URL(request.url);
   const base = `${reqUrl.protocol}//${reqUrl.host}`;
 
+  const acceptJson = request.headers.get("accept")?.includes("application/json");
+
   let response: Response;
   try {
     response = await fetch(`${base}/api/auth/sign-in/anonymous`, {
@@ -47,14 +49,29 @@ export async function GET(request: Request) {
       signal: AbortSignal.timeout(5000),
     });
   } catch {
+    if (acceptJson) {
+      return NextResponse.json({ error: "session_unavailable" }, { status: 503 });
+    }
     return NextResponse.redirect(new URL("/?error=session_unavailable", base));
   }
 
   if (!response.ok) {
+    if (acceptJson) {
+      return NextResponse.json({ error: "session_failed" }, { status: 401 });
+    }
     return NextResponse.redirect(new URL("/?error=session_failed", base));
   }
 
   const cookies = response.headers.getSetCookie();
+
+  if (acceptJson) {
+    const headers = new Headers();
+    for (const cookie of cookies) {
+      headers.append("Set-Cookie", cookie);
+    }
+    return NextResponse.json({ success: true }, { headers });
+  }
+
   const headers = new Headers({ Location: new URL("/dashboard", base).toString() });
   for (const cookie of cookies) {
     headers.append("Set-Cookie", cookie);
