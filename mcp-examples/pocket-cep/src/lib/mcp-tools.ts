@@ -17,6 +17,7 @@ import { callMcpTool, listMcpTools, type McpToolDefinition } from "./mcp-client"
 import { toAuthError } from "./auth-errors";
 import { buildCallerCacheKey } from "./cache-key";
 import { LOG_TAGS } from "./constants";
+import { getServiceAccountConfig } from "./sa-session";
 
 const TOOL_CATALOG_TTL_MS = 5 * 60 * 1000;
 
@@ -89,7 +90,10 @@ export async function getMcpToolsForAiSdk(
          */
         if (result.isError) {
           const text = extractErrorText(result.content);
-          const authErr = toAuthError(text, "mcp-tool");
+          const saConfig = await getServiceAccountConfig();
+          const authErr = toAuthError(text, "mcp-tool", {
+            impersonatedUser: saConfig?.impersonatedUser,
+          });
           if (authErr) throw authErr;
         }
 

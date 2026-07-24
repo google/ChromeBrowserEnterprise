@@ -268,9 +268,10 @@ function buildPayload(
       return {
         code,
         source,
-        message: "Google Workspace Customer ID is invalid or not found.",
-        remedy:
-          "Set your active Workspace Customer ID (e.g. `my_customer` or `C0...`) on the [Service Account Setup](/sa-setup) page.",
+        message: "Google Workspace Customer ID is invalid, missing, or unauthorized.",
+        remedy: isSaMode
+          ? "Verify or set your active Workspace Customer ID (e.g. `C0...`) on the [Service Account Setup](/sa-setup) page. Note that using 'my_customer' is only supported when Domain-Wide Delegation (impersonation) is enabled. If your Customer ID is already set, ensure it is correct and that your Service Account has been assigned the required admin roles in Google Workspace Admin Console."
+          : "Ensure the Customer ID parameter passed to the tool is correct, and that your Google account has permission to access this customer (by default, 'my_customer' resolves to your own organization).",
         docsUrl,
       };
     case "unknown_auth":
@@ -298,7 +299,11 @@ function buildPayload(
  *     `UNAUTHENTICATED`, or the "Could not load the default credentials" phrase
  *   - MCP tool-error strings like "API Error: invalid_grant - ..."
  */
-export function toAuthError(err: unknown, source: AuthErrorPayload["source"]): AuthError | null {
+export function toAuthError(
+  err: unknown,
+  source: AuthErrorPayload["source"],
+  context?: { impersonatedUser?: string },
+): AuthError | null {
   if (err instanceof AuthError) return err;
   if (
     typeof err === "object" &&
@@ -365,6 +370,9 @@ export function toAuthError(err: unknown, source: AuthErrorPayload["source"]): A
     return new AuthError(buildPayload("invalid_grant", source));
   }
   if (/Invalid Customer Id|Invalid value for customer id/i.test(message)) {
+    if (isSaMode && !context?.impersonatedUser) {
+      return new AuthError(buildPayload("unauthenticated", source));
+    }
     return new AuthError(buildPayload("invalid_customer_id", source));
   }
   if (
