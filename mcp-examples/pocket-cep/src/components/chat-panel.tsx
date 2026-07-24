@@ -27,6 +27,7 @@ import type { InvocationPart } from "@/lib/tool-part";
 import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
 import { getModelById } from "@/lib/models";
 import { buildByokHeader, getStoredModelId } from "@/lib/model-preferences";
+import { authAwareFetch } from "@/lib/auth-aware-fetch";
 
 type ChatPanelProps = {
   selectedUser: string;
@@ -96,6 +97,7 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
         api: "/api/chat",
         body: resolveBody,
         headers: resolveHeaders,
+        fetch: authAwareFetch,
       }),
     [resolveBody, resolveHeaders],
   );
@@ -111,7 +113,7 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
       try {
         const body = resolveBody();
         const headers = { ...resolveHeaders(), "Content-Type": "application/json" };
-        const res = await fetch("/api/chat/suggestions", {
+        const res = await authAwareFetch("/api/chat/suggestions", {
           method: "POST",
           headers,
           body: JSON.stringify({ ...body, messages: currentMessages }),
@@ -224,7 +226,7 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
       if (promptExpanding || isStreaming) return;
       setPromptExpanding(prompt.name);
       try {
-        const res = await fetch("/api/prompts", {
+        const res = await authAwareFetch("/api/prompts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: prompt.name }),
