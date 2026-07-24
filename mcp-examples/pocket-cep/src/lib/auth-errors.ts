@@ -269,8 +269,9 @@ function buildPayload(
         code,
         source,
         message: "Google Workspace Customer ID is invalid, missing, or unauthorized.",
-        remedy:
-          "Verify or set your active Workspace Customer ID (e.g. `C0...`) on the [Service Account Setup](/sa-setup) page. Note that using 'my_customer' is only supported when Domain-Wide Delegation (impersonation) is enabled. If your Customer ID is already set, ensure it is correct and that your Service Account has been assigned the required admin roles in Google Workspace Admin Console.",
+        remedy: isSaMode
+          ? "Verify or set your active Workspace Customer ID (e.g. `C0...`) on the [Service Account Setup](/sa-setup) page. Note that using 'my_customer' is only supported when Domain-Wide Delegation (impersonation) is enabled. If your Customer ID is already set, ensure it is correct and that your Service Account has been assigned the required admin roles in Google Workspace Admin Console."
+          : "Ensure the Customer ID parameter passed to the tool is correct, and that your Google account has permission to access this customer (by default, 'my_customer' resolves to your own organization).",
         docsUrl,
       };
     case "unknown_auth":

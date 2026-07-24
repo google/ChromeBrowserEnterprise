@@ -75,6 +75,36 @@ describe("toAuthError", () => {
       expect(result?.command).toBeUndefined();
       expect(result?.remedy).toContain("/sa-setup");
     });
+
+    it("maps 'Invalid Customer Id' to unauthenticated when impersonatedUser is missing", () => {
+      vi.mocked(getEnv).mockReturnValue({
+        AUTH_MODE: "service_account",
+        BETTER_AUTH_SECRET: "secret",
+        BETTER_AUTH_URL: "http://localhost:3000",
+        MCP_SERVER_URL: "http://localhost:4000/mcp",
+        LLM_MODEL: "",
+        CEP_IMPERSONATE_SUBJECT: "", // Empty to simulate missing impersonated user
+        CEP_CUSTOMER_ID: "C012345",
+        GOOGLE_CLIENT_ID: "",
+        GOOGLE_CLIENT_SECRET: "",
+        LLM_PROVIDER: "gemini",
+        ANTHROPIC_API_KEY: "",
+        GOOGLE_AI_API_KEY: "",
+        OPENAI_API_KEY: "",
+      });
+
+      const err = new Error("Invalid Customer Id");
+      const result = toAuthError(err, "admin-sdk"); // context has no impersonatedUser
+      expect(result?.code).toBe("unauthenticated");
+      expect(result?.remedy).toContain("require an admin user to impersonate");
+    });
+
+    it("maps 'Invalid Customer Id' to invalid_customer_id when impersonatedUser is present", () => {
+      const err = new Error("Invalid Customer Id");
+      const result = toAuthError(err, "admin-sdk", { impersonatedUser: "admin@example.com" });
+      expect(result?.code).toBe("invalid_customer_id");
+      expect(result?.remedy).toContain("Verify or set your active Workspace Customer ID");
+    });
   });
 
   describe("in user_oauth mode", () => {
@@ -130,6 +160,14 @@ describe("toAuthError", () => {
       expect(result?.code).toBe("no_credentials");
       expect(result?.command).toBeUndefined();
       expect(result?.remedy).toContain("Please sign in with your Google account");
+    });
+
+    it("maps 'Invalid Customer Id' to invalid_customer_id in user_oauth mode with user remedy", () => {
+      const err = new Error("Invalid Customer Id");
+      const result = toAuthError(err, "admin-sdk");
+      expect(result?.code).toBe("invalid_customer_id");
+      expect(result?.remedy).toContain("Ensure the Customer ID parameter passed to the tool is correct");
+      expect(result?.remedy).not.toContain("/sa-setup");
     });
   });
 
