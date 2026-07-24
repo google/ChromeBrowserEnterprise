@@ -1,8 +1,8 @@
 /**
  * @file Integration test for GET /api/auth/health.
  *
- * Probes ADC credentials on demand. Used by the auth-banner "Check
- * again" button to clear the banner after the user runs gcloud auth login.
+ * Probes Google credentials on demand. Used by the auth-banner "Check
+ * again" button to clear the banner after the user signs in again.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";

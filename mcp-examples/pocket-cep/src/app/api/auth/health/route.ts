@@ -1,12 +1,12 @@
 /**
- * @file Health probe for Google ADC credentials.
+ * @file Health probe for Google credentials.
  *
  * GET /api/auth/health
- *   200 { ok: true }                — ADC is valid
+ *   200 { ok: true }                — Credentials are valid
  *   401 { ok: false, error: AuthErrorPayload } — re-auth required
  *
  * Used by the auth-banner "Check again" button to verify the user has
- * re-run `gcloud auth login`. No side effects, no cache — each call
+ * signed in again. No side effects, no cache — each call
  * exchanges the refresh token fresh.
  */
 
@@ -17,8 +17,8 @@ import { requireSession } from "@/lib/session";
 import { getErrorMessage } from "@/lib/errors";
 
 /**
- * Probes ADC by requesting a fresh access token. Returns 200 if Google
- * issues one and 401 with the structured payload if it refuses.
+ * Probes Google credentials by requesting a fresh access token. Returns 200
+ * if Google issues one and 401 with the structured payload if it refuses.
  */
 export async function GET() {
   if (!(await requireSession())) {

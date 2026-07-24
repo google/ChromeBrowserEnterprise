@@ -142,7 +142,7 @@ async function chooseAuthMode(current: string | undefined) {
         {
           label: "Service account (local demo fallback)",
           value: "service_account",
-          hint: "Uses `gcloud auth application-default login`. No user sign-in; shared identity.",
+          hint: "Uses machine credentials (JSON key). No user sign-in; shared identity.",
         },
       ],
     }),
