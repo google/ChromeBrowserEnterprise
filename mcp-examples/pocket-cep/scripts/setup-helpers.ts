@@ -32,7 +32,7 @@ export type LlmProviderInference = {
  *   2. Otherwise, if exactly one of the API keys is set, default to
  *      that provider — most users who paste a single key intend to
  *      use the matching provider.
- *   3. Otherwise, fall back to claude (the historical default).
+ *   3. Otherwise, fall back to gemini (the preferred default).
  */
 export function inferLlmProvider(env: EnvMap): LlmProviderInference {
   if (env.LLM_PROVIDER === "gemini") return { value: "gemini" };
@@ -53,5 +53,5 @@ export function inferLlmProvider(env: EnvMap): LlmProviderInference {
       reason: "Found ANTHROPIC_API_KEY in .env.local — defaulting to Claude.",
     };
   }
-  return { value: "claude" };
+  return { value: "gemini" };
 }

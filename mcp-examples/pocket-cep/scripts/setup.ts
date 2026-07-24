@@ -81,8 +81,8 @@ function writeEnv(env: EnvMap): void {
       "Secrets",
       [
         "BETTER_AUTH_SECRET",
-        "ANTHROPIC_API_KEY",
         "GOOGLE_AI_API_KEY",
+        "ANTHROPIC_API_KEY",
         "CEP_SERVICE_ACCOUNT_KEY_JSON",
       ],
     ],
@@ -210,14 +210,14 @@ async function chooseLlmProvider(existing: EnvMap) {
       initialValue: inferred.value,
       options: [
         {
-          label: "Anthropic Claude",
-          value: "claude",
-          hint: "via @ai-sdk/anthropic — needs ANTHROPIC_API_KEY (console.anthropic.com)",
-        },
-        {
           label: "Google Gemini",
           value: "gemini",
           hint: "via @ai-sdk/google — needs GOOGLE_AI_API_KEY (aistudio.google.com/apikey)",
+        },
+        {
+          label: "Anthropic Claude",
+          value: "claude",
+          hint: "via @ai-sdk/anthropic — needs ANTHROPIC_API_KEY (console.anthropic.com)",
         },
       ],
     }),
