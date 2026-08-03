@@ -67,7 +67,8 @@ export async function getCachedActivity(
   }
   const saConfig = config.AUTH_MODE === "service_account" ? await getServiceAccountConfig() : null;
   const impersonatedUser = saConfig?.impersonatedUser;
-  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken);
+  const customerId = saConfig?.customerId;
+  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
 
   return getOrFetch({
     key: `activity:${callerKey}:${days}`,
@@ -100,7 +101,11 @@ export async function getActivitySafe(days: number = DEFAULT_ACTIVITY_DAYS): Pro
  * Pulls and groups Chrome audit events for the given caller, scoped to
  * `days` of history. Pagination stops at {@link ACTIVITY_MAX_EVENTS}.
  */
-async function fetchActivity(tokenToUse: string, days: number, impersonatedUser?: string): Promise<ActivityMap> {
+async function fetchActivity(
+  tokenToUse: string,
+  days: number,
+  impersonatedUser?: string,
+): Promise<ActivityMap> {
   const requestHeaders = await buildGoogleApiHeaders(tokenToUse);
 
   const baseUrl = new URL(

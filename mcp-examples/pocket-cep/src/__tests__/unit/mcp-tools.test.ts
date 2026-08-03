@@ -20,6 +20,7 @@ vi.mock("@/lib/mcp-client", () => ({
 
 vi.mock("@/lib/sa-session", () => ({
   getServiceAccountConfig: vi.fn().mockResolvedValue(null),
+  getActiveCustomerId: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { getMcpToolsForAiSdk, invalidateToolCatalog } from "@/lib/mcp-tools";
