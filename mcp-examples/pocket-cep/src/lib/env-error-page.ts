@@ -299,3 +299,23 @@ export function renderMcpUnreachableHtml(url: string): string {
     footerHint: "Once the MCP server is running, refresh this page.",
   });
 }
+
+/**
+ * Builds the error page when the Service Account anonymous session fails to establish.
+ * Prevents redirect loops in service_account mode when the BetterAuth backend is failing.
+ */
+export function renderSaSessionErrorHtml(error: string): string {
+  return renderSetupBlockedHtml({
+    pageTitle: "Pocket CEP — Service Account Session Failed",
+    heading: "Service Account Session Failed",
+    lede: "Pocket CEP could not establish an anonymous session for Service Account mode.",
+    failuresHeading: "Error Details",
+    failures: [{ code: "session_failed", message: error }],
+    primaryAction: {
+      command: "npm run doctor",
+      description:
+        "<strong>Run diagnostic checks.</strong> This will verify your Service Account credentials and connection to Google APIs.",
+    },
+    footerHint: "Check your console logs and try refreshing this page.",
+  });
+}

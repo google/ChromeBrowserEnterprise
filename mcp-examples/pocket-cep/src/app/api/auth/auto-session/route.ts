@@ -18,6 +18,7 @@
 
 import { NextResponse } from "next/server";
 import { getEnv } from "@/lib/env";
+import { renderSaSessionErrorHtml } from "@/lib/env-error-page";
 
 /**
  * Creates an anonymous session and redirects to the dashboard.
@@ -48,18 +49,26 @@ export async function GET(request: Request) {
       body: "{}",
       signal: AbortSignal.timeout(5000),
     });
-  } catch {
+  } catch (err) {
     if (acceptJson) {
       return NextResponse.json({ error: "session_unavailable" }, { status: 503 });
     }
-    return NextResponse.redirect(new URL("/?error=session_unavailable", base));
+    const errMsg = err instanceof Error ? err.message : String(err);
+    return new NextResponse(renderSaSessionErrorHtml(`Fetch failed: ${errMsg}`), {
+      status: 503,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
   }
 
   if (!response.ok) {
     if (acceptJson) {
       return NextResponse.json({ error: "session_failed" }, { status: 401 });
     }
-    return NextResponse.redirect(new URL("/?error=session_failed", base));
+    const body = await response.text().catch(() => "Unknown error");
+    return new NextResponse(renderSaSessionErrorHtml(`API returned ${response.status}: ${body}`), {
+      status: response.status,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
   }
 
   const cookies = response.headers.getSetCookie();

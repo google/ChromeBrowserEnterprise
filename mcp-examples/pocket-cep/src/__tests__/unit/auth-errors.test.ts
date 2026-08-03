@@ -166,7 +166,9 @@ describe("toAuthError", () => {
       const err = new Error("Invalid Customer Id");
       const result = toAuthError(err, "admin-sdk");
       expect(result?.code).toBe("invalid_customer_id");
-      expect(result?.remedy).toContain("Ensure the Customer ID parameter passed to the tool is correct");
+      expect(result?.remedy).toContain(
+        "Ensure the Customer ID parameter passed to the tool is correct",
+      );
       expect(result?.remedy).not.toContain("/sa-setup");
     });
   });

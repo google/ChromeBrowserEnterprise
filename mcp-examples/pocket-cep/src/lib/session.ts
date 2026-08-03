@@ -15,6 +15,7 @@ import { headers, cookies } from "next/headers";
 import { getAuth } from "./auth";
 import { getEnv } from "./env";
 import { SA_EMAIL_DOMAIN } from "./constants";
+import { getGoogleAccessToken } from "./access-token";
 
 /**
  * Resolves the current BetterAuth session or null. Reads cookies from
@@ -27,40 +28,59 @@ import { SA_EMAIL_DOMAIN } from "./constants";
  *
  * It also invalidates and clears anonymous sessions if the app has been
  * switched to `user_oauth` mode.
+ *
+ * In user_oauth mode, it also verifies that the Google access token is
+ * still valid. If the Google token is expired (even if BetterAuth session
+ * is technically still valid), it clears the session cookies to force
+ * a fresh sign-in, preventing the user from being locked in the dashboard.
  */
 export async function requireSession() {
   const auth = getAuth();
   const session = await auth.api.getSession({ headers: await headers() });
-  
-  let isStaleAnonymous = false;
-  try {
-    const config = getEnv();
-    isStaleAnonymous = Boolean(
-      session &&
-        config.AUTH_MODE === "user_oauth" &&
-        session.user.email?.endsWith(`@${SA_EMAIL_DOMAIN}`),
-    );
-  } catch {
-    // If env cannot be loaded, fallback to safe false
-  }
+  const config = getEnv();
 
-  if (!session || isStaleAnonymous) {
-    const cookieStore = await cookies();
-    // Better Auth session cookie names contain "session_token"
-    const sessionCookies = cookieStore.getAll().filter((c) => c.name.includes("session_token"));
-    if (sessionCookies.length > 0) {
-      console.warn(
-        `requireSession: ${
-          isStaleAnonymous ? "Stale anonymous session in OAuth mode" : "Invalid session"
-        }. Clearing stale cookies:`,
-        sessionCookies.map((c) => c.name),
-      );
-      for (const cookie of sessionCookies) {
-        cookieStore.delete(cookie.name);
-      }
-    }
+  if (!session) {
+    await clearSessionCookies();
     return null;
   }
 
+  let isStaleAnonymous = false;
+  if (config.AUTH_MODE === "user_oauth" && session.user.email?.endsWith(`@${SA_EMAIL_DOMAIN}`)) {
+    isStaleAnonymous = true;
+  }
+
+  if (isStaleAnonymous) {
+    console.warn("requireSession: Stale anonymous session in OAuth mode. Clearing session.");
+    await clearSessionCookies();
+    return null;
+  }
+
+  if (config.AUTH_MODE === "user_oauth") {
+    const googleToken = await getGoogleAccessToken();
+    if (!googleToken) {
+      console.warn("requireSession: User OAuth token expired/missing. Clearing session.");
+      await clearSessionCookies();
+      return null;
+    }
+  }
+
   return session;
+}
+
+/**
+ * Clears all BetterAuth session cookies from the browser.
+ */
+async function clearSessionCookies() {
+  const cookieStore = await cookies();
+  // Better Auth session cookie names contain "session_token"
+  const sessionCookies = cookieStore.getAll().filter((c) => c.name.includes("session_token"));
+  if (sessionCookies.length > 0) {
+    console.warn(
+      "requireSession: Clearing stale session cookies:",
+      sessionCookies.map((c) => c.name),
+    );
+    for (const cookie of sessionCookies) {
+      cookieStore.delete(cookie.name);
+    }
+  }
 }
