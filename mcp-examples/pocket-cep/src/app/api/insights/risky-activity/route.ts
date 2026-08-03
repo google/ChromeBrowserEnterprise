@@ -14,6 +14,8 @@ import { getGoogleAccessToken } from "@/lib/access-token";
 import { getEnv } from "@/lib/env";
 import { callMcpTool } from "@/lib/mcp-client";
 import { requireSession } from "@/lib/session";
+import { getActiveCustomerId } from "@/lib/sa-session";
+import { buildCallerCacheKey } from "@/lib/cache-key";
 import { isAuthError, toAuthError } from "@/lib/auth-errors";
 import { CACHE_TAGS, getOrFetch } from "@/lib/server-cache";
 import { summarizeChromeActivity } from "@/lib/activity-summarizer";
@@ -38,9 +40,11 @@ export async function POST(request: Request) {
   const selectedUser = body.selectedUser ?? "";
   const config = getEnv();
   const accessToken = await getGoogleAccessToken();
+  const customerId = await getActiveCustomerId();
+  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
 
   try {
-    const cacheKey = `insights:risky-activity:${selectedUser}`;
+    const cacheKey = `insights:risky-activity:${callerKey}:${selectedUser}`;
     const summary = await getOrFetch({
       key: cacheKey,
       ttlMs: INSIGHT_TTL_MS,

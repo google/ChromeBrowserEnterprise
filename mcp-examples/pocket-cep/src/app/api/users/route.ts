@@ -19,6 +19,7 @@ import { getGoogleAccessToken } from "@/lib/access-token";
 import { searchUsers, buildAdminQuery, type DirectoryUser } from "@/lib/admin-sdk";
 import { buildCallerCacheKey } from "@/lib/cache-key";
 import { requireSession } from "@/lib/session";
+import { getActiveCustomerId } from "@/lib/sa-session";
 import { conditionalJson } from "@/lib/http-cache";
 import { getOrFetch, CACHE_TAGS } from "@/lib/server-cache";
 import { respondWithApiError, unauthenticatedResponse } from "@/lib/api-response";
@@ -38,7 +39,8 @@ export async function GET(request: NextRequest) {
   const config = getEnv();
   const accessToken = await getGoogleAccessToken();
   const adminQuery = buildAdminQuery(query);
-  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken);
+  const customerId = await getActiveCustomerId();
+  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
 
   try {
     const users = await getOrFetch({
