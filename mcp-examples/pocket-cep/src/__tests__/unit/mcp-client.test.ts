@@ -151,6 +151,32 @@ describe("callMcpTool", () => {
         },
       });
     });
+
+    it("deletes user-supplied customerId if session has no active customerId", async () => {
+      mockGetActiveCustomerId.mockResolvedValue(undefined);
+
+      await callMcpTool("http://localhost:3000/mcp", "list_dlp_rules", {
+        customerId: "ATTACKER-TENANT-ID",
+        filter: "active",
+      });
+
+      expect(mockCallTool).toHaveBeenCalledWith({
+        name: "list_dlp_rules",
+        arguments: {
+          filter: "active",
+        },
+      });
+    });
+
+    it("throws if getActiveCustomerId throws an error", async () => {
+      mockGetActiveCustomerId.mockRejectedValue(new Error("Decryption failed"));
+
+      await expect(
+        callMcpTool("http://localhost:3000/mcp", "list_dlp_rules", {
+          customerId: "ATTACKER-TENANT-ID",
+        }),
+      ).rejects.toThrow("Failed to resolve active customer ID for scope gating: Decryption failed");
+    });
   });
 });
 
@@ -257,6 +283,32 @@ describe("getMcpPrompt", () => {
           customerId: "C0111111",
         },
       });
+    });
+
+    it("deletes user-supplied customerId if session has no active customerId", async () => {
+      mockGetActiveCustomerId.mockResolvedValue(undefined);
+
+      await getMcpPrompt("http://localhost:3000/mcp", "cep:health", {
+        customerId: "ATTACKER-TENANT-ID",
+        foo: "bar",
+      });
+
+      expect(mockGetPrompt).toHaveBeenCalledWith({
+        name: "cep:health",
+        arguments: {
+          foo: "bar",
+        },
+      });
+    });
+
+    it("throws if getActiveCustomerId throws an error", async () => {
+      mockGetActiveCustomerId.mockRejectedValue(new Error("Decryption failed"));
+
+      await expect(
+        getMcpPrompt("http://localhost:3000/mcp", "cep:health", {
+          customerId: "ATTACKER-TENANT-ID",
+        }),
+      ).rejects.toThrow("Failed to resolve active customer ID for scope gating: Decryption failed");
     });
   });
 });
