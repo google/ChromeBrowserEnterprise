@@ -10,7 +10,7 @@
  */
 
 import { z } from "zod";
-import { DEFAULT_MCP_URL } from "./constants";
+import { DEFAULT_MCP_URL, CUSTOMER_ID_REGEX } from "./constants";
 
 /**
  * Regex-validated Google OAuth client ID. The strict format check catches
@@ -47,7 +47,7 @@ const baseFields = {
     .or(z.literal("")),
   CEP_CUSTOMER_ID: z
     .string()
-    .regex(/^C[a-zA-Z0-9]+$/, "CEP_CUSTOMER_ID must start with 'C' (e.g. C01234567).")
+    .regex(CUSTOMER_ID_REGEX, "CEP_CUSTOMER_ID must start with 'C' (e.g. C01234567).")
     .optional()
     .or(z.literal("")),
 };

@@ -40,10 +40,9 @@ export async function POST(request: Request) {
   const selectedUser = body.selectedUser ?? "";
   const config = getEnv();
   const accessToken = await getGoogleAccessToken();
-  const customerId = await getActiveCustomerId();
-  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
-
   try {
+    const customerId = await getActiveCustomerId();
+    const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
     const cacheKey = `insights:risky-activity:${callerKey}:${selectedUser}`;
     const summary = await getOrFetch({
       key: cacheKey,

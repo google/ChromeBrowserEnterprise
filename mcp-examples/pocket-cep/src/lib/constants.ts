@@ -15,6 +15,12 @@
 export const SA_EMAIL_DOMAIN = "service-account.local";
 
 /**
+ * Regex pattern for validating Google Workspace Customer IDs.
+ * Must start with 'C' followed by alphanumeric characters (e.g. C01234567).
+ */
+export const CUSTOMER_ID_REGEX = /^C[a-zA-Z0-9]+$/;
+
+/**
  * DOM id for the header's user-search input. Referenced from the app
  * bar (focus button), dashboard (`/` keyboard shortcut), and the
  * selector itself. Centralising the string keeps the three callers in

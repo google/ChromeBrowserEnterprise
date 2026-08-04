@@ -18,6 +18,7 @@ import {
   DwdScopeVerificationError,
   mintServiceAccountTokenOrThrow,
 } from "@/lib/access-token";
+import { CUSTOMER_ID_REGEX } from "@/lib/constants";
 
 /**
  * Returns the currently configured Service Account tenant credentials.
@@ -59,6 +60,13 @@ export async function POST(request: NextRequest) {
   const customerId = body.customerId?.trim();
   if (!customerId) {
     return NextResponse.json({ error: "customerId is required" }, { status: 400 });
+  }
+
+  if (!CUSTOMER_ID_REGEX.test(customerId)) {
+    return NextResponse.json(
+      { error: "Invalid customerId format. Must start with 'C' (e.g. C01234567)." },
+      { status: 400 },
+    );
   }
 
   const impersonatedUser = body.impersonatedUser?.trim() || "";
