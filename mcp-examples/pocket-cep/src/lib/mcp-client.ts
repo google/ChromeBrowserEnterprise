@@ -118,10 +118,7 @@ export async function callMcpTool(
   accessToken?: string,
 ): Promise<McpToolResult> {
   const callArgs: Record<string, unknown> = { ...args };
-  if (
-    process.env.AUTH_MODE === "service_account" &&
-    (!callArgs.customerId || callArgs.customerId === "my_customer")
-  ) {
+  if (process.env.AUTH_MODE === "service_account") {
     try {
       const customerId = await getActiveCustomerId();
       if (customerId) {
@@ -229,10 +226,20 @@ export async function getMcpPrompt(
 ): Promise<PromptMessage[]> {
   console.log(LOG_TAGS.MCP, `Expanding prompt: ${name}`);
 
+  const callArgs = args ? { ...args } : {};
+  if (process.env.AUTH_MODE === "service_account") {
+    try {
+      const customerId = await getActiveCustomerId();
+      if (customerId) {
+        callArgs.customerId = customerId;
+      }
+    } catch {}
+  }
+
   const { client } = await connect(serverUrl, accessToken);
 
   try {
-    const result = await client.getPrompt({ name, arguments: args });
+    const result = await client.getPrompt({ name, arguments: callArgs });
     return result.messages;
   } finally {
     await client.close();
