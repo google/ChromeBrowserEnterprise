@@ -169,6 +169,52 @@ describe("mintServiceAccountTokenOrThrow", () => {
     expect(mockAuthorize).not.toHaveBeenCalled();
   });
 
+  it("mints separate tokens for different subjects and caches them concurrently", async () => {
+    mockLoadSaKey.mockResolvedValue({
+      key: { client_email: "svc@example.com", private_key: "fake-key" },
+      source: "test.json",
+      errors: [],
+    });
+
+    // First call for Admin A
+    mockAuthorize.mockResolvedValueOnce({ token: "jwt-token-admin-a" });
+    const tokenA1 = await mintServiceAccountTokenOrThrow("admin-a@domain.com");
+    expect(tokenA1).toBe("jwt-token-admin-a");
+
+    // Second call for Admin B
+    mockAuthorize.mockResolvedValueOnce({ token: "jwt-token-admin-b" });
+    const tokenB1 = await mintServiceAccountTokenOrThrow("admin-b@domain.com");
+    expect(tokenB1).toBe("jwt-token-admin-b");
+
+    // Assert cache hit for Admin A
+    mockAuthorize.mockClear();
+    const tokenA2 = await mintServiceAccountTokenOrThrow("admin-a@domain.com");
+    expect(tokenA2).toBe("jwt-token-admin-a");
+
+    // Assert cache hit for Admin B
+    const tokenB2 = await mintServiceAccountTokenOrThrow("admin-b@domain.com");
+    expect(tokenB2).toBe("jwt-token-admin-b");
+
+    expect(mockAuthorize).not.toHaveBeenCalled();
+  });
+
+  it("clearing cache invalidates all cached subjects", async () => {
+    mockLoadSaKey.mockResolvedValue({
+      key: { client_email: "svc@example.com", private_key: "fake-key" },
+      source: "test.json",
+      errors: [],
+    });
+    mockAuthorize.mockResolvedValueOnce({ token: "jwt-token-a" });
+    await mintServiceAccountTokenOrThrow("admin-a@domain.com");
+
+    clearServiceAccountTokenCache();
+
+    // Call again should trigger another mint
+    mockAuthorize.mockResolvedValueOnce({ token: "jwt-token-a-new" });
+    const tokenANew = await mintServiceAccountTokenOrThrow("admin-a@domain.com");
+    expect(tokenANew).toBe("jwt-token-a-new");
+  });
+
   it("getServiceAccountAccessToken returns undefined gracefully on mint failure", async () => {
     mockLoadSaKey.mockResolvedValue(null);
     const token = await getServiceAccountAccessToken("admin@example.com");
