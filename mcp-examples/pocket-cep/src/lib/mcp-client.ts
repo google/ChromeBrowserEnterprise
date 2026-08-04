@@ -123,8 +123,14 @@ export async function callMcpTool(
       const customerId = await getActiveCustomerId();
       if (customerId) {
         callArgs.customerId = customerId;
+      } else {
+        delete callArgs.customerId;
       }
-    } catch {}
+    } catch (error) {
+      throw new Error(
+        `Failed to resolve active customer ID for scope gating: ${getErrorMessage(error)}`,
+      );
+    }
   }
 
   const rawRequest = {
@@ -232,8 +238,14 @@ export async function getMcpPrompt(
       const customerId = await getActiveCustomerId();
       if (customerId) {
         callArgs.customerId = customerId;
+      } else {
+        delete callArgs.customerId;
       }
-    } catch {}
+    } catch (error) {
+      throw new Error(
+        `Failed to resolve active customer ID for scope gating: ${getErrorMessage(error)}`,
+      );
+    }
   }
 
   const { client } = await connect(serverUrl, accessToken);
