@@ -7,10 +7,13 @@ const { mockGetSession, mockCookies, mockGetGoogleAccessToken, mockGetEnv } = vi
     delete: vi.fn(),
   },
   mockGetGoogleAccessToken: vi.fn(),
-  mockGetEnv: vi.fn(() => ({
-    AUTH_MODE: "service_account" as "service_account" | "user_oauth",
-    BETTER_AUTH_SECRET: "mock-secret",
-  })),
+  mockGetEnv: vi.fn(
+    () =>
+      ({
+        AUTH_MODE: "service_account" as "service_account" | "user_oauth",
+        BETTER_AUTH_SECRET: "mock-secret",
+      }) as Record<string, unknown>,
+  ),
 }));
 
 vi.mock("next/headers", () => ({

@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 import type { AuthErrorPayload } from "@/lib/auth-errors";
 import { AUTH_ERROR_EVENT } from "@/lib/auth-aware-fetch";
 import { useMode } from "./mode-provider";
+import { authClient } from "@/lib/auth-client";
 
 /**
  * Value exposed by the AuthHealthContext. `clear()` drops the current
@@ -80,9 +81,11 @@ export function AuthHealthProvider({ children }: { children: ReactNode }) {
         } else {
           console.warn(
             "AuthHealthProvider: Stale session detected in User OAuth mode. " +
-              "Redirecting to login page.",
+              "Logging out and redirecting to login page.",
           );
-          window.location.href = "/";
+          authClient.signOut().finally(() => {
+            window.location.href = "/";
+          });
         }
       } else if (detail && typeof detail.code === "string") {
         setError(detail);
