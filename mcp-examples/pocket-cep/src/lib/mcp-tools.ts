@@ -17,7 +17,7 @@ import { callMcpTool, listMcpTools, type McpToolDefinition } from "./mcp-client"
 import { toAuthError } from "./auth-errors";
 import { buildCallerCacheKey } from "./cache-key";
 import { LOG_TAGS } from "./constants";
-import { getServiceAccountConfig } from "./sa-session";
+import { getServiceAccountConfig, getActiveCustomerId } from "./sa-session";
 
 const TOOL_CATALOG_TTL_MS = 5 * 60 * 1000;
 
@@ -30,8 +30,9 @@ const toolCatalogCache = new Map<string, { tools: McpToolDefinition[]; expiresAt
 async function getCachedToolCatalog(
   serverUrl: string,
   accessToken: string | undefined,
+  customerId?: string,
 ): Promise<McpToolDefinition[]> {
-  const key = buildCallerCacheKey(serverUrl, accessToken);
+  const key = buildCallerCacheKey(serverUrl, accessToken, customerId);
   const now = Date.now();
   const cached = toolCatalogCache.get(key);
   if (cached && cached.expiresAt > now) return cached.tools;
@@ -66,7 +67,7 @@ export async function getMcpToolsForAiSdk(
   accessToken?: string,
   customerId?: string,
 ): Promise<ToolSet> {
-  const mcpTools = await getCachedToolCatalog(serverUrl, accessToken);
+  const mcpTools = await getCachedToolCatalog(serverUrl, accessToken, customerId);
   const tools: ToolSet = {};
 
   for (const t of mcpTools) {
@@ -144,7 +145,8 @@ function extractErrorText(content: unknown): string {
  * for injection into reference prompts (e.g. follow-up suggestion brainstorming).
  */
 export async function getMcpToolsSummary(serverUrl: string, accessToken?: string): Promise<string> {
-  const mcpTools = await getCachedToolCatalog(serverUrl, accessToken);
+  const customerId = await getActiveCustomerId();
+  const mcpTools = await getCachedToolCatalog(serverUrl, accessToken, customerId);
   return mcpTools
     .map((t) => {
       const schema = t.inputSchema as

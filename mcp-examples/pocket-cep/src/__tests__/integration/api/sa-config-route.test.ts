@@ -98,6 +98,17 @@ describe("/api/auth/sa-config", () => {
       expect(res.status).toBe(400);
     });
 
+    it("returns 400 when customerId format is invalid", async () => {
+      const req = new NextRequest("http://localhost:3000/api/auth/sa-config", {
+        method: "POST",
+        body: JSON.stringify({ customerId: "invalid-id" }),
+      });
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toContain("Invalid customerId format");
+    });
+
     it("returns 400 and blocks cookie saving when DWD token minting fails", async () => {
       mockMintToken.mockRejectedValue(new Error("unauthorized_client: client not authorized"));
       const req = new NextRequest("http://localhost:3000/api/auth/sa-config", {
