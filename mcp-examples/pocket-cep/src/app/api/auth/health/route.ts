@@ -15,6 +15,7 @@ import { getGoogleAccessToken } from "@/lib/access-token";
 import { AuthError, isAuthError } from "@/lib/auth-errors";
 import { requireSession } from "@/lib/session";
 import { getErrorMessage } from "@/lib/errors";
+import { unauthenticatedResponse } from "@/lib/api-response";
 
 /**
  * Probes Google credentials by requesting a fresh access token. Returns 200
@@ -22,7 +23,7 @@ import { getErrorMessage } from "@/lib/errors";
  */
 export async function GET() {
   if (!(await requireSession())) {
-    return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });
+    return unauthenticatedResponse();
   }
 
   try {
