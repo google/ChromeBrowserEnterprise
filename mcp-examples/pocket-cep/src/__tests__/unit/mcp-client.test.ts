@@ -10,10 +10,19 @@
  * running server.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const { mockGetActiveCustomerId } = vi.hoisted(() => ({
+  mockGetActiveCustomerId: vi.fn(),
+}));
+
+vi.mock("@/lib/sa-session", () => ({
+  getActiveCustomerId: mockGetActiveCustomerId,
+}));
 
 const mockCallTool = vi.fn();
 const mockListTools = vi.fn();
+const mockGetPrompt = vi.fn();
 const mockConnect = vi.fn();
 const mockClientClose = vi.fn();
 const mockTransportClose = vi.fn();
@@ -26,6 +35,7 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
       connect: mockConnect,
       callTool: mockCallTool,
       listTools: mockListTools,
+      getPrompt: mockGetPrompt,
       close: mockClientClose,
     };
   }),
@@ -38,7 +48,7 @@ vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
 }));
 
 // Import after mocks are set up.
-import { callMcpTool, listMcpTools } from "@/lib/mcp-client";
+import { callMcpTool, listMcpTools, getMcpPrompt } from "@/lib/mcp-client";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 describe("callMcpTool", () => {
@@ -100,6 +110,48 @@ describe("callMcpTool", () => {
 
     expect(mockClientClose).toHaveBeenCalled();
   });
+
+  describe("service_account mode gating", () => {
+    const originalAuthMode = process.env.AUTH_MODE;
+
+    beforeEach(() => {
+      process.env.AUTH_MODE = "service_account";
+      mockGetActiveCustomerId.mockResolvedValue("C0111111");
+    });
+
+    afterEach(() => {
+      process.env.AUTH_MODE = originalAuthMode;
+    });
+
+    it("overwrites the customerId tool argument with the session customerId", async () => {
+      await callMcpTool("http://localhost:3000/mcp", "list_dlp_rules", {
+        customerId: "ATTACKER-TENANT-ID",
+        filter: "active",
+      });
+
+      expect(mockCallTool).toHaveBeenCalledWith({
+        name: "list_dlp_rules",
+        arguments: {
+          customerId: "C0111111",
+          filter: "active",
+        },
+      });
+    });
+
+    it("injects the customerId if it is missing", async () => {
+      await callMcpTool("http://localhost:3000/mcp", "list_dlp_rules", {
+        filter: "active",
+      });
+
+      expect(mockCallTool).toHaveBeenCalledWith({
+        name: "list_dlp_rules",
+        arguments: {
+          customerId: "C0111111",
+          filter: "active",
+        },
+      });
+    });
+  });
 });
 
 describe("listMcpTools", () => {
@@ -133,5 +185,78 @@ describe("listMcpTools", () => {
 
     // The second tool had no inputSchema — should get a default.
     expect(tools[1].inputSchema).toEqual({ type: "object", properties: {} });
+  });
+});
+
+describe("getMcpPrompt", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetPrompt.mockResolvedValue({
+      messages: [{ role: "user", content: { type: "text", text: "Prompt expanded text" } }],
+    });
+  });
+
+  it("calls the correct prompt with arguments", async () => {
+    const res = await getMcpPrompt("http://localhost:3000/mcp", "cep:health", { foo: "bar" });
+    expect(mockGetPrompt).toHaveBeenCalledWith({
+      name: "cep:health",
+      arguments: { foo: "bar" },
+    });
+    expect(res).toHaveLength(1);
+    expect(res[0].content.type).toBe("text");
+    expect((res[0].content as { text: string }).text).toBe("Prompt expanded text");
+  });
+
+  describe("service_account mode gating", () => {
+    const originalAuthMode = process.env.AUTH_MODE;
+
+    beforeEach(() => {
+      process.env.AUTH_MODE = "service_account";
+      mockGetActiveCustomerId.mockResolvedValue("C0111111");
+    });
+
+    afterEach(() => {
+      process.env.AUTH_MODE = originalAuthMode;
+    });
+
+    it("overwrites the customerId prompt argument with the session customerId", async () => {
+      await getMcpPrompt("http://localhost:3000/mcp", "cep:health", {
+        customerId: "ATTACKER-TENANT-ID",
+        foo: "bar",
+      });
+
+      expect(mockGetPrompt).toHaveBeenCalledWith({
+        name: "cep:health",
+        arguments: {
+          customerId: "C0111111",
+          foo: "bar",
+        },
+      });
+    });
+
+    it("injects the customerId if it is missing", async () => {
+      await getMcpPrompt("http://localhost:3000/mcp", "cep:health", {
+        foo: "bar",
+      });
+
+      expect(mockGetPrompt).toHaveBeenCalledWith({
+        name: "cep:health",
+        arguments: {
+          customerId: "C0111111",
+          foo: "bar",
+        },
+      });
+    });
+
+    it("handles undefined args gracefully", async () => {
+      await getMcpPrompt("http://localhost:3000/mcp", "cep:health", undefined);
+
+      expect(mockGetPrompt).toHaveBeenCalledWith({
+        name: "cep:health",
+        arguments: {
+          customerId: "C0111111",
+        },
+      });
+    });
   });
 });
