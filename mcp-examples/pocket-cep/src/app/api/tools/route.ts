@@ -46,10 +46,9 @@ export async function GET() {
 
   const config = getEnv();
   const accessToken = await getGoogleAccessToken();
-  const customerId = await getActiveCustomerId();
-  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
-
   try {
+    const customerId = await getActiveCustomerId();
+    const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
     const tools = await getOrFetch({
       key: `tools:${callerKey}`,
       ttlMs: TOOLS_TTL_MS,

@@ -39,10 +39,9 @@ export async function GET(request: NextRequest) {
   const config = getEnv();
   const accessToken = await getGoogleAccessToken();
   const adminQuery = buildAdminQuery(query);
-  const customerId = await getActiveCustomerId();
-  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
-
   try {
+    const customerId = await getActiveCustomerId();
+    const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
     const users = await getOrFetch({
       key: `users:${callerKey}:${query.trim().toLowerCase()}`,
       ttlMs: USERS_TTL_MS,

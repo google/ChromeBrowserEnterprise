@@ -28,10 +28,9 @@ export async function GET() {
 
   const config = getEnv();
   const accessToken = await getGoogleAccessToken();
-  const customerId = await getActiveCustomerId();
-  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
-
   try {
+    const customerId = await getActiveCustomerId();
+    const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
     const prompts = await getOrFetch({
       key: `prompts:${callerKey}`,
       ttlMs: CATALOG_TTL_MS,
