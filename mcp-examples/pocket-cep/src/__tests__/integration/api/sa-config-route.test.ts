@@ -170,10 +170,9 @@ describe("/api/auth/sa-config", () => {
       const sessionCookie = res.cookies.get(COOKIE_SA_SESSION)?.value;
       expect(sessionCookie).toBeDefined();
       const payload = verifyJwt(sessionCookie!, "mock-secret");
-      expect(payload).toEqual({
-        customerId: "C00woaabb",
-        impersonatedUser: "admin@example.com",
-      });
+      expect(payload?.customerId).toBe("C00woaabb");
+      expect(payload?.impersonatedUser).toBe("admin@example.com");
+      expect(payload?.exp).toBeTypeOf("number");
       expect(res.cookies.get(COOKIE_SA_CUSTOMER_ID)?.value).toBe("");
       expect(res.cookies.get(COOKIE_SA_IMPERSONATED_USER)?.value).toBe("");
     });
@@ -215,10 +214,9 @@ describe("/api/auth/sa-config", () => {
       const sessionCookie = res.cookies.get(COOKIE_SA_SESSION)?.value;
       expect(sessionCookie).toBeDefined();
       const payload = verifyJwt(sessionCookie!, "mock-secret");
-      expect(payload).toEqual({
-        customerId: "C00woaabb",
-        impersonatedUser: "",
-      });
+      expect(payload?.customerId).toBe("C00woaabb");
+      expect(payload?.impersonatedUser).toBe("");
+      expect(payload?.exp).toBeTypeOf("number");
       expect(res.cookies.get(COOKIE_SA_CUSTOMER_ID)?.value).toBe("");
       expect(res.cookies.get(COOKIE_SA_IMPERSONATED_USER)?.value).toBe("");
     });

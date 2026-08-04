@@ -35,7 +35,14 @@ export function verifyJwt(token: string, secret: string): Record<string, unknown
   }
 
   try {
-    return JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as Record<string, unknown>;
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as Record<
+      string,
+      unknown
+    >;
+    if (typeof payload.exp === "number" && Date.now() / 1000 > payload.exp) {
+      return null;
+    }
+    return payload;
   } catch {
     return null;
   }

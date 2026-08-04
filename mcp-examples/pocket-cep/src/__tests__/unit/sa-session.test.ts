@@ -102,4 +102,21 @@ describe("getServiceAccountConfig", () => {
       impersonatedUser: "env-admin@example.com",
     });
   });
+
+  it("falls back to env variables when the session cookie is expired", async () => {
+    process.env.CEP_CUSTOMER_ID = "C09876543";
+    process.env.CEP_IMPERSONATE_SUBJECT = "env-admin@example.com";
+
+    const expiredExp = Math.floor(Date.now() / 1000) - 10;
+    mockSessionCookieValue = signJwt(
+      { customerId: "C01234567", impersonatedUser: "admin@example.com", exp: expiredExp },
+      SECRET,
+    );
+
+    const config = await getServiceAccountConfig();
+    expect(config).toEqual({
+      customerId: "C09876543",
+      impersonatedUser: "env-admin@example.com",
+    });
+  });
 });

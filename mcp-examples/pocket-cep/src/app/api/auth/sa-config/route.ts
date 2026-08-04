@@ -111,7 +111,8 @@ export async function POST(request: NextRequest) {
     secure: isProduction,
   };
 
-  const token = signJwt({ customerId, impersonatedUser }, env.BETTER_AUTH_SECRET);
+  const exp = Math.floor(Date.now() / 1000) + 86400 * 30; // 30 days
+  const token = signJwt({ customerId, impersonatedUser, exp }, env.BETTER_AUTH_SECRET);
   response.cookies.set(COOKIE_SA_SESSION, token, cookieOptions);
 
   response.cookies.delete(COOKIE_SA_CUSTOMER_ID);
