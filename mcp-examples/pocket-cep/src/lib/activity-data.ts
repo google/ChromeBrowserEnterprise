@@ -67,7 +67,8 @@ export async function getCachedActivity(
   }
   const saConfig = config.AUTH_MODE === "service_account" ? await getServiceAccountConfig() : null;
   const impersonatedUser = saConfig?.impersonatedUser;
-  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken);
+  const customerId = saConfig?.customerId;
+  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
 
   return getOrFetch({
     key: `activity:${callerKey}:${days}`,

@@ -24,6 +24,7 @@ import { getGoogleAccessToken } from "@/lib/access-token";
 import { getEnv } from "@/lib/env";
 import { buildCallerCacheKey } from "@/lib/cache-key";
 import { requireSession } from "@/lib/session";
+import { getActiveCustomerId } from "@/lib/sa-session";
 import { LOG_TAGS } from "@/lib/constants";
 import { getErrorMessage } from "@/lib/errors";
 import { getOrFetch, CACHE_TAGS } from "@/lib/server-cache";
@@ -45,9 +46,9 @@ export async function GET() {
 
   const config = getEnv();
   const accessToken = await getGoogleAccessToken();
-  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken);
-
   try {
+    const customerId = await getActiveCustomerId();
+    const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
     const tools = await getOrFetch({
       key: `tools:${callerKey}`,
       ttlMs: TOOLS_TTL_MS,
