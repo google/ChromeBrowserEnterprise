@@ -31,14 +31,14 @@ import { SA_EMAIL_DOMAIN } from "./constants";
 export async function requireSession() {
   const auth = getAuth();
   const session = await auth.api.getSession({ headers: await headers() });
-  
+
   let isStaleAnonymous = false;
   try {
     const config = getEnv();
     isStaleAnonymous = Boolean(
       session &&
-        config.AUTH_MODE === "user_oauth" &&
-        session.user.email?.endsWith(`@${SA_EMAIL_DOMAIN}`),
+      config.AUTH_MODE === "user_oauth" &&
+      session.user.email?.endsWith(`@${SA_EMAIL_DOMAIN}`),
     );
   } catch {
     // If env cannot be loaded, fallback to safe false
