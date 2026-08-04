@@ -130,11 +130,12 @@ type CachedSaToken = {
   subject?: string;
 };
 
-let saTokenCache: CachedSaToken | null = null;
+const saTokenCacheMap = new Map<string, CachedSaToken>();
+const DIRECT_CACHE_KEY = "__direct__";
 const SAFETY_BUFFER_MS = 5 * 60 * 1000; // 5 minutes safety buffer
 
 export function clearServiceAccountTokenCache(): void {
-  saTokenCache = null;
+  saTokenCacheMap.clear();
 }
 
 /**
@@ -143,13 +144,11 @@ export function clearServiceAccountTokenCache(): void {
  */
 export async function mintServiceAccountTokenOrThrow(impersonatedUser?: string): Promise<string> {
   const subject = impersonatedUser || undefined;
+  const cacheKey = impersonatedUser || DIRECT_CACHE_KEY;
 
-  if (
-    saTokenCache &&
-    saTokenCache.subject === subject &&
-    Date.now() < saTokenCache.expiresAt - SAFETY_BUFFER_MS
-  ) {
-    return saTokenCache.token;
+  const cached = saTokenCacheMap.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt - SAFETY_BUFFER_MS) {
+    return cached.token;
   }
 
   const loaded = await loadServiceAccountKey();
@@ -216,11 +215,11 @@ export async function mintServiceAccountTokenOrThrow(impersonatedUser?: string):
     }
   }
 
-  saTokenCache = {
+  saTokenCacheMap.set(cacheKey, {
     token: res.token,
     expiresAt,
     subject,
-  };
+  });
 
   return res.token;
 }
