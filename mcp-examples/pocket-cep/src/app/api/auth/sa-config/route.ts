@@ -8,10 +8,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import {
+  COOKIE_SA_SESSION,
   COOKIE_SA_CUSTOMER_ID,
   COOKIE_SA_IMPERSONATED_USER,
   getServiceAccountConfig,
 } from "@/lib/sa-session";
+import { signJwt } from "@/lib/jwt";
 import { getEnv } from "@/lib/env";
 import {
   clearServiceAccountTokenCache,
@@ -109,13 +111,11 @@ export async function POST(request: NextRequest) {
     secure: isProduction,
   };
 
-  response.cookies.set(COOKIE_SA_CUSTOMER_ID, customerId, cookieOptions);
+  const token = signJwt({ customerId, impersonatedUser }, env.BETTER_AUTH_SECRET);
+  response.cookies.set(COOKIE_SA_SESSION, token, cookieOptions);
 
-  if (impersonatedUser) {
-    response.cookies.set(COOKIE_SA_IMPERSONATED_USER, impersonatedUser, cookieOptions);
-  } else {
-    response.cookies.delete(COOKIE_SA_IMPERSONATED_USER);
-  }
+  response.cookies.delete(COOKIE_SA_CUSTOMER_ID);
+  response.cookies.delete(COOKIE_SA_IMPERSONATED_USER);
 
   return response;
 }
@@ -126,6 +126,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE() {
   clearServiceAccountTokenCache();
   const response = NextResponse.json({ success: true });
+  response.cookies.delete(COOKIE_SA_SESSION);
   response.cookies.delete(COOKIE_SA_CUSTOMER_ID);
   response.cookies.delete(COOKIE_SA_IMPERSONATED_USER);
   return response;
