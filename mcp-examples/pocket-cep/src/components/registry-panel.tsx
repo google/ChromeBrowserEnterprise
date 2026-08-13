@@ -142,53 +142,105 @@ function PromptItem({
   onRun: (prompt: Prompt) => void;
   isBusy: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const toggleExpand = useCallback(() => {
+    setExpanded((prev) => !prev);
+  }, []);
+
   const title = prompt.title || prompt.name.replace(/^[^:]+:/, "");
   const cleanTitle = title.charAt(0).toUpperCase() + title.slice(1);
   const hasRequiredArgs = prompt.arguments?.some((a) => a.required) ?? false;
+  const hasDetails = !!(prompt.description || (prompt.arguments && prompt.arguments.length > 0));
+
+  const firstSentence = prompt.description
+    ? prompt.description.split(/(?<=[.!?])\s+/)[0] || ""
+    : "";
 
   return (
-    <div className="bg-on-surface/[0.02] border-on-surface/5 flex flex-col gap-1 rounded-[var(--radius-sm)] border p-2.5">
-      <div className="flex items-start justify-between gap-2">
+    <div
+      title={expanded ? undefined : firstSentence || undefined}
+      className="bg-on-surface/[0.02] border-on-surface/5 flex flex-col rounded-[var(--radius-sm)] border p-2.5"
+    >
+      <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <Terminal className="text-primary size-3.5 shrink-0" />
-          <span className="text-on-surface truncate text-xs font-semibold">{cleanTitle}</span>
+          <span className="text-on-surface truncate font-mono text-xs font-semibold">
+            {cleanTitle}
+          </span>
         </div>
 
-        {!hasRequiredArgs && (
-          <button
-            type="button"
-            onClick={() => onRun(prompt)}
-            disabled={isBusy}
-            title="Execute prompt in chat"
-            className="state-layer text-primary hover:bg-primary/5 flex size-5 cursor-pointer items-center justify-center rounded-full transition-colors disabled:opacity-40"
-          >
-            <ArrowUpRight className="size-3.5" />
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {!hasRequiredArgs && (
+            <button
+              type="button"
+              onClick={() => onRun(prompt)}
+              disabled={isBusy}
+              title="Execute prompt in chat"
+              className="state-layer text-primary hover:bg-primary/5 flex size-5 cursor-pointer items-center justify-center rounded-full transition-colors disabled:opacity-40"
+            >
+              <ArrowUpRight className="size-3.5" />
+            </button>
+          )}
+
+          {hasDetails && (
+            <button
+              type="button"
+              onClick={toggleExpand}
+              title={expanded ? "Hide details" : "Show details"}
+              className="state-layer text-on-surface-variant hover:bg-on-surface/5 flex size-5 cursor-pointer items-center justify-center rounded-full transition-colors"
+            >
+              {expanded ? (
+                <ChevronDown className="size-3.5" />
+              ) : (
+                <ChevronRight className="size-3.5" />
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
-      {prompt.description && (
-        <p className="text-on-surface-variant text-[0.75rem] leading-4">{prompt.description}</p>
-      )}
+      {expanded && (
+        <div className="animate-fade-in flex flex-col gap-2.5">
+          {prompt.description && (
+            <p className="text-on-surface-variant mt-2 text-[0.75rem] leading-4 text-pretty">
+              {prompt.description}
+            </p>
+          )}
 
-      {prompt.arguments && prompt.arguments.length > 0 && (
-        <div className="border-on-surface/5 mt-1.5 flex flex-col gap-1 border-t pt-1.5">
-          <span className="text-on-surface-muted text-[0.625rem] font-bold tracking-wider uppercase">
-            Arguments
-          </span>
-          <div className="flex flex-col gap-1">
-            {prompt.arguments.map((arg) => (
-              <div key={arg.name} className="flex flex-col text-[0.6875rem] leading-3.5">
-                <span className="text-on-surface font-mono font-medium">
-                  {arg.name}
-                  {arg.required && <span className="text-error ml-0.5 font-bold">*</span>}
-                </span>
-                {arg.description && (
-                  <span className="text-on-surface-muted">{arg.description}</span>
-                )}
-              </div>
-            ))}
-          </div>
+          {prompt.arguments && prompt.arguments.length > 0 && (
+            <div className="border-on-surface/5 mt-1 border-t pt-2.5">
+              <span className="text-on-surface-muted block pb-1.5 text-[0.625rem] font-bold tracking-wider uppercase">
+                Expected Arguments
+              </span>
+              <ul className="flex flex-col gap-2">
+                {prompt.arguments.map((arg) => (
+                  <li
+                    key={arg.name}
+                    className="border-on-surface/5 flex flex-col gap-0.5 border-l-2 pl-2.5 leading-normal"
+                  >
+                    <div className="flex items-baseline gap-1.5 font-mono text-[0.6875rem]">
+                      <span className="text-on-surface font-semibold">{arg.name}</span>
+                      <span
+                        className={`text-[0.625rem] tracking-wider uppercase ${
+                          arg.required
+                            ? "text-on-surface-variant/50 font-bold"
+                            : "text-on-surface-variant/30 font-medium"
+                        }`}
+                      >
+                        ({arg.required ? "required" : "optional"})
+                      </span>
+                    </div>
+                    {arg.description && (
+                      <span className="text-on-surface-variant text-[0.6875rem] leading-3.5 text-pretty">
+                        {arg.description}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>
