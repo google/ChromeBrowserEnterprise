@@ -113,6 +113,17 @@ export const MCP_NPX_ARGS = [
 export const MCP_NPX_COMMAND = `npx ${MCP_NPX_ARGS.join(" ")} ${MCP_NPX_PACKAGE}`;
 
 /**
+ * Canonical Google Admin Console URLs for resolving security posture gaps.
+ */
+export const ADMIN_CONSOLE_URLS = {
+  SUBSCRIPTIONS: "https://admin.google.com/ac/billing/subscriptions",
+  USERS: "https://admin.google.com/ac/users",
+  DLP_RULES: "https://admin.google.com/ac/dp/rules",
+  CHROME_APPS: "https://admin.google.com/ac/chrome/apps/user",
+  CHROME_SETTINGS: "https://admin.google.com/ac/chrome/settings/user",
+} as const;
+
+/**
  * Builds the system prompt injected into every LLM conversation. The
  * selectedUserEmail is interpolated so the LLM knows which user the
  * admin is investigating and can scope its MCP tool calls accordingly.

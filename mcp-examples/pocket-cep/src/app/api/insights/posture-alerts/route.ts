@@ -17,7 +17,7 @@ import { requireSession } from "@/lib/session";
 import { getActiveCustomerId } from "@/lib/sa-session";
 import { isAuthError, toAuthError } from "@/lib/auth-errors";
 import { CACHE_TAGS, getOrFetch } from "@/lib/server-cache";
-import { DASHBOARD_QUERY_PREFIX } from "@/lib/constants";
+import { DASHBOARD_QUERY_PREFIX, ADMIN_CONSOLE_URLS } from "@/lib/constants";
 import { buildCallerCacheKey } from "@/lib/cache-key";
 
 const POSTURE_TTL_MS = 5 * 60 * 1000; // Cache posture report for 5 minutes
@@ -45,6 +45,14 @@ type McpIssue = {
   };
 };
 
+/**
+ * Strips raw action URLs and setup instructions from the diagnostics message
+ * to keep the dashboard UI card dense and readable, avoiding duplicate link rendering.
+ *
+ * Handles patterns like:
+ * - "Create rules at: https://admin.google.com/..." -> "."
+ * - "Update settings manually at: https://..." -> "."
+ */
 function cleanIssueMessage(message: string): string {
   const cleaned = message
     .replace(
@@ -64,25 +72,25 @@ function cleanIssueMessage(message: string): string {
 function getRemediation(component: string): { url: string; label: string } | undefined {
   if (component === "subscription") {
     return {
-      url: "https://admin.google.com/ac/billing/subscriptions",
+      url: ADMIN_CONSOLE_URLS.SUBSCRIPTIONS,
       label: "See in UI",
     };
   }
   if (component === "userLicense") {
     return {
-      url: "https://admin.google.com/ac/users",
+      url: ADMIN_CONSOLE_URLS.USERS,
       label: "See in UI",
     };
   }
   if (component === "dlpRules") {
     return {
-      url: "https://admin.google.com/ac/dp/rules",
+      url: ADMIN_CONSOLE_URLS.DLP_RULES,
       label: "See in UI",
     };
   }
   if (component === "sebExtension") {
     return {
-      url: "https://admin.google.com/ac/chrome/apps/user",
+      url: ADMIN_CONSOLE_URLS.CHROME_APPS,
       label: "See in UI",
     };
   }
@@ -98,8 +106,8 @@ function getRemediation(component: string): { url: string; label: string } | und
 
     return {
       url: detailPath
-        ? `https://admin.google.com/ac/chrome/settings/user/details/${detailPath}`
-        : "https://admin.google.com/ac/chrome/settings/user",
+        ? `${ADMIN_CONSOLE_URLS.CHROME_SETTINGS}/details/${detailPath}`
+        : ADMIN_CONSOLE_URLS.CHROME_SETTINGS,
       label: "See in UI",
     };
   }
