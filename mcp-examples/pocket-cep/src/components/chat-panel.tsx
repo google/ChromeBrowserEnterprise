@@ -19,14 +19,23 @@ import type { InvocationPart } from "@/lib/tool-part";
 import { getModelById } from "@/lib/models";
 import { buildByokHeader, getStoredModelId } from "@/lib/model-preferences";
 import { authAwareFetch } from "@/lib/auth-aware-fetch";
+import type { Prompt } from "./registry-panel";
 
 type ChatPanelProps = {
   selectedUser: string;
+  pendingPrompt?: Prompt | null;
+  onPromptExecuted?: () => void;
   onToolInvocation?: (invocation: InvocationPart) => void;
   onClearSelectedUser?: () => void;
 };
 
-export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser }: ChatPanelProps) {
+export function ChatPanel({
+  selectedUser,
+  pendingPrompt,
+  onPromptExecuted,
+  onToolInvocation,
+  onClearSelectedUser,
+}: ChatPanelProps) {
   const [input, setInput] = useState("");
 
   const selectedUserRef = useRef(selectedUser);
@@ -173,6 +182,41 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
   const handleSubmit = () => {
     handleSend(input);
   };
+  const runPrompt = useCallback(
+    async (prompt: Prompt) => {
+      if (isStreaming) return;
+      try {
+        const res = await authAwareFetch("/api/prompts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: prompt.name }),
+        });
+        const body: { text?: string; error?: string } = await res.json();
+        if (!res.ok || !body.text) throw new Error(body.error ?? "Prompt expansion failed");
+        setLatestSuggestions(null);
+        await sendMessage({
+          text: body.text,
+          metadata: { promptName: prompt.name, promptTitle: prompt.title || prompt.name },
+        });
+        setInput("");
+        setIsPinnedToBottom(true);
+        chatInputRef.current?.focus();
+      } catch (e) {
+        console.error("Failed to run prompt:", e);
+      }
+    },
+    [isStreaming, sendMessage],
+  );
+
+  useEffect(() => {
+    if (pendingPrompt) {
+      const timer = setTimeout(() => {
+        void runPrompt(pendingPrompt);
+        onPromptExecuted?.();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [pendingPrompt, runPrompt, onPromptExecuted]);
   const isEmpty = messages.length === 0;
   /**
    * Show the typing indicator for the entire streaming window, not

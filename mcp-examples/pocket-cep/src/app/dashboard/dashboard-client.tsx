@@ -23,7 +23,9 @@ import type { InvocationPart } from "@/lib/tool-part";
 import type { ActivityMap } from "@/lib/activity-data";
 import { SIDEBAR_COLLAPSED_KEY, USER_SEARCH_INPUT_ID } from "@/lib/constants";
 import { usePersistedString } from "@/lib/storage";
-import { Activity, ChevronLeft, ChevronRight, Eraser, Wrench } from "lucide-react";
+import { Activity, BookOpen, ChevronLeft, ChevronRight, Eraser, Wrench } from "lucide-react";
+import { RegistryPanel } from "@/components/registry-panel";
+import type { Prompt } from "@/components/registry-panel";
 
 /**
  * Response shape returned by `GET /api/users/activity`.
@@ -35,7 +37,7 @@ type ActivityResponse = { activity?: ActivityMap };
  * as state on the dashboard so other surfaces (e.g. a future "open
  * inspector on tool call" affordance) can flip the active tab.
  */
-type SidebarTab = "activity" | "inspector";
+type SidebarTab = "activity" | "inspector" | "registry";
 
 /**
  * Props provided by the RSC wrapper.
@@ -63,6 +65,7 @@ function DashboardShell() {
   const [selectedUser, setSelectedUser] = useState("");
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("activity");
   const [toolInvocations, setToolInvocations] = useState<InvocationPart[]>([]);
+  const [pendingPrompt, setPendingPrompt] = useState<Prompt | null>(null);
 
   /**
    * SWR handles deduping, focus revalidation, and persistent localStorage
@@ -172,10 +175,18 @@ function DashboardShell() {
               label="MCP Inspector"
               count={toolInvocations.length}
             />
+            <SidebarTabButton
+              id="tab-registry"
+              panelId="panel-registry"
+              isActive={sidebarTab === "registry"}
+              onSelect={() => setSidebarTab("registry")}
+              icon={BookOpen}
+              label="Registry"
+            />
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            {sidebarTab === "activity" ? (
+            {sidebarTab === "activity" && (
               <section
                 id="panel-activity"
                 role="tabpanel"
@@ -203,7 +214,9 @@ function DashboardShell() {
                   onPick={setSelectedUser}
                 />
               </section>
-            ) : (
+            )}
+
+            {sidebarTab === "inspector" && (
               <section
                 id="panel-inspector"
                 role="tabpanel"
@@ -217,6 +230,15 @@ function DashboardShell() {
                   </span>
                 </header>
                 <InspectorList invocations={toolInvocations} />
+              </section>
+            )}
+
+            {sidebarTab === "registry" && (
+              <section id="panel-registry" role="tabpanel" aria-labelledby="tab-registry">
+                <RegistryPanel
+                  onExecutePrompt={(prompt) => setPendingPrompt(prompt)}
+                  isBusy={false}
+                />
               </section>
             )}
           </div>
@@ -247,6 +269,8 @@ function DashboardShell() {
 
           <ChatPanel
             selectedUser={selectedUser}
+            pendingPrompt={pendingPrompt}
+            onPromptExecuted={() => setPendingPrompt(null)}
             onToolInvocation={handleToolInvocation}
             onClearSelectedUser={() => setSelectedUser("")}
           />
