@@ -108,20 +108,6 @@ export function PostureAlertsCard({ selectedUser, onAskFollowUp }: PostureAlerts
   const hasDismissed = rawAlerts.length > alerts.length;
   const isWorking = isLoading || isValidating;
 
-  const handleAskAllAlerts = () => {
-    const scope = selectedUser ? `for user "${selectedUser}"` : "across the organization";
-    if (alerts.length === 0) {
-      onAskFollowUp(
-        `The dashboard says: No security posture alerts or misconfigurations were detected ${scope}.\n\nCan you tell me more about this?`,
-      );
-    } else {
-      const alertSummary = alerts.map((a) => a.message).join("\n- ");
-      onAskFollowUp(
-        `The dashboard says: Setup & Posture alerts detected the following issues ${scope}:\n- ${alertSummary}\n\nCan you tell me more about this?`,
-      );
-    }
-  };
-
   if (isWorking) {
     return (
       <div
@@ -157,16 +143,8 @@ export function PostureAlertsCard({ selectedUser, onAskFollowUp }: PostureAlerts
       aria-label="Setup and posture health alerts"
       className="surface-raised border-on-surface/10 flex flex-col gap-4 rounded-[var(--radius-md)] border p-4"
     >
-      <header className="group flex items-center justify-between">
-        <h3 className="text-on-surface text-sm font-medium">Posture & Setup Alerts</h3>
-        <button
-          type="button"
-          onClick={handleAskAllAlerts}
-          className="state-layer text-primary/60 hover:text-primary/90 hover:bg-primary-light grid size-7 place-items-center rounded-full opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus:opacity-100"
-          title="Ask agent about these posture alerts"
-        >
-          <Sparkles className="size-3.5" />
-        </button>
+      <header className="flex items-center justify-between">
+        <h3 className="text-on-surface text-sm font-medium">Notifications</h3>
       </header>
 
       {isClean ? (
@@ -174,7 +152,7 @@ export function PostureAlertsCard({ selectedUser, onAskFollowUp }: PostureAlerts
           <div className="bg-on-surface/5 text-on-surface-variant mx-auto grid size-12 place-items-center rounded-full">
             <Shield className="size-6" aria-hidden="true" />
           </div>
-          <h4 className="text-on-surface text-sm font-medium">Posture & Setup Healthy</h4>
+          <h4 className="text-on-surface text-sm font-medium">No active notifications</h4>
           <p className="text-on-surface-variant mx-auto max-w-sm text-xs leading-4 text-pretty">
             No critical misconfigurations, missing extensions, or licensing gaps were detected in
             your environment.
