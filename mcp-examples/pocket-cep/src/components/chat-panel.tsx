@@ -14,6 +14,7 @@ import useSWR from "swr";
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
 import { RiskyActivityCard } from "./risky-activity-card";
+import { SecuritySummaryCard } from "./security-summary-card";
 import {
   ArrowDown,
   ArrowUpRight,
@@ -366,6 +367,7 @@ function EmptyState({
 }) {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 pt-2">
+      <SecuritySummaryCard selectedUser={selectedUser} onAskFollowUp={onAskFollowUp} />
       <RiskyActivityCard selectedUser={selectedUser} onAskFollowUp={onAskFollowUp} />
 
       {prompts.length > 0 && (

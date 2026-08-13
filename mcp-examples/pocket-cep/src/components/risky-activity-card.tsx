@@ -31,8 +31,13 @@ export type RiskyActivityCardProps = {
 /**
  * MD3 card displaying an auto-fetched risky activity summarization on load.
  */
+type ApiResponse = {
+  summary?: string;
+  metrics?: unknown;
+};
+
 export function RiskyActivityCard({ selectedUser, onAskFollowUp }: RiskyActivityCardProps) {
-  const fetcher = useCallback(async ([url, user]: [string, string]) => {
+  const fetcher = useCallback(async ([url, user]: [string, string]): Promise<ApiResponse> => {
     const response = await authAwareFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -43,31 +48,26 @@ export function RiskyActivityCard({ selectedUser, onAskFollowUp }: RiskyActivity
       throw new Error("Failed to fetch insight summarization");
     }
 
-    const data = (await response.json()) as { summary?: string };
-    return data.summary ?? "No risky activity detected.";
+    return response.json();
   }, []);
 
   const swrKey = ["/api/insights/risky-activity", selectedUser] as const;
 
-  const {
-    data: summary,
-    isLoading,
-    isValidating,
-    error,
-  } = useSWR(swrKey, fetcher, {
+  const { data, isLoading, isValidating, error } = useSWR(swrKey, fetcher, {
     revalidateOnFocus: false,
     errorRetryCount: 1,
   });
+
+  const summary = data?.summary ?? "No risky activity detected.";
 
   const isWorking = isLoading || isValidating;
 
   const handleAction = () => {
     const targetPrefix = selectedUser
-      ? `The Audited Activity Report for user "${selectedUser}" is`
-      : "Our organization's Audited Activity Report is";
-    const reportBlock = summary ? `:\n\n${summary}\n\n` : " ";
+      ? `The Audited Activity Report for user "${selectedUser}" is:`
+      : "The Audited Activity Report is:";
     onAskFollowUp(
-      `${targetPrefix}${reportBlock}Can you investigate this in the Chrome activity logs?`,
+      `The dashboard says: ${targetPrefix}\n\n${summary}\n\nCan you tell me more about this?`,
     );
   };
 

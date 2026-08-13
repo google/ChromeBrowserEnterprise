@@ -18,7 +18,7 @@ import { getActiveCustomerId } from "@/lib/sa-session";
 import { buildCallerCacheKey } from "@/lib/cache-key";
 import { isAuthError, toAuthError } from "@/lib/auth-errors";
 import { CACHE_TAGS, getOrFetch } from "@/lib/server-cache";
-import { summarizeChromeActivity } from "@/lib/activity-summarizer";
+import { summarizeChromeActivity, extractSecurityMetrics } from "@/lib/activity-summarizer";
 
 const INSIGHT_TTL_MS = 5 * 60 * 1000;
 
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     const customerId = await getActiveCustomerId();
     const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
     const cacheKey = `insights:risky-activity:${callerKey}:${selectedUser}`;
-    const summary = await getOrFetch({
+    const result = await getOrFetch({
       key: cacheKey,
       ttlMs: INSIGHT_TTL_MS,
       tags: [CACHE_TAGS.INSIGHTS],
@@ -69,14 +69,15 @@ export async function POST(request: Request) {
           throw new Error("MCP tool execution failed");
         }
 
-        return summarizeChromeActivity(
-          toolResult.structuredContent ?? toolResult.content,
-          selectedUser || undefined,
-        );
+        const eventsData = toolResult.structuredContent ?? toolResult.content;
+        const summary = summarizeChromeActivity(eventsData, selectedUser || undefined);
+        const metrics = extractSecurityMetrics(eventsData);
+
+        return { summary, metrics };
       },
     });
 
-    return NextResponse.json({ summary });
+    return NextResponse.json({ summary: result.summary, metrics: result.metrics });
   } catch (error) {
     if (isAuthError(error)) {
       return NextResponse.json({ error: error.toPayload() }, { status: 401 });

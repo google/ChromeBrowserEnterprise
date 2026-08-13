@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { summarizeChromeActivity } from "@/lib/activity-summarizer";
+import { summarizeChromeActivity, extractSecurityMetrics } from "@/lib/activity-summarizer";
 
 describe("summarizeChromeActivity", () => {
   it("returns reassuring message when no events are provided", () => {
@@ -354,5 +354,98 @@ describe("summarizeChromeActivity", () => {
     ];
     const summary = summarizeChromeActivity(multiBlockResponse);
     expect(summary).toContain("malware.example.com");
+  });
+});
+
+describe("extractSecurityMetrics", () => {
+  it("returns zero metrics when no events are provided", () => {
+    const res = extractSecurityMetrics({ items: [] });
+    expect(res.malwareCount).toBe(0);
+    expect(res.passwordReuseCount).toBe(0);
+    expect(res.unsafeDownloadCount).toBe(0);
+    expect(res.dlpRules).toEqual([]);
+  });
+
+  it("extracts threats and aggregates DLP rules correctly", () => {
+    const data = {
+      activities: [
+        // Malware (Threat)
+        {
+          eventName: "UNSAFE_SITE_VISIT",
+          actor: { email: "user1@corp.com" },
+          parameters: [
+            { name: "URL", value: "https://bad.com" },
+            { name: "ACTION", value: "BLOCK" },
+          ],
+        },
+        // Password reuse (Threat)
+        {
+          eventName: "PASSWORD_REUSE_WARNING",
+          actor: { email: "user2@corp.com" },
+          parameters: [
+            { name: "URL", value: "https://phish.com" },
+            { name: "ACTION", value: "BLOCK" },
+          ],
+        },
+        // Unsafe download (Threat)
+        {
+          eventName: "DANGEROUS_DOWNLOAD",
+          actor: { email: "user3@corp.com" },
+          parameters: [
+            { name: "FILE_NAME", value: "virus.exe" },
+            { name: "ACTION", value: "BLOCK" },
+          ],
+        },
+        // DLP Rule 1 (GenAI Warn)
+        {
+          eventName: "DLP_RULE_VIOLATION",
+          actor: { email: "user1@corp.com" },
+          parameters: [
+            { name: "RULE_NAME", value: "GenAI Protection" },
+            { name: "ACTION", value: "WARN" },
+          ],
+        },
+        // DLP Rule 1 (GenAI Warn) - another trigger
+        {
+          eventName: "DLP_RULE_VIOLATION",
+          actor: { email: "user2@corp.com" },
+          parameters: [
+            { name: "RULE_NAME", value: "GenAI Protection" },
+            { name: "ACTION", value: "WARN" },
+          ],
+        },
+        // DLP Rule 2 (SSN Block)
+        {
+          eventName: "DLP_RULE_VIOLATION",
+          actor: { email: "user3@corp.com" },
+          parameters: [
+            { name: "RULE_NAME", value: "SSN Block" },
+            { name: "ACTION", value: "BLOCK" },
+          ],
+        },
+      ],
+    };
+
+    const res = extractSecurityMetrics(data);
+    expect(res.malwareCount).toBe(1);
+    expect(res.passwordReuseCount).toBe(1);
+    expect(res.unsafeDownloadCount).toBe(1);
+
+    // DLP Rules should be sorted by count descending
+    expect(res.dlpRules.length).toBe(2);
+
+    expect(res.dlpRules[0]).toEqual({
+      name: "GenAI Protection",
+      totalCount: 2,
+      blockedCount: 0,
+      warnedCount: 2,
+    });
+
+    expect(res.dlpRules[1]).toEqual({
+      name: "SSN Block",
+      totalCount: 1,
+      blockedCount: 1,
+      warnedCount: 0,
+    });
   });
 });

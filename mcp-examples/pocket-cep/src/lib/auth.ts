@@ -17,6 +17,7 @@ import { anonymous } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { getEnv } from "./env";
 import { SA_EMAIL_DOMAIN } from "./constants";
+import { GOOGLE_API_SCOPES } from "./google-scopes";
 
 /**
  * Google Workspace admin scopes requested during the OAuth consent flow.
@@ -25,19 +26,7 @@ import { SA_EMAIL_DOMAIN } from "./constants";
  * The scopes here must match what the Google Cloud OAuth consent screen
  * has been configured to allow.
  */
-const ADMIN_SCOPES = [
-  "openid",
-  "email",
-  "profile",
-  "https://www.googleapis.com/auth/admin.reports.audit.readonly",
-  "https://www.googleapis.com/auth/chrome.management.reports.readonly",
-  "https://www.googleapis.com/auth/chrome.management.profiles.readonly",
-  "https://www.googleapis.com/auth/admin.directory.orgunit.readonly",
-  "https://www.googleapis.com/auth/admin.directory.customer.readonly",
-  "https://www.googleapis.com/auth/cloud-identity.policies",
-  "https://www.googleapis.com/auth/apps.licensing",
-  "https://www.googleapis.com/auth/cloud-platform",
-];
+const ADMIN_SCOPES = ["openid", "email", "profile", ...GOOGLE_API_SCOPES];
 
 /**
  * Builds the BetterAuth instance based on the current AUTH_MODE.
@@ -62,6 +51,8 @@ function createAuth() {
             clientId: config.GOOGLE_CLIENT_ID,
             clientSecret: config.GOOGLE_CLIENT_SECRET,
             scope: ADMIN_SCOPES,
+            prompt: "consent",
+            accessType: "offline",
           },
         },
 
