@@ -10,22 +10,12 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart } from "ai";
 import type { UIMessage } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import useSWR from "swr";
+
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
-import { RiskyActivityCard } from "./risky-activity-card";
-import { SecuritySummaryCard } from "./security-summary-card";
-import {
-  ArrowDown,
-  ArrowUpRight,
-  FileSearch,
-  Loader2,
-  Scale,
-  Stethoscope,
-  Terminal,
-} from "lucide-react";
+import { PostureAlertsCard } from "./posture-alerts-card";
+import { ArrowDown } from "lucide-react";
 import type { InvocationPart } from "@/lib/tool-part";
-import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
 import { getModelById } from "@/lib/models";
 import { buildByokHeader, getStoredModelId } from "@/lib/model-preferences";
 import { authAwareFetch } from "@/lib/auth-aware-fetch";
@@ -36,41 +26,8 @@ type ChatPanelProps = {
   onClearSelectedUser?: () => void;
 };
 
-/**
- * Maps a prompt name to an icon. The MCP prompt API doesn't carry
- * iconography, so we infer from the name. Anything else falls through
- * to a generic terminal glyph.
- */
-function iconForPrompt(name: string): React.ComponentType<{ className?: string }> {
-  const n = name.toLowerCase();
-  if (n.includes("health")) return Stethoscope;
-  if (n.includes("license") || n.includes("subscription") || n.includes("optimize")) return Scale;
-  if (n.includes("activity") || n.includes("audit") || n.includes("expert")) return FileSearch;
-  return Terminal;
-}
-
-// Prefer the server-supplied title; fall back to the bare name with
-// any `namespace:` prefix stripped.
-function titleForPrompt(p: Prompt): string {
-  if (p.title) return p.title;
-  const bare = p.name.includes(":") ? p.name.split(":").slice(1).join(":") : p.name;
-  return bare.charAt(0).toUpperCase() + bare.slice(1);
-}
-
 export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser }: ChatPanelProps) {
   const [input, setInput] = useState("");
-  const [promptExpanding, setPromptExpanding] = useState<string | null>(null);
-
-  /**
-   * Prompt catalog. SWR's built-in retry handles the dev-time race where
-   * `npm run dev:full` boots the Next app a beat before the MCP server,
-   * so the first fetch can come back 503. The provider's `errorRetryCount`
-   * already covers the previous hand-rolled backoff loop.
-   */
-  const { data: promptsData } = useSWR<{ prompts?: Prompt[] }>("/api/prompts", {
-    revalidateOnFocus: false,
-  });
-  const prompts = useMemo(() => promptsData?.prompts ?? [], [promptsData]);
 
   const selectedUserRef = useRef(selectedUser);
   useEffect(() => {
@@ -215,41 +172,6 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
     handleSend(input);
   };
 
-  /**
-   * Expands a server-authored prompt and sends it as a user turn. The
-   * full expanded body goes to the model (so the formatting contract
-   * reaches it), but we tag the message with metadata so the UI can
-   * render it as a compact chip — the raw prompt is a wall of rules
-   * the user doesn't need to look at.
-   */
-  const runPrompt = useCallback(
-    async (prompt: Prompt) => {
-      if (promptExpanding || isStreaming) return;
-      setPromptExpanding(prompt.name);
-      try {
-        const res = await authAwareFetch("/api/prompts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: prompt.name }),
-        });
-        const body: { text?: string; error?: string } = await res.json();
-        if (!res.ok || !body.text) throw new Error(body.error ?? "Prompt expansion failed");
-        setLatestSuggestions(null);
-        await sendMessage({
-          text: body.text,
-          metadata: { promptName: prompt.name, promptTitle: titleForPrompt(prompt) },
-        });
-        setInput("");
-        setIsPinnedToBottom(true);
-      } catch {
-        /* silent — the LLM call will show any real error */
-      } finally {
-        setPromptExpanding(null);
-      }
-    },
-    [promptExpanding, isStreaming, sendMessage],
-  );
-
   const isEmpty = messages.length === 0;
   /**
    * Show the typing indicator for the entire streaming window, not
@@ -259,52 +181,43 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
    */
   const showTyping = isStreaming;
 
-  const suggestablePrompts = useMemo(
-    () => prompts.filter((p) => !p.arguments?.some((a) => a.required)).slice(0, 6),
-    [prompts],
-  );
-
   return (
     <div className="bg-surface-dim flex min-h-0 flex-1 flex-col">
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div ref={scrollRef} data-testid="chat-scroll" className="flex-1 overflow-y-auto px-6 py-8">
-          {isEmpty ? (
-            <EmptyState
-              selectedUser={selectedUser}
-              prompts={suggestablePrompts}
-              expandingName={promptExpanding}
-              onRun={runPrompt}
-              onAskFollowUp={handlePopulateInput}
-            />
-          ) : (
-            <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
-              {messages.map((msg) => {
-                const showSuggestions =
-                  latestSuggestions && latestSuggestions.messageId === msg.id && !isStreaming;
-                return (
-                  <div key={msg.id} className="flex flex-col gap-2">
-                    <ChatMessage message={msg} />
-                    {showSuggestions && (
-                      <div className="fade-in flex flex-wrap items-center gap-2 pl-4">
-                        {latestSuggestions.questions.map((q, qIdx) => (
-                          <button
-                            key={qIdx}
-                            type="button"
-                            onClick={() => handleSend(q)}
-                            className="surface-raised state-layer border-on-surface/10 text-on-surface hover:border-primary/40 hover:text-primary flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
-                          >
-                            <span>💡</span>
-                            <span>{q}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              {showTyping && <TypingIndicator />}
-            </div>
-          )}
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+            <PostureAlertsCard selectedUser={selectedUser} onAskFollowUp={handlePopulateInput} />
+
+            {!isEmpty && (
+              <div className="flex flex-col gap-5">
+                {messages.map((msg) => {
+                  const showSuggestions =
+                    latestSuggestions && latestSuggestions.messageId === msg.id && !isStreaming;
+                  return (
+                    <div key={msg.id} className="flex flex-col gap-2">
+                      <ChatMessage message={msg} />
+                      {showSuggestions && (
+                        <div className="fade-in flex flex-wrap items-center gap-2 pl-4">
+                          {latestSuggestions.questions.map((q, qIdx) => (
+                            <button
+                              key={qIdx}
+                              type="button"
+                              onClick={() => handleSend(q)}
+                              className="surface-raised state-layer border-on-surface/10 text-on-surface hover:border-primary/40 hover:text-primary flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+                            >
+                              <span>💡</span>
+                              <span>{q}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {showTyping && <TypingIndicator />}
+              </div>
+            )}
+          </div>
 
           {error && (
             <div className="bg-error-light text-error ring-error/20 mx-auto mt-4 max-w-3xl rounded-[var(--radius-sm)] px-3 py-2 text-sm ring-1">
@@ -348,73 +261,6 @@ function TypingIndicator() {
         <span className="typing-dot typing-dot-2 bg-on-surface-muted size-1.5 rounded-full" />
         <span className="typing-dot typing-dot-3 bg-on-surface-muted size-1.5 rounded-full" />
       </div>
-    </div>
-  );
-}
-
-function EmptyState({
-  selectedUser,
-  prompts,
-  expandingName,
-  onRun,
-  onAskFollowUp,
-}: {
-  selectedUser: string;
-  prompts: Prompt[];
-  expandingName: string | null;
-  onRun: (prompt: Prompt) => void;
-  onAskFollowUp: (text: string) => void;
-}) {
-  return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4 pt-2">
-      <SecuritySummaryCard selectedUser={selectedUser} onAskFollowUp={onAskFollowUp} />
-      <RiskyActivityCard selectedUser={selectedUser} onAskFollowUp={onAskFollowUp} />
-
-      {prompts.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-baseline justify-between">
-            <h3 className="section-label">Server prompts</h3>
-            <span className="text-on-surface-muted font-mono text-[0.6875rem]">
-              from MCP · prompts/list
-            </span>
-          </div>
-          <ul role="list" className="grid gap-2 sm:grid-cols-2">
-            {prompts.map((prompt, i) => {
-              const Icon = iconForPrompt(prompt.name);
-              const busy = expandingName === prompt.name;
-              return (
-                <li key={prompt.name}>
-                  <button
-                    type="button"
-                    onClick={() => onRun(prompt)}
-                    disabled={busy || expandingName !== null}
-                    className={`surface-raised group slide-up stagger-${i + 1} flex w-full cursor-pointer flex-col gap-1 rounded-[var(--radius-sm)] p-2.5 text-left disabled:cursor-wait disabled:opacity-60`}
-                  >
-                    <div className="flex w-full items-center gap-2">
-                      <span className="bg-primary-light text-primary grid size-6 shrink-0 place-items-center rounded-[var(--radius-xs)]">
-                        <Icon className="size-3.5" />
-                      </span>
-                      <span className="text-on-surface flex-1 truncate text-xs font-medium">
-                        {titleForPrompt(prompt)}
-                      </span>
-                      {busy ? (
-                        <Loader2 className="text-on-surface-muted spin-slow size-3.5 shrink-0" />
-                      ) : (
-                        <ArrowUpRight className="text-on-surface-muted size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                      )}
-                    </div>
-                    {prompt.description && (
-                      <p className="text-on-surface-variant line-clamp-2 pl-8 text-[0.75rem] leading-4">
-                        {prompt.description}
-                      </p>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
