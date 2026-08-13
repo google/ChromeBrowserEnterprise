@@ -18,6 +18,7 @@ import { getActiveCustomerId } from "@/lib/sa-session";
 import { isAuthError, toAuthError } from "@/lib/auth-errors";
 import { CACHE_TAGS, getOrFetch } from "@/lib/server-cache";
 import { DASHBOARD_QUERY_PREFIX } from "@/lib/constants";
+import { buildCallerCacheKey } from "@/lib/cache-key";
 
 const POSTURE_TTL_MS = 5 * 60 * 1000; // Cache posture report for 5 minutes
 
@@ -133,7 +134,8 @@ export async function POST(request: Request) {
   ]);
 
   try {
-    const cacheKey = `insights:posture-alerts:${selectedUser}`;
+    const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
+    const cacheKey = `insights:posture-alerts:${callerKey}:${selectedUser}`;
     const result = await getOrFetch({
       key: cacheKey,
       ttlMs: POSTURE_TTL_MS,
