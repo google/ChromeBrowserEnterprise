@@ -11,6 +11,7 @@ const {
   mockListMcpTools,
   mockListMcpPrompts,
   mockGetMcpPrompt,
+  mockGetActiveCustomerId,
 } = vi.hoisted(() => ({
   mockRequireSession: vi.fn(),
   mockGetGoogleAccessToken: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockListMcpTools: vi.fn(),
   mockListMcpPrompts: vi.fn(),
   mockGetMcpPrompt: vi.fn(),
+  mockGetActiveCustomerId: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({
@@ -30,6 +32,10 @@ vi.mock("@/lib/access-token", () => ({
 
 vi.mock("@/lib/env", () => ({
   getEnv: mockGetEnv,
+}));
+
+vi.mock("@/lib/sa-session", () => ({
+  getActiveCustomerId: mockGetActiveCustomerId,
 }));
 
 vi.mock("@/lib/mcp-client", () => ({
@@ -48,6 +54,7 @@ describe("MCP Registry Endpoints", () => {
     clearCache();
     mockRequireSession.mockResolvedValue(true);
     mockGetGoogleAccessToken.mockResolvedValue("mock-token");
+    mockGetActiveCustomerId.mockResolvedValue("mock-customer-id");
     mockGetEnv.mockReturnValue({ MCP_SERVER_URL: "http://localhost:4000/mcp" });
   });
 
