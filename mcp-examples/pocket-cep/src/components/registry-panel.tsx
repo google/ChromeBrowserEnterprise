@@ -51,7 +51,11 @@ type PromptsResponse = { prompts?: Prompt[]; error?: string };
  * Renders the MCP Server Registry panel listing all registered tools and prompts.
  */
 export function RegistryPanel({ onExecutePrompt, isBusy }: RegistryPanelProps) {
-  const { data: toolsData, isLoading: isToolsLoading } = useSWR<ToolsResponse>(
+  const {
+    data: toolsData,
+    isLoading: isToolsLoading,
+    error: toolsError,
+  } = useSWR<ToolsResponse>(
     "/api/tools",
     async (url: string) => {
       const res = await authAwareFetch(url);
@@ -61,7 +65,11 @@ export function RegistryPanel({ onExecutePrompt, isBusy }: RegistryPanelProps) {
     { revalidateOnFocus: false },
   );
 
-  const { data: promptsData, isLoading: isPromptsLoading } = useSWR<PromptsResponse>(
+  const {
+    data: promptsData,
+    isLoading: isPromptsLoading,
+    error: promptsError,
+  } = useSWR<PromptsResponse>(
     "/api/prompts",
     async (url: string) => {
       const res = await authAwareFetch(url);
@@ -73,6 +81,20 @@ export function RegistryPanel({ onExecutePrompt, isBusy }: RegistryPanelProps) {
 
   const tools = toolsData?.tools ?? [];
   const prompts = promptsData?.prompts ?? [];
+
+  if (toolsError || promptsError) {
+    return (
+      <div className="flex flex-col gap-3 px-4 py-6">
+        <div className="bg-error-light border-error/15 text-error flex flex-col gap-2 rounded-[var(--radius-sm)] border p-3.5 text-xs">
+          <h3 className="text-sm font-semibold">Failed to connect to MCP Server</h3>
+          <p className="leading-5">
+            Could not fetch tools or prompts. Ensure your MCP server is running and configured
+            correctly in the doctor panel.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (isToolsLoading || isPromptsLoading) {
     return (
