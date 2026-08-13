@@ -203,9 +203,13 @@ function ToolItem({ tool }: { tool: McpTool }) {
   }, []);
 
   const hasDetails = !!(tool.description || tool.inputSchema?.properties);
+  const firstSentence = tool.description ? tool.description.split(/(?<=[.!?])\s+/)[0] || "" : "";
 
   return (
-    <div className="bg-on-surface/[0.02] border-on-surface/5 flex flex-col rounded-[var(--radius-sm)] border p-2.5">
+    <div
+      title={expanded ? undefined : firstSentence || undefined}
+      className="bg-on-surface/[0.02] border-on-surface/5 flex flex-col rounded-[var(--radius-sm)] border p-2.5"
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <Wrench className="text-primary size-3.5 shrink-0" />
