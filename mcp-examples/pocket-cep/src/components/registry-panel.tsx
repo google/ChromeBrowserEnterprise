@@ -195,6 +195,17 @@ function PromptItem({
   );
 }
 
+function getTruncatedDescription(description?: string, limit = 120): string {
+  if (!description) return "";
+  const sentences = description.split(/(?<=[.!?])\s+/);
+  const firstSentence = sentences[0] || "";
+
+  if (firstSentence.length <= limit) {
+    return firstSentence;
+  }
+  return firstSentence.slice(0, limit).trim() + "...";
+}
+
 function ToolItem({ tool }: { tool: McpTool }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -203,6 +214,7 @@ function ToolItem({ tool }: { tool: McpTool }) {
   }, []);
 
   const hasSchema = !!tool.inputSchema?.properties;
+  const truncatedDesc = getTruncatedDescription(tool.description);
 
   return (
     <div className="bg-on-surface/[0.02] border-on-surface/5 flex flex-col rounded-[var(--radius-sm)] border p-2.5">
@@ -231,7 +243,9 @@ function ToolItem({ tool }: { tool: McpTool }) {
       </div>
 
       {tool.description && (
-        <p className="text-on-surface-variant mt-1 text-[0.75rem] leading-4">{tool.description}</p>
+        <p className="text-on-surface-variant animate-fade-in mt-1 text-[0.75rem] leading-4 text-pretty">
+          {expanded ? tool.description : truncatedDesc}
+        </p>
       )}
 
       {expanded && tool.inputSchema?.properties && (
