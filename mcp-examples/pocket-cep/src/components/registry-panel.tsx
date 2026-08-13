@@ -47,6 +47,9 @@ type RegistryPanelProps = {
 type ToolsResponse = { tools?: McpTool[] };
 type PromptsResponse = { prompts?: Prompt[]; error?: string };
 
+/**
+ * Renders the MCP Server Registry panel listing all registered tools and prompts.
+ */
 export function RegistryPanel({ onExecutePrompt, isBusy }: RegistryPanelProps) {
   const { data: toolsData, isLoading: isToolsLoading } = useSWR<ToolsResponse>(
     "/api/tools",
