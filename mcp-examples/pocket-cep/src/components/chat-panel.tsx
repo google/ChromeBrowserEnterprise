@@ -109,6 +109,7 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
   const isStreaming = status === "streaming" || status === "submitted";
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<{ focus: () => void }>(null);
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
 
   useEffect(() => {
@@ -166,12 +167,12 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
 
   const handlePopulateInput = useCallback((text: string) => {
     setInput(text);
+    chatInputRef.current?.focus();
   }, []);
 
   const handleSubmit = () => {
     handleSend(input);
   };
-
   const isEmpty = messages.length === 0;
   /**
    * Show the typing indicator for the entire streaming window, not
@@ -241,6 +242,7 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
       </div>
 
       <ChatInput
+        ref={chatInputRef}
         value={input}
         onChange={setInput}
         onSubmit={handleSubmit}
