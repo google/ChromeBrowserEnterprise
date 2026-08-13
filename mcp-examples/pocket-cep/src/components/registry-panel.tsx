@@ -251,11 +251,16 @@ function ToolItem({ tool }: { tool: McpTool }) {
                   key={key}
                   className="border-on-surface/5 flex flex-col gap-0.5 border-l-2 pl-2.5 leading-normal"
                 >
-                  <div className="flex items-center gap-1.5 font-mono text-[0.6875rem]">
+                  <div className="flex items-baseline gap-1.5 font-mono text-[0.6875rem]">
                     <span className="text-on-surface font-semibold">{key}</span>
-                    {isRequired && <span className="text-error leading-none font-bold">*</span>}
-                    <span className="text-on-surface-variant/50 text-[0.625rem] font-bold tracking-wider uppercase">
-                      ({propType})
+                    <span
+                      className={`text-[0.625rem] tracking-wider uppercase ${
+                        isRequired
+                          ? "text-on-surface-variant/50 font-bold"
+                          : "text-on-surface-variant/30 font-medium"
+                      }`}
+                    >
+                      ({propType} · {isRequired ? "required" : "optional"})
                     </span>
                   </div>
                   {propDesc && (
