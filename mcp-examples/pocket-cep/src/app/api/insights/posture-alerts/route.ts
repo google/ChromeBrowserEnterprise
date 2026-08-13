@@ -17,6 +17,7 @@ import { requireSession } from "@/lib/session";
 import { getActiveCustomerId } from "@/lib/sa-session";
 import { isAuthError, toAuthError } from "@/lib/auth-errors";
 import { CACHE_TAGS, getOrFetch } from "@/lib/server-cache";
+import { DASHBOARD_QUERY_PREFIX } from "@/lib/constants";
 
 const POSTURE_TTL_MS = 5 * 60 * 1000; // Cache posture report for 5 minutes
 
@@ -109,7 +110,7 @@ type McpDiagnoseResponse = {
 };
 
 function getSuggestedQuery(message: string): string {
-  return `The PocketCEP dashboard shows: "${message}"\n\nCan you tell me about this?`;
+  return `${DASHBOARD_QUERY_PREFIX} "${message}"\n\nCan you tell me about this?`;
 }
 
 export async function POST(request: Request) {

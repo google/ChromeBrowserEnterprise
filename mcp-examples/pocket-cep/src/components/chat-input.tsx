@@ -11,6 +11,7 @@
 
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { ArrowUp, AtSign, CornerDownLeft, Square, X } from "lucide-react";
+import { DASHBOARD_QUERY_PREFIX } from "@/lib/constants";
 
 type ChatInputProps = {
   value: string;
@@ -48,7 +49,7 @@ export function ChatInput({
   }, [isStreaming]);
 
   useEffect(() => {
-    if (value && value.startsWith("The dashboard says:")) {
+    if (value && value.startsWith(DASHBOARD_QUERY_PREFIX)) {
       textareaRef.current?.focus();
     }
   }, [value]);

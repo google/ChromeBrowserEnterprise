@@ -47,6 +47,12 @@ export const LOG_TAGS = {
 } as const;
 
 /**
+ * Prefix used for conversational queries auto-populated from dashboard widget actions.
+ * ChatInput detects this prefix to automatically focus the textarea.
+ */
+export const DASHBOARD_QUERY_PREFIX = "The PocketCEP dashboard shows:" as const;
+
+/**
  * Prevents runaway tool-calling loops where the LLM keeps requesting
  * tools without producing a final answer. 10 iterations allows complex
  * multi-step investigations while bounding cost and latency.
