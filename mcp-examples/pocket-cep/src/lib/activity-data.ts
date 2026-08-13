@@ -100,7 +100,11 @@ export async function getActivitySafe(days: number = DEFAULT_ACTIVITY_DAYS): Pro
  * Pulls and groups Chrome audit events for the given caller, scoped to
  * `days` of history. Pagination stops at {@link ACTIVITY_MAX_EVENTS}.
  */
-async function fetchActivity(tokenToUse: string, days: number, impersonatedUser?: string): Promise<ActivityMap> {
+async function fetchActivity(
+  tokenToUse: string,
+  days: number,
+  impersonatedUser?: string,
+): Promise<ActivityMap> {
   const requestHeaders = await buildGoogleApiHeaders(tokenToUse);
 
   const baseUrl = new URL(

@@ -1,15 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockGetSession, mockCookies, mockGetEnv } = vi.hoisted(() => ({
+const { mockGetSession, mockCookies, mockGetGoogleAccessToken, mockGetEnv } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockCookies: {
     getAll: vi.fn(() => [] as { name: string; value: string }[]),
     delete: vi.fn(),
   },
-  mockGetEnv: vi.fn(() => ({
-    AUTH_MODE: "service_account" as "service_account" | "user_oauth",
-    BETTER_AUTH_SECRET: "mock-secret",
-  })),
+  mockGetGoogleAccessToken: vi.fn(),
+  mockGetEnv: vi.fn(
+    () =>
+      ({
+        AUTH_MODE: "service_account" as "service_account" | "user_oauth",
+        BETTER_AUTH_SECRET: "mock-secret",
+      }) as Record<string, unknown>,
+  ),
 }));
 
 vi.mock("next/headers", () => ({
@@ -27,6 +31,10 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/env", () => ({
   getEnv: mockGetEnv,
+}));
+
+vi.mock("@/lib/access-token", () => ({
+  getGoogleAccessToken: mockGetGoogleAccessToken,
 }));
 
 import { requireSession } from "@/lib/session";
@@ -71,17 +79,20 @@ describe("requireSession", () => {
     expect(mockCookies.delete).not.toHaveBeenCalled();
   });
 
-  describe("in user_oauth mode", () => {
+  describe("user_oauth mode", () => {
     beforeEach(() => {
       mockGetEnv.mockReturnValue({
         AUTH_MODE: "user_oauth",
         BETTER_AUTH_SECRET: "mock-secret",
+        GOOGLE_CLIENT_ID: "123-abc.apps.googleusercontent.com",
+        GOOGLE_CLIENT_SECRET: "secret",
       });
     });
 
-    it("returns session when getSession succeeds with a normal user email", async () => {
+    it("returns session when session is valid and Google token is valid", async () => {
       const mockSession = { user: { id: "u1", email: "admin@company.com" } };
       mockGetSession.mockResolvedValue(mockSession);
+      mockGetGoogleAccessToken.mockResolvedValue("valid-google-token");
 
       const session = await requireSession();
       expect(session).toBe(mockSession);
@@ -93,6 +104,19 @@ describe("requireSession", () => {
       mockGetSession.mockResolvedValue(mockSession);
       mockCookies.getAll.mockReturnValue([
         { name: "better-auth.session_token", value: "anon-cookie-val" },
+      ]);
+
+      const session = await requireSession();
+      expect(session).toBeNull();
+      expect(mockCookies.delete).toHaveBeenCalledWith("better-auth.session_token");
+    });
+
+    it("clears cookies and returns null when session is valid but Google token is expired/missing", async () => {
+      const mockSession = { user: { id: "u1", email: "admin@company.com" } };
+      mockGetSession.mockResolvedValue(mockSession);
+      mockGetGoogleAccessToken.mockResolvedValue(undefined); // expired
+      mockCookies.getAll.mockReturnValue([
+        { name: "better-auth.session_token", value: "stale-val" },
       ]);
 
       const session = await requireSession();
