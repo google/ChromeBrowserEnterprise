@@ -234,14 +234,39 @@ function ToolItem({ tool }: { tool: McpTool }) {
         <p className="text-on-surface-variant mt-1 text-[0.75rem] leading-4">{tool.description}</p>
       )}
 
-      {expanded && tool.inputSchema && (
+      {expanded && tool.inputSchema?.properties && (
         <div className="border-on-surface/5 mt-2 border-t pt-2">
-          <span className="text-on-surface-muted block pb-1 text-[0.625rem] font-bold tracking-wider uppercase">
-            Input Parameters (JSON Schema)
+          <span className="text-on-surface-muted block pb-1.5 text-[0.625rem] font-bold tracking-wider uppercase">
+            Input Parameters
           </span>
-          <pre className="bg-on-surface/[0.03] border-on-surface/10 text-on-surface-variant overflow-x-auto rounded-[var(--radius-xs)] border p-1.5 font-mono text-[0.6875rem] leading-4">
-            {JSON.stringify(tool.inputSchema, null, 2)}
-          </pre>
+          <ul className="flex flex-col gap-2">
+            {Object.entries(tool.inputSchema.properties).map(([key, prop]) => {
+              const isRequired = tool.inputSchema?.required?.includes(key);
+              const propVal = prop as { type?: string; description?: string };
+              const propType = propVal.type || "any";
+              const propDesc = propVal.description;
+
+              return (
+                <li
+                  key={key}
+                  className="border-on-surface/5 flex flex-col gap-0.5 border-l-2 pl-2.5 leading-normal"
+                >
+                  <div className="flex items-center gap-1.5 font-mono text-[0.6875rem]">
+                    <span className="text-on-surface font-semibold">{key}</span>
+                    {isRequired && <span className="text-error leading-none font-bold">*</span>}
+                    <span className="text-on-surface-variant/50 text-[0.625rem] font-bold tracking-wider uppercase">
+                      ({propType})
+                    </span>
+                  </div>
+                  {propDesc && (
+                    <span className="text-on-surface-variant text-[0.6875rem] leading-3.5 text-pretty">
+                      {propDesc}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </div>
