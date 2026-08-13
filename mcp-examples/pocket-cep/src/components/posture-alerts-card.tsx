@@ -197,6 +197,7 @@ export function PostureAlertsCard({ selectedUser, onAskFollowUp }: PostureAlerts
                       href={alert.remediation.url}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={(e) => e.currentTarget.blur()}
                       title="See in UI"
                       className="state-layer text-on-surface-variant/50 hover:text-on-surface-variant/80 hover:bg-on-surface/5 grid size-7 place-items-center rounded-full opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus:opacity-100"
                     >
@@ -205,7 +206,10 @@ export function PostureAlertsCard({ selectedUser, onAskFollowUp }: PostureAlerts
                   )}
                   <button
                     type="button"
-                    onClick={() => onAskFollowUp(alert.suggestedQuery)}
+                    onClick={(e) => {
+                      onAskFollowUp(alert.suggestedQuery);
+                      e.currentTarget.blur();
+                    }}
                     title="Ask agent about this issue"
                     className="state-layer text-on-surface-variant/50 hover:text-on-surface-variant/80 hover:bg-on-surface/5 grid size-7 place-items-center rounded-full opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus:opacity-100"
                   >
