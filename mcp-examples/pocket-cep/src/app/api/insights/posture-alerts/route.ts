@@ -108,41 +108,8 @@ type McpDiagnoseResponse = {
   issues?: McpIssue[];
 };
 
-function getSuggestedQuery(issue: McpIssue, selectedUser: string): string {
-  const scope = selectedUser ? `for user "${selectedUser}"` : "across the organization";
-
-  if (issue.component === "subscription") {
-    if (issue.message.includes("0 users")) {
-      return `The dashboard says: Chrome Enterprise Premium subscription is active, but 0 users have licenses assigned ${scope}.\n\nCan you tell me how to assign licenses to users?`;
-    }
-    return `The dashboard says: Only a limited number of CEP licenses are assigned ${scope}.\n\nCan you tell me how to check license assignments?`;
-  }
-
-  if (issue.component === "securityInsights") {
-    return `The dashboard says: Chrome Security Insights is disabled ${scope}.\n\nCan you tell me how to enable Security Insights?`;
-  }
-
-  if (issue.component.startsWith("connector.")) {
-    const connectorName = issue.component.replace("connector.", "");
-    return `The dashboard says: The ${connectorName} security connector is not configured or disabled.\n\nCan you tell me how to configure the ${connectorName} connector?`;
-  }
-
-  if (issue.component === "dlpRules") {
-    if (issue.message.includes("No DLP rules")) {
-      return `The dashboard says: No DLP rules are configured ${scope}.\n\nCan you tell me how to deploy the default DLP rules?`;
-    }
-    if (issue.message.includes("inactive")) {
-      return `The dashboard says: Some or all DLP rules are inactive ${scope}.\n\nCan you tell me how to activate these DLP rules?`;
-    }
-    return `The dashboard says: All active DLP rules are in audit-only mode.\n\nCan you tell me how to configure blocking rules?`;
-  }
-
-  if (issue.component === "sebExtension") {
-    return `The dashboard says: Secure Enterprise Browser (SEB) extension is not force-installed.\n\nCan you tell me how to force-install the SEB extension?`;
-  }
-
-  // Fallback
-  return `The dashboard says: A security posture issue was detected (${issue.message}).\n\nCan you tell me more about this issue and how to resolve it?`;
+function getSuggestedQuery(message: string): string {
+  return `The PocketCEP dashboard shows: "${message}"\n\nCan you tell me about this?`;
 }
 
 export async function POST(request: Request) {
@@ -214,7 +181,7 @@ export async function POST(request: Request) {
             severity,
             component: issue.component,
             message: cleanMessage,
-            suggestedQuery: getSuggestedQuery(issue, selectedUser),
+            suggestedQuery: getSuggestedQuery(cleanMessage),
             remediation,
           });
         }
@@ -233,12 +200,13 @@ export async function POST(request: Request) {
               isLicensed?: boolean;
             };
             if (licenseData.isLicensed === false) {
+              const licenseMsg = `User "${selectedUser}" is not assigned a Chrome Enterprise Premium license. CEP features are not enforced for this user.`;
               alerts.push({
                 id: `userLicense:${selectedUser}`,
                 severity: "high",
                 component: "userLicense",
-                message: `User "${selectedUser}" is not assigned a Chrome Enterprise Premium license. CEP features are not enforced for this user.`,
-                suggestedQuery: `The dashboard says: User "${selectedUser}" is not assigned a CEP license.\n\nCan you tell me how to assign a license to this user?`,
+                message: licenseMsg,
+                suggestedQuery: getSuggestedQuery(licenseMsg),
                 remediation: getRemediation("userLicense"),
               });
             }

@@ -101,7 +101,7 @@ describe("POST /api/insights/posture-alerts", () => {
       component: "dlpRules",
       message: "No DLP rules configured.",
       suggestedQuery:
-        "The dashboard says: No DLP rules are configured across the organization.\n\nCan you tell me how to deploy the default DLP rules?",
+        'The PocketCEP dashboard shows: "No DLP rules configured."\n\nCan you tell me about this?',
       remediation: {
         url: "https://admin.google.com/ac/dp/rules",
         label: "See in UI",
@@ -136,7 +136,7 @@ describe("POST /api/insights/posture-alerts", () => {
       'User "unlicensed@test.com" is not assigned a Chrome Enterprise Premium license. CEP features are not enforced for this user.',
     );
     expect(body.alerts[0].suggestedQuery).toBe(
-      'The dashboard says: User "unlicensed@test.com" is not assigned a CEP license.\n\nCan you tell me how to assign a license to this user?',
+      'The PocketCEP dashboard shows: "User "unlicensed@test.com" is not assigned a Chrome Enterprise Premium license. CEP features are not enforced for this user."\n\nCan you tell me about this?',
     );
     expect(body.alerts[0].remediation).toEqual({
       url: "https://admin.google.com/ac/users",
