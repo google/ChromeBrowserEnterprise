@@ -83,6 +83,13 @@ export function RegistryPanel({ onExecutePrompt, isBusy }: RegistryPanelProps) {
 
   return (
     <div className="flex flex-col gap-6 px-4 py-4">
+      <header className="border-on-surface/5 flex flex-col gap-1 border-b pb-2">
+        <h1 className="text-on-surface text-sm font-semibold">MCP Server Registry</h1>
+        <p className="text-on-surface-variant text-[0.6875rem] leading-4 text-pretty">
+          Connected capabilities, tools, and prompts registered by the MCP server.
+        </p>
+      </header>
+
       {/* Prompts Section */}
       <section aria-label="Available Prompts" className="flex flex-col gap-3">
         <header className="border-on-surface/10 flex items-baseline justify-between border-b pb-1.5">

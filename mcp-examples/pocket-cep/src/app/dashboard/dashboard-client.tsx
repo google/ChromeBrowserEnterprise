@@ -181,7 +181,7 @@ function DashboardShell() {
               isActive={sidebarTab === "registry"}
               onSelect={() => setSidebarTab("registry")}
               icon={BookOpen}
-              label="Registry"
+              label="MCP Server Registry"
             />
           </div>
 
@@ -330,20 +330,21 @@ function SidebarTabButton({
       aria-controls={panelId}
       tabIndex={isActive ? 0 : -1}
       onClick={onSelect}
+      title={label}
+      aria-label={label}
       className={cn(
-        "state-layer flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-xs)] px-2 py-1.5 text-xs font-medium",
+        "state-layer relative flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-xs)] py-2 text-xs font-medium",
         isActive
           ? "bg-primary-light text-primary"
-          : "text-on-surface-variant hover:text-on-surface",
+          : "text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5",
       )}
     >
-      <Icon className="size-3.5" aria-hidden="true" />
-      <span>{label}</span>
+      <Icon className="animate-fade-in size-4" aria-hidden="true" />
       {typeof count === "number" && count > 0 && (
         <span
           className={cn(
-            "rounded-full px-1.5 py-0.5 text-[0.625rem] tabular-nums",
-            isActive ? "bg-primary text-on-primary" : "bg-surface-dim text-on-surface-variant",
+            "absolute -top-0.5 -right-0.5 scale-90 rounded-full px-1.5 py-0.5 text-[0.625rem] leading-none font-bold",
+            isActive ? "bg-primary text-on-primary" : "bg-error text-on-error animate-pulse",
           )}
         >
           {count}
