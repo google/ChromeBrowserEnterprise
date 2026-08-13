@@ -195,32 +195,18 @@ function PromptItem({
   );
 }
 
-function getTruncatedDescription(description?: string, limit = 120): string {
-  if (!description) return "";
-  const sentences = description.split(/(?<=[.!?])\s+/);
-  const firstSentence = sentences[0] || "";
-
-  if (firstSentence.length <= limit) {
-    return firstSentence;
-  }
-  return firstSentence.slice(0, limit).trim() + "...";
-}
-
 function ToolItem({ tool }: { tool: McpTool }) {
   const [expanded, setExpanded] = useState(false);
-  const [descExpanded, setDescExpanded] = useState(false);
 
   const toggleExpand = useCallback(() => {
     setExpanded((prev) => !prev);
   }, []);
 
-  const hasSchema = !!tool.inputSchema?.properties;
-  const truncatedDesc = getTruncatedDescription(tool.description);
-  const isDescriptionTruncated = tool.description && tool.description !== truncatedDesc;
+  const hasDetails = !!(tool.description || tool.inputSchema?.properties);
 
   return (
     <div className="bg-on-surface/[0.02] border-on-surface/5 flex flex-col rounded-[var(--radius-sm)] border p-2.5">
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <Wrench className="text-primary size-3.5 shrink-0" />
           <span className="text-on-surface truncate font-mono text-xs font-semibold">
@@ -228,11 +214,11 @@ function ToolItem({ tool }: { tool: McpTool }) {
           </span>
         </div>
 
-        {hasSchema && (
+        {hasDetails && (
           <button
             type="button"
             onClick={toggleExpand}
-            title={expanded ? "Hide input schema" : "Show input schema"}
+            title={expanded ? "Hide details" : "Show details"}
             className="state-layer text-on-surface-variant hover:bg-on-surface/5 flex size-5 cursor-pointer items-center justify-center rounded-full transition-colors"
           >
             {expanded ? (
@@ -244,59 +230,54 @@ function ToolItem({ tool }: { tool: McpTool }) {
         )}
       </div>
 
-      {tool.description && (
-        <p className="text-on-surface-variant mt-1 text-[0.75rem] leading-4 text-pretty">
-          {descExpanded ? tool.description : truncatedDesc}
-          {isDescriptionTruncated && (
-            <button
-              type="button"
-              onClick={() => setDescExpanded((prev) => !prev)}
-              className="text-primary ml-1 cursor-pointer font-medium hover:underline"
-            >
-              {descExpanded ? "less" : "more"}
-            </button>
+      {expanded && (
+        <div className="animate-fade-in flex flex-col gap-2.5">
+          {tool.description && (
+            <p className="text-on-surface-variant mt-2 text-[0.75rem] leading-4 text-pretty">
+              {tool.description}
+            </p>
           )}
-        </p>
-      )}
 
-      {expanded && tool.inputSchema?.properties && (
-        <div className="border-on-surface/5 mt-2 border-t pt-2">
-          <span className="text-on-surface-muted block pb-1.5 text-[0.625rem] font-bold tracking-wider uppercase">
-            Input Parameters
-          </span>
-          <ul className="flex flex-col gap-2">
-            {Object.entries(tool.inputSchema.properties).map(([key, prop]) => {
-              const isRequired = tool.inputSchema?.required?.includes(key);
-              const propVal = prop as { type?: string; description?: string };
-              const propType = propVal.type || "any";
-              const propDesc = propVal.description;
+          {tool.inputSchema?.properties && (
+            <div className="border-on-surface/5 mt-1 border-t pt-2.5">
+              <span className="text-on-surface-muted block pb-1.5 text-[0.625rem] font-bold tracking-wider uppercase">
+                Input Parameters
+              </span>
+              <ul className="flex flex-col gap-2">
+                {Object.entries(tool.inputSchema.properties).map(([key, prop]) => {
+                  const isRequired = tool.inputSchema?.required?.includes(key);
+                  const propVal = prop as { type?: string; description?: string };
+                  const propType = propVal.type || "any";
+                  const propDesc = propVal.description;
 
-              return (
-                <li
-                  key={key}
-                  className="border-on-surface/5 flex flex-col gap-0.5 border-l-2 pl-2.5 leading-normal"
-                >
-                  <div className="flex items-baseline gap-1.5 font-mono text-[0.6875rem]">
-                    <span className="text-on-surface font-semibold">{key}</span>
-                    <span
-                      className={`text-[0.625rem] tracking-wider uppercase ${
-                        isRequired
-                          ? "text-on-surface-variant/50 font-bold"
-                          : "text-on-surface-variant/30 font-medium"
-                      }`}
+                  return (
+                    <li
+                      key={key}
+                      className="border-on-surface/5 flex flex-col gap-0.5 border-l-2 pl-2.5 leading-normal"
                     >
-                      ({propType} · {isRequired ? "required" : "optional"})
-                    </span>
-                  </div>
-                  {propDesc && (
-                    <span className="text-on-surface-variant text-[0.6875rem] leading-3.5 text-pretty">
-                      {propDesc}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+                      <div className="flex items-baseline gap-1.5 font-mono text-[0.6875rem]">
+                        <span className="text-on-surface font-semibold">{key}</span>
+                        <span
+                          className={`text-[0.625rem] tracking-wider uppercase ${
+                            isRequired
+                              ? "text-on-surface-variant/50 font-bold"
+                              : "text-on-surface-variant/30 font-medium"
+                          }`}
+                        >
+                          ({propType} · {isRequired ? "required" : "optional"})
+                        </span>
+                      </div>
+                      {propDesc && (
+                        <span className="text-on-surface-variant text-[0.6875rem] leading-3.5 text-pretty">
+                          {propDesc}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>
