@@ -208,6 +208,7 @@ function getTruncatedDescription(description?: string, limit = 120): string {
 
 function ToolItem({ tool }: { tool: McpTool }) {
   const [expanded, setExpanded] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(false);
 
   const toggleExpand = useCallback(() => {
     setExpanded((prev) => !prev);
@@ -215,6 +216,7 @@ function ToolItem({ tool }: { tool: McpTool }) {
 
   const hasSchema = !!tool.inputSchema?.properties;
   const truncatedDesc = getTruncatedDescription(tool.description);
+  const isDescriptionTruncated = tool.description && tool.description !== truncatedDesc;
 
   return (
     <div className="bg-on-surface/[0.02] border-on-surface/5 flex flex-col rounded-[var(--radius-sm)] border p-2.5">
@@ -243,8 +245,17 @@ function ToolItem({ tool }: { tool: McpTool }) {
       </div>
 
       {tool.description && (
-        <p className="text-on-surface-variant animate-fade-in mt-1 text-[0.75rem] leading-4 text-pretty">
-          {expanded ? tool.description : truncatedDesc}
+        <p className="text-on-surface-variant mt-1 text-[0.75rem] leading-4 text-pretty">
+          {descExpanded ? tool.description : truncatedDesc}
+          {isDescriptionTruncated && (
+            <button
+              type="button"
+              onClick={() => setDescExpanded((prev) => !prev)}
+              className="text-primary ml-1 cursor-pointer font-medium hover:underline"
+            >
+              {descExpanded ? "less" : "more"}
+            </button>
+          )}
         </p>
       )}
 
