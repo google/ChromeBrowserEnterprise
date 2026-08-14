@@ -19,14 +19,23 @@ import type { InvocationPart } from "@/lib/tool-part";
 import { getModelById } from "@/lib/models";
 import { buildByokHeader, getStoredModelId } from "@/lib/model-preferences";
 import { authAwareFetch } from "@/lib/auth-aware-fetch";
+import type { Prompt } from "./registry-panel";
 
 type ChatPanelProps = {
   selectedUser: string;
+  pendingPrompt?: Prompt | null;
+  onPromptExecuted?: () => void;
   onToolInvocation?: (invocation: InvocationPart) => void;
   onClearSelectedUser?: () => void;
 };
 
-export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser }: ChatPanelProps) {
+export function ChatPanel({
+  selectedUser,
+  pendingPrompt,
+  onPromptExecuted,
+  onToolInvocation,
+  onClearSelectedUser,
+}: ChatPanelProps) {
   const [input, setInput] = useState("");
 
   const selectedUserRef = useRef(selectedUser);
@@ -154,10 +163,13 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
     }
   }, [messages, onToolInvocation]);
 
+  const [promptError, setPromptError] = useState<string | null>(null);
+
   const handleSend = useCallback(
     (text: string) => {
       if (!text.trim()) return;
       setLatestSuggestions(null);
+      setPromptError(null);
       sendMessage({ text });
       setInput("");
       setIsPinnedToBottom(true);
@@ -173,6 +185,43 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
   const handleSubmit = () => {
     handleSend(input);
   };
+  const runPrompt = useCallback(
+    async (prompt: Prompt) => {
+      if (isStreaming) return;
+      setPromptError(null);
+      try {
+        const res = await authAwareFetch("/api/prompts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: prompt.name }),
+        });
+        const body: { text?: string; error?: string } = await res.json();
+        if (!res.ok || !body.text) throw new Error(body.error ?? "Prompt expansion failed");
+        setLatestSuggestions(null);
+        await sendMessage({
+          text: body.text,
+          metadata: { promptName: prompt.name, promptTitle: prompt.title || prompt.name },
+        });
+        setInput("");
+        setIsPinnedToBottom(true);
+        chatInputRef.current?.focus();
+      } catch (e) {
+        console.error("Failed to run prompt:", e);
+        setPromptError(e instanceof Error ? e.message : "Failed to run prompt");
+      }
+    },
+    [isStreaming, sendMessage],
+  );
+
+  useEffect(() => {
+    if (pendingPrompt) {
+      const timer = setTimeout(() => {
+        void runPrompt(pendingPrompt);
+        onPromptExecuted?.();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [pendingPrompt, runPrompt, onPromptExecuted]);
   const isEmpty = messages.length === 0;
   /**
    * Show the typing indicator for the entire streaming window, not
@@ -220,9 +269,9 @@ export function ChatPanel({ selectedUser, onToolInvocation, onClearSelectedUser 
             )}
           </div>
 
-          {error && (
+          {(error || promptError) && (
             <div className="bg-error-light text-error ring-error/20 mx-auto mt-4 max-w-3xl rounded-[var(--radius-sm)] px-3 py-2 text-sm ring-1">
-              {error.message}
+              {error?.message ?? promptError}
             </div>
           )}
 

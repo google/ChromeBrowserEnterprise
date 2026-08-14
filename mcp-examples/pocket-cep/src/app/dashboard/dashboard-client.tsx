@@ -23,7 +23,9 @@ import type { InvocationPart } from "@/lib/tool-part";
 import type { ActivityMap } from "@/lib/activity-data";
 import { SIDEBAR_COLLAPSED_KEY, USER_SEARCH_INPUT_ID } from "@/lib/constants";
 import { usePersistedString } from "@/lib/storage";
-import { Activity, ChevronLeft, ChevronRight, Eraser, Wrench } from "lucide-react";
+import { Activity, BookOpen, ChevronLeft, ChevronRight, Eraser, Wrench } from "lucide-react";
+import { RegistryPanel } from "@/components/registry-panel";
+import type { Prompt } from "@/components/registry-panel";
 
 /**
  * Response shape returned by `GET /api/users/activity`.
@@ -35,7 +37,7 @@ type ActivityResponse = { activity?: ActivityMap };
  * as state on the dashboard so other surfaces (e.g. a future "open
  * inspector on tool call" affordance) can flip the active tab.
  */
-type SidebarTab = "activity" | "inspector";
+type SidebarTab = "activity" | "inspector" | "registry";
 
 /**
  * Props provided by the RSC wrapper.
@@ -63,6 +65,7 @@ function DashboardShell() {
   const [selectedUser, setSelectedUser] = useState("");
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("activity");
   const [toolInvocations, setToolInvocations] = useState<InvocationPart[]>([]);
+  const [pendingPrompt, setPendingPrompt] = useState<Prompt | null>(null);
 
   /**
    * SWR handles deduping, focus revalidation, and persistent localStorage
@@ -172,10 +175,18 @@ function DashboardShell() {
               label="MCP Inspector"
               count={toolInvocations.length}
             />
+            <SidebarTabButton
+              id="tab-registry"
+              panelId="panel-registry"
+              isActive={sidebarTab === "registry"}
+              onSelect={() => setSidebarTab("registry")}
+              icon={BookOpen}
+              label="MCP Server Registry"
+            />
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            {sidebarTab === "activity" ? (
+            {sidebarTab === "activity" && (
               <section
                 id="panel-activity"
                 role="tabpanel"
@@ -203,7 +214,9 @@ function DashboardShell() {
                   onPick={setSelectedUser}
                 />
               </section>
-            ) : (
+            )}
+
+            {sidebarTab === "inspector" && (
               <section
                 id="panel-inspector"
                 role="tabpanel"
@@ -217,6 +230,15 @@ function DashboardShell() {
                   </span>
                 </header>
                 <InspectorList invocations={toolInvocations} />
+              </section>
+            )}
+
+            {sidebarTab === "registry" && (
+              <section id="panel-registry" role="tabpanel" aria-labelledby="tab-registry">
+                <RegistryPanel
+                  onExecutePrompt={(prompt) => setPendingPrompt(prompt)}
+                  isBusy={false}
+                />
               </section>
             )}
           </div>
@@ -247,6 +269,8 @@ function DashboardShell() {
 
           <ChatPanel
             selectedUser={selectedUser}
+            pendingPrompt={pendingPrompt}
+            onPromptExecuted={() => setPendingPrompt(null)}
             onToolInvocation={handleToolInvocation}
             onClearSelectedUser={() => setSelectedUser("")}
           />
@@ -306,20 +330,21 @@ function SidebarTabButton({
       aria-controls={panelId}
       tabIndex={isActive ? 0 : -1}
       onClick={onSelect}
+      title={label}
+      aria-label={label}
       className={cn(
-        "state-layer flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-xs)] px-2 py-1.5 text-xs font-medium",
+        "state-layer relative flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-xs)] py-2 text-xs font-medium",
         isActive
           ? "bg-primary-light text-primary"
-          : "text-on-surface-variant hover:text-on-surface",
+          : "text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5",
       )}
     >
-      <Icon className="size-3.5" aria-hidden="true" />
-      <span>{label}</span>
+      <Icon className="animate-fade-in size-4" aria-hidden="true" />
       {typeof count === "number" && count > 0 && (
         <span
           className={cn(
-            "rounded-full px-1.5 py-0.5 text-[0.625rem] tabular-nums",
-            isActive ? "bg-primary text-on-primary" : "bg-surface-dim text-on-surface-variant",
+            "absolute -top-0.5 -right-0.5 scale-90 rounded-full px-1.5 py-0.5 text-[0.625rem] leading-none font-bold",
+            isActive ? "bg-primary text-on-primary" : "bg-error text-on-error animate-pulse",
           )}
         >
           {count}
