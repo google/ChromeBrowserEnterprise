@@ -76,12 +76,6 @@ function getRemediation(component: string): { url: string; label: string } | und
       label: "See in UI",
     };
   }
-  if (component === "userLicense") {
-    return {
-      url: ADMIN_CONSOLE_URLS.USERS,
-      label: "See in UI",
-    };
-  }
   if (component === "dlpRules") {
     return {
       url: ADMIN_CONSOLE_URLS.DLP_RULES,
@@ -122,19 +116,11 @@ function getSuggestedQuery(message: string): string {
   return `${DASHBOARD_QUERY_PREFIX} "${message}"\n\nCan you tell me about this?`;
 }
 
-export async function POST(request: Request) {
+export async function POST(_request: Request) {
   if (!(await requireSession())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  let body: { selectedUser?: string };
-  try {
-    body = await request.json();
-  } catch {
-    body = {};
-  }
-
-  const selectedUser = body.selectedUser ?? "";
   const config = getEnv();
   const [accessToken, customerId] = await Promise.all([
     getGoogleAccessToken(),
@@ -143,7 +129,7 @@ export async function POST(request: Request) {
 
   try {
     const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
-    const cacheKey = `insights:posture-alerts:${callerKey}:${selectedUser}`;
+    const cacheKey = `insights:posture-alerts:${callerKey}`;
     const result = await getOrFetch({
       key: cacheKey,
       ttlMs: POSTURE_TTL_MS,
@@ -195,33 +181,6 @@ export async function POST(request: Request) {
             suggestedQuery: getSuggestedQuery(cleanMessage),
             remediation,
           });
-        }
-
-        // 2. If a specific user is selected, check their CEP license status
-        if (selectedUser) {
-          const licenseResult = await callMcpTool(
-            config.MCP_SERVER_URL,
-            "check_user_cep_license",
-            { userId: selectedUser },
-            accessToken,
-          );
-
-          if (!licenseResult.isError) {
-            const licenseData = (licenseResult.structuredContent ?? licenseResult.content) as {
-              isLicensed?: boolean;
-            };
-            if (licenseData.isLicensed === false) {
-              const licenseMsg = `User "${selectedUser}" is not assigned a Chrome Enterprise Premium license. CEP features are not enforced for this user.`;
-              alerts.push({
-                id: `userLicense:${selectedUser}`,
-                severity: "high",
-                component: "userLicense",
-                message: licenseMsg,
-                suggestedQuery: getSuggestedQuery(licenseMsg),
-                remediation: getRemediation("userLicense"),
-              });
-            }
-          }
         }
 
         return { alerts };

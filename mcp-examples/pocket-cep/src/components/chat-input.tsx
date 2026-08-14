@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
-import { ArrowUp, AtSign, CornerDownLeft, Square, X } from "lucide-react";
+import { ArrowUp, CornerDownLeft, Square } from "lucide-react";
 
 type ChatInputProps = {
   value: string;
@@ -18,24 +18,13 @@ type ChatInputProps = {
   onSubmit: () => void;
   isStreaming: boolean;
   onStop: () => void;
-  selectedUser: string;
-  onClearSelectedUser?: () => void;
   ref?: React.RefObject<{ focus: () => void } | null>;
 };
 
 const MIN_ROWS = 1;
 const MAX_HEIGHT_PX = 200;
 
-export function ChatInput({
-  value,
-  onChange,
-  onSubmit,
-  isStreaming,
-  onStop,
-  selectedUser,
-  onClearSelectedUser,
-  ref,
-}: ChatInputProps) {
+export function ChatInput({ value, onChange, onSubmit, isStreaming, onStop, ref }: ChatInputProps) {
   const localRef = useRef<HTMLTextAreaElement>(null);
 
   useImperativeHandle(ref, () => ({
@@ -64,9 +53,7 @@ export function ChatInput({
     }
   };
 
-  const placeholder = selectedUser
-    ? `Ask about ${selectedUser}…`
-    : "Ask anything about Chrome Enterprise…";
+  const placeholder = "Ask anything about Chrome Enterprise…";
 
   return (
     <div className="bg-surface-dim border-on-surface/10 shrink-0 border-t px-4 pt-3 pb-4">
@@ -77,26 +64,6 @@ export function ChatInput({
         }}
         className="surface-raised relative mx-auto flex max-w-3xl flex-col rounded-[var(--radius-md)] focus-within:border-[var(--color-primary)] focus-within:shadow-[0_0_0_3px_rgb(26_115_232_/_0.15),var(--shadow-elevation-1)]"
       >
-        {selectedUser && (
-          <div className="fade-in border-on-surface/10 flex items-center gap-1.5 border-b px-3 py-1.5">
-            <AtSign className="text-primary size-3" />
-            <span className="text-on-surface-variant text-[0.6875rem]">Asking about</span>
-            <span className="text-primary font-mono text-[0.75rem] font-medium">
-              {selectedUser}
-            </span>
-            {onClearSelectedUser && (
-              <button
-                type="button"
-                onClick={onClearSelectedUser}
-                aria-label="Clear selected user"
-                className="state-layer text-on-surface-muted hover:text-on-surface ml-auto rounded-full p-0.5"
-              >
-                <X className="size-3" />
-              </button>
-            )}
-          </div>
-        )}
-
         <div className="flex items-end gap-2 px-3.5 py-2.5">
           <textarea
             ref={localRef}

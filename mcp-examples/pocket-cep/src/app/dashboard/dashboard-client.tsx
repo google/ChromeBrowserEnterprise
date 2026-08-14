@@ -1,83 +1,39 @@
 /**
- * @file Interactive dashboard shell — the only client island under
- * `/dashboard`. The wrapping `page.tsx` is a Server Component; it
- * resolves the activity map server-side and passes it down through
- * an SWR `fallback` so the first paint already has data.
+ * @file Interactive dashboard shell — client side application container.
  *
- * Tool invocations are upserted by `toolCallId` so state transitions
- * (input-streaming → input-available → output-available) replace the
- * existing entry in place rather than appending duplicate rows.
+ * Integrates the AI chat assistant alongside execution diagnostic monitors
+ * and prompt registries. Automatically tracks and updates tool invocation states.
  */
 
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import useSWR, { SWRConfig } from "swr";
+import { useState, useCallback } from "react";
 import { AppBar } from "@/components/app-bar";
-import { UserSelector } from "@/components/user-selector";
 import { ChatPanel } from "@/components/chat-panel";
 import { InspectorList } from "@/components/inspector-panel";
-import { ActivityRoster } from "@/components/activity-roster";
 import { cn } from "@/lib/cn";
 import type { InvocationPart } from "@/lib/tool-part";
-import type { ActivityMap } from "@/lib/activity-data";
-import { SIDEBAR_COLLAPSED_KEY, USER_SEARCH_INPUT_ID } from "@/lib/constants";
+import { SIDEBAR_COLLAPSED_KEY } from "@/lib/constants";
 import { usePersistedString } from "@/lib/storage";
-import { Activity, BookOpen, ChevronLeft, ChevronRight, Eraser, Wrench } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Eraser, Wrench } from "lucide-react";
 import { RegistryPanel } from "@/components/registry-panel";
 import type { Prompt } from "@/components/registry-panel";
-
-/**
- * Response shape returned by `GET /api/users/activity`.
- */
-type ActivityResponse = { activity?: ActivityMap };
 
 /**
  * Identifiers for the two views inside the left rail. We track this
  * as state on the dashboard so other surfaces (e.g. a future "open
  * inspector on tool call" affordance) can flip the active tab.
  */
-type SidebarTab = "activity" | "inspector" | "registry";
+type SidebarTab = "inspector" | "registry";
 
-/**
- * Props provided by the RSC wrapper.
- */
-type DashboardClientProps = {
-  /** Activity fetched server-side; pre-seeds the SWR cache for first paint. */
-  initialActivity: ActivityMap;
-};
-
-/**
- * Outer wrapper that injects the server-fetched activity into SWR's
- * cache as a fallback. The inner `<DashboardShell />` then reads from
- * SWR exactly as if the data had been fetched client-side; SWR
- * revalidates in the background once the user is idle.
- */
-export function DashboardClient({ initialActivity }: DashboardClientProps) {
-  return (
-    <SWRConfig value={{ fallback: { "/api/users/activity": { activity: initialActivity } } }}>
-      <DashboardShell />
-    </SWRConfig>
-  );
+export function DashboardClient() {
+  return <DashboardShell />;
 }
 
 function DashboardShell() {
-  const [selectedUser, setSelectedUser] = useState("");
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("activity");
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("inspector");
   const [toolInvocations, setToolInvocations] = useState<InvocationPart[]>([]);
   const [pendingPrompt, setPendingPrompt] = useState<Prompt | null>(null);
-
-  /**
-   * SWR handles deduping, focus revalidation, and persistent localStorage
-   * cache (configured by `SwrProvider`). The fallback above means the
-   * very first render already has data — `isLoading` is `false`, the
-   * roster paints with content, and a background revalidate keeps it
-   * fresh. The route already sends ETag + Cache-Control, so revalidation
-   * usually returns 304.
-   */
-  const { data: activityData, isLoading: isActivityLoading } =
-    useSWR<ActivityResponse>("/api/users/activity");
-  const activity = activityData?.activity ?? {};
 
   /**
    * Sidebar collapse state, encoded as "1"/"0" strings so it fits the
@@ -105,32 +61,6 @@ function DashboardShell() {
     });
   }, []);
 
-  /**
-   * `/` focuses the user search from anywhere on the page, as long as
-   * the user isn't already typing into some other field.
-   */
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
-      const target = e.target as HTMLElement | null;
-      if (
-        target?.tagName === "INPUT" ||
-        target?.tagName === "TEXTAREA" ||
-        target?.isContentEditable
-      ) {
-        return;
-      }
-      const search = document.getElementById(USER_SEARCH_INPUT_ID);
-      if (search instanceof HTMLInputElement) {
-        e.preventDefault();
-        search.focus();
-        search.select();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
   return (
     <div className="isolate flex min-h-0 flex-1 flex-col">
       <AppBar />
@@ -142,30 +72,11 @@ function DashboardShell() {
           hidden={isSidebarCollapsed}
           className="bg-surface border-on-surface/10 @container flex min-h-0 w-72 shrink-0 flex-col border-r max-md:hidden lg:w-80"
         >
-          <section
-            aria-label="User search"
-            className="border-on-surface/10 border-b px-4 pt-4 pb-4"
-          >
-            <UserSelector
-              selectedUser={selectedUser}
-              onUserChange={setSelectedUser}
-              activity={activity}
-            />
-          </section>
-
           <div
             role="tablist"
             aria-label="Sidebar views"
             className="border-on-surface/10 flex shrink-0 gap-1 border-b px-2 py-2"
           >
-            <SidebarTabButton
-              id="tab-activity"
-              panelId="panel-activity"
-              isActive={sidebarTab === "activity"}
-              onSelect={() => setSidebarTab("activity")}
-              icon={Activity}
-              label="Activity"
-            />
             <SidebarTabButton
               id="tab-inspector"
               panelId="panel-inspector"
@@ -186,36 +97,6 @@ function DashboardShell() {
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            {sidebarTab === "activity" && (
-              <section
-                id="panel-activity"
-                role="tabpanel"
-                aria-labelledby="tab-activity"
-                className="flex flex-col gap-2 px-4 py-4"
-              >
-                <header className="flex items-baseline justify-between gap-2">
-                  <h2 id="recent-activity-heading" className="text-on-surface text-sm font-medium">
-                    Chrome audit events
-                  </h2>
-                  <span
-                    className="text-on-surface-muted text-xs tabular-nums"
-                    title="Counts are Chrome audit log events per user over the last 7 days"
-                  >
-                    last 7 days
-                  </span>
-                </header>
-                <p className="text-on-surface-muted text-[0.6875rem] leading-4 text-pretty">
-                  Top users by audit-log activity. Click a row to scope the chat to that user.
-                </p>
-                <ActivityRoster
-                  activity={activity}
-                  selectedUser={selectedUser}
-                  isLoading={isActivityLoading}
-                  onPick={setSelectedUser}
-                />
-              </section>
-            )}
-
             {sidebarTab === "inspector" && (
               <section
                 id="panel-inspector"
@@ -259,20 +140,10 @@ function DashboardShell() {
         </aside>
 
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="bg-surface border-on-surface/10 border-b p-2 md:hidden">
-            <UserSelector
-              selectedUser={selectedUser}
-              onUserChange={setSelectedUser}
-              activity={activity}
-            />
-          </div>
-
           <ChatPanel
-            selectedUser={selectedUser}
             pendingPrompt={pendingPrompt}
             onPromptExecuted={() => setPendingPrompt(null)}
             onToolInvocation={handleToolInvocation}
-            onClearSelectedUser={() => setSelectedUser("")}
           />
         </main>
 

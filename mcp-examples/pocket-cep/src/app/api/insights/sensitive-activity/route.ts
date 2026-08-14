@@ -41,7 +41,6 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = request.nextUrl;
   const days = parseActivityDays(searchParams.get("days"));
-  const selectedUser = searchParams.get("selectedUser")?.trim().toLowerCase() ?? "";
 
   const config = getEnv();
   const accessToken = await getGoogleAccessToken();
@@ -56,7 +55,7 @@ export async function GET(request: NextRequest) {
     const impersonatedUser = saConfig?.impersonatedUser;
 
     const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
-    const cacheKey = `insights:sensitive-activity:${callerKey}:${days}:${selectedUser}`;
+    const cacheKey = `insights:sensitive-activity:${callerKey}:${days}`;
 
     const chartData = await getOrFetch<ChartPoint[]>({
       key: cacheKey,
@@ -65,7 +64,7 @@ export async function GET(request: NextRequest) {
       fetcher: async () => {
         const rawEvents = await fetchRawActivity(accessToken, days, customerId, impersonatedUser);
         const flattenedEvents = extractEventsArray(rawEvents);
-        return processEventsToChartPoints(flattenedEvents, days, selectedUser);
+        return processEventsToChartPoints(flattenedEvents, days);
       },
     });
 
@@ -77,11 +76,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function processEventsToChartPoints(
-  events: ChromeAuditEvent[],
-  days: number,
-  selectedUser: string,
-): ChartPoint[] {
+function processEventsToChartPoints(events: ChromeAuditEvent[], days: number): ChartPoint[] {
   // 1. Generate map of date-string -> ChartPoint for the last N days (fill in zeros)
   const map = new Map<string, ChartPoint>();
   const now = Date.now();
@@ -97,9 +92,6 @@ function processEventsToChartPoints(
   for (const ev of events) {
     const timeStr = ev.id?.time;
     if (!timeStr) continue;
-
-    const evUser = ev.actor?.email?.toLowerCase();
-    if (selectedUser && evUser !== selectedUser) continue;
 
     const eventDate = new Date(timeStr);
     const isoDate = getIsoDateString(eventDate);

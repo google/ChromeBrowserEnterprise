@@ -23,8 +23,6 @@ type ApiResponse = {
  * Properties for the SensitiveActivityChartCard component.
  */
 export type SensitiveActivityChartCardProps = {
-  /** Selected user email or empty string for customer-wide view. */
-  selectedUser: string;
   /** Callback to dispatch a trend analysis query to the chat input. */
   onAskFollowUp?: (promptText: string) => void;
 };
@@ -34,20 +32,16 @@ export type SensitiveActivityChartCardProps = {
  * The chart collapses completely when no activity is present, and includes exact linear-interpolated
  * segment hover isolation highlights and snapping guide lines.
  */
-export function SensitiveActivityChartCard({
-  selectedUser,
-  onAskFollowUp,
-}: SensitiveActivityChartCardProps) {
+export function SensitiveActivityChartCard({ onAskFollowUp }: SensitiveActivityChartCardProps) {
   const [hoveredSegment, setHoveredSegment] = useState<"dlp" | "threat" | null>(null);
   const [activeDayIndex, setActiveDayIndex] = useState<number | null>(null);
   const dlpClipId = useId();
   const threatClipId = useId();
   const aboveClipId = useId();
 
-  const fetcher = useCallback(async ([url, user]: [string, string]): Promise<ApiResponse> => {
+  const fetcher = useCallback(async (url: string): Promise<ApiResponse> => {
     const params = new URLSearchParams();
     params.set("days", "7");
-    if (user) params.set("selectedUser", user);
 
     const response = await authAwareFetch(`${url}?${params.toString()}`);
     if (!response.ok) {
@@ -56,11 +50,10 @@ export function SensitiveActivityChartCard({
     return response.json();
   }, []);
 
-  const { data, isLoading, error } = useSWR(
-    ["/api/insights/sensitive-activity", selectedUser],
-    fetcher,
-    { revalidateOnFocus: false, errorRetryCount: 1 },
-  );
+  const { data, isLoading, error } = useSWR("/api/insights/sensitive-activity", fetcher, {
+    revalidateOnFocus: false,
+    errorRetryCount: 1,
+  });
 
   if (isLoading) {
     return (

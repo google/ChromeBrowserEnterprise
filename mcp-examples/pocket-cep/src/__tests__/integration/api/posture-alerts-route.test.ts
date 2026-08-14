@@ -109,63 +109,6 @@ describe("POST /api/insights/posture-alerts", () => {
     });
   });
 
-  it("appends user license warning if user is unlicensed", async () => {
-    mockCallMcpTool.mockImplementation(async (_url, toolName, args) => {
-      if (toolName === "diagnose_environment") {
-        return { isError: false, content: "Success", structuredContent: { issues: [] } };
-      }
-      if (toolName === "check_user_cep_license") {
-        expect(args.userId).toBe("unlicensed@test.com");
-        return {
-          isError: false,
-          content: "User unlicensed",
-          structuredContent: { isLicensed: false },
-        };
-      }
-      throw new Error(`Unexpected tool call: ${toolName}`);
-    });
-
-    const res = await POST(makeRequest({ selectedUser: "unlicensed@test.com" }));
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.alerts).toHaveLength(1);
-    expect(body.alerts[0].component).toBe("userLicense");
-    expect(body.alerts[0].severity).toBe("high");
-    expect(body.alerts[0].message).toBe(
-      'User "unlicensed@test.com" is not assigned a Chrome Enterprise Premium license. CEP features are not enforced for this user.',
-    );
-    expect(body.alerts[0].suggestedQuery).toBe(
-      'The PocketCEP dashboard shows: "User "unlicensed@test.com" is not assigned a Chrome Enterprise Premium license. CEP features are not enforced for this user."\n\nCan you tell me about this?',
-    );
-    expect(body.alerts[0].remediation).toEqual({
-      url: "https://admin.google.com/ac/users",
-      label: "See in UI",
-    });
-  });
-
-  it("does not append user license warning if user is licensed", async () => {
-    mockCallMcpTool.mockImplementation(async (_url, toolName) => {
-      if (toolName === "diagnose_environment") {
-        return { isError: false, content: "Success", structuredContent: { issues: [] } };
-      }
-      if (toolName === "check_user_cep_license") {
-        return {
-          isError: false,
-          content: "User licensed",
-          structuredContent: { isLicensed: true },
-        };
-      }
-      throw new Error(`Unexpected tool call: ${toolName}`);
-    });
-
-    const res = await POST(makeRequest({ selectedUser: "licensed@test.com" }));
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.alerts).toHaveLength(0);
-  });
-
   it("returns 401 when diagnose_environment returns invalid_grant tool error", async () => {
     mockCallMcpTool.mockResolvedValue({
       isError: true,
