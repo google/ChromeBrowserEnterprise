@@ -18,6 +18,7 @@ export const GOOGLE_API_SCOPES = [
   "https://www.googleapis.com/auth/chrome.management.policy",
   "https://www.googleapis.com/auth/chrome.management.reports.readonly",
   "https://www.googleapis.com/auth/chrome.management.profiles.readonly",
+  "https://www.googleapis.com/auth/chrome.management.securityinsights",
   "https://www.googleapis.com/auth/admin.reports.audit.readonly",
   "https://www.googleapis.com/auth/admin.reports.usage.readonly",
   "https://www.googleapis.com/auth/admin.directory.user.readonly",
@@ -25,5 +26,6 @@ export const GOOGLE_API_SCOPES = [
   "https://www.googleapis.com/auth/admin.directory.customer.readonly",
   "https://www.googleapis.com/auth/cloud-identity.policies",
   "https://www.googleapis.com/auth/apps.licensing",
+  "https://www.googleapis.com/auth/service.management",
   "https://www.googleapis.com/auth/cloud-platform",
 ] as const;

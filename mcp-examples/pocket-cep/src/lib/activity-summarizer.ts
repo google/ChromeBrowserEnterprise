@@ -539,7 +539,7 @@ function resolveBucketKey(
         priority: 6,
       };
     }
-    if (upper.includes("DLP") || upper.includes("DATA_LOSS")) {
+    if (upper.includes("DLP") || upper.includes("DATA_LOSS") || upper.includes("TRANSFER")) {
       return {
         key: "AUDITED_DLP",
         label: "Audited Workspace Traffic",
@@ -547,7 +547,7 @@ function resolveBucketKey(
         priority: 6,
       };
     }
-    if (upper.includes("DOWNLOAD") || upper.includes("TRANSFER")) {
+    if (upper.includes("DOWNLOAD")) {
       return {
         key: "AUDITED_DOWNLOAD",
         label: "Monitored Downloads",
@@ -588,7 +588,7 @@ function resolveBucketKey(
       priority: 1,
     };
   }
-  if (upper.includes("DOWNLOAD") || upper.includes("TRANSFER")) {
+  if (upper.includes("DOWNLOAD")) {
     return {
       key: "DOWNLOAD",
       label: "Unsafe Downloads",
@@ -596,7 +596,7 @@ function resolveBucketKey(
       priority: 1,
     };
   }
-  if (upper.includes("DLP") || upper.includes("DATA_LOSS")) {
+  if (upper.includes("DLP") || upper.includes("DATA_LOSS") || upper.includes("TRANSFER")) {
     return {
       key: "DLP",
       label: "DLP Rule Violations",
@@ -902,4 +902,94 @@ export function summarizeChromeActivity(eventsData: unknown, selectedUser?: stri
   }
 
   return bullets.join("\n");
+}
+
+/**
+ * Tally metrics for a single DLP policy rule.
+ */
+export type DlpRuleMetric = {
+  name: string;
+  totalCount: number;
+  blockedCount: number;
+  warnedCount: number;
+};
+
+/**
+ * Aggregated security and compliance metrics parsed from activity logs.
+ */
+export type SecurityMetrics = {
+  malwareCount: number;
+  passwordReuseCount: number;
+  unsafeDownloadCount: number;
+  dlpRules: DlpRuleMetric[];
+};
+
+/**
+ * Parses raw Chrome audit log records to extract structured metrics for threats and DLP rules.
+ */
+export function extractSecurityMetrics(eventsData: unknown): SecurityMetrics {
+  const rawEvents = extractEventsArray(eventsData);
+  const events = clusterAuditEvents(rawEvents);
+
+  let malwareCount = 0;
+  let passwordReuseCount = 0;
+  let unsafeDownloadCount = 0;
+  const dlpRulesMap = new Map<string, { total: number; blocked: number; warned: number }>();
+
+  for (const ev of events) {
+    const params = ev.parameters;
+    const evtName = ev.eventName ?? "";
+
+    const actionVal =
+      getParameterValue(params, "ACTION") ?? getParameterValue(params, "EVENT_RESULT");
+    const upperAction = actionVal?.toUpperCase() ?? "";
+    const isBlocked = actionVal ? upperAction.includes("BLOCK") : true;
+    const isWarned = !isBlocked && (upperAction.includes("WARN") || upperAction.includes("ALERT"));
+    const isAudited = !isBlocked && !isWarned;
+
+    const meta = resolveBucketKey(evtName, isAudited);
+
+    if (meta.key === "MALWARE") {
+      malwareCount++;
+    } else if (meta.key === "PASSWORD") {
+      passwordReuseCount++;
+    } else if (meta.key === "DOWNLOAD") {
+      unsafeDownloadCount++;
+    } else if (meta.key === "DLP" || meta.key === "AUDITED_DLP") {
+      let ruleVal =
+        getParameterValue(params, "RULE_NAME") ??
+        getParameterValue(params, "TRIGGER") ??
+        getParameterValue(params, "POLICY_NAME") ??
+        getParameterValue(params, "RULE") ??
+        getParameterValue(params, "POLICY") ??
+        getParameterValue(params, "REASON") ??
+        getParameterValue(params, "DETECTOR_NAME");
+
+      if (!ruleVal) {
+        ruleVal = meta.key === "DLP" ? "Sensitive Data Protection" : "Chrome Traffic Auditing";
+      }
+
+      const current = dlpRulesMap.get(ruleVal) ?? { total: 0, blocked: 0, warned: 0 };
+      current.total++;
+      if (isBlocked) current.blocked++;
+      else if (isWarned) current.warned++;
+      dlpRulesMap.set(ruleVal, current);
+    }
+  }
+
+  const dlpRules: DlpRuleMetric[] = Array.from(dlpRulesMap.entries())
+    .map(([name, counts]) => ({
+      name,
+      totalCount: counts.total,
+      blockedCount: counts.blocked,
+      warnedCount: counts.warned,
+    }))
+    .sort((a, b) => b.totalCount - a.totalCount);
+
+  return {
+    malwareCount,
+    passwordReuseCount,
+    unsafeDownloadCount,
+    dlpRules,
+  };
 }

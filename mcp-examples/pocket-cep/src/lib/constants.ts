@@ -47,6 +47,12 @@ export const LOG_TAGS = {
 } as const;
 
 /**
+ * Prefix used for conversational queries auto-populated from dashboard widget actions.
+ * ChatInput detects this prefix to automatically focus the textarea.
+ */
+export const DASHBOARD_QUERY_PREFIX = "The PocketCEP dashboard shows:" as const;
+
+/**
  * Prevents runaway tool-calling loops where the LLM keeps requesting
  * tools without producing a final answer. 10 iterations allows complex
  * multi-step investigations while bounding cost and latency.
@@ -107,6 +113,17 @@ export const MCP_NPX_ARGS = [
 export const MCP_NPX_COMMAND = `npx ${MCP_NPX_ARGS.join(" ")} ${MCP_NPX_PACKAGE}`;
 
 /**
+ * Canonical Google Admin Console URLs for resolving security posture gaps.
+ */
+export const ADMIN_CONSOLE_URLS = {
+  SUBSCRIPTIONS: "https://admin.google.com/ac/billing/subscriptions",
+  USERS: "https://admin.google.com/ac/users",
+  DLP_RULES: "https://admin.google.com/ac/dp/rules",
+  CHROME_APPS: "https://admin.google.com/ac/chrome/apps/user",
+  CHROME_SETTINGS: "https://admin.google.com/ac/chrome/settings/user",
+} as const;
+
+/**
  * Builds the system prompt injected into every LLM conversation. The
  * selectedUserEmail is interpolated so the LLM knows which user the
  * admin is investigating and can scope its MCP tool calls accordingly.
@@ -142,6 +159,10 @@ Tool-use rules:
 - For DLP rule configuration (not events), call list_dlp_rules.
 - If a tool returns isError: true, report the error in plain language
   rather than retrying with a guessed argument.
+
+Interpretation Guidelines:
+- Chrome activity logs contain events named "DLP_RULE_VIOLATION" where the parameter "ACTION" is "AUDIT" or "REPORT". These represent silent monitoring (auditing) of data transfers allowed by policy, NOT active policy breaches, blocks, or warnings.
+- The dashboard widget displays "No Security Blocks or Warnings" when there are zero malware blocks, password leaks, or BLOCKED/WARNED DLP actions. This is correct and does NOT contradict the presence of silent AUDITED data transfers in the logs. Explain this distinction to the user if they ask about contradictions.
 
 Provide clear, educational explanations of:
 - What each Chrome Enterprise feature does

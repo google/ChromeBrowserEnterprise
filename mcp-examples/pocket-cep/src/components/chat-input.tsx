@@ -9,7 +9,7 @@
  * the next message will be sent from.
  */
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import { ArrowUp, AtSign, CornerDownLeft, Square, X } from "lucide-react";
 
 type ChatInputProps = {
@@ -20,6 +20,7 @@ type ChatInputProps = {
   onStop: () => void;
   selectedUser: string;
   onClearSelectedUser?: () => void;
+  ref?: React.RefObject<{ focus: () => void } | null>;
 };
 
 const MIN_ROWS = 1;
@@ -33,18 +34,25 @@ export function ChatInput({
   onStop,
   selectedUser,
   onClearSelectedUser,
+  ref,
 }: ChatInputProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const localRef = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      localRef.current?.focus();
+    },
+  }));
 
   useLayoutEffect(() => {
-    const el = textareaRef.current;
+    const el = localRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT_PX)}px`;
   }, [value]);
 
   useEffect(() => {
-    if (!isStreaming) textareaRef.current?.focus();
+    if (!isStreaming) localRef.current?.focus();
   }, [isStreaming]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -91,7 +99,7 @@ export function ChatInput({
 
         <div className="flex items-end gap-2 px-3.5 py-2.5">
           <textarea
-            ref={textareaRef}
+            ref={localRef}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
