@@ -163,10 +163,13 @@ export function ChatPanel({
     }
   }, [messages, onToolInvocation]);
 
+  const [promptError, setPromptError] = useState<string | null>(null);
+
   const handleSend = useCallback(
     (text: string) => {
       if (!text.trim()) return;
       setLatestSuggestions(null);
+      setPromptError(null);
       sendMessage({ text });
       setInput("");
       setIsPinnedToBottom(true);
@@ -185,6 +188,7 @@ export function ChatPanel({
   const runPrompt = useCallback(
     async (prompt: Prompt) => {
       if (isStreaming) return;
+      setPromptError(null);
       try {
         const res = await authAwareFetch("/api/prompts", {
           method: "POST",
@@ -203,6 +207,7 @@ export function ChatPanel({
         chatInputRef.current?.focus();
       } catch (e) {
         console.error("Failed to run prompt:", e);
+        setPromptError(e instanceof Error ? e.message : "Failed to run prompt");
       }
     },
     [isStreaming, sendMessage],
@@ -264,9 +269,9 @@ export function ChatPanel({
             )}
           </div>
 
-          {error && (
+          {(error || promptError) && (
             <div className="bg-error-light text-error ring-error/20 mx-auto mt-4 max-w-3xl rounded-[var(--radius-sm)] px-3 py-2 text-sm ring-1">
-              {error.message}
+              {error?.message ?? promptError}
             </div>
           )}
 

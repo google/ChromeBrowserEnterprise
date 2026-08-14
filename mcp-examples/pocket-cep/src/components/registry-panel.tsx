@@ -196,7 +196,16 @@ function PromptItem({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          {!hasRequiredArgs && (
+          {hasRequiredArgs ? (
+            <button
+              type="button"
+              disabled
+              title="This prompt requires arguments and cannot be executed directly from the sidebar. You can invoke it in chat by typing its name."
+              className="text-on-surface-variant/20 flex size-5 cursor-not-allowed items-center justify-center rounded-full"
+            >
+              <ArrowUpRight className="size-3.5" />
+            </button>
+          ) : (
             <button
               type="button"
               onClick={() => onRun(prompt)}
