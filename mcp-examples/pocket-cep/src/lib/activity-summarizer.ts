@@ -47,7 +47,7 @@ function getCleanTarget(rawUrl?: string) {
 /**
  * Retrieves the string value of a specific parameter from an audit event.
  */
-function getParameterValue(parameters: ChromeEventParameter[] | undefined, keyName: string) {
+export function getParameterValue(parameters: ChromeEventParameter[] | undefined, keyName: string) {
   if (!parameters) return undefined;
   for (const param of parameters) {
     if (param.name === keyName && param.value) {
@@ -345,7 +345,7 @@ function formatPolicyEnforcement(
 /**
  * Normalizes unknown tool response content into a typed Chrome audit event array.
  */
-function extractEventsArray(eventsData: unknown): ChromeAuditEvent[] {
+export function extractEventsArray(eventsData: unknown): ChromeAuditEvent[] {
   if (!eventsData) return [];
 
   if (Array.isArray(eventsData)) {
@@ -516,7 +516,7 @@ function formatEventNameAsLabel(evtName: string): string {
 /**
  * Resolves category metadata and priority ranking from a raw event name.
  */
-function resolveBucketKey(
+export function resolveBucketKey(
   evtName: string,
   isAudited = false,
 ): {
