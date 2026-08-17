@@ -39,13 +39,21 @@ vi.mock("@/lib/access-token", async (importOriginal) => {
 });
 
 import { GET, POST, DELETE } from "@/app/api/auth/sa-config/route";
-import { COOKIE_SA_CUSTOMER_ID, COOKIE_SA_IMPERSONATED_USER } from "@/lib/sa-session";
+import {
+  COOKIE_SA_SESSION,
+  COOKIE_SA_CUSTOMER_ID,
+  COOKIE_SA_IMPERSONATED_USER,
+} from "@/lib/sa-session";
+import { verifyJwt } from "@/lib/jwt";
 import { DwdScopeVerificationError } from "@/lib/access-token";
 
 describe("/api/auth/sa-config", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetEnv.mockReturnValue({ AUTH_MODE: "service_account" });
+    mockGetEnv.mockReturnValue({
+      AUTH_MODE: "service_account",
+      BETTER_AUTH_SECRET: "mock-secret",
+    });
   });
 
   describe("GET", () => {
@@ -170,8 +178,14 @@ describe("/api/auth/sa-config", () => {
         customerId: "C00woaabb",
         impersonatedUser: "admin@example.com",
       });
-      expect(res.cookies.get(COOKIE_SA_CUSTOMER_ID)?.value).toBe("C00woaabb");
-      expect(res.cookies.get(COOKIE_SA_IMPERSONATED_USER)?.value).toBe("admin@example.com");
+      const sessionCookie = res.cookies.get(COOKIE_SA_SESSION)?.value;
+      expect(sessionCookie).toBeDefined();
+      const payload = verifyJwt(sessionCookie!, "mock-secret");
+      expect(payload?.customerId).toBe("C00woaabb");
+      expect(payload?.impersonatedUser).toBe("admin@example.com");
+      expect(payload?.exp).toBeTypeOf("number");
+      expect(res.cookies.get(COOKIE_SA_CUSTOMER_ID)?.value).toBe("");
+      expect(res.cookies.get(COOKIE_SA_IMPERSONATED_USER)?.value).toBe("");
     });
 
     it("returns 400 and blocks cookie saving when Option 2 (Direct Mode) token minting fails", async () => {
@@ -208,7 +222,13 @@ describe("/api/auth/sa-config", () => {
         customerId: "C00woaabb",
         impersonatedUser: "",
       });
-      expect(res.cookies.get(COOKIE_SA_CUSTOMER_ID)?.value).toBe("C00woaabb");
+      const sessionCookie = res.cookies.get(COOKIE_SA_SESSION)?.value;
+      expect(sessionCookie).toBeDefined();
+      const payload = verifyJwt(sessionCookie!, "mock-secret");
+      expect(payload?.customerId).toBe("C00woaabb");
+      expect(payload?.impersonatedUser).toBe("");
+      expect(payload?.exp).toBeTypeOf("number");
+      expect(res.cookies.get(COOKIE_SA_CUSTOMER_ID)?.value).toBe("");
       expect(res.cookies.get(COOKIE_SA_IMPERSONATED_USER)?.value).toBe("");
     });
   });
@@ -219,6 +239,7 @@ describe("/api/auth/sa-config", () => {
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ success: true });
       expect(mockClearTokenCache).toHaveBeenCalled();
+      expect(res.cookies.get(COOKIE_SA_SESSION)?.value).toBe("");
       expect(res.cookies.get(COOKIE_SA_CUSTOMER_ID)?.value).toBe("");
       expect(res.cookies.get(COOKIE_SA_IMPERSONATED_USER)?.value).toBe("");
     });
