@@ -8,9 +8,10 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockGetEnv, mockGetSessionCookie } = vi.hoisted(() => ({
+const { mockGetEnv, mockGetSessionCookie, mockProbeMcpServer } = vi.hoisted(() => ({
   mockGetEnv: vi.fn(),
   mockGetSessionCookie: vi.fn(),
+  mockProbeMcpServer: vi.fn().mockResolvedValue({ ok: true, message: "ok" }),
 }));
 
 vi.mock("@/lib/env", async (importOriginal) => {
@@ -25,9 +26,15 @@ vi.mock("better-auth/cookies", () => ({
   getSessionCookie: mockGetSessionCookie,
 }));
 
+vi.mock("@/lib/doctor-checks", () => ({
+  probeMcpServer: mockProbeMcpServer,
+}));
+
 import { NextRequest } from "next/server";
 import { proxy } from "@/proxy";
 import { EnvValidationError } from "@/lib/env";
+import { signJwt } from "@/lib/jwt";
+import { COOKIE_SA_SESSION } from "@/lib/sa-session";
 
 function makeRequest(
   url = "http://localhost:3000/",
@@ -135,6 +142,40 @@ describe("proxy — normal auth routing", () => {
     expect(res.headers.get("location")).toContain("/sa-setup");
   });
 
+  it("service_account + session + configured SA via valid JWT + /dashboard → allows (no redirect)", async () => {
+    mockGetEnv.mockReturnValue({
+      AUTH_MODE: "service_account",
+      BETTER_AUTH_SECRET: "mock-secret",
+      MCP_SERVER_URL: "http://localhost:4000/mcp",
+    });
+    mockGetSessionCookie.mockReturnValue("signed-cookie");
+
+    const validSaSession = signJwt({ customerId: "C01234567" }, "mock-secret");
+    const res = await proxy(
+      makeRequest("http://localhost:3000/dashboard", {
+        headers: { cookie: `${COOKIE_SA_SESSION}=${validSaSession}` },
+      }),
+    );
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("service_account + session + invalid SA session JWT + /dashboard → redirects to /sa-setup", async () => {
+    mockGetEnv.mockReturnValue({
+      AUTH_MODE: "service_account",
+      BETTER_AUTH_SECRET: "mock-secret",
+    });
+    mockGetSessionCookie.mockReturnValue("signed-cookie");
+
+    const invalidSaSession = "invalid.jwt.signature";
+    const res = await proxy(
+      makeRequest("http://localhost:3000/dashboard", {
+        headers: { cookie: `${COOKIE_SA_SESSION}=${invalidSaSession}` },
+      }),
+    );
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/sa-setup");
+  });
+
   it("user_oauth + session + /sa-setup → redirects to /", async () => {
     mockGetEnv.mockReturnValue({ AUTH_MODE: "user_oauth" });
     mockGetSessionCookie.mockReturnValue("signed-cookie");
@@ -192,14 +233,16 @@ describe("proxy — MCP reachability gate", () => {
     mockGetEnv.mockReturnValue({
       AUTH_MODE: "service_account",
       MCP_SERVER_URL: "http://localhost:4000/mcp",
+      BETTER_AUTH_SECRET: "mock-secret",
     });
     mockGetSessionCookie.mockReturnValue("signed-cookie");
 
+    const validSaSession = signJwt({ customerId: "C01234567" }, "mock-secret");
     const { proxy: proxyImpl } = await import("@/proxy");
     const { NextRequest: Req } = await import("next/server");
     const res = await proxyImpl(
       new Req(new URL("http://localhost:3000/dashboard"), {
-        headers: { cookie: "cep_sa_customer_id=C01234567" },
+        headers: { cookie: `${COOKIE_SA_SESSION}=${validSaSession}` },
       }),
     );
 
@@ -223,14 +266,16 @@ describe("proxy — MCP reachability gate", () => {
     mockGetEnv.mockReturnValue({
       AUTH_MODE: "service_account",
       MCP_SERVER_URL: "http://localhost:4000/mcp",
+      BETTER_AUTH_SECRET: "mock-secret",
     });
     mockGetSessionCookie.mockReturnValue("signed-cookie");
 
+    const validSaSession = signJwt({ customerId: "C01234567" }, "mock-secret");
     const { proxy: proxyImpl } = await import("@/proxy");
     const { NextRequest: Req } = await import("next/server");
     const res = await proxyImpl(
       new Req(new URL("http://localhost:3000/dashboard"), {
-        headers: { cookie: "cep_sa_customer_id=C01234567" },
+        headers: { cookie: `${COOKIE_SA_SESSION}=${validSaSession}` },
       }),
     );
 
@@ -272,19 +317,21 @@ describe("proxy — MCP reachability gate", () => {
     mockGetEnv.mockReturnValue({
       AUTH_MODE: "service_account",
       MCP_SERVER_URL: "http://localhost:4000/mcp",
+      BETTER_AUTH_SECRET: "mock-secret",
     });
     mockGetSessionCookie.mockReturnValue("signed-cookie");
 
+    const validSaSession = signJwt({ customerId: "C01234567" }, "mock-secret");
     const { proxy: proxyImpl } = await import("@/proxy");
     const { NextRequest: Req } = await import("next/server");
     await proxyImpl(
       new Req(new URL("http://localhost:3000/dashboard"), {
-        headers: { cookie: "cep_sa_customer_id=C01234567" },
+        headers: { cookie: `${COOKIE_SA_SESSION}=${validSaSession}` },
       }),
     );
     await proxyImpl(
       new Req(new URL("http://localhost:3000/dashboard/extra"), {
-        headers: { cookie: "cep_sa_customer_id=C01234567" },
+        headers: { cookie: `${COOKIE_SA_SESSION}=${validSaSession}` },
       }),
     );
 
