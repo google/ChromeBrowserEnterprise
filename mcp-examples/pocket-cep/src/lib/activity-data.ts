@@ -16,6 +16,7 @@ import { LOG_TAGS } from "./constants";
 import { getErrorMessage } from "./errors";
 import { getOrFetch, CACHE_TAGS } from "./server-cache";
 import { getServiceAccountConfig } from "./sa-session";
+import type { ChromeAuditEvent } from "./activity-summarizer";
 
 /**
  * Per-user activity summary: event count and most recent event timestamp.
@@ -74,7 +75,7 @@ export async function getCachedActivity(
     key: `activity:${callerKey}:${days}`,
     ttlMs: ACTIVITY_TTL_MS,
     tags: [CACHE_TAGS.ACTIVITY],
-    fetcher: () => fetchActivity(accessToken, days, impersonatedUser),
+    fetcher: () => fetchActivity(accessToken, days, customerId, impersonatedUser),
   });
 }
 
@@ -101,20 +102,24 @@ export async function getActivitySafe(days: number = DEFAULT_ACTIVITY_DAYS): Pro
  * Pulls and groups Chrome audit events for the given caller, scoped to
  * `days` of history. Pagination stops at {@link ACTIVITY_MAX_EVENTS}.
  */
-async function fetchActivity(
+/**
+ * Fetches raw, paginated Chrome audit events for the given customer.
+ */
+export async function fetchRawActivity(
   tokenToUse: string,
   days: number,
+  customerId?: string,
   impersonatedUser?: string,
-): Promise<ActivityMap> {
+): Promise<ChromeAuditEvent[]> {
   const requestHeaders = await buildGoogleApiHeaders(tokenToUse);
 
   const baseUrl = new URL(
     "https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome",
   );
-  baseUrl.searchParams.set("customerId", "my_customer");
+  baseUrl.searchParams.set("customerId", customerId || "my_customer");
   baseUrl.searchParams.set("startTime", new Date(Date.now() - days * 86_400_000).toISOString());
 
-  const activities: RawActivity[] = [];
+  const activities: ChromeAuditEvent[] = [];
   let pageToken: string | undefined;
 
   do {
@@ -141,22 +146,27 @@ async function fetchActivity(
     }
 
     const data = (await response.json()) as {
-      items?: RawActivity[];
+      items?: ChromeAuditEvent[];
       nextPageToken?: string;
     };
     if (data.items?.length) activities.push(...data.items);
     pageToken = data.nextPageToken;
   } while (pageToken && activities.length < ACTIVITY_MAX_EVENTS);
 
+  return activities;
+}
+
+async function fetchActivity(
+  tokenToUse: string,
+  days: number,
+  customerId?: string,
+  impersonatedUser?: string,
+): Promise<ActivityMap> {
+  const activities = await fetchRawActivity(tokenToUse, days, customerId, impersonatedUser);
   return groupByUser(activities);
 }
 
-type RawActivity = {
-  actor?: { email?: string; profileId?: string };
-  id?: { time?: string };
-};
-
-function groupByUser(activities: RawActivity[]): ActivityMap {
+function groupByUser(activities: ChromeAuditEvent[]): ActivityMap {
   const map: ActivityMap = {};
   for (const event of activities) {
     const email = event?.actor?.email?.toLowerCase();

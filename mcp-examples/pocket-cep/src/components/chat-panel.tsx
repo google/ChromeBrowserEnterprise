@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
 import { PostureAlertsCard } from "./posture-alerts-card";
+import { SensitiveActivityChartCard } from "./sensitive-activity-chart-card";
 import { ArrowDown } from "lucide-react";
 import type { InvocationPart } from "@/lib/tool-part";
 import { getModelById } from "@/lib/models";
@@ -237,6 +238,10 @@ export function ChatPanel({
         <div ref={scrollRef} data-testid="chat-scroll" className="flex-1 overflow-y-auto px-6 py-8">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
             <PostureAlertsCard selectedUser={selectedUser} onAskFollowUp={handlePopulateInput} />
+            <SensitiveActivityChartCard
+              selectedUser={selectedUser}
+              onAskFollowUp={handlePopulateInput}
+            />
 
             {!isEmpty && (
               <div className="flex flex-col gap-5">
