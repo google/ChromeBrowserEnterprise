@@ -47,14 +47,14 @@ test.describe("Route protection", () => {
   });
 
   test("API routes return 401 without a session", async ({ request }) => {
-    const usersResponse = await request.get("/api/users");
-    expect(usersResponse.status()).toBe(401);
+    const alertsResponse = await request.post("/api/insights/posture-alerts");
+    expect(alertsResponse.status()).toBe(401);
 
     const toolsResponse = await request.get("/api/tools");
     expect(toolsResponse.status()).toBe(401);
 
     const chatResponse = await request.post("/api/chat", {
-      data: { message: "test", selectedUser: "test@test.com" },
+      data: { messages: [] },
     });
     expect(chatResponse.status()).toBe(401);
   });

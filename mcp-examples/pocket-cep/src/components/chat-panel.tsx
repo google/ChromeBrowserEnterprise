@@ -23,26 +23,13 @@ import { authAwareFetch } from "@/lib/auth-aware-fetch";
 import type { Prompt } from "./registry-panel";
 
 type ChatPanelProps = {
-  selectedUser: string;
   pendingPrompt?: Prompt | null;
   onPromptExecuted?: () => void;
   onToolInvocation?: (invocation: InvocationPart) => void;
-  onClearSelectedUser?: () => void;
 };
 
-export function ChatPanel({
-  selectedUser,
-  pendingPrompt,
-  onPromptExecuted,
-  onToolInvocation,
-  onClearSelectedUser,
-}: ChatPanelProps) {
+export function ChatPanel({ pendingPrompt, onPromptExecuted, onToolInvocation }: ChatPanelProps) {
   const [input, setInput] = useState("");
-
-  const selectedUserRef = useRef(selectedUser);
-  useEffect(() => {
-    selectedUserRef.current = selectedUser;
-  }, [selectedUser]);
 
   /**
    * Serializes the current model selection + (optional) BYOK key each
@@ -50,7 +37,7 @@ export function ChatPanel({
    * the user can flip models mid-session without rebuilding the transport.
    */
   const resolveBody = useCallback(() => {
-    return { selectedUser: selectedUserRef.current, modelId: getStoredModelId() ?? undefined };
+    return { modelId: getStoredModelId() ?? undefined };
   }, []);
 
   const resolveHeaders = useCallback((): Record<string, string> => {
@@ -237,11 +224,8 @@ export function ChatPanel({
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div ref={scrollRef} data-testid="chat-scroll" className="flex-1 overflow-y-auto px-6 py-8">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-            <PostureAlertsCard selectedUser={selectedUser} onAskFollowUp={handlePopulateInput} />
-            <SensitiveActivityChartCard
-              selectedUser={selectedUser}
-              onAskFollowUp={handlePopulateInput}
-            />
+            <PostureAlertsCard onAskFollowUp={handlePopulateInput} />
+            <SensitiveActivityChartCard onAskFollowUp={handlePopulateInput} />
 
             {!isEmpty && (
               <div className="flex flex-col gap-5">
@@ -302,8 +286,6 @@ export function ChatPanel({
         onSubmit={handleSubmit}
         isStreaming={isStreaming}
         onStop={stop}
-        selectedUser={selectedUser}
-        onClearSelectedUser={onClearSelectedUser}
       />
     </div>
   );

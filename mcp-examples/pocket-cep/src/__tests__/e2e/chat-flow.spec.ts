@@ -13,15 +13,7 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Chat transport wiring", () => {
-  test("body tracks current selectedUser and messages across sends", async ({ page }) => {
-    await page.route("**/api/users**", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ users: [] }),
-      }),
-    );
-
+  test("body tracks messages across sends", async ({ page }) => {
     const chatRequests: Array<Record<string, unknown>> = [];
 
     await page.route("**/api/chat", async (route) => {
@@ -38,25 +30,20 @@ test.describe("Chat transport wiring", () => {
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/dashboard/);
 
-    const searchInput = page.getByRole("combobox", { name: /Investigate user/i });
     const textarea = page.getByRole("textbox", { name: /Chat message input/i });
 
-    await searchInput.fill("alice@example.com");
-    await searchInput.press("Enter");
     await textarea.fill("first question");
     await textarea.press("Enter");
 
     await expect.poll(() => chatRequests.length).toBe(1);
-    expect(chatRequests[0]).toMatchObject({ selectedUser: "alice@example.com" });
     expect(Array.isArray(chatRequests[0].messages)).toBe(true);
-    expect((chatRequests[0].messages as unknown[]).length).toBeGreaterThan(0);
+    expect((chatRequests[0].messages as unknown[]).length).toBe(1);
 
-    await searchInput.fill("bob@example.com");
-    await searchInput.press("Enter");
     await textarea.fill("second question");
     await textarea.press("Enter");
 
     await expect.poll(() => chatRequests.length).toBe(2);
-    expect(chatRequests[1]).toMatchObject({ selectedUser: "bob@example.com" });
+    expect(Array.isArray(chatRequests[1].messages)).toBe(true);
+    expect((chatRequests[1].messages as unknown[]).length).toBe(3); // user question 1, assistant reply (mocked empty), user question 2
   });
 });

@@ -30,8 +30,6 @@ type ApiResponse = {
 };
 
 export type PostureAlertsCardProps = {
-  /** Currently selected user email, or empty string for org-wide view. */
-  selectedUser: string;
   /** Callback to dispatch an investigation query into the chat. */
   onAskFollowUp: (promptText: string) => void;
 };
@@ -39,12 +37,11 @@ export type PostureAlertsCardProps = {
 /**
  * Renders a list of active environment setup and posture alerts.
  */
-export function PostureAlertsCard({ selectedUser, onAskFollowUp }: PostureAlertsCardProps) {
-  const fetcher = useCallback(async ([url, user]: [string, string]): Promise<ApiResponse> => {
+export function PostureAlertsCard({ onAskFollowUp }: PostureAlertsCardProps) {
+  const fetcher = useCallback(async (url: string): Promise<ApiResponse> => {
     const response = await authAwareFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ selectedUser: user }),
     });
 
     if (!response.ok) {
@@ -54,7 +51,7 @@ export function PostureAlertsCard({ selectedUser, onAskFollowUp }: PostureAlerts
     return response.json();
   }, []);
 
-  const swrKey = ["/api/insights/posture-alerts", selectedUser] as const;
+  const swrKey = "/api/insights/posture-alerts";
 
   const { data, isLoading, isValidating, error } = useSWR(swrKey, fetcher, {
     revalidateOnFocus: false,

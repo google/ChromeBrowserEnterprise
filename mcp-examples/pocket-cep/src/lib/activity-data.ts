@@ -8,30 +8,10 @@
  * `getOrFetch` slot the API would.
  */
 
-import { getEnv } from "./env";
-import { getGoogleAccessToken, buildGoogleApiHeaders } from "./access-token";
-import { AuthError, isAuthError, toAuthError } from "./auth-errors";
-import { buildCallerCacheKey } from "./cache-key";
+import { buildGoogleApiHeaders } from "./access-token";
+import { toAuthError } from "./auth-errors";
 import { LOG_TAGS } from "./constants";
-import { getErrorMessage } from "./errors";
-import { getOrFetch, CACHE_TAGS } from "./server-cache";
-import { getServiceAccountConfig } from "./sa-session";
 import type { ChromeAuditEvent } from "./activity-summarizer";
-
-/**
- * Per-user activity summary: event count and most recent event timestamp.
- */
-export type UserActivity = {
-  eventCount: number;
-  lastEventAt?: string;
-};
-
-/**
- * Map keyed by lowercase user email.
- */
-export type ActivityMap = Record<string, UserActivity>;
-
-const ACTIVITY_TTL_MS = 10 * 60 * 1000;
 
 /**
  * Default and maximum days of history. Defaults match the route handler
@@ -42,61 +22,6 @@ export const MAX_ACTIVITY_DAYS = 30;
 
 const ACTIVITY_MAX_EVENTS = 250;
 const ACTIVITY_PAGE_SIZE = 250;
-
-/**
- * Returns the cached activity map for the current caller. Resolves the
- * Google access token (user OAuth or ADC fallback) and builds the same
- * `getOrFetch` key the API route uses, so a single warm cache serves
- * both code paths.
- *
- * Throws `AuthError` on credential failure so the caller (route or RSC)
- * can decide how to show it. Non-auth failures resolve to an empty
- * map — activity badges are optional.
- */
-export async function getCachedActivity(
-  days: number = DEFAULT_ACTIVITY_DAYS,
-): Promise<ActivityMap> {
-  const config = getEnv();
-  const accessToken = await getGoogleAccessToken();
-  if (!accessToken) {
-    throw new AuthError({
-      code: "no_credentials",
-      source: "admin-sdk",
-      message: "No Google access token available.",
-      remedy: "Configure your credentials or sign in.",
-    });
-  }
-  const saConfig = config.AUTH_MODE === "service_account" ? await getServiceAccountConfig() : null;
-  const impersonatedUser = saConfig?.impersonatedUser;
-  const customerId = saConfig?.customerId;
-  const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
-
-  return getOrFetch({
-    key: `activity:${callerKey}:${days}`,
-    ttlMs: ACTIVITY_TTL_MS,
-    tags: [CACHE_TAGS.ACTIVITY],
-    fetcher: () => fetchActivity(accessToken, days, customerId, impersonatedUser),
-  });
-}
-
-/**
- * Variant of {@link getCachedActivity} that swallows auth errors and
- * returns an empty map. Use from RSC entry points where an auth failure
- * shouldn't 500 the page — the client banner picks it up via the next
- * client-side fetch and lights up.
- */
-export async function getActivitySafe(days: number = DEFAULT_ACTIVITY_DAYS): Promise<ActivityMap> {
-  try {
-    return await getCachedActivity(days);
-  } catch (error) {
-    if (isAuthError(error)) {
-      console.log(LOG_TAGS.USERS, "RSC activity prefetch saw AuthError; deferring to client.");
-      return {};
-    }
-    console.log(LOG_TAGS.USERS, "RSC activity prefetch failed:", getErrorMessage(error));
-    return {};
-  }
-}
 
 /**
  * Pulls and groups Chrome audit events for the given caller, scoped to
@@ -154,32 +79,6 @@ export async function fetchRawActivity(
   } while (pageToken && activities.length < ACTIVITY_MAX_EVENTS);
 
   return activities;
-}
-
-async function fetchActivity(
-  tokenToUse: string,
-  days: number,
-  customerId?: string,
-  impersonatedUser?: string,
-): Promise<ActivityMap> {
-  const activities = await fetchRawActivity(tokenToUse, days, customerId, impersonatedUser);
-  return groupByUser(activities);
-}
-
-function groupByUser(activities: ChromeAuditEvent[]): ActivityMap {
-  const map: ActivityMap = {};
-  for (const event of activities) {
-    const email = event?.actor?.email?.toLowerCase();
-    if (!email) continue;
-    const entry = map[email] ?? { eventCount: 0 };
-    entry.eventCount += 1;
-    const time = event?.id?.time;
-    if (time && (!entry.lastEventAt || time > entry.lastEventAt)) {
-      entry.lastEventAt = time;
-    }
-    map[email] = entry;
-  }
-  return map;
 }
 
 /**

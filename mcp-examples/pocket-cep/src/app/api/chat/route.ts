@@ -34,7 +34,6 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const messages: UIMessage[] = Array.isArray(body.messages) ? body.messages : [];
-  const selectedUser: string = typeof body.selectedUser === "string" ? body.selectedUser : "";
   const modelId: string | undefined = typeof body.modelId === "string" ? body.modelId : undefined;
 
   const config = getEnv();
@@ -43,10 +42,7 @@ export async function POST(request: Request) {
     getActiveCustomerId(),
   ]);
 
-  console.log(
-    LOG_TAGS.CHAT,
-    `Chat for ${selectedUser || "(no user)"}, ${messages.length} messages`,
-  );
+  console.log(LOG_TAGS.CHAT, `New chat message stream starting: ${messages.length} messages`);
 
   let tools;
   try {
@@ -66,7 +62,7 @@ export async function POST(request: Request) {
 
   const result = streamText({
     model,
-    system: buildSystemPrompt(selectedUser, customerId),
+    system: buildSystemPrompt(customerId),
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: stepCountIs(MAX_AGENT_ITERATIONS),

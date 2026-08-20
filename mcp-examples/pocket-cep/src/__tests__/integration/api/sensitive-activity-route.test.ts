@@ -149,33 +149,6 @@ describe("GET /api/insights/sensitive-activity", () => {
     expect(todayPoint.threatCount).toBe(1);
   });
 
-  it("filters by selectedUser when provided", async () => {
-    const today = new Date();
-    const mockEvents: ChromeAuditEvent[] = [
-      {
-        id: { time: today.toISOString() },
-        actor: { email: "dylan@google.com" },
-        eventName: "DLP_RULE_VIOLATION",
-        parameters: [{ name: "RULE_NAME", value: "SSN Protection" }],
-      },
-      {
-        id: { time: today.toISOString() },
-        actor: { email: "other@google.com" },
-        eventName: "DLP_RULE_VIOLATION",
-        parameters: [{ name: "RULE_NAME", value: "SSN Protection" }],
-      },
-    ];
-
-    mockFetchRawActivity.mockResolvedValue(mockEvents);
-
-    const res = await GET(makeRequest("?days=1&selectedUser=dylan@google.com"));
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.chartData).toHaveLength(1);
-    expect(body.chartData[0].dlpCount).toBe(1); // other@google.com is ignored!
-  });
-
   it("counts events with custom event names but DLP parameters as DLP triggers", async () => {
     const today = new Date();
     const mockEvents: ChromeAuditEvent[] = [

@@ -124,25 +124,15 @@ export const ADMIN_CONSOLE_URLS = {
 } as const;
 
 /**
- * Builds the system prompt injected into every LLM conversation. The
- * selectedUserEmail is interpolated so the LLM knows which user the
- * admin is investigating and can scope its MCP tool calls accordingly.
+ * Builds the system prompt injected into every LLM conversation.
  */
-export function buildSystemPrompt(selectedUserEmail: string, customerId?: string): string {
+export function buildSystemPrompt(customerId?: string): string {
   const tenantContext = customerId
     ? `\nYou are operating against Google Workspace / Chrome Enterprise customer ID "${customerId}". Always pass customerId="${customerId}" when invoking tools that require or accept a customer ID.\n`
     : "";
 
-  const userContext = selectedUserEmail
-    ? `\nThe admin is investigating user "${selectedUserEmail}". When calling MCP tools,
-always scope to this user:
-- get_chrome_activity_log: use userKey="${selectedUserEmail}"
-- check_user_cep_license: use userId="${selectedUserEmail}"
-- Other tools: filter or focus on this user where applicable\n`
-    : "";
-
   return `You are a Chrome Enterprise Premium admin assistant.
-${tenantContext}${userContext}
+${tenantContext}
 You have access to MCP tools from the Chrome Enterprise Premium server. Use them to:
 - Check the user's recent Chrome activity (login events, policy violations, downloads)
 - Verify their CEP license status

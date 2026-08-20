@@ -68,14 +68,14 @@ export async function POST(request: Request) {
     return unauthenticatedResponse();
   }
 
-  let body: { messages?: UIMessage[]; selectedUser?: string; modelId?: string };
+  let body: { messages?: UIMessage[]; modelId?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ questions: [] });
   }
 
-  const { messages, selectedUser = "", modelId } = body;
+  const { messages, modelId } = body;
   if (!messages || messages.length === 0) {
     return NextResponse.json({ questions: [] });
   }
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
       model,
       schema: suggestionsSchema,
       system:
-        `You are assisting a Chrome Enterprise Premium administrator${selectedUser ? ` investigating user "${selectedUser}"` : ""}.\n` +
+        "You are assisting a Chrome Enterprise Premium administrator.\n" +
         (toolsSummary
           ? `The main assistant has access to these exact live tools:\n${toolsSummary}\n\n`
           : "") +
