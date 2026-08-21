@@ -266,7 +266,11 @@ export async function getGoogleAccessToken(options?: {
   try {
     const auth = getAuth();
     const tokenResult = await auth.api.getAccessToken({
-      body: { providerId: "google" },
+      body: {
+        providerId: "google",
+        useAccountCookie: true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
       headers: await headers(),
     });
 

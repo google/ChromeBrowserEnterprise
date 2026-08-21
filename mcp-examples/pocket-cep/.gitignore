@@ -43,3 +43,10 @@ sa-key.json
 *.tsbuildinfo
 next-env.d.ts
 test-results/
+
+# Corp Run / Google Internal Deployment (ignored for public GitHub security)
+Dockerfile.frontend
+Dockerfile.mcp
+scripts/build-and-push.sh
+scripts/deploy-preflight.sh
+scripts/provision-secrets.sh
