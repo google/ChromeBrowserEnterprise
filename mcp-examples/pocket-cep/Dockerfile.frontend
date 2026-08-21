@@ -14,6 +14,7 @@ RUN BETTER_AUTH_SECRET=placeholder_secret_for_build_only_openssl_rand_base64_32 
     GOOGLE_CLIENT_ID=123-placeholder.apps.googleusercontent.com \
     GOOGLE_CLIENT_SECRET=placeholder_client_secret \
     BETTER_AUTH_URL=http://localhost:3000 \
+    AUTH_MODE=user_oauth \
     npm run build
 
 # Production image, copy all the files and run next
