@@ -1,0 +1,18 @@
+# Cloud Build configuration to build and push ONLY the frontend container.
+# Used in split-development mode to avoid overwriting the custom mcp-server container.
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '-t', '${_REGISTRY_URL}/frontend:latest',
+      '-f', 'Dockerfile.frontend',
+      '.'
+    ]
+
+images:
+  - '${_REGISTRY_URL}/frontend:latest'
+
+# Write logs to Cloud Logging only to allow streaming logs through corporate VPC perimeters
+options:
+  logging: CLOUD_LOGGING_ONLY
