@@ -137,6 +137,14 @@ export async function POST(_request: Request) {
         {},
         accessToken,
       );
+
+      const trText =
+        typeof customerIdResult.content === "string"
+          ? customerIdResult.content
+          : JSON.stringify(customerIdResult.content);
+      const authErr = toAuthError(trText, "mcp-tool") ?? toAuthError(customerIdResult, "mcp-tool");
+      if (authErr) throw authErr;
+
       if (customerIdResult && !customerIdResult.isError) {
         const data = customerIdResult.structuredContent as { customerId?: string; id?: string };
         const resolvedId = data?.customerId || data?.id;
@@ -148,6 +156,7 @@ export async function POST(_request: Request) {
         console.warn("[posture] get_customer_id tool returned error:", customerIdResult);
       }
     } catch (e) {
+      if (isAuthError(e)) throw e;
       console.error("[posture] Failed to call get_customer_id tool:", e);
     }
   }
