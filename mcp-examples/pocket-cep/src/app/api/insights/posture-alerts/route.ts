@@ -122,10 +122,44 @@ export async function POST(_request: Request) {
   }
 
   const config = getEnv();
-  const [accessToken, customerId] = await Promise.all([
+  const [accessToken, envCustomerId] = await Promise.all([
     getGoogleAccessToken(),
     getActiveCustomerId(),
   ]);
+
+  let customerId = envCustomerId;
+  if (!customerId && accessToken) {
+    try {
+      console.log("[posture] customerId is empty. Resolving via get_customer_id tool...");
+      const customerIdResult = await callMcpTool(
+        config.MCP_SERVER_URL,
+        "get_customer_id",
+        {},
+        accessToken,
+      );
+
+      const trText =
+        typeof customerIdResult.content === "string"
+          ? customerIdResult.content
+          : JSON.stringify(customerIdResult.content);
+      const authErr = toAuthError(trText, "mcp-tool") ?? toAuthError(customerIdResult, "mcp-tool");
+      if (authErr) throw authErr;
+
+      if (customerIdResult && !customerIdResult.isError) {
+        const data = customerIdResult.structuredContent as { customerId?: string; id?: string };
+        const resolvedId = data?.customerId || data?.id;
+        if (resolvedId) {
+          customerId = resolvedId;
+          console.log(`[posture] Successfully resolved customerId: ${customerId}`);
+        }
+      } else {
+        console.warn("[posture] get_customer_id tool returned error:", customerIdResult);
+      }
+    } catch (e) {
+      if (isAuthError(e)) throw e;
+      console.error("[posture] Failed to call get_customer_id tool:", e);
+    }
+  }
 
   try {
     const callerKey = buildCallerCacheKey(config.MCP_SERVER_URL, accessToken, customerId);
