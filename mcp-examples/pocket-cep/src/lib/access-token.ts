@@ -269,8 +269,7 @@ export async function getGoogleAccessToken(options?: {
       body: {
         providerId: "google",
         useAccountCookie: true,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any,
+      } as { providerId: string; useAccountCookie?: boolean },
       headers: await headers(),
     });
 

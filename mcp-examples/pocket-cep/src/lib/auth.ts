@@ -57,7 +57,7 @@ function createAuth() {
             clientId: config.GOOGLE_CLIENT_ID,
             clientSecret: config.GOOGLE_CLIENT_SECRET,
             scope: ADMIN_SCOPES,
-            prompt: "select_account",
+            prompt: "consent select_account",
             accessType: "offline",
           },
         },
