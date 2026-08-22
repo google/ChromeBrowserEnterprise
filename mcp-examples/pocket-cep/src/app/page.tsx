@@ -23,6 +23,8 @@ import { getEnv } from "@/lib/env";
  * - In service_account mode, redirects to /sa-setup to configure target Customer ID and checklists.
  * - In user_oauth mode, displays standard Google-style centered sign-in card.
  */
+export const dynamic = "force-dynamic";
+
 export default async function LandingPage() {
   const env = getEnv();
   if (env.AUTH_MODE === "service_account") {
