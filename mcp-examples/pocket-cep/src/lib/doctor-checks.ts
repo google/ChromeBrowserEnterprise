@@ -52,6 +52,27 @@ export async function probeMcpServer(serverUrl: string): Promise<CheckResult> {
 }
 
 /**
+ * Probes the MCP server with retries over a total budget of ~5 seconds.
+ * Automatically retries when container cold-starts cause transient ECONNREFUSED errors.
+ */
+export async function probeMcpServerWithRetry(
+  serverUrl: string,
+  maxRetries = 4,
+  delaysMs = [500, 1000, 1500, 2000],
+): Promise<CheckResult> {
+  let result = await probeMcpServer(serverUrl);
+  if (result.ok) return result;
+
+  for (let i = 0; i < maxRetries && i < delaysMs.length; i++) {
+    await new Promise((resolve) => setTimeout(resolve, delaysMs[i]));
+    result = await probeMcpServer(serverUrl);
+    if (result.ok) return result;
+  }
+
+  return result;
+}
+
+/**
  * Probes an Anthropic API key by sending a minimal messages request.
  *
  * Any non-auth status (200, 400, 422, 429) means the key itself is valid.
