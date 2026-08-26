@@ -21,6 +21,12 @@ vi.mock("@/lib/env", async (importOriginal) => {
   };
 });
 
+const mockProbeMcpServerWithRetry = vi.fn().mockResolvedValue({ ok: true, message: "ok" });
+vi.mock("@/lib/doctor-checks", () => ({
+  probeMcpServer: vi.fn().mockResolvedValue({ ok: true, message: "ok" }),
+  probeMcpServerWithRetry: (...args: unknown[]) => mockProbeMcpServerWithRetry(...args),
+}));
+
 vi.mock("better-auth/cookies", () => ({
   getSessionCookie: mockGetSessionCookie,
 }));
@@ -204,6 +210,7 @@ describe("proxy — MCP reachability gate", () => {
     vi.doMock("better-auth/cookies", () => ({ getSessionCookie: mockGetSessionCookie }));
     vi.doMock("@/lib/doctor-checks", () => ({
       probeMcpServer: vi.fn().mockResolvedValue({ ok: false, message: "fetch failed" }),
+      probeMcpServerWithRetry: vi.fn().mockResolvedValue({ ok: false, message: "fetch failed" }),
     }));
     mockGetEnv.mockReturnValue({
       AUTH_MODE: "service_account",
@@ -235,6 +242,7 @@ describe("proxy — MCP reachability gate", () => {
     vi.doMock("better-auth/cookies", () => ({ getSessionCookie: mockGetSessionCookie }));
     vi.doMock("@/lib/doctor-checks", () => ({
       probeMcpServer: vi.fn().mockResolvedValue({ ok: true, message: "ok" }),
+      probeMcpServerWithRetry: vi.fn().mockResolvedValue({ ok: true, message: "ok" }),
     }));
     mockGetEnv.mockReturnValue({
       AUTH_MODE: "service_account",
@@ -263,7 +271,10 @@ describe("proxy — MCP reachability gate", () => {
       return { ...actual, getEnv: mockGetEnv };
     });
     vi.doMock("better-auth/cookies", () => ({ getSessionCookie: mockGetSessionCookie }));
-    vi.doMock("@/lib/doctor-checks", () => ({ probeMcpServer: probe }));
+    vi.doMock("@/lib/doctor-checks", () => ({
+      probeMcpServer: probe,
+      probeMcpServerWithRetry: probe,
+    }));
     mockGetEnv.mockReturnValue({
       AUTH_MODE: "user_oauth",
       MCP_SERVER_URL: "http://localhost:4000/mcp",
@@ -284,7 +295,10 @@ describe("proxy — MCP reachability gate", () => {
       return { ...actual, getEnv: mockGetEnv };
     });
     vi.doMock("better-auth/cookies", () => ({ getSessionCookie: mockGetSessionCookie }));
-    vi.doMock("@/lib/doctor-checks", () => ({ probeMcpServer: probe }));
+    vi.doMock("@/lib/doctor-checks", () => ({
+      probeMcpServer: probe,
+      probeMcpServerWithRetry: probe,
+    }));
     mockGetEnv.mockReturnValue({
       AUTH_MODE: "service_account",
       MCP_SERVER_URL: "http://localhost:4000/mcp",

@@ -29,7 +29,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 import { getEnv, isEnvValidationError } from "@/lib/env";
 import { renderEnvErrorHtml, renderMcpUnreachableHtml } from "@/lib/env-error-page";
-import { probeMcpServer } from "@/lib/doctor-checks";
+import { probeMcpServerWithRetry } from "@/lib/doctor-checks";
 
 /**
  * Cached "ok" results for the MCP reachability check. The dashboard
@@ -44,15 +44,15 @@ const MCP_CACHE_TTL_OK_MS = 30_000;
 /**
  * Returns true if the MCP server responds at all (any HTTP status —
  * even 405 means the server is up). Caches successful results for
- * 30 seconds to avoid a probe per request; failures re-probe every
- * time so the dashboard unblocks the moment MCP comes back.
+ * 30 seconds to avoid a probe per request. Uses ~5s retry backoff on
+ * failure to tolerate container cold-starts.
  */
 async function isMcpReachable(url: string): Promise<boolean> {
   const now = Date.now();
   if (mcpHealthCache?.ok && now - mcpHealthCache.checkedAt < MCP_CACHE_TTL_OK_MS) {
     return true;
   }
-  const result = await probeMcpServer(url);
+  const result = await probeMcpServerWithRetry(url);
   mcpHealthCache = { ok: result.ok, checkedAt: now };
   return result.ok;
 }
