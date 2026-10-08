@@ -18,4 +18,4 @@
 👉 **Get Started:**
 * [**Full Deployment Guide & Documentation (`./cera/README.md`)**](./cera/README.md)
 * [**Disclaimer, Terms of Use & Tenant Privacy Policy (`./cera/DISCLAIMER.md`)**](./cera/DISCLAIMER.md)
-* [**Source Code (`./cera/`)**](./cera/)
+* [**Apps Script Source Code (`./cera/appsscript/`)**](./cera/appsscript/)

@@ -65,7 +65,7 @@ They show how data leaves the organization through the browser, which organizati
 
 ## 🚀 Step-by-Step Deployment Guide (`clasp push`)
 
-CERA is a **container-bound Google Sheets script**. All source files live directly in this directory (`AppsScript-examples/cera/`).
+CERA is a **container-bound Google Sheets script**. All Apps Script runtime files live in [`./appsscript/`](./appsscript/).
 
 ### Step 1: Create a Host Google Sheet & Copy Its Script ID
 1. Open [sheets.new](https://sheets.new) in your Google Workspace account to create a new blank spreadsheet, and name it **`CERA — Chrome Egress Risk Analysis`**.
@@ -74,16 +74,16 @@ CERA is a **container-bound Google Sheets script**. All source files live direct
 4. Scroll down to **IDs** and copy the **Script ID**.
 
 ### Step 2: Push the CERA Files to Your Google Sheet
-1. Clone this repository and navigate to `AppsScript-examples`:
+1. Clone this repository and navigate to `AppsScript-examples/cera`:
    ```bash
    git clone https://github.com/google/ChromeBrowserEnterprise.git
-   cd ChromeBrowserEnterprise/AppsScript-examples
+   cd ChromeBrowserEnterprise/AppsScript-examples/cera
    ```
-2. Create a local `.clasp.json` file in `AppsScript-examples/` pointing `rootDir` to `"cera"` and pasting your **Script ID**:
+2. Create a local `.clasp.json` file in `AppsScript-examples/cera/` pointing `rootDir` to `"appsscript"` and pasting your **Script ID**:
    ```json
    {
      "scriptId": "PASTE_YOUR_SCRIPT_ID_HERE",
-     "rootDir": "cera"
+     "rootDir": "appsscript"
    }
    ```
 3. Push all CERA `.gs` modules, `UiDialog.html`, and `appsscript.json` into your Google Sheet:
@@ -99,7 +99,7 @@ CERA is a **container-bound Google Sheets script**. All source files live direct
 
 ---
 
-## 📂 Files in This Directory (`AppsScript-examples/cera/`)
+## 📂 Apps Script Files (`./appsscript/`)
 
 | File | Responsibility |
 |---|---|
