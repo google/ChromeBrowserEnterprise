@@ -502,7 +502,29 @@ function _preflightSavePlan_(result) {
       perDay: {}
     };
     result.estimate.perEvent.forEach(e => { plan.perDay[e.event] = [e.perWeekday, e.perWeekendDay]; });
-    PropertiesService.getDocumentProperties().setProperty(CERA_PREFLIGHT_PLAN_KEY, JSON.stringify(plan));
+    const docProps = PropertiesService.getDocumentProperties();
+    docProps.setProperty(CERA_PREFLIGHT_PLAN_KEY, JSON.stringify(plan));
+    const est = result.estimate || {};
+    const m = est.measured || {};
+    const leg = est.legacy || {};
+    const pfDiag = {
+      savedMs: plan.savedMs,
+      days: result.days,
+      estimatedEvents: Number(est.totalEvents) || 0,
+      estimatedLo: Number(est.totalLo) || 0,
+      estimatedHi: Number(est.totalHi) || 0,
+      estimatedPartitions: Number(leg.partitions) || 0,
+      estimatedWallMinutes: Number(leg.wallMinutes) || 0,
+      activeWeeksCount: result.activity.weeks.filter(Boolean).length,
+      totalWeeksCount: result.activity.weeks.length,
+      serialFullPageMs: Number(m.serialFullPageMs) || 0,
+      fullPageBytes: Number(m.fullPageBytes) || 0,
+      trimmedPageMs: Number(m.trimmedPageMs) || 0,
+      trimmedPageBytes: Number(m.trimmedPageBytes) || 0,
+      probeRequests: Number(m.probeRequests) || 0,
+      parallelReqPerSec: Number(m.parallelReqPerSec) || 0
+    };
+    docProps.setProperty('CERA_LAST_PREFLIGHT_DIAG', JSON.stringify(pfDiag));
   } catch (e) {
     console.warn('[Preflight] Could not save the ingestion plan: ' + e.message);
   }
@@ -718,6 +740,24 @@ function runAdminPolicyPrecheck() {
   });
 
   const activePoliciesCount = policies.filter(p => p.status === 'enabled' || p.status === 'inferred').length;
+  const allReady = activePoliciesCount === policies.length;
+
+  try {
+    const policyMap = {};
+    policies.forEach(p => {
+      policyMap[p.id] = { status: p.status, source: p.source };
+    });
+    const policyDiag = {
+      checkedAtUtc: new Date().toISOString(),
+      rootOuResolved: !!rootOuId,
+      policyApiReachable: policyApiReachable,
+      allReady: allReady,
+      activePoliciesCount: activePoliciesCount,
+      totalPoliciesCount: policies.length,
+      policies: policyMap
+    };
+    PropertiesService.getDocumentProperties().setProperty('CERA_LAST_POLICY_PRECHECK', JSON.stringify(policyDiag));
+  } catch (e) {}
 
   return {
     rootOuId: rootOuId,
@@ -725,7 +765,7 @@ function runAdminPolicyPrecheck() {
     policies: policies,
     activePoliciesCount: activePoliciesCount,
     totalPoliciesCount: policies.length,
-    allReady: activePoliciesCount === policies.length
+    allReady: allReady
   };
 }
 

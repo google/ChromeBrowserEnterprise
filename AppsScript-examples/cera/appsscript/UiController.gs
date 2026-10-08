@@ -320,6 +320,10 @@ function emergencyResetIngestion(forceReset) {
       };
     }
 
+    if (existing && existing.folderId && typeof ceraRecordDiagLifecycle_ === 'function') {
+      ceraRecordDiagLifecycle_(existing, 'STOPPED', 'EMERGENCY_RESET', 'User triggered Emergency Reset.');
+    }
+
     PropertiesService.getDocumentProperties().deleteProperty('SIERRA_SESSION');
     PropertiesService.getDocumentProperties().deleteProperty('CERA_CURRENT_ACTIVITY_ID');
     PropertiesService.getDocumentProperties().deleteProperty('CERA_ANALYSIS_EXECUTED');

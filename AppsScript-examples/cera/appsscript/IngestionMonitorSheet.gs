@@ -111,6 +111,12 @@ var IngestionMonitorSheet = {
     const currentLogDate = state.currentLogDateStr || state.currentLogTimeStr || (isIdle || status === 'FAILED' ? T('mon.status.stopped') : (status === 'PAUSED' ? T('mon.sheet.streamStatus.paused') : T('mon.eta.calculating')));
     const startDate = isIdle ? '--' : (state.startDateStr || T('mon.sheet.origin'));
     const folderUrl = state.folderUrl || (state.folderId ? `https://drive.google.com/drive/folders/${state.folderId}` : '');
+    let logFolderUrl = state.logFolderUrl || '';
+    if (!logFolderUrl && state.folderId && typeof ceraGetDiagLogMeta_ === 'function') {
+      const diagMeta = ceraGetDiagLogMeta_(state.folderId);
+      if (diagMeta && diagMeta.logFolderUrl) logFolderUrl = diagMeta.logFolderUrl;
+    }
+    if (!logFolderUrl) logFolderUrl = folderUrl;
     const folderName = state.folderName || (isIdle ? T('common.na') : T('mon.folderDefault'));
     const fileIndex = state.fileIndex || partitions.length || 1;
     const currentRows = isIdle ? 0 : Number(state.currentSheetRows || 1);
@@ -397,6 +403,13 @@ var IngestionMonitorSheet = {
     }
 
     const fbRow = nextRow + 2;
+    if (logFolderUrl) {
+      sheet.getRange(fbRow, 5, 1, 2).merge()
+        .setFormula(`=HYPERLINK("${logFolderUrl}", "${linkLabel(T('mon.btn.openLogs'))}")`)
+        .setBackground('#F8FAFC').setFontColor('#0B57D0').setFontSize(9.5).setFontWeight('bold')
+        .setHorizontalAlignment('center').setVerticalAlignment('middle')
+        .setBorder(true, true, true, true, false, false, '#CBD5E1', SpreadsheetApp.BorderStyle.SOLID);
+    }
     sheet.getRange(fbRow, 7, 1, 2).merge()
       .setFormula(`=HYPERLINK("${feedbackUrl}", "${linkLabel(T('mon.btn.reportProblem'))}")`)
       .setBackground('#F8FAFC').setFontColor('#0B57D0').setFontSize(9.5).setFontWeight('bold')

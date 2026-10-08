@@ -460,6 +460,26 @@ function executeDlpAnalysis(params) {
     PropertiesService.getDocumentProperties().setProperty('CERA_ANALYSIS_EXECUTED', 'true');
   } catch (cpErr) {}
 
+  try {
+    if (typeof ceraRecordDiagAnalysisSummary_ === 'function') {
+      const diagFolderId = extractFolderId((params.driveFolderInput || '').trim());
+      if (diagFolderId) {
+        ceraRecordDiagAnalysisSummary_(diagFolderId, {
+          sheetsTotal: coverage.sheetsTotal,
+          sheetsRead: coverage.sheetsRead,
+          rowsRead: coverage.rowsRead,
+          rowsMerged: coverage.rowsMerged,
+          rowsDropped: coverage.rowsDropped,
+          actions: coverage.actions,
+          truncated: coverage.truncated,
+          slidesGenerated: !!presentationUrl,
+          sheetsGenerated: !!params.generateSheets,
+          errorsCount: Array.isArray(errors) ? errors.length : 0
+        });
+      }
+    }
+  } catch (dErr) {}
+
   return {
     success: true,
     slidesUrl: presentationUrl,

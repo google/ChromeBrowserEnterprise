@@ -506,7 +506,7 @@
 <body>
   <!-- Version badge & Language picker (always visible) -->
   <div class="lang-bar">
-    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.9</span>
+    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.10</span>
     <div class="lang-picker-group">
       <label for="lang-select" data-i18n="lang.label">Language</label>
       <select id="lang-select" onchange="changeLanguage(this.value)"></select>
@@ -588,7 +588,8 @@
       <div data-i18n-html="mon.autonomousNote" style="background: #F8FAFD; border: 1px dashed #CBD5E1; border-radius: 8px; padding: 10px 12px; font-size: 11px; color: #64748B; margin-top: 12px;">
         💡 <b>Autonomous Background Worker:</b> You do not need to keep this window open. You can safely close your browser or turn off your computer; execution runs autonomously via Google Apps Script and progress is continuously saved to the <i>⚡ Ingestion Monitor</i> sheet tab.
       </div>
-      <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+      <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+        <a data-i18n="mon.btn.openLogs" id="btn-mon-open-logs" href="#" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill" style="display: none;">📄 Open Diagnostic Logs (logs/) ↗</a>
         <a data-i18n="mon.btn.reportProblem" id="btn-mon-report-problem" href="https://goo.gle/cera-feedback" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill">🐞 Report a Problem ↗</a>
       </div>
     </div>
@@ -1819,6 +1820,16 @@
         document.getElementById('mon-drive-link').href = cs.folderUrl;
         document.getElementById('mon-drive-link').style.display = 'inline';
       }
+      const openLogsBtn = document.getElementById('btn-mon-open-logs');
+      if (openLogsBtn) {
+        const logUrl = cs.logFolderUrl || cs.folderUrl || '';
+        if (logUrl) {
+          openLogsBtn.href = logUrl;
+          openLogsBtn.style.display = 'inline-flex';
+        } else {
+          openLogsBtn.style.display = 'none';
+        }
+      }
 
       if (cs.currentLogDateStr) {
         setT('mon-progress-date', 'mon.processedUpTo', { date: cs.currentLogDateStr });
@@ -2138,6 +2149,9 @@
             folderId: res.folderId,
             folderName: res.folderName,
             folderUrl: res.folderUrl,
+            logFolderId: res.logFolderId || '',
+            logFolderUrl: res.logFolderUrl || '',
+            logFileId: res.logFileId || '',
             totalDays: days,
             etaSec: 0
           });

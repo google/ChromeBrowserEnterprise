@@ -220,6 +220,8 @@ function engageCloudIngestion(dateRangeDays) {
     PropertiesService.getDocumentProperties().deleteProperty('CERA_ANALYSIS_EXECUTED');
   } catch (cpErr) {}
 
+  const diagMeta = ceraInitDiagnosticLog_(initialState, firstPartition);
+
   // Initialize the Live Monitor Sheet tab immediately
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   safeUpdateDashboard(ss, initialState, partitions);
@@ -232,6 +234,9 @@ function engageCloudIngestion(dateRangeDays) {
     folderId: folderId,
     folderName: folderName,
     folderUrl: folderUrl,
+    logFolderId: (diagMeta && diagMeta.logFolderId) || '',
+    logFolderUrl: (diagMeta && diagMeta.logFolderUrl) || folderUrl,
+    logFileId: (diagMeta && diagMeta.logFileId) || '',
     status: 'RUNNING'
   };
 }
@@ -245,6 +250,7 @@ function pauseCloudIngestion() {
   let state = getProgressUpdate();
   state.status = 'PAUSED';
   saveStateToStorage(state);
+  ceraRecordDiagLifecycle_(state, 'PAUSED', 'USER_PAUSED', 'User paused background ingestion.');
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   safeUpdateDashboard(ss, state, state.partitions || []);
@@ -275,9 +281,11 @@ function stopAndFinalizeCurrentIngestion() {
     state.partitions[state.partitions.length - 1].status = 'COMPLETED';
   }
   saveStateToStorage(state);
+  ceraRecordDiagLifecycle_(state, 'COMPLETED', 'STOPPED_EARLY_FOR_ANALYSIS', 'User stopped extraction early to analyze collected partitions immediately.');
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   safeUpdateDashboard(ss, state, state.partitions || []);
+  const diagMeta = ceraGetDiagLogMeta_(state.folderId);
 
   return {
     success: true,
@@ -285,6 +293,9 @@ function stopAndFinalizeCurrentIngestion() {
     folderId: state.folderId,
     folderName: state.folderName || '',
     folderUrl: state.folderUrl || (state.folderId ? `https://drive.google.com/drive/folders/${state.folderId}` : ''),
+    logFolderId: (diagMeta && diagMeta.logFolderId) || '',
+    logFolderUrl: (diagMeta && diagMeta.logFolderUrl) || state.folderUrl || (state.folderId ? `https://drive.google.com/drive/folders/${state.folderId}` : ''),
+    logFileId: (diagMeta && diagMeta.logFileId) || '',
     processedCount: state.processedCount || 0,
     fileIndex: state.fileIndex || 1
   };
@@ -304,6 +315,7 @@ function resumeCloudIngestion() {
   state.errorKey = '';
   state.consecutiveFailures = 0;
   saveStateToStorage(state);
+  ceraRecordDiagLifecycle_(state, 'RUNNING', 'USER_RESUMED', 'User resumed background ingestion from checkpoint.');
 
   registerCloudIngestionTrigger();
 
@@ -328,6 +340,11 @@ function discardCloudIngestion() {
   try {
     activeActId = PropertiesService.getDocumentProperties().getProperty('CERA_CURRENT_ACTIVITY_ID') || '';
   } catch (e) {}
+
+  const existing = getProgressUpdate();
+  if (existing && existing.folderId) {
+    ceraRecordDiagLifecycle_(existing, 'STOPPED', 'SESSION_DISCARDED', 'User discarded or reset active ingestion session.');
+  }
 
   cleanupAllIngestionTriggers();
 
@@ -422,6 +439,23 @@ function processCloudIngestionBatch() {
   let lastBatchWallClockMs = Date.now();
   // What this tick did and what it cost, for the remaining-work estimate
   const work = { requests: 0, requestMs: 0, rows: 0, writeMs: 0 };
+  const tickDiag = {
+    startedAtMs: executionStartTime,
+    cursorStartMs: cursorAtTickStartMs,
+    cursorEndMs: currentCursorMs,
+    quietWeeksSkipped: 0,
+    completedSlices: [],
+    newPartitions: [],
+    recoveredPartitions: 0,
+    adaptiveSplits: 0,
+    tokenFallbacks: 0,
+    rewinds: 0,
+    sleepMs: 0,
+    streamPages: {},
+    streamTokenFallbacks: {},
+    streamSchema: {},
+    anomalies: []
+  };
 
   const readPosition = () => JSON.stringify({
     cursor: currentCursorMs, streams: eventStreams, scanned: totalScanned, sliceChecked: state.sliceChecked,
@@ -457,6 +491,12 @@ function processCloudIngestionBatch() {
       rowCount: 0,
       status: 'IN_PROGRESS'
     });
+    tickDiag.newPartitions.push({
+      part: fileIndex,
+      rows: 0,
+      status: 'IN_PROGRESS',
+      createdAtUtc: new Date().toISOString()
+    });
     // Sliding Window: Keep maximum 10 active/recent partitions in state to prevent memory and storage bloat
     if (partitions.length > 10) {
       partitions = partitions.slice(-10);
@@ -480,6 +520,14 @@ function processCloudIngestionBatch() {
       const errStr = (appendErr.message || String(appendErr)).toLowerCase();
       if (errStr.includes('404') || errStr.includes('not found')) {
         console.warn(`[Auto-Recovery] Active partition file (${targetFileId}) missing or deleted. Auto-generating fresh partition...`);
+        tickDiag.recoveredPartitions++;
+        tickDiag.anomalies.push({
+          atUtc: new Date().toISOString(),
+          phase: 'SHEETS_APPEND',
+          code: 'PARTITION_404_AUTO_RECOVERED',
+          action: 'OPENED_NEW_PARTITION',
+          detail: 'Active partition sheet was missing or deleted; auto-generated replacement partition.'
+        });
         // Rows that reached the deleted file went with it: all of them go to the new partition
         progress.written = 0;
         openPartition();
@@ -491,7 +539,7 @@ function processCloudIngestionBatch() {
 
   // Appends the buffered pages, filling the current partition up to MAX_ROWS_PER_SHEET rows before opening the next
   const flushBuffer = () => {
-    pendingWrite = { done: 0, written: 0 };
+    pendingWrite = { done: 0, written: 0, splits: 0 };
     while (pendingWrite.done < buffer.length) {
       if (currentSheetRows - 1 >= MAX_ROWS_PER_SHEET) {
         if (partitions.length > 0) {
@@ -505,6 +553,7 @@ function processCloudIngestionBatch() {
       pendingWrite.done += chunk.length;
       pendingWrite.written = 0;
     }
+    tickDiag.adaptiveSplits += Number(pendingWrite.splits || 0);
     pendingWrite = null;
     buffer = [];
     bufferIds = [];
@@ -519,10 +568,12 @@ function processCloudIngestionBatch() {
     if (pendingWrite) {
       countWritten(pendingWrite.written);
       written = pendingWrite.done + pendingWrite.written;
+      tickDiag.adaptiveSplits += Number(pendingWrite.splits || 0);
     }
     let p = 0;
     while (p < pages.length && pages[p].end <= written) p++;
     if (p === pages.length) return; // nothing unwritten
+    tickDiag.rewinds++;
     restorePosition(pages[p].before);
     if (written > pages[p].start) {
       // The append stopped inside this page: its stream resumes after the last row written (see ceraExtendEdge_)
@@ -576,6 +627,7 @@ function processCloudIngestionBatch() {
         work.requests++;
         work.requestMs += Date.now() - checkStartMs;
         if (weekIsEmpty) {
+          tickDiag.quietWeeksSkipped++;
           currentCursorMs = weekEndMs;
           TARGET_EVENTS.forEach(ev => { eventStreams[ev] = { pageToken: null, completed: false, count: (eventStreams[ev] && eventStreams[ev].count) || 0 }; });
           if (currentCursorMs >= targetEndMs) {
@@ -593,6 +645,14 @@ function processCloudIngestionBatch() {
       const activeEvents = TARGET_EVENTS.filter(ev => !eventStreams[ev] || !eventStreams[ev].completed);
       if (activeEvents.length === 0) {
         // All events for this day slice completed: advance to the next day slice
+        const sliceEvents = TARGET_EVENTS.reduce((sum, ev) => sum + (Number(eventStreams[ev] && eventStreams[ev].dayRows) || 0), 0);
+        tickDiag.completedSlices.push({
+          dayIndex: Math.min(daysFilter, Math.max(1, Math.floor((sliceStartMs - windowStartMs) / DAY_MS) + 1)),
+          sliceStartUtc: startIso,
+          sliceEndUtc: endIso,
+          events: sliceEvents,
+          completedAtUtc: new Date().toISOString()
+        });
         ceraRecordDayDone_(state, sliceStartMs, eventStreams);
         currentCursorMs = sliceEndMs;
         state.sliceChecked = false;
@@ -630,6 +690,16 @@ function processCloudIngestionBatch() {
           const apiErrMsg = (apiErr.message || String(apiErr)).toLowerCase();
           if (stream.pageToken && (apiErrMsg.includes('pagetoken') || apiErrMsg.includes('400') || apiErrMsg.includes('invalid token'))) {
             console.warn(`[Admin SDK] Expired or invalid pageToken for ${evName}. Resuming the slice after the last event taken: ${apiErr.message}`);
+            tickDiag.tokenFallbacks++;
+            tickDiag.streamTokenFallbacks[evName] = (tickDiag.streamTokenFallbacks[evName] || 0) + 1;
+            tickDiag.anomalies.push({
+              atUtc: new Date().toISOString(),
+              phase: 'REPORTS_API',
+              stream: evName,
+              code: 'PAGE_TOKEN_EXPIRED_FALLBACK',
+              action: 'EDGE_TIMESTAMP_RESUME',
+              detail: ceraSanitizeDiagnosticText_(apiErr.message || String(apiErr))
+            });
             stream.pageToken = null;
             continue; // CRITICAL: Skip fall-through so stream is NOT erroneously marked completed!
           } else if (ceraIsDailyQuotaError_(apiErrMsg) || ceraIsRateLimitError_(apiErrMsg) || ceraIsPermissionError_(apiErrMsg)) {
@@ -638,6 +708,14 @@ function processCloudIngestionBatch() {
             throw apiErr;
           } else {
             console.warn(`Stream transient notice (${evName}): ${apiErr.message}. Preserving stream state for retry.`);
+            tickDiag.anomalies.push({
+              atUtc: new Date().toISOString(),
+              phase: 'REPORTS_API',
+              stream: evName,
+              code: 'STREAM_TRANSIENT_NOTICE',
+              action: 'RETRY_NEXT_TICK',
+              detail: ceraSanitizeDiagnosticText_(apiErr.message || String(apiErr))
+            });
             // Do NOT mark stream.completed = true on transient server errors!
             continue;
           }
@@ -645,6 +723,7 @@ function processCloudIngestionBatch() {
 
         work.requests++;
         work.requestMs += Date.now() - fetchStartMs;
+        tickDiag.streamPages[evName] = (tickDiag.streamPages[evName] || 0) + 1;
         const items = (page && page.items) || [];
 
         // Parse the whole page before the stream moves past it
@@ -661,7 +740,9 @@ function processCloudIngestionBatch() {
             continue;
           }
           if (resumeAtEdge && ceraTakenFromStream_(stream, itemMs, itemId)) continue;
-          pageRows.push(parseEventToRow(item, evName));
+          const parsedRow = parseEventToRow(item, evName);
+          ceraRecordDiagRowSchema_(tickDiag.streamSchema, evName, parsedRow);
+          pageRows.push(parsedRow);
           pageIds.push(itemId);
           pageTimes.push(itemMs);
         }
@@ -697,6 +778,7 @@ function processCloudIngestionBatch() {
         // Free memory promptly for V8 GC & apply micro-pacing for 150 req/min Admin SDK quota
         page = null;
         Utilities.sleep(120);
+        tickDiag.sleepMs += 120;
       }
     }
 
@@ -808,6 +890,8 @@ function processCloudIngestionBatch() {
 
     saveStateToStorage(state);
     safeUpdateDashboard(ss, state, partitions);
+    tickDiag.cursorEndMs = currentCursorMs;
+    ceraRecordDiagTick_(state, work, tickDiag, state.status === 'FAILED' ? 'FAILED_STATE_OVERSIZE' : (jobComplete ? 'COMPLETED' : 'OK'), state.errorMessage || '');
 
   } catch (err) {
     console.error('Autonomous batch execution error: ' + err.stack);
@@ -833,6 +917,7 @@ function processCloudIngestionBatch() {
     state.eventStreams = eventStreams;
     state.partitions = partitions;
     state.lastUpdateMs = Date.now();
+    tickDiag.cursorEndMs = currentCursorMs;
 
     // As above: a job reset meanwhile stays gone, a paused or stopped one keeps its status (and this tick's progress)
     const storedStatus = ceraStoredJobStatus_(state.activityId);
@@ -844,6 +929,7 @@ function processCloudIngestionBatch() {
       state.status = storedStatus;
       saveStateToStorage(state);
       safeUpdateDashboard(ss, state, partitions);
+      ceraRecordDiagTick_(state, work, tickDiag, storedStatus, rawErrMsg);
       return;
     }
 
@@ -857,6 +943,7 @@ function processCloudIngestionBatch() {
       state.consecutiveFailures = 0;
       saveStateToStorage(state);
       safeUpdateDashboard(ss, state, partitions);
+      ceraRecordDiagTick_(state, work, tickDiag, isDailyQuota ? 'DAILY_QUOTA_SLEEP' : 'RATE_LIMIT_PAUSE', rawErrMsg);
     } else {
       const failCount = (Number(state.consecutiveFailures) || 0) + 1;
       state.consecutiveFailures = failCount;
@@ -869,12 +956,14 @@ function processCloudIngestionBatch() {
         state.status = 'RUNNING';
         saveStateToStorage(state);
         safeUpdateDashboard(ss, state, partitions);
+        ceraRecordDiagTick_(state, work, tickDiag, 'TRANSIENT_STRIKE_' + failCount, rawErrMsg);
       } else {
         // 10 consecutive failures (10 minutes persistent cloud outage): Safely pause triggers and notify user
         state.status = 'FAILED';
         cleanupAllIngestionTriggers();
         saveStateToStorage(state);
         safeUpdateDashboard(ss, state, partitions);
+        ceraRecordDiagTick_(state, work, tickDiag, 'FAILED_MAX_STRIKES', rawErrMsg);
       }
     }
   } finally {
@@ -1579,6 +1668,7 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress) {
                                   errMsg.includes('socket'));
 
       if (isGatewayOrSizeChoke && sanitizedRows.length > 50 && depth < 5) {
+        if (progress) progress.splits = (progress.splits || 0) + 1;
         console.warn(`[Adaptive Chunking] Batch of ${sanitizedRows.length} rows encountered "${e.message || errMsg}". Splitting into halves at depth ${depth + 1}...`);
         const mid = Math.floor(sanitizedRows.length / 2);
         const part1 = sanitizedRows.slice(0, mid);
@@ -1597,6 +1687,7 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress) {
       } else {
         // Last resort: if still multiple rows, attempt emergency halving before failing
         if (!isRateLimit && sanitizedRows.length > 20 && depth < 5) {
+          if (progress) progress.splits = (progress.splits || 0) + 1;
           console.warn(`[Adaptive Chunking Emergency] Max attempts reached for ${sanitizedRows.length} rows. Attempting final halving...`);
           const mid = Math.floor(sanitizedRows.length / 2);
           const part1 = sanitizedRows.slice(0, mid);
@@ -1619,7 +1710,14 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress) {
  */
 function safeUpdateDashboard(ss, state, partitions) {
   try {
-    IngestionMonitorSheet.updateDashboard(ss, state, partitions);
+    let viewState = state;
+    if (state && !state.logFolderUrl && state.folderId) {
+      const diagMeta = ceraGetDiagLogMeta_(state.folderId);
+      if (diagMeta && diagMeta.logFolderUrl) {
+        viewState = Object.assign({}, state, { logFolderUrl: diagMeta.logFolderUrl });
+      }
+    }
+    IngestionMonitorSheet.updateDashboard(ss, viewState, partitions);
   } catch (mErr) {
     console.warn('IngestionMonitorSheet.updateDashboard non-fatal notice: ' + (mErr.message || mErr));
   }
@@ -1852,6 +1950,7 @@ function detectExistingSession() {
   }
 
   if (state && (state.folderId || (state.status === 'COMPLETED')) && state.status && state.status !== 'IDLE') {
+    const diagMeta = ceraGetDiagLogMeta_(state.folderId);
     return {
       hasExisting: true,
       status: state.status,
@@ -1864,6 +1963,9 @@ function detectExistingSession() {
       folderId: state.folderId || '',
       folderName: state.folderName || 'Extracted Chrome Logs Folder',
       folderUrl: state.folderUrl || (state.folderId ? `https://drive.google.com/drive/folders/${state.folderId}` : ''),
+      logFolderId: (diagMeta && diagMeta.logFolderId) || '',
+      logFolderUrl: (diagMeta && diagMeta.logFolderUrl) || '',
+      logFileId: (diagMeta && diagMeta.logFileId) || '',
       fileIndex: state.fileIndex || 1,
       rate: state.processingRate || state.rate || 0,
       etaSec: state.status === 'COMPLETED' ? 0 : (state.etaSec || 0),
@@ -1876,3 +1978,677 @@ function detectExistingSession() {
   }
   return { hasExisting: false, status: 'IDLE' };
 }
+
+// ==============================================================================
+// 5. DIRECT INGESTION DIAGNOSTIC LOGGER (logs/cera-diagnostic-log.txt)
+// ==============================================================================
+
+const CERA_DIAG_LOG_MAX_BYTES = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_MAX_BYTES) ? CeraConfig.DIAG_LOG_MAX_BYTES : 1000000;
+const CERA_DIAG_LOG_SOFT_BYTES = Math.floor(CERA_DIAG_LOG_MAX_BYTES * 0.94);
+
+/**
+ * Retrieves the Drive IDs/URLs of the `logs/` subfolder and `cera-diagnostic-log.txt` for a Direct Ingestion job folder.
+ * Stored in its own DocumentProperties key (`CERA_DIAG_LOG_META`) so `SIERRA_SESSION` stays well under its 9,216-byte limit.
+ */
+function ceraGetDiagLogMeta_(folderId) {
+  try {
+    const raw = PropertiesService.getDocumentProperties().getProperty('CERA_DIAG_LOG_META');
+    if (!raw) return null;
+    const meta = JSON.parse(raw);
+    if (!meta || (folderId && meta.folderId && meta.folderId !== folderId)) return null;
+    return meta;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Redacts emails, URLs, domains, file names, and long identifiers from any diagnostic or error message string
+ * to guarantee 100% Zero-PII & Zero-Sensitive-Data in `cera-diagnostic-log.txt`.
+ */
+function ceraSanitizeDiagnosticText_(text) {
+  if (!text) return '';
+  let s = String(text);
+  // Redact email addresses
+  s = s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[REDACTED_EMAIL]');
+  // Redact http/https/chrome/file URLs
+  s = s.replace(/\b(?:https?|chrome|chrome-extension|file|ftp):\/\/[^\s"'<>)]+/gi, '[REDACTED_URL]');
+  // Redact quoted strings (could hold file names, tab titles, or user strings) other than standard Sheet1/Raw Data ranges
+  s = s.replace(/"([^"]{1,200})"/g, (m, inner) => {
+    if (/^(Sheet1|Raw Data)(![A-Z0-9:]+)?$/i.test(inner)) return m;
+    return '"[REDACTED]"';
+  });
+  // Redact domain-like tokens (excluding standard Google API/Apps Script service tokens)
+  s = s.replace(/\b([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|org|net|edu|gov|mil|io|co|ai|app|dev|id|sg|ph|my|th|vn|jp|kr|cn|uk|de|fr|au|in|br|ca|info|biz|me|tv|xyz)\b/gi, m => {
+    const lower = m.toLowerCase();
+    if (lower === 'googleapis.com' || lower === 'google.com' || lower === 'script.google.com') return m;
+    return '[REDACTED_DOMAIN]';
+  });
+  if (s.length > 320) s = s.slice(0, 317) + '...';
+  return s;
+}
+
+/**
+ * Increments non-empty field presence counters for an extracted Chrome event row (18-column schema).
+ * Tracks only integer counts — never stores cell values.
+ */
+function ceraRecordDiagRowSchema_(schemaMap, evName, row) {
+  if (!schemaMap || !evName || !Array.isArray(row)) return;
+  if (!schemaMap[evName]) {
+    schemaMap[evName] = {
+      rows: 0,
+      hasUrl: 0,
+      hasTabUrl: 0,
+      hasContentName: 0,
+      hasContentSize: 0,
+      hasWebAppAccount: 0,
+      hasProfileUser: 0,
+      hasDetectorName: 0,
+      hasOrgUnit: 0,
+      hasDeviceName: 0,
+      hasClientType: 0,
+      hasCmdSwitches: 0
+    };
+  }
+  const st = schemaMap[evName];
+  st.rows++;
+  if (row[3]) st.hasDetectorName++;
+  if (row[4]) st.hasOrgUnit++;
+  if (row[5]) st.hasProfileUser++;
+  if (row[6] !== '' && row[6] !== null && row[6] !== undefined) st.hasContentSize++;
+  if (row[9]) st.hasWebAppAccount++;
+  if (row[10]) st.hasUrl++;
+  if (row[11]) st.hasTabUrl++;
+  if (row[14]) st.hasContentName++;
+  if (row[15]) st.hasDeviceName++;
+  if (row[16]) st.hasClientType++;
+  if (row[17]) st.hasCmdSwitches++;
+}
+
+/**
+ * Initializes the `logs/` subfolder and `logs/cera-diagnostic-log.txt` file inside the Direct Ingestion Drive folder.
+ * Non-fatal: any Drive error is logged as a warning and never blocks ingestion.
+ */
+function ceraInitDiagnosticLog_(initialState, firstPartition) {
+  if (!initialState || !initialState.folderId) return null;
+  try {
+    const logFolderName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FOLDER_NAME) ? CeraConfig.DIAG_LOG_FOLDER_NAME : 'logs';
+    const logFileName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FILE_NAME) ? CeraConfig.DIAG_LOG_FILE_NAME : 'cera-diagnostic-log.txt';
+
+    const logFolder = Drive.Files.create({
+      name: logFolderName,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [initialState.folderId]
+    }, null, { supportsAllDrives: true });
+    const logFolderId = logFolder.id;
+    const logFolderUrl = `https://drive.google.com/drive/folders/${logFolderId}`;
+
+    let tz = 'UTC';
+    try { tz = Session.getScriptTimeZone() || 'UTC'; } catch (e) {}
+
+    let policyPrecheck = null;
+    let preflight = null;
+    try {
+      const docProps = PropertiesService.getDocumentProperties();
+      const rawPol = docProps.getProperty('CERA_LAST_POLICY_PRECHECK');
+      if (rawPol) policyPrecheck = JSON.parse(rawPol);
+      const rawPre = docProps.getProperty('CERA_LAST_PREFLIGHT_DIAG');
+      if (rawPre) preflight = JSON.parse(rawPre);
+    } catch (pErr) {}
+
+    const streamDiagnostics = {};
+    TARGET_EVENTS.forEach(ev => {
+      streamDiagnostics[ev] = {
+        rowsWritten: 0,
+        pagesFetched: 0,
+        tokenFallbacks: 0,
+        completedSlices: 0,
+        schemaPresence: {
+          rows: 0,
+          hasUrl: 0,
+          hasTabUrl: 0,
+          hasContentName: 0,
+          hasContentSize: 0,
+          hasWebAppAccount: 0,
+          hasProfileUser: 0,
+          hasDetectorName: 0,
+          hasOrgUnit: 0,
+          hasDeviceName: 0,
+          hasClientType: 0,
+          hasCmdSwitches: 0
+        }
+      };
+    });
+
+    const nowIso = new Date().toISOString();
+    const diag = {
+      schemaVersion: '1.0',
+      ceraVersion: (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.10',
+      privacyNotice: 'Zero-PII Diagnostic Log: Contains only execution metrics, partition counts, timing, and sanitized status codes. No user emails, domains, OUs, URLs, file names, or device names are recorded.',
+      activityId: initialState.activityId || '',
+      status: initialState.status || 'RUNNING',
+      createdAtUtc: nowIso,
+      updatedAtUtc: nowIso,
+      environment: {
+        locale: (typeof ceraGetLanguage === 'function') ? ceraGetLanguage() : 'en',
+        scriptTimeZone: tz,
+        targetEventsCount: TARGET_EVENTS.length,
+        maxRowsPerSheet: MAX_ROWS_PER_SHEET,
+        flushChunkThreshold: BATCH_FLUSH_SIZE,
+        maxRuntimeMs: TIME_BUDGET_MS
+      },
+      windowDiagnostics: {
+        dateRangeDays: initialState.dateRangeDays || CERA_DEFAULT_RANGE_DAYS,
+        windowStartUtc: initialState.startStr || '',
+        windowEndUtc: initialState.endStr || '',
+        currentCursorUtc: initialState.startStr || '',
+        currentSliceIndex: 0,
+        totalPlannedSlices: Array.isArray(initialState.plan) ? initialState.plan.length : 0,
+        quietWeeksSkipped: 0,
+        timeSpanPct: 0
+      },
+      policyPrecheck: policyPrecheck || { status: 'NOT_RUN' },
+      preflight: preflight || {
+        status: initialState.expectedEvents ? 'ESTIMATED' : 'NOT_RUN',
+        expectedEvents: initialState.expectedEvents || 0,
+        plannedSlicesCount: Array.isArray(initialState.plan) ? initialState.plan.length : 0
+      },
+      runtimeHealth: {
+        ticksExecuted: 0,
+        totalEventsExtracted: 0,
+        totalEventsScanned: 0,
+        totalApiCalls: 0,
+        totalRetries: 0,
+        totalRateLimitHits: 0,
+        totalTokenFallbacks: 0,
+        totalStreamRewinds: 0,
+        totalAdaptiveBatchSplits: 0,
+        totalPartitionsCreated: firstPartition ? 1 : 0,
+        totalPartitionsRecovered: 0,
+        peakSessionStateBytes: 0,
+        sessionLimitBytes: CERA_STATE_MAX_BYTES,
+        compactionCount: 0
+      },
+      timingBreakdownMs: {
+        totalElapsedMs: 0,
+        adminApiFetchMs: 0,
+        sheetsAppendMs: 0,
+        partitionCreateMs: 0,
+        retrySleepMs: 0
+      },
+      scaleDiagnostics: {
+        expectedEvents: initialState.expectedEvents || 0,
+        actualToExpectedRatio: 0,
+        avgEventsPerTick: 0,
+        avgEventsPerSec: 0,
+        peakTickEvents: 0
+      },
+      streamDiagnostics: streamDiagnostics,
+      slices: [],
+      partitions: firstPartition ? [{
+        index: firstPartition.index || 1,
+        rows: firstPartition.rows || 0,
+        status: firstPartition.status || 'WRITING',
+        createdAtUtc: nowIso,
+        closedAtUtc: null
+      }] : [],
+      ticks: [],
+      anomalies: [{
+        tsUtc: nowIso,
+        level: 'INFO',
+        code: 'JOB_STARTED',
+        detail: `Direct ingestion initialized for ${initialState.dateRangeDays || CERA_DEFAULT_RANGE_DAYS}-day window.`
+      }],
+      analysisSummary: null
+    };
+
+    const txtContent = ceraRenderDiagnosticLogTxt_(diag);
+    const mediaBlob = Utilities.newBlob(txtContent, 'text/plain', logFileName);
+    const createdFile = Drive.Files.create({
+      name: logFileName,
+      mimeType: 'text/plain',
+      parents: [logFolderId]
+    }, mediaBlob, { supportsAllDrives: true });
+
+    const meta = {
+      activityId: initialState.activityId || '',
+      folderId: initialState.folderId,
+      logFolderId: logFolderId,
+      logFolderUrl: logFolderUrl,
+      logFileId: createdFile.id
+    };
+
+    try {
+      const docProps = PropertiesService.getDocumentProperties();
+      docProps.setProperty('CERA_DIAG_LOG_META', JSON.stringify(meta));
+    } catch (mErr) {}
+
+    ceraSaveDiagState_(initialState.activityId, diag, createdFile.id, true);
+    return meta;
+  } catch (err) {
+    console.warn('ceraInitDiagnosticLog_ non-fatal notice: ' + (err.message || err));
+    return null;
+  }
+}
+
+/**
+ * Loads the current diagnostic state from CacheService or by parsing the JSON block in `cera-diagnostic-log.txt`.
+ */
+function ceraLoadDiagState_(activityId, logFileId) {
+  const cacheKey = 'CERA_DIAG_' + (activityId || 'ACTIVE');
+  try {
+    const cached = CacheService.getScriptCache().get(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch (e) {}
+
+  if (!logFileId) return null;
+  try {
+    let rawTxt = '';
+    if (typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.get === 'function') {
+      const resp = Drive.Files.get(logFileId, { alt: 'media', supportsAllDrives: true });
+      if (typeof resp === 'string') {
+        rawTxt = resp;
+      } else if (resp && typeof resp.getDataAsString === 'function') {
+        rawTxt = resp.getDataAsString();
+      } else if (resp && typeof resp.content === 'string') {
+        rawTxt = resp.content;
+      }
+    }
+    if (!rawTxt && typeof UrlFetchApp !== 'undefined' && typeof ScriptApp !== 'undefined' && ScriptApp.getOAuthToken) {
+      const httpResp = UrlFetchApp.fetch(
+        'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(logFileId) + '?alt=media&supportsAllDrives=true',
+        { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true }
+      );
+      if (httpResp && httpResp.getResponseCode() === 200) {
+        rawTxt = httpResp.getContentText() || '';
+      }
+    }
+    if (rawTxt) {
+      const beginMarker = '--- BEGIN CERA DIAGNOSTIC PAYLOAD (JSON) ---';
+      const endMarker = '--- END CERA DIAGNOSTIC PAYLOAD (JSON) ---';
+      const bIdx = rawTxt.indexOf(beginMarker);
+      const eIdx = rawTxt.indexOf(endMarker);
+      if (bIdx !== -1 && eIdx !== -1 && eIdx > bIdx) {
+        const jsonPart = rawTxt.slice(bIdx + beginMarker.length, eIdx).trim();
+        return JSON.parse(jsonPart);
+      }
+    }
+  } catch (e) {
+    console.warn('ceraLoadDiagState_ fallback notice: ' + (e.message || e));
+  }
+  return null;
+}
+
+/**
+ * Enforces the 1 MB (`CERA_DIAG_LOG_MAX_BYTES`) ceiling and saves the updated hybrid `.txt` file to Google Drive.
+ */
+function ceraSaveDiagState_(activityId, diag, logFileId, skipDriveWrite) {
+  if (!diag) return;
+  diag.updatedAtUtc = new Date().toISOString();
+  let txtContent = ceraEnforceDiagLogCap_(diag);
+
+  const cacheKey = 'CERA_DIAG_' + (activityId || diag.activityId || 'ACTIVE');
+  try {
+    const rawJson = JSON.stringify(diag);
+    if (ceraUtf8Bytes_(rawJson) < 95000) {
+      CacheService.getScriptCache().put(cacheKey, rawJson, 21600);
+    } else {
+      CacheService.getScriptCache().remove(cacheKey);
+    }
+  } catch (cErr) {}
+
+  if (skipDriveWrite || !logFileId) return;
+  try {
+    const logFileName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FILE_NAME) ? CeraConfig.DIAG_LOG_FILE_NAME : 'cera-diagnostic-log.txt';
+    const mediaBlob = Utilities.newBlob(txtContent, 'text/plain', logFileName);
+    Drive.Files.update(
+      { name: logFileName, mimeType: 'text/plain' },
+      logFileId,
+      mediaBlob,
+      { supportsAllDrives: true }
+    );
+  } catch (uErr) {
+    console.warn('ceraSaveDiagState_ Drive update non-fatal notice: ' + (uErr.message || uErr));
+  }
+}
+
+/**
+ * Compacts `ticks`, `anomalies`, `slices`, and `partitions` if the rendered `.txt` approaches 1 MB (`1,000,000` bytes).
+ * Guarantees the returned `.txt` string is strictly `<= CERA_DIAG_LOG_MAX_BYTES`.
+ */
+function ceraEnforceDiagLogCap_(diag) {
+  // Structural array bounds for normal operation
+  if (Array.isArray(diag.ticks) && diag.ticks.length > 600) {
+    const first = diag.ticks.slice(0, 50);
+    const last = diag.ticks.slice(-500);
+    diag.ticks = first.concat(last);
+    diag.runtimeHealth.compactionCount = (diag.runtimeHealth.compactionCount || 0) + 1;
+  }
+  if (Array.isArray(diag.anomalies) && diag.anomalies.length > 250) {
+    diag.anomalies = diag.anomalies.slice(0, 40).concat(diag.anomalies.slice(-180));
+    diag.runtimeHealth.compactionCount = (diag.runtimeHealth.compactionCount || 0) + 1;
+  }
+  if (Array.isArray(diag.slices) && diag.slices.length > 300) {
+    diag.slices = diag.slices.slice(0, 30).concat(diag.slices.slice(-240));
+  }
+  if (Array.isArray(diag.partitions) && diag.partitions.length > 400) {
+    diag.partitions = diag.partitions.slice(0, 40).concat(diag.partitions.slice(-300));
+  }
+
+  let txt = ceraRenderDiagnosticLogTxt_(diag);
+  let bytes = ceraUtf8Bytes_(txt);
+  if (bytes <= CERA_DIAG_LOG_SOFT_BYTES) return txt;
+
+  // Progressive compaction pass if approaching 940 KB / 1 MB ceiling
+  const steps = [
+    d => { if (d.ticks && d.ticks.length > 200) d.ticks = d.ticks.slice(0, 25).concat(d.ticks.slice(-150)); },
+    d => { if (d.anomalies && d.anomalies.length > 100) d.anomalies = d.anomalies.slice(0, 20).concat(d.anomalies.slice(-70)); },
+    d => { if (d.slices && d.slices.length > 120) d.slices = d.slices.slice(0, 15).concat(d.slices.slice(-90)); },
+    d => { if (d.partitions && d.partitions.length > 150) d.partitions = d.partitions.slice(0, 20).concat(d.partitions.slice(-100)); },
+    d => { if (d.ticks && d.ticks.length > 60) d.ticks = d.ticks.slice(0, 10).concat(d.ticks.slice(-40)); },
+    d => { if (d.anomalies && d.anomalies.length > 40) d.anomalies = d.anomalies.slice(0, 10).concat(d.anomalies.slice(-25)); },
+    d => { if (d.ticks && d.ticks.length > 15) d.ticks = d.ticks.slice(-15); },
+    d => { if (d.slices && d.slices.length > 20) d.slices = d.slices.slice(-20); },
+    d => { if (d.partitions && d.partitions.length > 25) d.partitions = d.partitions.slice(-25); }
+  ];
+
+  for (let i = 0; i < steps.length && bytes > CERA_DIAG_LOG_SOFT_BYTES; i++) {
+    steps[i](diag);
+    diag.runtimeHealth.compactionCount = (diag.runtimeHealth.compactionCount || 0) + 1;
+    txt = ceraRenderDiagnosticLogTxt_(diag);
+    bytes = ceraUtf8Bytes_(txt);
+  }
+
+  if (bytes > CERA_DIAG_LOG_MAX_BYTES) {
+    diag.ticks = (diag.ticks || []).slice(-5);
+    diag.anomalies = (diag.anomalies || []).slice(-10);
+    diag.slices = (diag.slices || []).slice(-5);
+    diag.partitions = (diag.partitions || []).slice(-10);
+    txt = ceraRenderDiagnosticLogTxt_(diag);
+  }
+  return txt;
+}
+
+/**
+ * Renders the Hybrid Plain-Text + Structured JSON content for `logs/cera-diagnostic-log.txt`.
+ */
+function ceraRenderDiagnosticLogTxt_(diag) {
+  const rh = diag.runtimeHealth || {};
+  const wd = diag.windowDiagnostics || {};
+  const tb = diag.timingBreakdownMs || {};
+  const pol = diag.policyPrecheck || {};
+  const pre = diag.preflight || {};
+  const anoms = Array.isArray(diag.anomalies) ? diag.anomalies : [];
+  const lastAnom = anoms.length > 0 ? anoms[anoms.length - 1] : null;
+
+  const headerLines = [
+    '================================================================================',
+    `CERA (Chrome Egress Risk Analysis) — Direct Ingestion Diagnostic Log`,
+    `Version            : v${diag.ceraVersion || '2.0.10'} (Schema v${diag.schemaVersion || '1.0'})`,
+    `Privacy Guarantee  : ZERO-PII / ZERO-SENSITIVE-DATA (Safe to inspect & share)`,
+    '================================================================================',
+    `Activity ID        : ${diag.activityId || 'N/A'}`,
+    `Job Status         : ${diag.status || 'UNKNOWN'}`,
+    `Created (UTC)      : ${diag.createdAtUtc || 'N/A'}`,
+    `Last Updated (UTC) : ${diag.updatedAtUtc || 'N/A'}`,
+    `Locale / TimeZone  : ${(diag.environment && diag.environment.locale) || 'en'} / ${(diag.environment && diag.environment.scriptTimeZone) || 'UTC'}`,
+    '--------------------------------------------------------------------------------',
+    `EXTRACTION PROGRESS & SCALE`,
+    `  Window Coverage  : ${wd.timeSpanPct || 0}% (${wd.dateRangeDays || 0} days | ${wd.windowStartUtc || ''} -> ${wd.windowEndUtc || ''})`,
+    `  Current Cursor   : ${wd.currentCursorUtc || 'N/A'} (Slice ${wd.currentSliceIndex || 0}/${wd.totalPlannedSlices || 0}, Quiet Skipped: ${wd.quietWeeksSkipped || 0})`,
+    `  Events Extracted : ${rh.totalEventsExtracted || 0} written / ${rh.totalEventsScanned || 0} scanned (Expected: ${pre.expectedEvents || 0})`,
+    `  Partitions       : ${rh.totalPartitionsCreated || 0} created (${rh.totalPartitionsRecovered || 0} auto-recovered)`,
+    `  Worker Ticks     : ${rh.ticksExecuted || 0} ticks | API Calls: ${rh.totalApiCalls || 0} | Retries: ${rh.totalRetries || 0} | 429s: ${rh.totalRateLimitHits || 0}`,
+    `  Resilience       : Token Fallbacks: ${rh.totalTokenFallbacks || 0} | Rewinds: ${rh.totalStreamRewinds || 0} | Batch Splits: ${rh.totalAdaptiveBatchSplits || 0}`,
+    `  Session State    : Peak ${rh.peakSessionStateBytes || 0} / ${rh.sessionLimitBytes || 9000} bytes | Log Compactions: ${rh.compactionCount || 0}`,
+    `  Timing (ms)      : Total ${tb.totalElapsedMs || 0} | Admin API ${tb.adminApiFetchMs || 0} | Sheets Append ${tb.sheetsAppendMs || 0} | Sleep ${tb.retrySleepMs || 0}`,
+    '--------------------------------------------------------------------------------',
+    `POLICY PRECHECK & PREFLIGHT`,
+    `  Policy Precheck  : ${pol.status || 'NOT_RUN'}${pol.connectorStatus ? ' (Connector: ' + pol.connectorStatus + ')' : ''}`,
+    `  Preflight Est.   : ${pre.status || 'NOT_RUN'} (Expected: ${pre.expectedEvents || 0}, Active Slices: ${pre.activeSlicesCount || 0}/${pre.plannedSlicesCount || 0})`,
+    `  Anomalies Logged : ${anoms.length}${lastAnom ? ' | Latest: [' + lastAnom.code + '] ' + lastAnom.detail : ''}`,
+    `  Analysis Summary : ${diag.analysisSummary ? 'COMPLETED (Sheets Read: ' + diag.analysisSummary.sheetsRead + '/' + diag.analysisSummary.sheetsTotal + ', Actions: ' + diag.analysisSummary.actionsAssembled + ')' : 'NOT_RUN_YET'}`,
+    '================================================================================',
+    '',
+    '--- BEGIN CERA DIAGNOSTIC PAYLOAD (JSON) ---',
+    JSON.stringify(diag, null, 2),
+    '--- END CERA DIAGNOSTIC PAYLOAD (JSON) ---',
+    ''
+  ];
+  return headerLines.join('\n');
+}
+
+/**
+ * Appends a worker tick summary and updates cumulative counters in `logs/cera-diagnostic-log.txt`.
+ */
+function ceraRecordDiagTick_(state, work, tickDiag, outcome, rawErrMsg) {
+  if (!state || !state.folderId) return;
+  try {
+    const meta = ceraGetDiagLogMeta_(state.folderId);
+    if (!meta || !meta.logFileId) return;
+    const diag = ceraLoadDiagState_(state.activityId, meta.logFileId);
+    if (!diag) return;
+
+    const nowIso = new Date().toISOString();
+    diag.status = state.status || outcome || diag.status;
+
+    const rh = diag.runtimeHealth;
+    const tb = diag.timingBreakdownMs;
+    const wd = diag.windowDiagnostics;
+    const sd = diag.scaleDiagnostics;
+
+    rh.ticksExecuted = (rh.ticksExecuted || 0) + 1;
+    rh.totalEventsExtracted = state.processedCount || 0;
+    rh.totalEventsScanned = state.scannedCount || 0;
+    rh.totalApiCalls = (rh.totalApiCalls || 0) + ((work && work.apiCalls) || 0);
+    rh.totalRetries = (rh.totalRetries || 0) + ((work && work.retries) || 0);
+    rh.totalRateLimitHits = (rh.totalRateLimitHits || 0) + ((work && work.rateLimits) || 0);
+    rh.totalTokenFallbacks = (rh.totalTokenFallbacks || 0) + ((tickDiag && tickDiag.tokenFallbacks) || 0);
+    rh.totalStreamRewinds = (rh.totalStreamRewinds || 0) + ((tickDiag && tickDiag.rewinds) || 0);
+    rh.totalAdaptiveBatchSplits = (rh.totalAdaptiveBatchSplits || 0) + ((tickDiag && tickDiag.adaptiveSplits) || 0);
+    rh.totalPartitionsCreated = Math.max(rh.totalPartitionsCreated || 0, state.fileIndex || 1);
+    rh.totalPartitionsRecovered = (rh.totalPartitionsRecovered || 0) + ((tickDiag && tickDiag.recoveredPartitions) || 0);
+
+    let sessionBytes = 0;
+    try {
+      sessionBytes = ceraUtf8Bytes_(JSON.stringify(state));
+    } catch (e) {}
+    if (sessionBytes > (rh.peakSessionStateBytes || 0)) {
+      rh.peakSessionStateBytes = sessionBytes;
+    }
+
+    const tickDurationMs = Math.max(0, Date.now() - ((tickDiag && tickDiag.tickStartMs) || Date.now()));
+    const apiMs = (work && work.apiMs) || 0;
+    const appendMs = (work && work.appendMs) || 0;
+    const partCreateMs = (work && work.partCreateMs) || 0;
+    const sleepMs = ((work && work.sleepMs) || 0) + ((tickDiag && tickDiag.sleepMs) || 0);
+
+    tb.totalElapsedMs = (tb.totalElapsedMs || 0) + tickDurationMs;
+    tb.adminApiFetchMs = (tb.adminApiFetchMs || 0) + apiMs;
+    tb.sheetsAppendMs = (tb.sheetsAppendMs || 0) + appendMs;
+    tb.partitionCreateMs = (tb.partitionCreateMs || 0) + partCreateMs;
+    tb.retrySleepMs = (tb.retrySleepMs || 0) + sleepMs;
+
+    wd.currentCursorUtc = state.currentCursorMs ? new Date(state.currentCursorMs).toISOString() : wd.currentCursorUtc;
+    wd.currentSliceIndex = state.sliceIndex || 0;
+    wd.totalPlannedSlices = Array.isArray(state.plan) ? state.plan.length : (wd.totalPlannedSlices || 0);
+    wd.quietWeeksSkipped = (wd.quietWeeksSkipped || 0) + ((tickDiag && tickDiag.quietWeeksSkipped) || 0);
+    wd.timeSpanPct = state.status === 'COMPLETED' ? 100 : (state.timeSpanPct || 0);
+
+    const tickWritten = (work && work.written) || 0;
+    if (tickWritten > (sd.peakTickEvents || 0)) sd.peakTickEvents = tickWritten;
+    sd.avgEventsPerTick = rh.ticksExecuted > 0 ? Math.round(rh.totalEventsExtracted / rh.ticksExecuted) : 0;
+    sd.avgEventsPerSec = tb.totalElapsedMs > 0 ? Math.round((rh.totalEventsExtracted * 1000) / tb.totalElapsedMs) : 0;
+    if (sd.expectedEvents > 0) {
+      sd.actualToExpectedRatio = Number((rh.totalEventsExtracted / sd.expectedEvents).toFixed(3));
+    }
+
+    // Merge stream diagnostics & schema presence
+    if (state.eventStreams && diag.streamDiagnostics) {
+      Object.keys(state.eventStreams).forEach(ev => {
+        if (!diag.streamDiagnostics[ev]) return;
+        const st = diag.streamDiagnostics[ev];
+        st.rowsWritten = (state.eventStreams[ev] && state.eventStreams[ev].count) || st.rowsWritten || 0;
+        if (tickDiag && tickDiag.streamPages && tickDiag.streamPages[ev]) {
+          st.pagesFetched = (st.pagesFetched || 0) + tickDiag.streamPages[ev];
+        }
+        if (tickDiag && tickDiag.streamTokenFallbacks && tickDiag.streamTokenFallbacks[ev]) {
+          st.tokenFallbacks = (st.tokenFallbacks || 0) + tickDiag.streamTokenFallbacks[ev];
+        }
+        if (tickDiag && tickDiag.streamSchema && tickDiag.streamSchema[ev]) {
+          const src = tickDiag.streamSchema[ev];
+          const dst = st.schemaPresence;
+          Object.keys(src).forEach(k => {
+            dst[k] = (dst[k] || 0) + (src[k] || 0);
+          });
+        }
+      });
+    }
+
+    // Append completed slices
+    if (tickDiag && Array.isArray(tickDiag.completedSlices) && tickDiag.completedSlices.length > 0) {
+      tickDiag.completedSlices.forEach(s => diag.slices.push(s));
+    }
+
+    // Sync partition statuses & newly created partitions
+    if (tickDiag && Array.isArray(tickDiag.newPartitions)) {
+      tickDiag.newPartitions.forEach(np => {
+        const existing = diag.partitions.find(p => p.index === np.index);
+        if (!existing) {
+          diag.partitions.push(np);
+        }
+      });
+    }
+    if (Array.isArray(state.partitions)) {
+      state.partitions.forEach(sp => {
+        const dp = diag.partitions.find(p => p.index === sp.index);
+        if (dp) {
+          dp.rows = sp.rows || dp.rows;
+          dp.status = sp.status || dp.status;
+          if (sp.status === 'COMPLETED' && !dp.closedAtUtc) dp.closedAtUtc = nowIso;
+        }
+      });
+    }
+
+    // Append anomalies from tick
+    if (tickDiag && Array.isArray(tickDiag.anomalies)) {
+      tickDiag.anomalies.forEach(a => {
+        diag.anomalies.push({
+          tsUtc: a.tsUtc || nowIso,
+          level: a.level || 'WARN',
+          code: a.code || 'NOTICE',
+          detail: ceraSanitizeDiagnosticText_(a.detail || '')
+        });
+      });
+    }
+    if (rawErrMsg) {
+      diag.anomalies.push({
+        tsUtc: nowIso,
+        level: outcome === 'FAILED' ? 'ERROR' : 'WARN',
+        code: state.errorKey || outcome || 'TICK_ERROR',
+        detail: ceraSanitizeDiagnosticText_(rawErrMsg)
+      });
+    }
+    if (outcome === 'COMPLETED') {
+      diag.anomalies.push({
+        tsUtc: nowIso,
+        level: 'INFO',
+        code: 'JOB_COMPLETED',
+        detail: `Direct ingestion finished: ${rh.totalEventsExtracted} events across ${rh.totalPartitionsCreated} partition(s).`
+      });
+    }
+
+    diag.ticks.push({
+      tick: rh.ticksExecuted,
+      tsUtc: nowIso,
+      durationMs: tickDurationMs,
+      apiMs: apiMs,
+      appendMs: appendMs,
+      sleepMs: sleepMs,
+      scanned: (work && work.scanned) || 0,
+      written: tickWritten,
+      apiCalls: (work && work.apiCalls) || 0,
+      retries: (work && work.retries) || 0,
+      rateLimits: (work && work.rateLimits) || 0,
+      sliceIdx: state.sliceIndex || 0,
+      partitionIdx: state.fileIndex || 1,
+      timeSpanPct: wd.timeSpanPct,
+      stateBytes: sessionBytes,
+      outcome: outcome || state.status || 'RUNNING'
+    });
+
+    ceraSaveDiagState_(state.activityId, diag, meta.logFileId, false);
+  } catch (err) {
+    console.warn('ceraRecordDiagTick_ non-fatal notice: ' + (err.message || err));
+  }
+}
+
+/**
+ * Records a user lifecycle transition (PAUSE, RESUME, FINALIZE_STOP, EMERGENCY_RESET, DISCARD) in `cera-diagnostic-log.txt`.
+ */
+function ceraRecordDiagLifecycle_(state, statusLabel, code, detail) {
+  if (!state || !state.folderId) return;
+  try {
+    const meta = ceraGetDiagLogMeta_(state.folderId);
+    if (!meta || !meta.logFileId) return;
+    const diag = ceraLoadDiagState_(state.activityId, meta.logFileId);
+    if (!diag) return;
+
+    const nowIso = new Date().toISOString();
+    if (statusLabel) diag.status = statusLabel;
+    if (state.processedCount !== undefined) {
+      diag.runtimeHealth.totalEventsExtracted = state.processedCount || 0;
+    }
+    if (state.timeSpanPct !== undefined) {
+      diag.windowDiagnostics.timeSpanPct = state.status === 'COMPLETED' ? 100 : (state.timeSpanPct || 0);
+    }
+    diag.anomalies.push({
+      tsUtc: nowIso,
+      level: 'INFO',
+      code: code || 'LIFECYCLE',
+      detail: ceraSanitizeDiagnosticText_(detail || '')
+    });
+    ceraSaveDiagState_(state.activityId, diag, meta.logFileId, false);
+  } catch (err) {
+    console.warn('ceraRecordDiagLifecycle_ non-fatal notice: ' + (err.message || err));
+  }
+}
+
+/**
+ * Records the final CERA analysis summary (`executeDlpAnalysis`) into `cera-diagnostic-log.txt`
+ * when analyzing the Direct Ingestion folder. Manual Export folders do not have `CERA_DIAG_LOG_META` and are ignored.
+ */
+function ceraRecordDiagAnalysisSummary_(folderId, analysisStats) {
+  if (!folderId || !analysisStats) return;
+  try {
+    const meta = ceraGetDiagLogMeta_(folderId);
+    if (!meta || !meta.logFileId) return;
+    const diag = ceraLoadDiagState_(meta.activityId, meta.logFileId);
+    if (!diag) return;
+
+    const nowIso = new Date().toISOString();
+    diag.analysisSummary = {
+      completedAtUtc: nowIso,
+      sheetsTotal: analysisStats.sheetsTotal || 0,
+      sheetsRead: analysisStats.sheetsRead || 0,
+      rowsRead: analysisStats.rowsRead || 0,
+      rowsMerged: analysisStats.rowsMerged || 0,
+      rowsDropped: analysisStats.rowsDropped || 0,
+      actionsAssembled: analysisStats.actions || 0,
+      truncatedByWatchdog: !!analysisStats.truncated,
+      slidesGenerated: !!analysisStats.slidesGenerated,
+      sheetsGenerated: !!analysisStats.sheetsGenerated,
+      nonFatalWarningsCount: analysisStats.errorsCount || 0
+    };
+    diag.anomalies.push({
+      tsUtc: nowIso,
+      level: 'INFO',
+      code: 'ANALYSIS_COMPLETED',
+      detail: `Report generation completed: ${analysisStats.sheetsRead || 0}/${analysisStats.sheetsTotal || 0} partitions read, ${analysisStats.actions || 0} user actions assembled.`
+    });
+    ceraSaveDiagState_(meta.activityId, diag, meta.logFileId, false);
+  } catch (err) {
+    console.warn('ceraRecordDiagAnalysisSummary_ non-fatal notice: ' + (err.message || err));
+  }
+}
+

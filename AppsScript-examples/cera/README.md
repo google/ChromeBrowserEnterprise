@@ -128,6 +128,7 @@ CERA is a **container-bound Google Sheets script**. All Apps Script runtime file
 ## 🔒 Privacy, Quotas & Legal Disclaimer
 
 * **100% In-Tenant Execution & Zero Telemetry:** All log ingestion, action assembly, threat classification, spreadsheet generation, and slide deck rendering run exclusively inside your organization's Google Workspace environment. CERA makes no external network requests and collects zero telemetry.
+* **Local-Only, Zero-PII Diagnostic Log (`logs/cera-diagnostic-log.txt` — Direct Ingestion Only):** When running **Direct Ingestion via Admin SDK**, CERA writes a lightweight diagnostic file at `logs/cera-diagnostic-log.txt` inside the extracted Google Drive folder (strictly capped at $\le 1\text{ MB}$). It contains a human-readable summary header and a structured JSON payload recording only execution metrics, partition counts, timing breakdowns, and sanitized error/status codes—**never** user emails, corporate/partner domains, Organizational Units, URLs, file names, or device names. The file remains 100% private in your own Google Drive unless you choose to download and attach it when reporting an issue. *(Manual Export does not generate a diagnostic log).*
 * **Informational Sample & Workspace Quotas:** CERA analyzes a 7-day sample of available Chrome logs for directional executive insights (it is not a formal compliance certification or continuous SIEM) and consumes the authorizing user's Google Apps Script runtime, Google Drive storage, and Admin SDK API quotas.
 * **Full Disclaimer & Privacy Policy:** See [**`./DISCLAIMER.md`**](./DISCLAIMER.md) (`https://github.com/google/ChromeBrowserEnterprise/blob/main/AppsScript-examples/cera/DISCLAIMER.md`).
 
@@ -138,5 +139,7 @@ CERA is a **container-bound Google Sheets script**. All Apps Script runtime file
 Have a question, encountered a technical issue during ingestion or report generation, or want to suggest a feature?
 
 * **Submit Feedback or Report a Problem:** [**`https://goo.gle/cera-feedback`**](https://goo.gle/cera-feedback)
-* *(Privacy reminder: please replace any real internal domain names with `example.com` and do not include confidential employee PII when submitting issue reports).*
+* **Attaching Diagnostic Logs (Optional — Direct Ingestion):** If you encounter a stuck or failed Direct Ingestion run, click **`📄 Open Diagnostic Logs (logs/) ↗`** in the Cloud Monitor dialog or the **`⚡ Ingestion Monitor`** sheet tab, download **`cera-diagnostic-log.txt`**, and attach it to the feedback form so the maintainers can diagnose the exact step or quota bottleneck.
+* *(Privacy reminder: `cera-diagnostic-log.txt` is automatically sanitized to contain zero PII; please also avoid including real internal domain names or employee PII in your free-text description).*
+
 
