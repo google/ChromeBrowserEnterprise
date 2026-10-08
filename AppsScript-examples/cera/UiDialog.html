@@ -1,0 +1,2306 @@
+<!--
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --md-sys-color-primary: #0B57D0;
+      --md-sys-color-primary-hover: #0842A0;
+      --md-sys-color-primary-container: #D3E3FD;
+      --md-sys-color-on-primary-container: #041E49;
+      --md-sys-color-surface: #FFFFFF;
+      --md-sys-color-surface-dim: #F8F9FA;
+      --md-sys-color-surface-container: #F0F4F9;
+      --md-sys-color-surface-container-high: #E9EEF6;
+      --md-sys-color-outline: #747775;
+      --md-sys-color-outline-variant: #CBD5E1;
+      --md-sys-color-on-surface: #1F1F1F;
+      --md-sys-color-on-surface-variant: #444746;
+      --md-sys-color-success: #137333;
+      --md-sys-color-success-container: #E6F4EA;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial,
+        "Hiragino Sans", "Yu Gothic UI", "Apple SD Gothic Neo", "Malgun Gothic", "PingFang SC", "Microsoft YaHei",
+        "Noto Sans JP", "Noto Sans KR", "Noto Sans SC", sans-serif;
+      margin: 0;
+      padding: 18px 22px 85px 22px;
+      color: var(--md-sys-color-on-surface);
+      font-size: 13px;
+      line-height: 1.5;
+      background: #F8F9FA;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Stepper & Header */
+    .step-header { margin-bottom: 14px; }
+    .step-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .step-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #0F172A;
+      margin: 0 0 3px 0;
+      letter-spacing: -0.2px;
+    }
+    .step-desc { font-size: 11.5px; color: #64748B; margin: 0; }
+
+    /* Badges */
+    .md3-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-size: 10.5px;
+      font-weight: 600;
+      line-height: 1;
+      letter-spacing: 0.2px;
+    }
+    .badge-neutral { background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; }
+    .badge-primary { background: #E8F0FE; color: #0B57D0; border: 1px solid #BFDBFE; }
+    .badge-success { background: #E6F4EA; color: #137333; border: 1px solid #CEEAD6; }
+    .badge-warning { background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; }
+    .badge-danger { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+    .badge-purple { background: #F5F3FF; color: #6D28D9; border: 1px solid #DDD6FE; }
+
+    /* Cards */
+    .md3-card {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .hero-card {
+      border: 1.5px solid #BFDBFE;
+      background: linear-gradient(180deg, #FFFFFF 0%, #FAFCFF 100%);
+    }
+
+    /* Option Cards */
+    .option-card {
+      background: #FFFFFF;
+      border: 1.5px solid #E2E8F0;
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-bottom: 14px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+    .option-card:hover {
+      border-color: #0B57D0;
+      transform: translateY(-1.5px);
+      box-shadow: 0 4px 12px rgba(11, 87, 208, 0.08);
+    }
+    .option-card.active {
+      border-color: #0B57D0;
+      background: #F0F7FF;
+      box-shadow: 0 2px 8px rgba(11, 87, 208, 0.12);
+    }
+    .option-card.option-recommended {
+      border-color: #93C5FD;
+      background: linear-gradient(180deg, #FFFFFF 0%, #FAFCFF 100%);
+    }
+    .option-card.option-disabled {
+      background: #F1F5F9;
+      border-color: #CBD5E1;
+      opacity: 0.72;
+      cursor: not-allowed;
+    }
+    .option-card.option-disabled:hover {
+      border-color: #CBD5E1;
+      transform: none;
+      box-shadow: none;
+    }
+    .option-card.option-disabled .option-title { color: #64748B; }
+    .option-card.option-disabled .option-desc { color: #94A3B8; }
+    .option-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+    .option-title-group { display: flex; align-items: center; gap: 10px; }
+    .option-icon {
+      font-size: 20px;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #F1F5F9;
+    }
+    .option-title { font-size: 13.5px; font-weight: 700; color: #0F172A; }
+    .option-desc { font-size: 11.5px; color: #64748B; line-height: 1.45; }
+
+    /* Live Cloud Monitor Card */
+    .monitor-card {
+      border: 1.5px solid #93C5FD;
+      background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFF 100%);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+    .pulse-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #16A34A;
+      margin-right: 6px;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 7px rgba(22, 163, 74, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 14px 0;
+    }
+    .kpi-item {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .kpi-item-label { font-size: 10px; font-weight: 700; color: #64748B; text-transform: uppercase; }
+    .kpi-item-val { font-size: 16px; font-weight: 700; color: #0F172A; margin-top: 2px; }
+    .kpi-item-sub { font-size: 10.5px; color: #475569; margin-top: 2px; }
+
+    /* Progress bar */
+    .progress-container {
+      width: 100%;
+      background-color: #E2E8F0;
+      border-radius: 9999px;
+      overflow: hidden;
+      margin: 10px 0 6px;
+      height: 10px;
+    }
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      background-color: #0B57D0;
+      transition: width 0.4s ease;
+    }
+
+    /* MD3 Pills Container */
+    .pills-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 10px;
+      background: #F8FAFD;
+      border: 1px dashed #CBD5E1;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      min-height: 38px;
+      align-items: center;
+    }
+    .chip-empty { font-size: 11px; color: #94A3B8; font-style: italic; }
+    .md3-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 6px 4px 10px;
+      border-radius: 9999px;
+      font-size: 11.5px;
+      font-weight: 500;
+    }
+    .chip-primary { background: #E8F0FE; color: #0B57D0; border: 1px solid #BFDBFE; }
+    .chip-success { background: #E6F4EA; color: #137333; border: 1px solid #CEEAD6; }
+    .chip-info { background: #F0F9FF; color: #0369A1; border: 1px solid #BAE6FD; }
+    .chip-purple { background: #F5F3FF; color: #6D28D9; border: 1px solid #DDD6FE; }
+    .chip-remove {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(0, 0, 0, 0.07);
+      color: currentColor;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .input-row { display: flex; gap: 8px; align-items: center; }
+    .input-field-wrap { flex: 1; position: relative; display: flex; align-items: center; }
+    .input-icon { position: absolute; left: 10px; font-size: 13px; color: #94A3B8; pointer-events: none; }
+    .input-field-wrap input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px 8px 30px;
+      border: 1px solid #CBD5E1;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #0F172A;
+      background: #FFFFFF;
+    }
+    .btn-add-chip {
+      padding: 7px 13px;
+      background: #F0F4F9;
+      color: #0B57D0;
+      border: 1px solid #CBD5E1;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 11.5px;
+      cursor: pointer;
+    }
+
+    /* Sticky Footer */
+    .dialog-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #FFFFFF;
+      border-top: 1px solid #E2E8F0;
+      padding: 12px 22px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 10px;
+      z-index: 100;
+      box-shadow: 0 -3px 12px rgba(0,0,0,0.04);
+    }
+    .btn-md3-text {
+      padding: 9px 18px;
+      border-radius: 9999px;
+      border: none;
+      background: transparent;
+      color: #475569;
+      font-weight: 600;
+      font-size: 12.5px;
+      cursor: pointer;
+    }
+    .btn-md3-filled {
+      padding: 9px 22px;
+      border-radius: 9999px;
+      border: none;
+      background: #0B57D0;
+      color: #FFFFFF;
+      font-weight: 600;
+      font-size: 12.5px;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(11, 87, 208, 0.3);
+    }
+    .btn-md3-filled:hover { background: #0842A0; }
+    .btn-md3-danger {
+      padding: 9px 18px;
+      border-radius: 9999px;
+      border: 1px solid #FECACA;
+      background: #FEE2E2;
+      color: #991B1B;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    /* Language picker & version badge */
+    .lang-bar { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin: -6px 0 6px; font-size: 11.5px; color: #475569; }
+    .lang-picker-group { display: flex; align-items: center; gap: 6px; }
+    .lang-bar label { font-weight: 600; }
+    .lang-bar select { padding: 4px 8px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 12px; color: #0F172A; background: #FFFFFF; font-family: inherit; }
+    .lang-bar select:disabled { opacity: 0.6; }
+
+    /* Views */
+    #init-loader { text-align: center; padding: 70px 20px; }
+    #cloud-monitor-container { display: none; }
+    #policy-precheck-container { display: none; }
+    #step0-container { display: none; }
+    #preflight-container { display: none; }
+    .pf-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+    .pf-stat { background: #F8FAFD; border: 1px solid #E2E8F0; border-radius: 8px; padding: 8px 10px; }
+    .pf-stat-value { font-size: 16px; font-weight: 700; color: #0F172A; }
+    .pf-stat-label { font-size: 10.5px; color: #64748B; margin-top: 2px; }
+    .pf-warning { background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; border-radius: 8px; padding: 8px 10px; font-size: 11.5px; margin-top: 6px; }
+    .precheck-section-title { font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.3px; margin: 10px 0 6px 2px; }
+    .precheck-policy-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    .precheck-policy-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 8px 12px; }
+    .precheck-policy-info { flex: 1; min-width: 0; }
+    .precheck-policy-title { font-size: 12.5px; font-weight: 700; color: #0F172A; }
+    .precheck-policy-target { font-size: 11px; color: #64748B; margin-top: 1px; }
+    .precheck-policy-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .precheck-link-btn { display: inline-flex; align-items: center; padding: 4px 9px; border-radius: 6px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #0B57D0; font-size: 11px; font-weight: 600; text-decoration: none; }
+    .precheck-link-btn:hover { background: #DBEAFE; color: #0842A0; }
+    .precheck-events-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+    .precheck-event-item { display: flex; justify-content: space-between; align-items: center; gap: 6px; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 6px 10px; font-size: 11px; font-weight: 600; color: #1E293B; }
+    #prereq-check-container { display: none; }
+    #prereq-guide-container { display: none; }
+    #step1-container { display: none; }
+    #step2-container { display: none; }
+    #exec-loader { display: none; padding: 30px 15px; }
+    #result-card { display: none; margin-top: 20px; padding: 24px 20px; background: #ECFDF5; border: 1.5px solid #A7F3D0; border-radius: 14px; text-align: center; }
+
+    /* Prerequisite & Modern Interactive Checklist */
+    .checklist-card {
+      background: #FFFFFF;
+      border: 1.5px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+      transition: all 0.2s ease;
+    }
+    .checklist-card.completed {
+      border-color: #86EFAC;
+      background: linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 100%);
+    }
+    .checklist-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .checklist-step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #0B57D0;
+      color: #FFFFFF;
+      font-weight: 700;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.2s ease;
+    }
+    .checklist-card.completed .checklist-step-num {
+      background: #16A34A;
+    }
+    .checklist-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: #0F172A;
+    }
+    .checklist-subtitle {
+      font-size: 11.5px;
+      color: #64748B;
+      margin-top: 1px;
+    }
+    .btn-direct-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      color: #0B57D0;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .btn-direct-link:hover {
+      background: #DBEAFE;
+      border-color: #93C5FD;
+      color: #0842A0;
+      text-decoration: none;
+    }
+    .checklist-breadcrumb {
+      font-size: 11px;
+      background: #F1F5F9;
+      padding: 6px 10px;
+      border-radius: 6px;
+      color: #334155;
+      margin: 8px 0 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+    }
+    .checklist-instructions {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      font-size: 11.5px;
+      color: #334155;
+      line-height: 1.45;
+    }
+    .inst-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .inst-bullet {
+      color: #0B57D0;
+      font-weight: 700;
+      flex-shrink: 0;
+      line-height: 1.3;
+    }
+    .callout-banner {
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .callout-info {
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      color: #1E3A8A;
+    }
+    .interactive-checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .interactive-checkbox-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #0B57D0;
+      cursor: pointer;
+    }
+
+    .spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid rgba(11,87,208,0.2); border-top-color: #0B57D0; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn-slides { display: inline-block; margin-top: 14px; padding: 11px 22px; background: #059669; color: white; text-decoration: none; border-radius: 9999px; font-weight: 600; font-size: 12.5px; }
+    .folder-card { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+    .source-input { width: 100%; padding: 9px 12px; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 12px; }
+    .source-input[aria-invalid="true"] { border-color: #B3261E; background: #FFF8F7; }
+    .field-error { color: #B3261E; font-size: 11.5px; font-weight: 600; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <!-- Version badge & Language picker (always visible) -->
+  <div class="lang-bar">
+    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.8</span>
+    <div class="lang-picker-group">
+      <label for="lang-select" data-i18n="lang.label">Language</label>
+      <select id="lang-select" onchange="changeLanguage(this.value)"></select>
+    </div>
+  </div>
+
+
+  <!-- Initial Loading Screen -->
+  <div id="init-loader">
+    <div class="spinner"></div>
+    <div data-i18n="loader.init.title" style="font-weight: 700; font-size: 15px; margin-top: 16px; color: #0F172A;" id="init-loader-title">Initializing CERA...</div>
+    <div data-i18n="loader.init.subtitle" style="font-size: 12px; color: #64748B; margin-top: 4px;" id="init-loader-subtitle">Checking background worker & Google Workspace environment...</div>
+  </div>
+
+  <!-- STATE: IN_PROGRESS / FAILED / COMPLETED (LOCKED OUT MONITOR VIEW) -->
+  <div id="cloud-monitor-container">
+    <div class="step-header">
+      <div data-i18n="mon.pill" class="step-pill" id="mon-pill">Autonomous Background Worker</div>
+      <h1 data-i18n="mon.title" class="step-title" id="mon-title">Autonomous Background Extraction Status</h1>
+      <p data-i18n="mon.subtitle" class="step-desc" id="mon-subtitle">Chrome security log events extraction running directly within your Google Workspace environment via Apps Script.</p>
+    </div>
+
+    <!-- Active Monitor Card -->
+    <div class="monitor-card" id="mon-card">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center;">
+          <span class="pulse-dot" id="mon-pulse"></span>
+          <span data-i18n="mon.status.running" style="font-weight: 700; font-size: 13px; color: #0F172A;" id="mon-status-text">RUNNING IN APPS SCRIPT BACKGROUND</span>
+        </div>
+        <span data-i18n="mon.daysBadge" data-i18n-params='{"days":7}' class="md3-badge badge-primary" id="mon-days-badge">7 Days Extraction</span>
+      </div>
+
+      <div class="progress-container">
+        <div id="mon-progress-bar" class="progress-bar"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 11px; color: #64748B; margin-bottom: 12px;">
+        <span data-i18n="mon.progress.start" id="mon-progress-date">Traversing from historical origin...</span>
+        <span id="mon-progress-pct" style="font-weight: 700; color: #0B57D0;">0.0%</span>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-item">
+          <div data-i18n="mon.kpi.logs" class="kpi-item-label">Total Logs Ingested</div>
+          <div class="kpi-item-val" id="mon-logs-count">0</div>
+          <div class="kpi-item-sub" id="mon-rate-txt">-- logs/sec</div>
+        </div>
+        <div class="kpi-item">
+          <div data-i18n="mon.kpi.eta" class="kpi-item-label">Estimated Completion</div>
+          <div class="kpi-item-val" id="mon-eta-txt">Calculating...</div>
+          <div data-i18n="mon.kpi.watchdog" class="kpi-item-sub">Watchdog: 42s Auto-Cycle</div>
+        </div>
+        <div class="kpi-item">
+          <div data-i18n="mon.kpi.partitions" class="kpi-item-label">Active Partitions</div>
+          <div class="kpi-item-val" id="mon-part-txt">Part #1</div>
+          <div data-i18n="mon.kpi.partMax" class="kpi-item-sub" id="mon-part-sub">50k rows max/sheet</div>
+        </div>
+        <div class="kpi-item">
+          <div data-i18n="mon.kpi.drive" class="kpi-item-label">Google Drive Target</div>
+          <div class="kpi-item-val" style="font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="mon-folder-txt">Target Folder</div>
+          <div class="kpi-item-sub"><a data-i18n="mon.kpi.viewDrive" id="mon-drive-link" href="#" target="_blank" style="color: #0B57D0; font-weight: 600;">📁 View in Drive</a></div>
+        </div>
+      </div>
+
+      <div id="mon-error-banner" style="display: none; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 12px; margin-top: 10px; color: #991B1B; font-size: 11.5px;">
+        <div data-i18n="mon.err.title" style="font-weight: 700; margin-bottom: 4px;">⚠️ Diagnostic Notice:</div>
+        <div id="mon-error-msg" style="margin-bottom: 8px; word-break: break-word;"></div>
+        <div data-i18n-html="mon.err.zeroLoss" style="font-size: 11px; color: #7F1D1D; margin-bottom: 8px;">💡 <b>Zero Data Loss:</b> Ingestion cursor is safely preserved in Google Drive. You can resume extraction from the last recorded timestamp.</div>
+        <button data-i18n="mon.err.resumeNow" type="button" class="btn-md3-filled" style="background: #0B57D0; font-size: 11.5px; padding: 6px 14px; font-weight: 600;" onclick="handleResumeFromDialog()">⚡ Resume Ingestion Now</button>
+      </div>
+
+      <div data-i18n-html="mon.completed" id="mon-completed-banner" style="display: none; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 12px; margin-top: 10px; color: #166534; font-size: 12px; text-align: center;">
+        🎉 <b>Historical extraction complete!</b> All logs are saved in Google Drive. Click below to proceed directly to CERA executive analysis.
+      </div>
+
+      <div data-i18n-html="mon.partial.banner" data-i18n-params='{"days":7}' id="mon-partial-banner" style="display: none; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 10px 12px; margin-top: 10px; color: #1E3A8A; font-size: 11.5px; line-height: 1.45;">
+        ⚡ <b>Need Insights Sooner?</b> You already have extracted logs saved in Google Drive. You can wait for the full 7-day extraction, or click <b>Stop &amp; Analyze Extracted Logs Now</b> below to generate your CERA report immediately from the logs collected so far.
+      </div>
+
+      <div data-i18n-html="mon.autonomousNote" style="background: #F8FAFD; border: 1px dashed #CBD5E1; border-radius: 8px; padding: 10px 12px; font-size: 11px; color: #64748B; margin-top: 12px;">
+        💡 <b>Autonomous Background Worker:</b> You do not need to keep this window open. You can safely close your browser or turn off your computer; execution runs autonomously via Google Apps Script and progress is continuously saved to the <i>⚡ Ingestion Monitor</i> sheet tab.
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button data-i18n="mon.btn.resumeCloud" type="button" class="btn-md3-filled" id="btn-mon-resume" style="display: none; background: #0B57D0;" onclick="handleResumeFromDialog()">⚡ Resume Cloud Ingestion</button>
+      <button data-i18n="mon.btn.stopAnalyze" type="button" class="btn-md3-filled" id="btn-mon-stop-analyze" style="display: none; background: #0D9488;" onclick="handleStopAndAnalyzeNow()">⚡ Stop & Analyze Extracted Logs Now</button>
+      <button data-i18n="mon.btn.reset" type="button" class="btn-md3-danger" id="btn-mon-stop-reset" onclick="handleEmergencyStopAndReset()">🛑 Emergency Reset & Stop Ingestion</button>
+      <button data-i18n="mon.btn.proceed" type="button" class="btn-md3-filled" id="btn-mon-proceed" style="display: none; background: #16A34A;" onclick="handleProceedToAnalysis()">🚀 Proceed to CERA Analysis</button>
+      <button data-i18n="common.close" type="button" class="btn-md3-text" onclick="google.script.host.close()">Close</button>
+    </div>
+  </div>
+
+  <!-- STEP 0 (ADMIN ONLY): Chrome Enterprise Pre-requisite Check -->
+  <div id="policy-precheck-container">
+    <div class="step-header">
+      <div data-i18n="precheck.pill" class="step-pill">Step 0 • Pre-requisite</div>
+      <h1 data-i18n="precheck.title" class="step-title">Chrome Enterprise Pre-requisite Check</h1>
+      <p data-i18n="precheck.desc" class="step-desc">Verify that the 3 essential Chrome Enterprise reporting policies are enabled in your Google Admin Console before selecting an ingestion method.</p>
+    </div>
+
+    <div id="precheck-summary-banner" data-i18n="precheck.banner.actionNeeded" style="padding: 11px 14px; border-radius: 10px; font-size: 12px; font-weight: 600; line-height: 1.45; margin-bottom: 12px; background: #FFFBEB; border: 1.5px solid #FDE68A; color: #92400E;">
+      ⚠️ One or more pre-requisite policies still need to be enabled or verified in your domain. Click "Open ↗" below to enable them in Google Admin Console, then click "Re-check".
+    </div>
+
+    <div data-i18n="precheck.sec.policies" class="precheck-section-title">Required Chrome Enterprise Policies</div>
+    <div class="precheck-policy-list" id="precheck-policy-list">
+      <div class="precheck-policy-row" id="precheck-pol-row-on_security_event">
+        <div class="precheck-policy-info">
+          <div data-i18n="precheck.pol.on_security_event.title" class="precheck-policy-title">Event reporting</div>
+          <div data-i18n="precheck.pol.on_security_event.target" class="precheck-policy-target">Enable all (Optional: Password breach, Login)</div>
+        </div>
+        <div class="precheck-policy-actions">
+          <span id="precheck-pol-status-on_security_event" data-i18n="precheck.status.verify" class="md3-badge badge-warning">⚠ Check Policy</span>
+          <a id="precheck-pol-link-on_security_event" data-i18n="precheck.openLink" href="https://admin.google.com/ac/chrome/settings/user/details/on_security_event" target="_blank" rel="noopener noreferrer" class="precheck-link-btn">Open ↗</a>
+        </div>
+      </div>
+
+      <div class="precheck-policy-row" id="precheck-pol-row-cloud_reporting">
+        <div class="precheck-policy-info">
+          <div data-i18n="precheck.pol.cloud_reporting.title" class="precheck-policy-title">Managed browser reporting</div>
+          <div data-i18n="precheck.pol.cloud_reporting.target" class="precheck-policy-target">Enable</div>
+        </div>
+        <div class="precheck-policy-actions">
+          <span id="precheck-pol-status-cloud_reporting" data-i18n="precheck.status.verify" class="md3-badge badge-warning">⚠ Check Policy</span>
+          <a id="precheck-pol-link-cloud_reporting" data-i18n="precheck.openLink" href="https://admin.google.com/ac/chrome/settings/user/details/cloud_reporting" target="_blank" rel="noopener noreferrer" class="precheck-link-btn">Open ↗</a>
+        </div>
+      </div>
+
+      <div class="precheck-policy-row" id="precheck-pol-row-cloud_profile_reporting">
+        <div class="precheck-policy-info">
+          <div data-i18n="precheck.pol.cloud_profile_reporting.title" class="precheck-policy-title">Managed profile reporting</div>
+          <div data-i18n="precheck.pol.cloud_profile_reporting.target" class="precheck-policy-target">Enable</div>
+        </div>
+        <div class="precheck-policy-actions">
+          <span id="precheck-pol-status-cloud_profile_reporting" data-i18n="precheck.status.verify" class="md3-badge badge-warning">⚠ Check Policy</span>
+          <a id="precheck-pol-link-cloud_profile_reporting" data-i18n="precheck.openLink" href="https://admin.google.com/ac/chrome/settings/user/details/cloud_profile_reporting" target="_blank" rel="noopener noreferrer" class="precheck-link-btn">Open ↗</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog-footer">
+      <button data-i18n="common.cancel" type="button" class="btn-md3-text" onclick="google.script.host.close()">Cancel</button>
+      <button data-i18n="precheck.btn.recheck" type="button" class="btn-md3-text" id="btn-precheck-refresh" style="color: #0B57D0;" onclick="refreshPolicyPrecheck()">🔄 Re-check</button>
+      <button data-i18n="precheck.btn.continue" type="button" class="btn-md3-filled" id="btn-precheck-continue" onclick="goToStep0()">Continue to Ingestion Setup ➔</button>
+    </div>
+  </div>
+
+  <!-- STEP 0: Ingestion Architecture Choice (IDLE State) -->
+  <div id="step0-container">
+    <div class="step-header">
+      <div data-i18n="step0.pill" class="step-pill">Ingestion Engine Selection</div>
+      <h1 data-i18n="step0.title" class="step-title">Chrome Enterprise Ingestion Setup</h1>
+      <p data-i18n="step0.desc" class="step-desc">Select how telemetry logs should be fed into the CERA analysis suite</p>
+    </div>
+
+    <!-- Option Card 1: Manual Folder/Sheet Ingestion (Recommended) -->
+    <div class="option-card option-recommended" id="opt-folder-card" onclick="goToPrereqCheck()">
+      <div class="option-header">
+        <div class="option-title-group">
+          <div class="option-icon" style="background: #FEF3C7; color: #B45309;">📁</div>
+          <div>
+            <div data-i18n="step0.manual.title" class="option-title">Existing Google Drive Folder or Sheet (Manual Export)</div>
+            <div data-i18n="step0.manual.desc" class="option-desc">Analyze Chrome audit log sheets previously exported from Google Admin Console into Drive.</div>
+          </div>
+        </div>
+        <span data-i18n="common.recommended" class="md3-badge badge-primary">Recommended</span>
+      </div>
+      <div data-i18n="step0.manual.hint" style="font-size: 11px; color: #64748B; margin-top: 4px;">
+        Select your Google Drive folder or single spreadsheet file, then configure enterprise domains.
+      </div>
+      <div data-i18n="step0.manual.note" style="font-size: 11px; color: #64748B; margin-top: 4px;">
+        ⏳ Processing can take a while, depending on how many log rows the export holds and how many people use Chrome Enterprise.
+      </div>
+      <div style="margin-top: 10px; text-align: right;">
+        <span data-i18n="step0.manual.cta" style="font-size: 11.5px; font-weight: 700; color: #0B57D0;">Check Readiness & Select Source ➔</span>
+      </div>
+    </div>
+
+    <!-- Option Card 2: Autonomous Ingestion via Admin SDK -->
+    <div class="option-card" id="opt-cloud-card">
+      <div class="option-header">
+        <div class="option-title-group">
+          <div class="option-icon" id="opt-cloud-icon" style="background: #E8F0FE; color: #0B57D0;">⚡</div>
+          <div>
+            <div data-i18n="step0.cloud.title" class="option-title">Direct Ingestion via Admin SDK</div>
+            <div data-i18n="step0.cloud.desc" class="option-desc">Autonomous background worker runs directly via Google Apps Script (No browser required).</div>
+          </div>
+        </div>
+        <span data-i18n="step0.cloud.roleBadge" class="md3-badge badge-neutral" id="cloud-role-badge" style="display: none;">🔒 Admin Role Required</span>
+      </div>
+
+      <div data-i18n="step0.cloud.noRole" id="cloud-role-notice" style="display: none; margin-top: 8px; padding: 10px 12px; background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px; font-size: 11.5px; color: #475569; line-height: 1.45;">
+        🔒 You do not have the required administrator role in this organization to run Policy Precheck or Direct Ingestion via Admin SDK. Please ask your Google Workspace / Chrome Administrator to enable the required Chrome reporting policies and export the Chrome log events to Google Drive, then continue with Manual Export above.
+      </div>
+
+      <div id="cloud-controls-group">
+        <div style="margin: 12px 0 6px; padding: 10px 12px; background: #F8FAFD; border: 1px solid #E2E8F0; border-radius: 8px;">
+          <label for="cloudRangeDays" data-i18n="step0.cloud.rangeLabel" style="font-weight: 700; font-size: 11.5px; color: #334155; display: block; margin-bottom: 4px;">Select Audit Retention Scope:</label>
+          <select id="cloudRangeDays" onchange="toggleRangeWarning()" style="width: 100%; padding: 8px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 12px; color: #0F172A; background: #FFFFFF;">
+            <option data-i18n="step0.range.7" value="7" selected>7 Days (Recommended)</option>
+          </select>
+          <div data-i18n="step0.range.warning" id="range-warning" class="pf-warning" role="status" style="display: none;">⚠️ Not recommended: CERA takes a sample of data to produce insights, not a forensic history, and longer ranges take much longer.</div>
+        </div>
+
+        <div data-i18n-html="step0.cloud.note" style="font-size: 11px; color: #64748B; margin-top: 6px;">
+          ⚡ <b>Direct ingestion can take a long time.</b> <i>It reads the selected range in the background, oldest day first, and removes its triggers when done. Status updates every 2 minutes in the <b>⚡ Ingestion Monitor</b> tab.</i>
+        </div>
+
+        <div style="margin-top: 12px; text-align: right;">
+          <button data-i18n="step0.cloud.engage" id="btn-cloud-engage" type="button" class="btn-md3-filled" onclick="startCloudEngage()">🚀 Engage Background Extraction</button>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button data-i18n="precheck.btn.back" type="button" class="btn-md3-text" id="btn-step0-back-precheck" style="display: none;" onclick="goToPolicyPrecheck()">← Pre-requisite</button>
+      <button data-i18n="common.cancel" type="button" class="btn-md3-text" onclick="google.script.host.close()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- PREFLIGHT: Access check, volume and duration estimate before cloud ingestion -->
+  <div id="preflight-container">
+    <div class="step-header">
+      <div data-i18n="pf.pill" class="step-pill">Preflight • Volume Estimate</div>
+      <h1 data-i18n="pf.title.default" class="step-title" id="pf-title">Before you start</h1>
+      <p class="step-desc" id="pf-summary"></p>
+    </div>
+    <div class="pf-stat-grid" id="pf-stats"></div>
+    <div id="pf-warnings"></div>
+    <div data-i18n-html="pf.expectationNote" id="pf-expectation-note" style="display: none; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 10px 12px; margin-top: 10px; color: #1E3A8A; font-size: 11px; line-height: 1.45;"></div>
+    <div class="dialog-footer">
+      <button data-i18n="common.back" type="button" class="btn-md3-text" onclick="goToStep0()">Back</button>
+      <button data-i18n="pf.btn.manual" type="button" class="btn-md3-text" id="pf-manual" onclick="goToPrereqCheck()">Use manual import (Drive folder / Sheet)</button>
+      <button data-i18n="pf.btn.start" type="button" class="btn-md3-filled" id="pf-start" onclick="engageAfterPreflight()">🚀 Start extraction</button>
+    </div>
+  </div>
+
+  <!-- PREREQUISITE CHECK: Has Raw Telemetry Been Exported? -->
+  <div id="prereq-check-container">
+    <div class="step-header">
+      <div data-i18n="prereq.pill" class="step-pill">Prerequisite • Telemetry Readiness</div>
+      <h1 data-i18n="prereq.title" class="step-title">Chrome Audit Log Readiness</h1>
+      <p data-i18n="prereq.desc" class="step-desc">Verify if your raw Chrome browser telemetry export is already staged in Google Drive</p>
+    </div>
+
+    <!-- Option A: Already Exported -->
+    <div class="option-card" onclick="goToStep1()">
+      <div class="option-header">
+        <div class="option-title-group">
+          <div class="option-icon" style="background: #E6F4EA; color: #137333;">✅</div>
+          <div>
+            <div data-i18n="prereq.yes.title" class="option-title">Yes, Raw Telemetry is Already Exported</div>
+            <div data-i18n="prereq.yes.desc" class="option-desc">My Chrome audit log sheets or folder are already staged in Google Drive and ready for CERA analysis.</div>
+          </div>
+        </div>
+        <span data-i18n="prereq.yes.badge" class="md3-badge badge-success">Ready to Ingest</span>
+      </div>
+      <div style="margin-top: 8px; text-align: right;">
+        <span data-i18n="common.proceedToSource" style="font-size: 11.5px; font-weight: 700; color: #137333;">Proceed to Source Selection ➔</span>
+      </div>
+    </div>
+
+    <!-- Option B: Need Guidance to Export -->
+    <div class="option-card" onclick="goToPrereqGuide()">
+      <div class="option-header">
+        <div class="option-title-group">
+          <div class="option-icon" style="background: #FEF3C7; color: #B45309;">📋</div>
+          <div>
+            <div data-i18n="prereq.no.title" class="option-title">No, I Need to Export Raw Telemetry First</div>
+            <div data-i18n="prereq.no.desc" class="option-desc">Guide me through the Google Admin Console export (last 7 days) and Drive staging.</div>
+          </div>
+        </div>
+        <span data-i18n="prereq.no.badge" class="md3-badge badge-warning">Interactive Checklist</span>
+      </div>
+      <div data-i18n-html="prereq.no.hint" style="font-size: 11px; color: #64748B; margin-top: 6px;">
+        Includes a direct link to <b>goo.gle/cera-logs</b>, the date range to export (the last 7 days) and Drive staging tips.
+      </div>
+      <div style="margin-top: 8px; text-align: right;">
+        <span data-i18n="prereq.no.cta" style="font-size: 11.5px; font-weight: 700; color: #0B57D0;">Open Guided Checklist ➔</span>
+      </div>
+    </div>
+
+    <div class="dialog-footer">
+      <button data-i18n="prereq.backToOptions" type="button" class="btn-md3-text" onclick="goToStep0()">← Back to Options</button>
+    </div>
+  </div>
+
+  <!-- PREREQUISITE GUIDE: Modern Interactive UI/UX Checklist (Based on welcome_guide.csv) -->
+  <div id="prereq-guide-container">
+    <div class="step-header">
+      <div data-i18n="guide.pill" class="step-pill">Prerequisite Guide • Export Checklist</div>
+      <h1 data-i18n="guide.title" class="step-title">Manual Export & Staging Checklist</h1>
+      <p data-i18n="guide.desc" class="step-desc">Follow these 2 essential steps from the CERA Welcome Guide to retrieve and stage raw browser logs</p>
+    </div>
+
+    <!-- Non-Admin Policy & Export Request Card (shown when signed-in user lacks Admin access) -->
+    <div class="checklist-card" id="non-admin-request-card" style="display: none; background: #FFFBEB; border-color: #FDE68A;">
+      <div data-i18n="precheck.nonAdmin.title" style="font-weight: 700; font-size: 12.5px; color: #92400E; margin-bottom: 4px;">🔒 Need Administrator Assistance?</div>
+      <div data-i18n="precheck.nonAdmin.body" style="font-size: 11.5px; color: #78350F; line-height: 1.45; margin-bottom: 8px;">If you do not have Google Admin Console access, ask your administrator to enable the 3 Chrome Enterprise pre-requisite policies below and export the Chrome audit log sheets to Google Drive for you:</div>
+      <div style="font-size: 11px; color: #1E293B; line-height: 1.55; background: #FFFFFF; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 10px;">
+        <div>1. <b data-i18n="precheck.pol.on_security_event.title">Event reporting</b> (<span data-i18n="precheck.pol.on_security_event.target">Enable all (Optional: Password breach, Login)</span>) — <a href="https://admin.google.com/ac/chrome/settings/user/details/on_security_event" target="_blank" rel="noopener noreferrer" style="color: #0B57D0;">admin.google.com/.../on_security_event</a></div>
+        <div>2. <b data-i18n="precheck.pol.cloud_reporting.title">Managed browser reporting</b> (<span data-i18n="precheck.pol.cloud_reporting.target">Enable</span>) — <a href="https://admin.google.com/ac/chrome/settings/user/details/cloud_reporting" target="_blank" rel="noopener noreferrer" style="color: #0B57D0;">admin.google.com/.../cloud_reporting</a></div>
+        <div>3. <b data-i18n="precheck.pol.cloud_profile_reporting.title">Managed profile reporting</b> (<span data-i18n="precheck.pol.cloud_profile_reporting.target">Enable</span>) — <a href="https://admin.google.com/ac/chrome/settings/user/details/cloud_profile_reporting" target="_blank" rel="noopener noreferrer" style="color: #0B57D0;">admin.google.com/.../cloud_profile_reporting</a></div>
+      </div>
+    </div>
+
+    <!-- Checklist Item 1: Admin Console Export -->
+    <div class="checklist-card" id="card-check-step1">
+      <div class="checklist-header">
+        <div class="checklist-step-num">1</div>
+        <div style="flex: 1;">
+          <div data-i18n="guide.s1.title" class="checklist-title">Export Chrome Log Events from Google Admin Console</div>
+          <div data-i18n="guide.s1.subtitle" class="checklist-subtitle">Retrieve organizational browser telemetry from the Workspace Audit & Investigation console.</div>
+        </div>
+        <span data-i18n="common.step1of2" class="md3-badge badge-primary">Step 1 of 2</span>
+      </div>
+
+      <div class="checklist-body">
+        <!-- Direct link button -->
+        <div style="margin: 10px 0 12px;">
+          <a data-i18n-html="guide.s1.link" href="https://goo.gle/cera-logs" target="_blank" rel="noopener noreferrer" class="btn-direct-link">
+            <span>🔗</span> Open Admin Console Audit: <b>goo.gle/cera-logs</b> ↗
+          </a>
+        </div>
+
+        <div class="checklist-breadcrumb">
+          <span style="color: #64748B;" data-i18n="guide.s1.navLabel">Navigation Path:</span>
+          <span data-i18n-html="guide.s1.navPath"><b>Admin Console</b> ➔ <b>Security</b> ➔ <b>Reports</b> ➔ <b>Audit and investigation</b> ➔ <b>Chrome log events</b></span>
+        </div>
+
+        <div class="checklist-instructions">
+          <div class="inst-item">
+            <span class="inst-bullet">•</span>
+            <div data-i18n-html="guide.s1.i1"><b>Date range:</b> export the <b>last 7 days</b>. A 7-day sample shows how data is shared in your organization; the full history is not needed.</div>
+          </div>
+          <div class="inst-item">
+            <span class="inst-bullet">•</span>
+            <div data-i18n-html="guide.s1.i2"><b>Select Event Types:</b> Ensure all primary threat vectors are selected: <code>file upload</code>, <code>download</code>, <code>print</code>, <code>password reuse</code>, and <code>malware transfer</code>.</div>
+          </div>
+          <div class="inst-item">
+            <span class="inst-bullet">•</span>
+            <div data-i18n-html="guide.s1.i3"><b>Trigger Export:</b> Click the <b>Export</b> button in the top toolbar and select <b>Google Sheets</b> (or CSV).</div>
+          </div>
+          <div class="inst-item">
+            <span class="inst-bullet">•</span>
+            <div data-i18n-html="guide.s1.langNote"><b>Export language:</b> Exports in <b>English</b>, <b>Japanese (日本語)</b>, <b>Korean (한국어)</b>, <b>Simplified Chinese (简体中文)</b>, and <b>Indonesian (Bahasa Indonesia)</b> are automatically normalized. If your Google Account uses another language, switch to <b>English</b> at <a href="https://myaccount.google.com/language" target="_blank" rel="noopener noreferrer">myaccount.google.com/language</a> before exporting, or use Direct Ingestion.</div>
+          </div>
+        </div>
+
+        <!-- Callout Banner: Safe to Close Window -->
+        <div class="callout-banner callout-info" style="margin-top: 12px;">
+          <div data-i18n-html="guide.s1.noticeTitle" style="font-weight: 700; font-size: 12px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
+            <span>⏳</span> Notice: Large Exports Take Time
+          </div>
+          <div data-i18n-html="guide.s1.noticeBody" style="font-size: 11px; color: #1E3A8A; line-height: 1.45;">
+            The export can take a few minutes or longer, depending on the number of events. <b>You can close this dialog now</b> and come back when the export is in your Drive.
+          </div>
+        </div>
+
+        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #E2E8F0;">
+          <label class="interactive-checkbox-label">
+            <input type="checkbox" id="chk-export-done" onchange="toggleChecklistItem(1)">
+            <span data-i18n="guide.s1.check" style="font-weight: 600; font-size: 12px; color: #0F172A;">I have started or completed the Chrome telemetry export from Admin Console</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Checklist Item 2: Google Drive Staging -->
+    <div class="checklist-card" id="card-check-step2">
+      <div class="checklist-header">
+        <div class="checklist-step-num">2</div>
+        <div style="flex: 1;">
+          <div data-i18n="guide.s2.title" class="checklist-title">Consolidate Raw Logs in Google Drive</div>
+          <div data-i18n="guide.s2.subtitle" class="checklist-subtitle">Organize the exported sheets so CERA can ingest and batch process them seamlessly.</div>
+        </div>
+        <span data-i18n="common.step2of2" class="md3-badge badge-neutral">Step 2 of 2</span>
+      </div>
+
+      <div class="checklist-body">
+        <div class="checklist-instructions">
+          <div class="inst-item">
+            <span class="inst-bullet">📄</span>
+            <div data-i18n-html="guide.s2.i1"><b>One export file:</b> open it in Google Sheets and copy its link.</div>
+          </div>
+          <div class="inst-item">
+            <span class="inst-bullet">📁</span>
+            <div data-i18n-html="guide.s2.i2"><b>Several export files:</b> put them in one Drive folder and copy the folder link. CERA reads every Google Sheets file in it.</div>
+          </div>
+        </div>
+
+        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #E2E8F0;">
+          <label class="interactive-checkbox-label">
+            <input type="checkbox" id="chk-staging-done" onchange="toggleChecklistItem(2)">
+            <span data-i18n="guide.s2.check" style="font-weight: 600; font-size: 12px; color: #0F172A;">I have the link to the exported sheet or folder</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Interactive Progress Summary Bar -->
+    <div style="padding: 10px 14px; background: #F8FAFD; border: 1px solid #E2E8F0; border-radius: 10px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span id="checklist-status-icon" style="font-size: 16px;">⏳</span>
+        <span data-i18n="guide.status.0" id="checklist-status-text" style="font-size: 11.5px; font-weight: 600; color: #475569;">Complete the steps above, then proceed to analysis.</span>
+      </div>
+      <span data-i18n="guide.badge.0" class="md3-badge badge-neutral" id="checklist-progress-badge">0 / 2 Completed</span>
+    </div>
+
+    <div class="dialog-footer">
+      <button data-i18n="common.backArrow" type="button" class="btn-md3-text" onclick="goToPrereqCheck()">← Back</button>
+      <button data-i18n="guide.closeLater" type="button" class="btn-md3-text" onclick="google.script.host.close()" style="color: #64748B;">Close & Return Later</button>
+      <button data-i18n="common.proceedToSource" type="button" class="btn-md3-filled" id="btn-prereq-proceed" onclick="goToStep1()">Proceed to Source Selection ➔</button>
+    </div>
+  </div>
+
+  <!-- STEP 1: Target Telemetry Source & Output Formats -->
+  <div id="step1-container">
+    <div class="step-header">
+      <div data-i18n="common.step1of2" class="step-pill">Step 1 of 2</div>
+      <h1 data-i18n="step1.title.manual" class="step-title" id="step1-title">Telemetry Ingestion Source & Outputs</h1>
+      <p data-i18n="step1.desc.manual" class="step-desc" id="step1-desc">Select Google Drive folder or single Sheet containing Chrome audit logs, and choose output formats</p>
+    </div>
+
+    <!-- Autonomous Target Display (Shown when direct autonomous ingestion succeeded) -->
+    <div id="autonomous-target-banner" class="folder-card" style="display: none; background: #F0FDF4; border: 1.5px solid #86EFAC; border-radius: 12px; padding: 12px 16px; margin-bottom: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">📁</span>
+          <div>
+            <div style="font-weight: 700; font-size: 13px; color: #166534;"><span data-i18n="step1.auto.sourceLabel">Ingestion Source:</span> <span id="auto-target-name">Extracted Telemetry</span></div>
+            <div data-i18n="step1.auto.desc" style="font-size: 11.5px; color: #15803D; margin-top: 2px;">
+              Direct Admin SDK extraction complete • Staged in Google Drive partitions
+            </div>
+          </div>
+        </div>
+        <span data-i18n="step1.auto.badge" class="md3-badge badge-success">Target Ready</span>
+      </div>
+    </div>
+
+    <!-- Manual mode: link or ID of the exported sheet or Drive folder (required) -->
+    <div class="md3-card" id="raw-source-card" style="padding: 14px 16px; margin-bottom: 14px;">
+      <div data-i18n="step1.source.title" style="font-weight: 700; color: #0F172A; font-size: 13px; margin-bottom: 8px;">Choose Raw Data Source</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <label for="driveFolderInput" data-i18n="step1.input.label" style="font-weight: 600; font-size: 12px; color: #334155;">Drive Folder Link/ID or Sheets URL/ID:</label>
+        <span id="source-type-pill" class="md3-badge badge-neutral" style="display: none;"></span>
+      </div>
+      <input type="text" id="driveFolderInput" class="source-input" required aria-required="true" aria-describedby="source-error" data-i18n-placeholder="step1.input.placeholder" oninput="detectSourceType(this.value)" placeholder="Paste Sheets URL, Folder URL, or Resource ID here...">
+      <div data-i18n="step1.input.required" id="source-error" class="field-error" role="alert" style="display: none;">Required: paste the link or ID of your exported sheet or Drive folder.</div>
+      <div data-i18n-html="step1.helper.default" id="source-detected-helper" style="font-size: 11px; color: #64748B; margin-top: 5px;">
+        💡 <b>Flexible Input:</b> You can paste a full Drive Folder link/ID, or paste a single Google Sheets link/ID directly.
+      </div>
+    </div>
+
+    <div data-i18n="step1.outputs.title" style="margin: 14px 0 8px 2px; font-weight: 700; font-size: 11px; color: #475569; text-transform: uppercase;">Select Output Formats</div>
+    <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+      <div class="md3-card" style="display: flex; align-items: center; gap: 10px; cursor: pointer;" onclick="document.getElementById('generateSlides').click()">
+        <input type="checkbox" id="generateSlides" checked onclick="event.stopPropagation()">
+        <div>
+          <div data-i18n="step1.out.slides.title" style="font-weight: 700; font-size: 12px;">📊 Executive Presentation Deck</div>
+          <div data-i18n="step1.out.slides.desc" style="font-size: 11px; color: #64748B;">Widescreen slides with native vector charts, behavioral outliers & 3-horizon roadmap.</div>
+        </div>
+      </div>
+      <div class="md3-card" style="display: flex; align-items: center; gap: 10px; cursor: pointer;" onclick="document.getElementById('generateSheets').click()">
+        <input type="checkbox" id="generateSheets" onclick="event.stopPropagation()">
+        <div>
+          <div data-i18n="step1.out.sheets.title" style="font-weight: 700; font-size: 12px;">📈 Reports on Sheets (Optional)</div>
+          <div data-i18n="step1.out.sheets.desc" style="font-size: 11px; color: #64748B;">Overview dashboard & 4 threat vector sheets with detail tables.</div>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button data-i18n="common.backArrow" type="button" class="btn-md3-text" onclick="handleStep1Back()">← Back</button>
+      <button data-i18n="step1.next" type="button" class="btn-md3-filled" onclick="goToStep2()">Next: Enterprise Domains & Threat Vectors ➔</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: Defining Domains & Threat Vectors (MD3 Neural Expressive) -->
+  <div id="step2-container">
+    <div class="step-header">
+      <div data-i18n="common.step2of2" class="step-pill">Step 2 of 2</div>
+      <h1 data-i18n="step2.title" class="step-title">Defining Domains & Threat Vectors</h1>
+      <p data-i18n="step2.desc" class="step-desc">Configure corporate identity perimeter and sanctioned classifications</p>
+    </div>
+
+    <div class="md3-card hero-card" id="card-corp">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+        <div style="display: flex; align-items: flex-start; gap: 8px;">
+          <span style="font-size: 16px;">🏢</span>
+          <div>
+            <div data-i18n="step2.corp.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Corporate / Managed Domains</div>
+            <div data-i18n="step2.corp.hint" style="font-size: 11px; color: #64748B;" id="corpDomainsHint">Internal enterprise domains excluded from unmanaged threat vectors.</div>
+          </div>
+        </div>
+        <span class="md3-badge badge-primary" id="corp-badge">0 Domains</span>
+      </div>
+      <div class="pills-container" id="corp-pills"></div>
+      <div class="input-row">
+        <div class="input-field-wrap">
+          <span class="input-icon">🌐</span>
+          <input type="text" id="corp-input" data-i18n-placeholder="step2.corp.placeholder" placeholder="Type domain (e.g. enterprise.com) and press Enter..." autocomplete="off">
+        </div>
+        <button data-i18n="common.add" type="button" class="btn-add-chip" id="btn-add-corp">+ Add</button>
+      </div>
+    </div>
+
+    <div class="md3-card" id="card-ai">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+        <div style="display: flex; align-items: flex-start; gap: 8px;">
+          <span style="font-size: 16px;">🤖</span>
+          <div>
+            <div data-i18n="step2.ai.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Sanctioned Enterprise AI Endpoints (Gemini)</div>
+            <div data-i18n="step2.ai.desc" style="font-size: 11px; color: #64748B;">Approved internal AI portals benchmarked against Shadow AI</div>
+          </div>
+        </div>
+        <span class="md3-badge badge-success" id="ai-badge">1 Endpoint</span>
+      </div>
+      <div class="pills-container" id="ai-pills"></div>
+      <div class="input-row">
+        <div class="input-field-wrap">
+          <span class="input-icon">✨</span>
+          <input type="text" id="ai-input" data-i18n-placeholder="step2.ai.placeholder" placeholder="Type AI endpoint (e.g. gemini.google.com)..." autocomplete="off">
+        </div>
+        <button data-i18n="common.add" type="button" class="btn-add-chip" id="btn-add-ai">+ Add</button>
+      </div>
+    </div>
+
+    <div class="md3-card" id="card-prod">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+        <div style="display: flex; align-items: flex-start; gap: 8px;">
+          <span style="font-size: 16px;">📁</span>
+          <div>
+            <div data-i18n="step2.prod.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Sanctioned Productivity Suites</div>
+            <div data-i18n="step2.prod.desc" style="font-size: 11px; color: #64748B;">Managed suites excluded from Unmanaged SaaS classification</div>
+          </div>
+        </div>
+        <span class="md3-badge badge-info" id="prod-badge">5 Domains</span>
+      </div>
+      <div class="pills-container" id="prod-pills"></div>
+      <div class="input-row">
+        <div class="input-field-wrap">
+          <span class="input-icon">☁️</span>
+          <input type="text" id="prod-input" data-i18n-placeholder="step2.prod.placeholder" placeholder="Type suite domain (e.g. drive.google.com)..." autocomplete="off">
+        </div>
+        <button data-i18n="common.add" type="button" class="btn-add-chip" id="btn-add-prod">+ Add</button>
+      </div>
+    </div>
+
+    <div class="md3-card" id="card-msg">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+        <div style="display: flex; align-items: flex-start; gap: 8px;">
+          <span style="font-size: 16px;">💬</span>
+          <div>
+            <div data-i18n="step2.msg.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Monitored Web Messaging Platforms</div>
+            <div data-i18n="step2.msg.desc" style="font-size: 11px; color: #64748B;">Browser chat & collaboration platforms monitored for data exfiltration</div>
+          </div>
+        </div>
+        <span class="md3-badge badge-purple" id="msg-badge">7 Domains</span>
+      </div>
+      <div class="pills-container" id="msg-pills"></div>
+      <div class="input-row">
+        <div class="input-field-wrap">
+          <span class="input-icon">📨</span>
+          <input type="text" id="msg-input" data-i18n-placeholder="step2.msg.placeholder" placeholder="Type chat domain (e.g. web.whatsapp.com)..." autocomplete="off">
+        </div>
+        <button data-i18n="common.add" type="button" class="btn-add-chip" id="btn-add-msg">+ Add</button>
+      </div>
+    </div>
+    <div class="md3-card" id="card-partner">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+        <div style="display: flex; align-items: flex-start; gap: 8px;">
+          <span style="font-size: 16px;">🤝</span>
+          <div>
+            <div style="font-weight: 700; font-size: 12.5px; color: #0F172A;" data-i18n="step2.partner.title">Partner Organizations</div>
+            <div style="font-size: 11px; color: #64748B;" data-i18n="step2.partner.desc">Domains of organizations you work with. Their accounts are not counted as personal accounts.</div>
+          </div>
+        </div>
+        <span class="md3-badge badge-neutral" id="partner-badge">0 Domains</span>
+      </div>
+      <div class="pills-container" id="partner-pills"></div>
+      <div class="input-row">
+        <div class="input-field-wrap">
+          <span class="input-icon">🏛️</span>
+          <input type="text" id="partner-input" data-i18n-placeholder="step2.partner.placeholder" placeholder="Type partner domain (e.g. partner.com)..." autocomplete="off">
+        </div>
+        <button data-i18n="common.add" type="button" class="btn-add-chip" id="btn-add-partner">+ Add</button>
+      </div>
+    </div>
+
+    <div class="dialog-footer">
+      <button data-i18n="common.backArrow" type="button" class="btn-md3-text" onclick="backToStep1()">← Back</button>
+      <button data-i18n="step2.submit" type="button" class="btn-md3-filled" onclick="submitPipeline()">Process Sheets & Generate 🚀</button>
+    </div>
+  </div>
+
+  <!-- Live Execution Loader (CERA Pipeline Processing) -->
+  <div id="exec-loader">
+    <div style="text-align: center; padding: 25px 0 10px;">
+      <div class="spinner" style="width: 38px; height: 38px;"></div>
+      <div data-i18n="exec.heading" id="exec-heading" style="font-weight: 700; font-size: 16px; margin-top: 16px; color: #0F172A;">Processing Chrome Log Events...</div>
+      <div data-i18n="exec.status.init" id="exec-status-txt" style="font-size: 12px; color: #64748B; margin-top: 6px;">Initializing pipeline...</div>
+    </div>
+    <div class="progress-container">
+      <div id="progress-bar-fill" class="progress-bar"></div>
+    </div>
+    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #64748B;">
+      <span data-i18n="exec.preparing" id="current-file-txt">Preparing...</span>
+      <span id="progress-pct-txt">0%</span>
+    </div>
+    <div id="error-list-box" style="display: none; background: #FFF1F2; border: 1px solid #FECDD3; border-radius: 8px; padding: 10px; margin-top: 15px; font-size: 11px; color: #9F1239;"></div>
+  </div>
+
+  <!-- Result Card -->
+  <div id="result-card">
+    <div data-i18n="result.title" style="color: #065F46; font-weight: 700; font-size: 16px;">✅ Chrome Egress Risk Analysis has been generated!</div>
+    <div data-i18n="result.summary.default" id="summary-result-txt" style="color: #047857; font-size: 12.5px; margin-top: 6px;">Executive presentation deck is ready.</div>
+    <a data-i18n="result.openSlides" id="slides-link" class="btn-slides" href="#" target="_blank" style="display: none;">🔗 Open Google Slides Presentation Deck</a>
+    <div style="margin-top: 18px;">
+      <button data-i18n="common.close" type="button" class="btn-md3-text" style="color: #065F46; font-weight: 700;" onclick="google.script.host.close()">Close</button>
+    </div>
+  </div>
+
+  <div id="cera-disclaimer-footer" data-i18n-html="dialog.disclaimer" style="font-size: 10.5px; color: #64748B; text-align: center; margin-top: 10px;">Not an officially supported Google product. Provided &quot;AS IS&quot; without warranty or liability; runs in your tenant using your Workspace quotas. <a href="https://github.com/google/ChromeBrowserEnterprise/blob/main/AppsScript-examples/cera/DISCLAIMER.md" target="_blank" rel="noopener noreferrer">Disclaimer &amp; Privacy Policy ↗</a></div>
+
+  <script>
+    let pollInterval = null;
+    let cloudPollInterval = null;
+    // Days a direct ingestion reads unless another range is selected; the server falls back to the same
+    const DEFAULT_RANGE_DAYS = 7;
+    let activeExtractedFolderId = '<?= extractedFolderId ?>' || '';
+    let activeExtractedFolderName = '<?= extractedFolderName ?>' || '';
+
+    // ---------------------------------------------------------------------------
+    // i18n runtime: messages are injected by the server template (no loading flash).
+    // Static text carries data-i18n / data-i18n-html / data-i18n-placeholder keys;
+    // dynamic text is set with setT(), which stores key + params on the element so
+    // a language switch re-renders it in place.
+    // ---------------------------------------------------------------------------
+    let I18N = <?!= i18nJson ?>;
+
+    function t(key, params) {
+      let msg = I18N.messages[key];
+      if (msg === undefined) return key;
+      if (msg && typeof msg === 'object') {
+        const n = params ? Number(params.n) : NaN;
+        msg = (n === 1 && msg.one !== undefined) ? msg.one : msg.other;
+      }
+      return String(msg).replace(/\{(\w+)\}/g, (m, name) => {
+        if (!params || params[name] === undefined || params[name] === null) return m;
+        return typeof params[name] === 'number' ? fmtNum(params[name]) : String(params[name]);
+      });
+    }
+
+    function fmtNum(n) {
+      try { return Number(n).toLocaleString(I18N.intl); } catch (e) { return String(n); }
+    }
+
+    function renderI18nElement(el) {
+      const params = el.getAttribute('data-i18n-params') ? JSON.parse(el.getAttribute('data-i18n-params')) : null;
+      if (el.hasAttribute('data-i18n')) el.textContent = t(el.getAttribute('data-i18n'), params);
+      if (el.hasAttribute('data-i18n-html')) el.innerHTML = t(el.getAttribute('data-i18n-html'), params);
+      if (el.hasAttribute('data-i18n-placeholder')) el.placeholder = t(el.getAttribute('data-i18n-placeholder'), params);
+    }
+
+    function applyI18n() {
+      document.querySelectorAll('[data-i18n], [data-i18n-html], [data-i18n-placeholder]').forEach(renderI18nElement);
+      document.documentElement.lang = I18N.lang;
+      const select = document.getElementById('lang-select');
+      if (select) select.value = I18N.auto ? 'auto' : I18N.lang;
+      const verBadge = document.getElementById('cera-version-badge');
+      if (verBadge && I18N.version) verBadge.textContent = 'v' + I18N.version;
+    }
+
+    // Translated text that stays correct after a language switch. html=true only for catalog strings.
+    function setT(elOrId, key, params, html) {
+      const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+      if (!el) return;
+      el.removeAttribute(html ? 'data-i18n' : 'data-i18n-html');
+      el.setAttribute(html ? 'data-i18n-html' : 'data-i18n', key);
+      if (params) el.setAttribute('data-i18n-params', JSON.stringify(params));
+      else el.removeAttribute('data-i18n-params');
+      renderI18nElement(el);
+    }
+
+    // Untranslated runtime text (server errors, folder and file names): never interpreted as HTML.
+    function setRaw(elOrId, text) {
+      const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+      if (!el) return;
+      el.removeAttribute('data-i18n');
+      el.removeAttribute('data-i18n-html');
+      el.removeAttribute('data-i18n-params');
+      el.textContent = text;
+    }
+
+    function initLanguagePicker() {
+      const select = document.getElementById('lang-select');
+      if (!select) return;
+      select.innerHTML = '';
+      const auto = document.createElement('option');
+      auto.value = 'auto';
+      auto.setAttribute('data-i18n', 'lang.auto');
+      auto.textContent = t('lang.auto');
+      select.appendChild(auto);
+      I18N.locales.forEach(l => {
+        const opt = document.createElement('option');
+        opt.value = l.code;
+        opt.textContent = l.label;
+        select.appendChild(opt);
+      });
+      select.value = I18N.auto ? 'auto' : I18N.lang;
+    }
+
+    function changeLanguage(code) {
+      const select = document.getElementById('lang-select');
+      if (select) select.disabled = true;
+      google.script.run
+        .withSuccessHandler(state => {
+          I18N = state;
+          applyI18n();
+          [corpChips, aiChips, prodChips, msgChips, partnerChips].forEach(c => { if (c) c.render(); });
+          if (lastPreflight && document.getElementById('preflight-container').style.display === 'block') renderPreflight(lastPreflight);
+          if (select) select.disabled = false;
+        })
+        .withFailureHandler(() => {
+          if (select) { select.disabled = false; select.value = I18N.auto ? 'auto' : I18N.lang; }
+        })
+        .setCeraLanguage(code);
+    }
+
+    initLanguagePicker();
+    applyI18n();
+
+    // Chip Manager Component
+    class ChipManager {
+      constructor(config) {
+        this.pillsId = config.pillsId;
+        this.pillsContainer = document.getElementById(config.pillsId);
+        this.input = document.getElementById(config.inputId);
+        this.addBtn = document.getElementById(config.addBtnId);
+        this.badge = document.getElementById(config.badgeId);
+        this.badgeKey = config.badgeKey || 'chips.count.domains';
+        this.chipClass = config.chipClass || 'chip-primary';
+        this.items = [];
+
+        if (config.defaultItems) this.addItems(config.defaultItems);
+
+        if (this.input) {
+          this.input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+              e.preventDefault();
+              this.commitFromInput();
+            }
+          });
+          this.input.addEventListener('blur', () => {
+            this.commitFromInput();
+          });
+          this.input.addEventListener('paste', () => {
+            setTimeout(() => this.commitFromInput(), 50);
+          });
+        }
+        if (this.addBtn) {
+          this.addBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.commitFromInput();
+          });
+        }
+      }
+
+      commitFromInput() {
+        if (!this.input) return;
+        const val = this.input.value.trim();
+        if (!val) return;
+        this.addItems(val);
+        this.input.value = '';
+      }
+
+      addItems(inputItems) {
+        if (!inputItems) return;
+        let rawList = Array.isArray(inputItems) ? inputItems : String(inputItems).split(/[ ,;]+/).filter(Boolean);
+        let added = false;
+        rawList.forEach(raw => {
+          let trimmed = String(raw || '').trim();
+          if (/^All Registered Domains/i.test(trimmed)) {
+            if (!this.items.some(it => /^All Registered Domains/i.test(it))) {
+              this.items.unshift(trimmed);
+              added = true;
+            }
+            return;
+          }
+          let d = trimmed.toLowerCase();
+          if (d.indexOf('://') !== -1) d = d.split('://')[1];
+          if (d.indexOf('www.') === 0) d = d.substring(4);
+          d = d.split('/')[0].split('?')[0].split(':')[0].split('#')[0].trim();
+          if (d && !this.items.includes(d)) {
+            this.items.push(d);
+            added = true;
+          }
+        });
+        if (added) {
+          this.render();
+          if (this.pillsId === 'corp-pills' && typeof syncRegisteredDomainsToProd === 'function') {
+            syncRegisteredDomainsToProd();
+          }
+        }
+      }
+
+      removeItem(index) {
+        this.items.splice(index, 1);
+        this.render();
+        if (this.pillsId === 'corp-pills' && typeof syncRegisteredDomainsToProd === 'function') {
+          syncRegisteredDomainsToProd();
+        }
+      }
+
+      setItems(newItems) {
+        this.items = [];
+        this.addItems(newItems);
+        if (this.pillsId === 'corp-pills' && typeof syncRegisteredDomainsToProd === 'function') {
+          syncRegisteredDomainsToProd();
+        }
+      }
+
+      render() {
+        if (!this.pillsContainer) return;
+        this.pillsContainer.innerHTML = '';
+        if (this.items.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'chip-empty';
+          setT(empty, 'chips.empty');
+          this.pillsContainer.appendChild(empty);
+        } else {
+          this.items.forEach((item, idx) => {
+            const chip = document.createElement('div');
+            const isGroup = /^All Registered Domains/i.test(item);
+            chip.className = 'md3-chip ' + (isGroup ? 'chip-primary chip-grouping' : this.chipClass);
+            if (isGroup) {
+              chip.style.fontWeight = '700';
+              chip.style.border = '1.5px solid #2563EB';
+              chip.style.background = '#EFF6FF';
+              chip.style.color = '#1D4ED8';
+              const corpList = (corpChips && corpChips.items.length > 0)
+                ? corpChips.items.map(d => '  • ' + d).join('\n')
+                : '  ' + t('chips.noCorp');
+              chip.title = t('chips.groupTooltip', { n: corpChips ? corpChips.items.length : 0, list: corpList });
+            }
+            const span = document.createElement('span');
+            if (isGroup) {
+              setT(span, 'chips.allRegistered', { n: corpChips ? corpChips.items.length : 0 });
+              span.textContent = '🏢 ' + span.textContent;
+            } else {
+              span.textContent = item;
+            }
+            chip.appendChild(span);
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'chip-remove';
+            delBtn.innerHTML = '&times;';
+            delBtn.onclick = (e) => { e.stopPropagation(); this.removeItem(idx); };
+            chip.appendChild(delBtn);
+            this.pillsContainer.appendChild(chip);
+          });
+        }
+        if (this.badge) {
+          setT(this.badge, this.badgeKey, { n: this.items.length });
+        }
+      }
+
+      getValue() {
+        return this.items.join(', ');
+      }
+    }
+
+    let corpChips, aiChips, prodChips, msgChips, partnerChips;
+
+    function syncRegisteredDomainsToProd() {
+      if (!prodChips || !corpChips) return;
+      const count = corpChips.items.length;
+      prodChips.items = prodChips.items.filter(it => !/^All Registered Domains/i.test(it));
+      if (count > 0) {
+        prodChips.items.unshift(`All Registered Domains (${count})`);
+      }
+      prodChips.render();
+
+      // Dynamic feedback: subtle pulse animation on the live synced grouping chip
+      const groupEl = prodChips.pillsContainer ? prodChips.pillsContainer.querySelector('.chip-grouping') : null;
+      if (groupEl) {
+        groupEl.style.transition = 'all 0.25s ease';
+        groupEl.style.transform = 'scale(1.04)';
+        groupEl.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.35)';
+        setTimeout(() => {
+          groupEl.style.transform = 'scale(1)';
+          groupEl.style.boxShadow = 'none';
+        }, 250);
+      }
+    }
+
+    window.onload = function() {
+      corpChips = new ChipManager({ pillsId: 'corp-pills', inputId: 'corp-input', addBtnId: 'btn-add-corp', badgeId: 'corp-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-primary', defaultItems: [] });
+      aiChips = new ChipManager({ pillsId: 'ai-pills', inputId: 'ai-input', addBtnId: 'btn-add-ai', badgeId: 'ai-badge', badgeKey: 'chips.count.endpoints', chipClass: 'chip-success', defaultItems: ['gemini.google.com'] });
+      prodChips = new ChipManager({ pillsId: 'prod-pills', inputId: 'prod-input', addBtnId: 'btn-add-prod', badgeId: 'prod-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-info', defaultItems: ['google.com', 'drive.google.com', 'docs.google.com', 'googleusercontent.com', 'gmail.com'] });
+      msgChips = new ChipManager({ pillsId: 'msg-pills', inputId: 'msg-input', addBtnId: 'btn-add-msg', badgeId: 'msg-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-purple', defaultItems: ['web.whatsapp.com', 'whatsapp.com', 'telegram.org', 'web.telegram.org', 'messenger.com', 'discord.com', 'slack.com'] });
+      partnerChips = new ChipManager({ pillsId: 'partner-pills', inputId: 'partner-input', addBtnId: 'btn-add-partner', badgeId: 'partner-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-primary', defaultItems: [] });
+
+      google.script.run
+        .withSuccessHandler(data => {
+          data = data || {};
+          if (data.detectedCorpDomain) {
+            corpChips.setItems(data.detectedCorpDomain);
+          }
+          syncRegisteredDomainsToProd();
+
+          const hintEl = document.getElementById('corpDomainsHint');
+          if (data.directoryDomainsCount && data.directoryDomainsCount > 0) {
+            if (hintEl) setT(hintEl, 'step2.corp.hintDirectory', { n: data.directoryDomainsCount }, true);
+          } else {
+            if (hintEl) setT(hintEl, 'step2.corp.hintManual', null, true);
+          }
+
+          if (data.extractedFolderId) {
+            activeExtractedFolderId = data.extractedFolderId;
+            activeExtractedFolderName = data.extractedFolderName || t('step1.auto.defaultName');
+          }
+
+          applyAdminSdkAccessState(data.adminSdkAccess !== false);
+          if (data.policyPrecheck) {
+            renderPolicyPrecheck(data.policyPrecheck);
+          }
+
+          document.getElementById('init-loader').style.display = 'none';
+
+          // Check if a cloud session is currently active
+          const cs = data.cloudSession;
+          if (cs && cs.hasExisting && (cs.status === 'RUNNING' || cs.status === 'PAUSED' || cs.status === 'FAILED' || cs.status === 'COMPLETED' || cs.isCompleted)) {
+            renderCloudMonitor(cs);
+            document.getElementById('cloud-monitor-container').style.display = 'block';
+            if (cs.status === 'RUNNING' && !cs.isCompleted) {
+              startCloudPolling();
+            }
+          } else if (activeExtractedFolderId) {
+            goToStep1();
+          } else if (hasAdminSdkAccess) {
+            goToPolicyPrecheck();
+          } else {
+            goToStep0();
+          }
+        })
+        .withFailureHandler(err => {
+          console.warn('Init notice:', err);
+          document.getElementById('init-loader').style.display = 'none';
+          goToStep0();
+        })
+        .getAsyncSetupMetadata(activeExtractedFolderId, activeExtractedFolderName);
+    };
+
+    let hasAdminSdkAccess = true;
+    let lastPolicyPrecheck = null;
+
+    function applyAdminSdkAccessState(hasAccess) {
+      hasAdminSdkAccess = hasAccess !== false;
+      const card = document.getElementById('opt-cloud-card');
+      const icon = document.getElementById('opt-cloud-icon');
+      const badge = document.getElementById('cloud-role-badge');
+      const notice = document.getElementById('cloud-role-notice');
+      const controls = document.getElementById('cloud-controls-group');
+      const select = document.getElementById('cloudRangeDays');
+      const engageBtn = document.getElementById('btn-cloud-engage');
+      const backPrecheckBtn = document.getElementById('btn-step0-back-precheck');
+      const nonAdminReqCard = document.getElementById('non-admin-request-card');
+
+      if (card) {
+        if (hasAdminSdkAccess) {
+          card.classList.remove('option-disabled');
+          card.setAttribute('aria-disabled', 'false');
+        } else {
+          card.classList.add('option-disabled');
+          card.setAttribute('aria-disabled', 'true');
+        }
+      }
+      if (icon) {
+        icon.style.background = hasAdminSdkAccess ? '#E8F0FE' : '#E2E8F0';
+        icon.style.color = hasAdminSdkAccess ? '#0B57D0' : '#64748B';
+      }
+      if (badge) badge.style.display = hasAdminSdkAccess ? 'none' : 'inline-flex';
+      if (notice) notice.style.display = hasAdminSdkAccess ? 'none' : 'block';
+      if (controls) controls.style.display = hasAdminSdkAccess ? 'block' : 'none';
+      if (select) select.disabled = !hasAdminSdkAccess;
+      if (engageBtn) engageBtn.disabled = !hasAdminSdkAccess;
+      if (backPrecheckBtn) backPrecheckBtn.style.display = hasAdminSdkAccess ? 'inline-block' : 'none';
+      if (nonAdminReqCard) nonAdminReqCard.style.display = hasAdminSdkAccess ? 'none' : 'block';
+    }
+
+    // State Transitions & Container Visibility
+    function hideAllContainers() {
+      const ids = [
+        'cloud-monitor-container',
+        'policy-precheck-container',
+        'step0-container',
+        'preflight-container',
+        'prereq-check-container',
+        'prereq-guide-container',
+        'step1-container',
+        'step2-container'
+      ];
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+    }
+
+    function goToPolicyPrecheck() {
+      hideAllContainers();
+      document.getElementById('policy-precheck-container').style.display = 'block';
+    }
+
+    function renderPolicyPrecheck(precheckData) {
+      if (!precheckData) return;
+      lastPolicyPrecheck = precheckData;
+      const policies = Array.isArray(precheckData.policies) ? precheckData.policies : [];
+      policies.forEach(pol => {
+        const badge = document.getElementById('precheck-pol-status-' + pol.id);
+        if (!badge) return;
+        if (pol.status === 'enabled') {
+          badge.className = 'md3-badge badge-success';
+          setT(badge, 'precheck.status.enabled');
+        } else if (pol.status === 'inferred') {
+          badge.className = 'md3-badge badge-success';
+          setT(badge, 'precheck.status.inferred');
+        } else if (pol.status === 'partial') {
+          badge.className = 'md3-badge badge-warning';
+          setT(badge, 'precheck.status.partial');
+        } else if (pol.status === 'disabled') {
+          badge.className = 'md3-badge badge-danger';
+          setT(badge, 'precheck.status.disabled');
+        } else if (pol.status === 'missing') {
+          badge.className = 'md3-badge badge-warning';
+          setT(badge, 'precheck.status.missing');
+        } else {
+          badge.className = 'md3-badge badge-warning';
+          setT(badge, 'precheck.status.verify');
+        }
+      });
+
+      const banner = document.getElementById('precheck-summary-banner');
+      if (banner) {
+        const allReady = precheckData.allReady === true || (policies.length > 0 && policies.every(p => p.status === 'enabled' || p.status === 'inferred'));
+        if (allReady) {
+          banner.style.background = '#F0FDF4';
+          banner.style.borderColor = '#86EFAC';
+          banner.style.color = '#166534';
+          setT(banner, 'precheck.banner.allReady');
+        } else {
+          banner.style.background = '#FFFBEB';
+          banner.style.borderColor = '#FDE68A';
+          banner.style.color = '#92400E';
+          setT(banner, 'precheck.banner.actionNeeded');
+        }
+      }
+    }
+
+    function refreshPolicyPrecheck() {
+      if (!hasAdminSdkAccess) return;
+      const btn = document.getElementById('btn-precheck-refresh');
+      if (btn) {
+        btn.disabled = true;
+        setT(btn, 'precheck.btn.rechecking');
+      }
+      google.script.run
+        .withSuccessHandler(res => {
+          if (btn) {
+            btn.disabled = false;
+            setT(btn, 'precheck.btn.recheck');
+          }
+          if (res) renderPolicyPrecheck(res);
+        })
+        .withFailureHandler(() => {
+          if (btn) {
+            btn.disabled = false;
+            setT(btn, 'precheck.btn.recheck');
+          }
+        })
+        .runAdminPolicyPrecheck();
+    }
+
+    function goToStep0() {
+      hideAllContainers();
+      document.getElementById('step0-container').style.display = 'block';
+      toggleRangeWarning();
+    }
+
+    // The recommended range needs no warning; any other range says inline why it is not recommended
+    function toggleRangeWarning() {
+      const select = document.getElementById('cloudRangeDays');
+      const warning = document.getElementById('range-warning');
+      if (!select || !warning) return;
+      warning.style.display = Number(select.value) === DEFAULT_RANGE_DAYS ? 'none' : 'block';
+    }
+
+    function goToPrereqCheck() {
+      hideAllContainers();
+      document.getElementById('prereq-check-container').style.display = 'block';
+    }
+
+    function goToPrereqGuide() {
+      hideAllContainers();
+      document.getElementById('prereq-guide-container').style.display = 'block';
+    }
+
+    function toggleChecklistItem(step) {
+      const chk1 = document.getElementById('chk-export-done');
+      const chk2 = document.getElementById('chk-staging-done');
+      const card1 = document.getElementById('card-check-step1');
+      const card2 = document.getElementById('card-check-step2');
+
+      if (card1 && chk1) {
+        if (chk1.checked) {
+          card1.classList.add('completed');
+        } else {
+          card1.classList.remove('completed');
+        }
+      }
+      if (card2 && chk2) {
+        if (chk2.checked) {
+          card2.classList.add('completed');
+        } else {
+          card2.classList.remove('completed');
+        }
+      }
+
+      const count = (chk1 && chk1.checked ? 1 : 0) + (chk2 && chk2.checked ? 1 : 0);
+      const badge = document.getElementById('checklist-progress-badge');
+      const statusText = document.getElementById('checklist-status-text');
+      const statusIcon = document.getElementById('checklist-status-icon');
+
+      if (count === 2) {
+        if (badge) {
+          badge.className = 'md3-badge badge-success';
+          setT(badge, 'guide.badge.2');
+        }
+        if (statusText) setT(statusText, 'guide.status.2');
+        if (statusIcon) statusIcon.innerText = '🎉';
+      } else if (count === 1) {
+        if (badge) {
+          badge.className = 'md3-badge badge-primary';
+          setT(badge, 'guide.badge.1');
+        }
+        if (statusText) setT(statusText, 'guide.status.1');
+        if (statusIcon) statusIcon.innerText = '👍';
+      } else {
+        if (badge) {
+          badge.className = 'md3-badge badge-neutral';
+          setT(badge, 'guide.badge.0');
+        }
+        if (statusText) setT(statusText, 'guide.status.0');
+        if (statusIcon) statusIcon.innerText = '⏳';
+      }
+    }
+
+    function goToStep1() {
+      hideAllContainers();
+      document.getElementById('step1-container').style.display = 'block';
+
+      // Check if arriving from direct autonomous extraction
+      if (activeExtractedFolderId) {
+        // HIDE raw data source picker completely - it's already obvious!
+        const rawCard = document.getElementById('raw-source-card');
+        if (rawCard) rawCard.style.display = 'none';
+
+        // SHOW clean, elegant autonomous target banner
+        const autoBanner = document.getElementById('autonomous-target-banner');
+        if (autoBanner) autoBanner.style.display = 'block';
+        const autoName = document.getElementById('auto-target-name');
+        if (autoName) {
+          if (activeExtractedFolderName) setRaw(autoName, activeExtractedFolderName);
+          else setT(autoName, 'step1.auto.defaultName');
+        }
+
+        // Update Step 1 header text
+        const step1Title = document.getElementById('step1-title');
+        if (step1Title) setT(step1Title, 'step1.title.auto');
+        const step1Desc = document.getElementById('step1-desc');
+        if (step1Desc) setT(step1Desc, 'step1.desc.auto');
+      } else {
+        // Manual mode: the link or ID of the export is required (no folder is picked for the user)
+        const autoBanner = document.getElementById('autonomous-target-banner');
+        if (autoBanner) autoBanner.style.display = 'none';
+        const rawCard = document.getElementById('raw-source-card');
+        if (rawCard) rawCard.style.display = 'block';
+        showSourceError(false);
+
+        const step1Title = document.getElementById('step1-title');
+        if (step1Title) setT(step1Title, 'step1.title.manual');
+        const step1Desc = document.getElementById('step1-desc');
+        if (step1Desc) setT(step1Desc, 'step1.desc.manual');
+      }
+    }
+
+    // The source to analyze: the extraction folder after a direct ingestion, otherwise the link or ID pasted in
+    // step 1. An empty input shows the inline message and returns ''.
+    function selectedSource() {
+      if (activeExtractedFolderId) return activeExtractedFolderId;
+      const value = (document.getElementById('driveFolderInput').value || '').trim();
+      showSourceError(!value);
+      return value;
+    }
+
+    function showSourceError(show) {
+      const input = document.getElementById('driveFolderInput');
+      const error = document.getElementById('source-error');
+      if (error) error.style.display = show ? 'block' : 'none';
+      if (input) {
+        input.setAttribute('aria-invalid', show ? 'true' : 'false');
+        if (show) input.focus();
+      }
+    }
+
+    function handleStep1Back() {
+      if (activeExtractedFolderId) {
+        hideAllContainers();
+        document.getElementById('cloud-monitor-container').style.display = 'block';
+      } else {
+        goToPrereqCheck();
+      }
+    }
+
+    function backToStep1() {
+      hideAllContainers();
+      document.getElementById('step1-container').style.display = 'block';
+    }
+
+    function commitAllInputs() {
+      if (corpChips) corpChips.commitFromInput();
+      if (aiChips) aiChips.commitFromInput();
+      if (prodChips) prodChips.commitFromInput();
+      if (msgChips) msgChips.commitFromInput();
+      if (partnerChips) partnerChips.commitFromInput();
+    }
+
+    function goToStep2() {
+      if (!selectedSource()) return;
+
+      const genSlides = document.getElementById('generateSlides').checked;
+      const genSheets = document.getElementById('generateSheets').checked;
+
+      if (!genSlides && !genSheets) {
+        alert(t('alert.needOutput'));
+        return;
+      }
+
+      hideAllContainers();
+      document.getElementById('step2-container').style.display = 'block';
+    }
+
+    function detectSourceType(val) {
+      const pill = document.getElementById('source-type-pill');
+      const helper = document.getElementById('source-detected-helper');
+      if (!pill) return;
+      const str = (val || '').trim();
+      if (!str) {
+        pill.style.display = 'none';
+        if (helper) setT(helper, 'step1.helper.default', null, true);
+        return;
+      }
+      showSourceError(false);
+      pill.style.display = 'inline-flex';
+      if (str.includes('/spreadsheets/d/')) {
+        pill.className = 'md3-badge badge-success';
+        setT(pill, 'step1.pill.sheet');
+        if (helper) setT(helper, 'step1.helper.sheet', null, true);
+      } else if (str.includes('/drive/folders/')) {
+        pill.className = 'md3-badge badge-primary';
+        setT(pill, 'step1.pill.folder');
+        if (helper) setT(helper, 'step1.helper.folder', null, true);
+      } else if (/^[-\w]{25,}$/.test(str)) {
+        pill.className = 'md3-badge badge-purple';
+        setT(pill, 'step1.pill.id');
+        if (helper) setT(helper, 'step1.helper.id', null, true);
+      } else {
+        pill.className = 'md3-badge badge-warning';
+        setT(pill, 'step1.pill.custom');
+        if (helper) setT(helper, 'step1.helper.custom');
+      }
+    }
+
+    // Cloud Monitor Renderer (Smart State)
+    let lastMonitorLogs = 0;
+    let lastMonitorParts = 1;
+
+    function renderCloudMonitor(cs) {
+      if (!cs) return;
+      const status = cs.status || 'RUNNING';
+      const isCompleted = (status === 'COMPLETED' || cs.isCompleted === true);
+      const pct = isCompleted ? '100.0' : Number(cs.timeSpanPct || 0).toFixed(1);
+      lastMonitorLogs = Number(cs.totalLogsProcessed || 0);
+      lastMonitorParts = Number(cs.fileIndex || 1);
+
+      document.getElementById('mon-progress-bar').style.width = pct + '%';
+      document.getElementById('mon-progress-pct').innerText = pct + '%';
+      setRaw('mon-logs-count', fmtNum(lastMonitorLogs));
+      if (isCompleted) setT('mon-rate-txt', 'mon.rate.complete');
+      else if (Number(cs.expectedEvents) > 0) setT('mon-rate-txt', 'mon.rate.expected', { rate: Number(cs.rate || 0), total: Number(cs.expectedEvents) });
+      else setT('mon-rate-txt', 'mon.rate', { rate: Number(cs.rate || 0) });
+      setT('mon-part-txt', 'mon.part', { n: lastMonitorParts });
+      if (cs.folderName) setRaw('mon-folder-txt', cs.folderName);
+      else setT('mon-folder-txt', 'mon.folderDefault');
+      setT('mon-days-badge', 'mon.daysBadge', { days: Number(cs.totalDays || DEFAULT_RANGE_DAYS) });
+
+      if (cs.folderUrl) {
+        document.getElementById('mon-drive-link').href = cs.folderUrl;
+        document.getElementById('mon-drive-link').style.display = 'inline';
+      }
+
+      if (cs.currentLogDateStr) {
+        setT('mon-progress-date', 'mon.processedUpTo', { date: cs.currentLogDateStr });
+      }
+
+      const eta = Number(cs.etaSec || 0);
+      if (isCompleted) setT('mon-eta-txt', 'mon.eta.finished');
+      else if (pct >= 1 && eta > 0) setRaw('mon-eta-txt', formatSec(eta));
+      else setT('mon-eta-txt', 'mon.eta.calculating');
+
+      // Controls State
+      const btnStopReset = document.getElementById('btn-mon-stop-reset');
+      const btnStopAnalyze = document.getElementById('btn-mon-stop-analyze');
+      const btnProceed = document.getElementById('btn-mon-proceed');
+      const btnResume = document.getElementById('btn-mon-resume');
+      const errBanner = document.getElementById('mon-error-banner');
+      const compBanner = document.getElementById('mon-completed-banner');
+      const partialBanner = document.getElementById('mon-partial-banner');
+      const pulse = document.getElementById('mon-pulse');
+      const statusTxt = document.getElementById('mon-status-text');
+      const hasPartialLogs = !isCompleted && lastMonitorLogs > 0 && Boolean(cs.folderId || activeExtractedFolderId);
+
+      if (cs.folderId) {
+        activeExtractedFolderId = cs.folderId;
+        if (cs.folderName) activeExtractedFolderName = cs.folderName;
+      }
+
+      if (partialBanner) {
+        if (hasPartialLogs) {
+          partialBanner.style.display = 'block';
+          setT(partialBanner, 'mon.partial.banner', { days: Number(cs.totalDays || DEFAULT_RANGE_DAYS) }, true);
+        } else {
+          partialBanner.style.display = 'none';
+        }
+      }
+      if (btnStopAnalyze) {
+        if (hasPartialLogs) {
+          btnStopAnalyze.style.display = 'inline-block';
+          btnStopAnalyze.disabled = false;
+          setT(btnStopAnalyze, 'mon.btn.stopAnalyze');
+        } else {
+          btnStopAnalyze.style.display = 'none';
+        }
+      }
+
+      if (isCompleted) {
+        pulse.style.background = '#16A34A';
+        setT(statusTxt, 'mon.status.complete', { days: Number(cs.totalDays || DEFAULT_RANGE_DAYS) });
+        if (btnStopReset) btnStopReset.style.display = 'none';
+        if (btnProceed) btnProceed.style.display = 'inline-block';
+        if (btnResume) btnResume.style.display = 'none';
+        if (errBanner) errBanner.style.display = 'none';
+        if (compBanner) compBanner.style.display = 'block';
+        activeExtractedFolderId = cs.folderId;
+        activeExtractedFolderName = cs.folderName;
+      } else if (status === 'RUNNING') {
+        pulse.style.background = '#16A34A';
+        setT(statusTxt, 'mon.status.running');
+        if (btnStopReset) {
+          btnStopReset.style.display = 'inline-block';
+          btnStopReset.disabled = false;
+          setT(btnStopReset, 'mon.btn.reset');
+        }
+        if (btnProceed) btnProceed.style.display = 'none';
+        if (btnResume) btnResume.style.display = 'none';
+        if (errBanner) errBanner.style.display = 'none';
+        if (compBanner) compBanner.style.display = 'none';
+      } else if (status === 'PAUSED') {
+        pulse.style.background = '#B06000';
+        setT(statusTxt, 'mon.status.stopped');
+        if (btnStopReset) {
+          btnStopReset.style.display = 'inline-block';
+          btnStopReset.disabled = false;
+          setT(btnStopReset, 'mon.btn.reset');
+        }
+        if (btnProceed) btnProceed.style.display = 'none';
+        if (btnResume) {
+          btnResume.style.display = 'inline-block';
+          btnResume.disabled = false;
+          setT(btnResume, 'mon.btn.resume');
+        }
+        if (errBanner) errBanner.style.display = 'none';
+        if (compBanner) compBanner.style.display = 'none';
+      } else if (status === 'QUOTA_PAUSED') {
+        pulse.style.background = '#7C3AED';
+        setT(statusTxt, 'mon.status.quota');
+        if (btnStopReset) {
+          btnStopReset.style.display = 'inline-block';
+          btnStopReset.disabled = false;
+          setT(btnStopReset, 'mon.btn.reset');
+        }
+        if (btnProceed) btnProceed.style.display = 'none';
+        if (btnResume) {
+          btnResume.style.display = 'inline-block';
+          btnResume.disabled = false;
+          setT(btnResume, 'mon.btn.resume');
+        }
+        if (errBanner) {
+          errBanner.style.display = 'block';
+          errBanner.style.background = '#F5F3FF';
+          errBanner.style.borderColor = '#DDD6FE';
+          errBanner.style.color = '#5B21B6';
+        }
+        const errMsgEl = document.getElementById('mon-error-msg');
+        if (errMsgEl) {
+          if (cs.errorMessage && !cs.errorKey) setRaw(errMsgEl, cs.errorMessage);
+          else setT(errMsgEl, cs.errorKey || 'mon.quotaDefault');
+        }
+        if (compBanner) compBanner.style.display = 'none';
+      } else if (status === 'FAILED') {
+        pulse.style.background = '#DC2626';
+        setT(statusTxt, 'mon.status.failed');
+        if (btnStopReset) {
+          btnStopReset.style.display = 'inline-block';
+          btnStopReset.disabled = false;
+          setT(btnStopReset, 'mon.btn.reset');
+        }
+        if (btnProceed) btnProceed.style.display = 'none';
+        if (btnResume) {
+          btnResume.style.display = 'inline-block';
+          btnResume.disabled = false;
+          setT(btnResume, 'mon.btn.resume');
+        }
+        if (errBanner) {
+          errBanner.style.display = 'block';
+          errBanner.style.background = '#FEF2F2';
+          errBanner.style.borderColor = '#FECACA';
+          errBanner.style.color = '#991B1B';
+        }
+        const errMsgEl = document.getElementById('mon-error-msg');
+        if (errMsgEl) {
+          if (cs.errorMessage) setRaw(errMsgEl, cs.errorMessage);
+          else setT(errMsgEl, 'mon.failedDefault');
+        }
+        if (compBanner) compBanner.style.display = 'none';
+      }
+    }
+
+    function formatSec(sec) {
+      if (!sec || sec <= 0 || isNaN(sec)) return '--';
+      sec = Math.round(sec);
+      const w = Math.floor(sec / 604800);
+      const remW = sec % 604800;
+      const d = Math.floor(remW / 86400);
+      const remD = remW % 86400;
+      const h = Math.floor(remD / 3600);
+      const remH = remD % 3600;
+      const m = Math.floor(remH / 60);
+      const s = remH % 60;
+
+      const parts = [];
+      if (w > 0) parts.push(w + 'w');
+      if (d > 0) parts.push(d + 'd');
+      if (h > 0) parts.push(h + 'h');
+      if (m > 0) parts.push(m + 'm');
+      if (s > 0 || parts.length === 0) parts.push(s + 's');
+
+      return parts.join(' ');
+    }
+
+    function handleResumeFromDialog() {
+      const btnResume = document.getElementById('btn-mon-resume');
+      if (btnResume) {
+        btnResume.disabled = true;
+        setT(btnResume, 'mon.btn.resuming');
+      }
+      const statusTxt = document.getElementById('mon-status-text');
+      if (statusTxt) setT(statusTxt, 'mon.status.resuming');
+
+      google.script.run
+        .withSuccessHandler(res => {
+          if (btnResume) {
+            btnResume.disabled = false;
+            setT(btnResume, 'mon.btn.resume');
+            btnResume.style.display = 'none';
+          }
+          const errBanner = document.getElementById('mon-error-banner');
+          if (errBanner) errBanner.style.display = 'none';
+          const pulse = document.getElementById('mon-pulse');
+          if (pulse) pulse.style.background = '#16A34A';
+          if (statusTxt) setT(statusTxt, 'mon.status.running');
+          startCloudPolling();
+        })
+        .withFailureHandler(err => {
+          if (btnResume) {
+            btnResume.disabled = false;
+            setT(btnResume, 'mon.btn.resume');
+          }
+          alert(t('alert.resumeFailed', { error: err.message }));
+        })
+        .resumeCloudIngestion();
+    }
+
+    function startCloudPolling() {
+      if (cloudPollInterval) clearInterval(cloudPollInterval);
+      const pollFn = function() {
+        google.script.run.withSuccessHandler(res => {
+          if (res && res.hasExisting) {
+            renderCloudMonitor(res);
+            if (res.status === 'COMPLETED' || res.isCompleted || res.status === 'PAUSED' || res.status === 'FAILED') {
+              clearInterval(cloudPollInterval);
+            }
+          }
+        }).getCloudIngestionStatus();
+      };
+      pollFn(); // Run immediately on first tick
+      cloudPollInterval = setInterval(pollFn, 2500);
+    }
+
+    // Ingestion Actions
+    let preflightDays = DEFAULT_RANGE_DAYS;
+
+    function startCloudEngage() {
+      if (!hasAdminSdkAccess) return;
+      preflightDays = Number(document.getElementById('cloudRangeDays').value) || DEFAULT_RANGE_DAYS;
+      hideAllContainers();
+      const titleEl = document.getElementById('init-loader-title');
+      const subEl = document.getElementById('init-loader-subtitle');
+      if (titleEl) setT(titleEl, 'loader.preflight.title');
+      if (subEl) setT(subEl, 'loader.preflight.subtitle');
+      document.getElementById('init-loader').style.display = 'block';
+
+      google.script.run
+        .withSuccessHandler(renderPreflight)
+        .withFailureHandler(err => {
+          renderPreflight({ recommendManual: true, messageKey: 'pf.failed', messageParams: { error: err.message }, warnings: [] });
+        })
+        .runIngestionPreflight(preflightDays);
+    }
+
+    let lastPreflight = null;
+
+    function renderPreflight(res) {
+      lastPreflight = res;
+      document.getElementById('init-loader').style.display = 'none';
+      hideAllContainers();
+      document.getElementById('preflight-container').style.display = 'block';
+
+      const fmt = n => (n === null || n === undefined) ? t('common.na') : fmtNum(n);
+      const title = document.getElementById('pf-title');
+      const summary = document.getElementById('pf-summary');
+      const stats = document.getElementById('pf-stats');
+      const warnBox = document.getElementById('pf-warnings');
+      const expNote = document.getElementById('pf-expectation-note');
+      const startBtn = document.getElementById('pf-start');
+      stats.innerHTML = '';
+      warnBox.innerHTML = '';
+
+      const addStat = (value, labelKey) => {
+        const card = document.createElement('div');
+        card.className = 'pf-stat';
+        const v = document.createElement('div');
+        v.className = 'pf-stat-value';
+        v.textContent = value;
+        const l = document.createElement('div');
+        l.className = 'pf-stat-label';
+        setT(l, labelKey);
+        card.appendChild(v);
+        card.appendChild(l);
+        stats.appendChild(card);
+      };
+      const addWarning = warning => {
+        const w = document.createElement('div');
+        w.className = 'pf-warning';
+        w.textContent = '⚠️ ' + t(warning.key, warning.params);
+        warnBox.appendChild(w);
+      };
+
+      if (res.recommendManual) {
+        setT(title, 'pf.title.unavailable');
+        setT(summary, res.messageKey || 'pf.unavailableDefault', res.messageParams);
+        startBtn.style.display = 'none';
+        if (expNote) expNote.style.display = 'none';
+        return;
+      }
+
+      setT(title, 'pf.title.estimate');
+      setT(summary, 'pf.summary', res.summaryParams ? Object.assign({}, res.summaryParams, {
+        duration: t(res.summaryParams.durationKey, { n: res.summaryParams.durationN })
+      }) : null);
+      startBtn.style.display = '';
+      if (expNote) {
+        expNote.style.display = 'block';
+        setT(expNote, 'pf.expectationNote', null, true);
+      }
+      const est = res.estimate || {};
+      addStat(fmt(est.totalEvents), 'pf.stat.events');
+      addStat(fmt(est.legacy && est.legacy.partitions), 'pf.stat.partitions');
+      const sp = res.summaryParams || {};
+      const duration = !est.legacy || !sp.durationKey ? t('common.na') : t(sp.durationKey.replace('pf.duration.', 'pf.'), { n: sp.durationN });
+      addStat(duration, 'pf.stat.duration');
+      (res.warnings || []).forEach(addWarning);
+    }
+
+    function engageAfterPreflight() {
+      const days = preflightDays;
+      hideAllContainers();
+      const titleEl = document.getElementById('init-loader-title');
+      const subEl = document.getElementById('init-loader-subtitle');
+      if (titleEl) setT(titleEl, 'loader.engage.title');
+      if (subEl) setT(subEl, 'loader.engage.subtitle');
+      document.getElementById('init-loader').style.display = 'block';
+
+      google.script.run
+        .withSuccessHandler(res => {
+          document.getElementById('init-loader').style.display = 'none';
+          document.getElementById('cloud-monitor-container').style.display = 'block';
+          activeExtractedFolderId = res.folderId;
+          activeExtractedFolderName = res.folderName;
+          // Render initial state instantly
+          renderCloudMonitor({
+            status: 'RUNNING',
+            timeSpanPct: 0,
+            totalLogsProcessed: 0,
+            rate: 0,
+            fileIndex: 1,
+            folderId: res.folderId,
+            folderName: res.folderName,
+            folderUrl: res.folderUrl,
+            totalDays: days,
+            etaSec: 0
+          });
+          startCloudPolling();
+        })
+        .withFailureHandler(err => {
+          alert(t('alert.engageFailed', { error: err.message }));
+          goToStep0();
+        })
+        .engageCloudIngestion(days);
+    }
+
+    function handleEmergencyStopAndReset() {
+      if (!confirm(t('confirm.reset'))) {
+        return;
+      }
+      if (cloudPollInterval) clearInterval(cloudPollInterval);
+      const btn = document.getElementById('btn-mon-stop-reset');
+      if (btn) {
+        btn.disabled = true;
+        setT(btn, 'mon.btn.resetting');
+      }
+      const statusTxt = document.getElementById('mon-status-text');
+      if (statusTxt) setT(statusTxt, 'mon.status.stopping');
+
+      google.script.run
+        .withSuccessHandler(() => {
+          if (btn) {
+            btn.disabled = false;
+            setT(btn, 'mon.btn.reset');
+          }
+          activeExtractedFolderId = '';
+          activeExtractedFolderName = '';
+          goToStep0();
+        })
+        .withFailureHandler(err => {
+          if (btn) {
+            btn.disabled = false;
+            setT(btn, 'mon.btn.reset');
+          }
+          alert(t('alert.resetNotice', { error: err.message }));
+          goToStep0();
+        })
+        .emergencyResetIngestion(true);
+    }
+
+    function handleStopAndAnalyzeNow() {
+      if (!confirm(t('confirm.stopAnalyze', { logs: fmtNum(lastMonitorLogs), parts: fmtNum(lastMonitorParts) }))) {
+        return;
+      }
+      if (cloudPollInterval) clearInterval(cloudPollInterval);
+      const btn = document.getElementById('btn-mon-stop-analyze');
+      if (btn) {
+        btn.disabled = true;
+        setT(btn, 'mon.btn.stoppingAnalyze');
+      }
+      const statusTxt = document.getElementById('mon-status-text');
+      if (statusTxt) setT(statusTxt, 'mon.status.stopping');
+
+      google.script.run
+        .withSuccessHandler(res => {
+          if (btn) {
+            btn.disabled = false;
+            setT(btn, 'mon.btn.stopAnalyze');
+          }
+          if (res && res.folderId) {
+            activeExtractedFolderId = res.folderId;
+            activeExtractedFolderName = res.folderName || activeExtractedFolderName || t('step1.auto.defaultName');
+          }
+          goToStep1();
+        })
+        .withFailureHandler(err => {
+          if (btn) {
+            btn.disabled = false;
+            setT(btn, 'mon.btn.stopAnalyze');
+          }
+          alert(t('alert.resetNotice', { error: err.message }));
+        })
+        .stopAndFinalizeCurrentIngestion();
+    }
+
+    function handleProceedToAnalysis() {
+      if (cloudPollInterval) clearInterval(cloudPollInterval);
+      goToStep1();
+    }
+
+    // Submit Pipeline (CERA Analytics & Deck Generation)
+    function submitPipeline() {
+      commitAllInputs();
+
+      const folderToSend = selectedSource();
+      if (!folderToSend) {
+        // Back to step 1, where the inline message asks for the source
+        backToStep1();
+        return;
+      }
+
+      const genSlides = document.getElementById('generateSlides').checked;
+      const genSheets = document.getElementById('generateSheets').checked;
+
+      if (!genSlides && !genSheets) {
+        alert(t('alert.needOutput'));
+        return;
+      }
+
+      document.getElementById('step2-container').style.display = 'none';
+      document.getElementById('exec-loader').style.display = 'block';
+
+      const payload = {
+        corpDomains: corpChips ? corpChips.getValue() : '',
+        authorizedGenAi: aiChips ? aiChips.getValue() : '',
+        sanctionedProductivity: prodChips ? prodChips.getValue() : '',
+        webMessagingDomains: msgChips ? msgChips.getValue() : '',
+        partnerDomains: partnerChips ? partnerChips.getValue() : '',
+        generateSlides: genSlides,
+        generateSheets: genSheets,
+        driveFolderInput: folderToSend,
+        lang: I18N.lang,
+        allowContinuation: true
+      };
+
+      pollInterval = setInterval(function() {
+        google.script.run.withSuccessHandler(function(status) {
+          if (status) {
+            if (status.message) setRaw('exec-status-txt', status.message);
+            if (status.currentFile) setT('current-file-txt', 'exec.file', { name: status.currentFile });
+            if (status.total > 0) {
+              const pct = Math.min(100, Math.round((status.index / status.total) * 100));
+              document.getElementById('progress-bar-fill').style.width = pct + '%';
+              document.getElementById('progress-pct-txt').innerText = pct + '% (' + status.index + '/' + status.total + ')';
+            }
+          }
+        }).getProgressStatus();
+      }, 800);
+
+      function runAnalysisBatch(batchPayload) {
+        google.script.run
+          .withSuccessHandler(res => {
+            if (res && res.partialBatch && res.batchToken) {
+              if (res.totalSheets > 0) {
+                const pct = Math.min(100, Math.round((res.sheetsProcessed / res.totalSheets) * 100));
+                document.getElementById('progress-bar-fill').style.width = pct + '%';
+                document.getElementById('progress-pct-txt').innerText = pct + '% (' + res.sheetsProcessed + '/' + res.totalSheets + ')';
+              }
+              runAnalysisBatch(Object.assign({}, payload, { batchToken: res.batchToken }));
+              return;
+            }
+            if (pollInterval) clearInterval(pollInterval);
+            document.getElementById('exec-loader').style.display = 'none';
+            if (res && res.slidesUrl) {
+              document.getElementById('result-card').style.display = 'block';
+              document.getElementById('slides-link').href = res.slidesUrl;
+              document.getElementById('slides-link').style.display = 'inline-block';
+              if (res.summaryTxt) setRaw('summary-result-txt', res.summaryTxt);
+            } else {
+              google.script.host.close();
+            }
+          })
+          .withFailureHandler(err => {
+            if (pollInterval) clearInterval(pollInterval);
+            alert(t('alert.execError', { error: err.message }));
+            document.getElementById('exec-loader').style.display = 'none';
+            document.getElementById('step2-container').style.display = 'block';
+          })
+          .executeDlpAnalysis(batchPayload);
+      }
+
+      runAnalysisBatch(payload);
+    }
+  </script>
+</body>
+</html>
