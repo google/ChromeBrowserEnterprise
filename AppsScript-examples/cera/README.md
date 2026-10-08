@@ -130,3 +130,13 @@ CERA is a **container-bound Google Sheets script**. All Apps Script runtime file
 * **100% In-Tenant Execution & Zero Telemetry:** All log ingestion, action assembly, threat classification, spreadsheet generation, and slide deck rendering run exclusively inside your organization's Google Workspace environment. CERA makes no external network requests and collects zero telemetry.
 * **Informational Sample & Workspace Quotas:** CERA analyzes a 7-day sample of available Chrome logs for directional executive insights (it is not a formal compliance certification or continuous SIEM) and consumes the authorizing user's Google Apps Script runtime, Google Drive storage, and Admin SDK API quotas.
 * **Full Disclaimer & Privacy Policy:** See [**`./DISCLAIMER.md`**](./DISCLAIMER.md) (`https://github.com/google/ChromeBrowserEnterprise/blob/main/AppsScript-examples/cera/DISCLAIMER.md`).
+
+---
+
+## 💬 Feedback & Issue Reporting
+
+Have a question, encountered a technical issue during ingestion or report generation, or want to suggest a feature?
+
+* **Submit Feedback or Report a Problem:** [**`https://goo.gle/cera-feedback`**](https://goo.gle/cera-feedback)
+* *(Privacy reminder: please replace any real internal domain names with `example.com` and do not include confidential employee PII when submitting issue reports).*
+

@@ -147,14 +147,23 @@ var IngestionMonitorSheet = {
       statusText = '🛑 ' + T('mon.status.stopped');
     }
 
-    // 1. Header Banner (Row 1)
-    sheet.getRange('A1:H1').merge()
+    // 1. Header Banner (Row 1: Title A1:F1 + Report a Problem Button G1:H1)
+    sheet.getRange('A1:F1').merge()
       .setValue(T('mon.sheet.banner'))
       .setBackground('#0F172A')
       .setFontColor('#FFFFFF')
       .setFontSize(13)
       .setFontWeight('bold')
       .setHorizontalAlignment('left')
+      .setVerticalAlignment('middle');
+    const feedbackUrl = (typeof CeraConfig !== 'undefined' && CeraConfig.FEEDBACK_URL) || 'https://goo.gle/cera-feedback';
+    sheet.getRange('G1:H1').merge()
+      .setFormula(`=HYPERLINK("${feedbackUrl}", "${linkLabel(T('mon.btn.reportProblem'))}")`)
+      .setBackground('#1E293B')
+      .setFontColor('#93C5FD')
+      .setFontSize(9.5)
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center')
       .setVerticalAlignment('middle');
     sheet.setRowHeight(1, 38);
 
@@ -386,5 +395,13 @@ var IngestionMonitorSheet = {
         .setHorizontalAlignment('center').setVerticalAlignment('middle');
       sheet.getRange(nextRow, 1, 2, 8).setBorder(true, true, true, true, false, false, '#CBD5E1', SpreadsheetApp.BorderStyle.SOLID);
     }
+
+    const fbRow = nextRow + 2;
+    sheet.getRange(fbRow, 7, 1, 2).merge()
+      .setFormula(`=HYPERLINK("${feedbackUrl}", "${linkLabel(T('mon.btn.reportProblem'))}")`)
+      .setBackground('#F8FAFC').setFontColor('#0B57D0').setFontSize(9.5).setFontWeight('bold')
+      .setHorizontalAlignment('center').setVerticalAlignment('middle')
+      .setBorder(true, true, true, true, false, false, '#CBD5E1', SpreadsheetApp.BorderStyle.SOLID);
+    sheet.setRowHeight(fbRow, 24);
   }
 };

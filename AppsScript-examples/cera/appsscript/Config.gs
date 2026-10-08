@@ -19,9 +19,10 @@
  */
 
 var CeraConfig = {
-  VERSION: '2.0.8',
+  VERSION: '2.0.9',
   SUITE_NAME: 'Chrome Egress Risk Analysis (CERA)',
-  SHORT_NAME: 'CERA v2.0.8',
+  SHORT_NAME: 'CERA v2.0.9',
+  FEEDBACK_URL: 'https://goo.gle/cera-feedback',
   DEFAULT_TIMEZONE: 'Etc/UTC',
 
   // Multi-batch analysis execution budgets (executeDlpAnalysis in IngestionPipeline.gs):

@@ -19,3 +19,5 @@
 * [**Full Deployment Guide & Documentation (`./cera/README.md`)**](./cera/README.md)
 * [**Disclaimer, Terms of Use & Tenant Privacy Policy (`./cera/DISCLAIMER.md`)**](./cera/DISCLAIMER.md)
 * [**Apps Script Source Code (`./cera/appsscript/`)**](./cera/appsscript/)
+* [**Report a Problem / Submit Product Feedback (`goo.gle/cera-feedback`)**](https://goo.gle/cera-feedback)
+

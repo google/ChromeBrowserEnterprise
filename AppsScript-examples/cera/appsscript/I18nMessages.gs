@@ -1576,7 +1576,9 @@ var CERA_I18N_MESSAGES = {
     "precheck.btn.continue": "Continue to Ingestion Setup ➔",
     "precheck.btn.back": "← Pre-requisite",
     "precheck.nonAdmin.title": "🔒 Need Administrator Assistance?",
-    "precheck.nonAdmin.body": "If you do not have Google Admin Console access, ask your administrator to enable the 3 Chrome Enterprise pre-requisite policies below and export the Chrome audit log sheets to Google Drive for you:"
+    "precheck.nonAdmin.body": "If you do not have Google Admin Console access, ask your administrator to enable the 3 Chrome Enterprise pre-requisite policies below and export the Chrome audit log sheets to Google Drive for you:",
+    "mon.btn.reportProblem": "🐞 Report a Problem ↗",
+    "result.btn.feedback": "💬 Share Feedback & Ideas ↗"
   },
   "id": {
     "lang.label": "Bahasa",
@@ -3135,7 +3137,9 @@ var CERA_I18N_MESSAGES = {
     "precheck.btn.continue": "Lanjut ke Pengaturan Ingesti ➔",
     "precheck.btn.back": "← Pre-requisite",
     "precheck.nonAdmin.title": "🔒 Perlu Bantuan Administrator?",
-    "precheck.nonAdmin.body": "Jika Anda tidak memiliki akses Google Admin Console, minta administrator Anda untuk mengaktifkan 3 kebijakan pre-requisite Chrome Enterprise di bawah ini dan mengekspor sheet log audit Chrome ke Google Drive untuk Anda:"
+    "precheck.nonAdmin.body": "Jika Anda tidak memiliki akses Google Admin Console, minta administrator Anda untuk mengaktifkan 3 kebijakan pre-requisite Chrome Enterprise di bawah ini dan mengekspor sheet log audit Chrome ke Google Drive untuk Anda:",
+    "mon.btn.reportProblem": "🐞 Laporkan Masalah ↗",
+    "result.btn.feedback": "💬 Beri Masukan & Saran ↗"
   },
   "ja": {
     "lang.label": "言語",
@@ -4694,7 +4698,9 @@ var CERA_I18N_MESSAGES = {
     "precheck.btn.continue": "取り込み設定へ進む ➔",
     "precheck.btn.back": "← 前提条件",
     "precheck.nonAdmin.title": "🔒 管理者への依頼が必要ですか？",
-    "precheck.nonAdmin.body": "Google 管理コンソールへのアクセス権がない場合は、管理者に以下の 3 つの Chrome Enterprise 前提条件ポリシーを有効にし、Chrome 監査ログのスプレッドシートを Google ドライブへエクスポートするよう依頼してください："
+    "precheck.nonAdmin.body": "Google 管理コンソールへのアクセス権がない場合は、管理者に以下の 3 つの Chrome Enterprise 前提条件ポリシーを有効にし、Chrome 監査ログのスプレッドシートを Google ドライブへエクスポートするよう依頼してください：",
+    "mon.btn.reportProblem": "🐞 問題を報告 ↗",
+    "result.btn.feedback": "💬 フィードバックを送る ↗"
   },
   "ko": {
     "lang.label": "언어",
@@ -6253,7 +6259,9 @@ var CERA_I18N_MESSAGES = {
     "precheck.btn.continue": "수집 설정으로 계속 ➔",
     "precheck.btn.back": "← 사전 요구사항",
     "precheck.nonAdmin.title": "🔒 관리자 지원이 필요한가요?",
-    "precheck.nonAdmin.body": "Google 관리 콘솔 액세스 권한이 없는 경우 관리자에게 아래 3가지 Chrome Enterprise 사전 요구사항 정책을 사용 설정하고 Chrome 감사 로그 시트를 Google Drive로 내보내 달라고 요청하세요:"
+    "precheck.nonAdmin.body": "Google 관리 콘솔 액세스 권한이 없는 경우 관리자에게 아래 3가지 Chrome Enterprise 사전 요구사항 정책을 사용 설정하고 Chrome 감사 로그 시트를 Google Drive로 내보내 달라고 요청하세요:",
+    "mon.btn.reportProblem": "🐞 문제 신고 ↗",
+    "result.btn.feedback": "💬 피드백 및 의견 보내기 ↗"
   },
   "zh-CN": {
     "lang.label": "语言",
@@ -7812,6 +7820,8 @@ var CERA_I18N_MESSAGES = {
     "precheck.btn.continue": "继续进行摄取设置 ➔",
     "precheck.btn.back": "← 先决条件",
     "precheck.nonAdmin.title": "🔒 需要管理员协助？",
-    "precheck.nonAdmin.body": "如果您没有 Google 管理控制台访问权限，请请求您的管理员启用以下 3 项 Chrome Enterprise 先决条件策略，并将 Chrome 审核日志表格导出到 Google 云端硬盘供您使用："
+    "precheck.nonAdmin.body": "如果您没有 Google 管理控制台访问权限，请请求您的管理员启用以下 3 项 Chrome Enterprise 先决条件策略，并将 Chrome 审核日志表格导出到 Google 云端硬盘供您使用：",
+    "mon.btn.reportProblem": "🐞 报告问题 ↗",
+    "result.btn.feedback": "💬 提交反馈与建议 ↗"
   }
 };

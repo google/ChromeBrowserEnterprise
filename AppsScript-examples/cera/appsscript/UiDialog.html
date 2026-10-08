@@ -495,6 +495,8 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .btn-slides { display: inline-block; margin-top: 14px; padding: 11px 22px; background: #059669; color: white; text-decoration: none; border-radius: 9999px; font-weight: 600; font-size: 12.5px; }
+    .btn-feedback-pill { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 9999px; border: 1px solid #CBD5E1; background: #FFFFFF; color: #334155; font-size: 11.5px; font-weight: 600; text-decoration: none; transition: all 0.15s ease; }
+    .btn-feedback-pill:hover { background: #F1F5F9; border-color: #94A3B8; color: #0F172A; text-decoration: none; }
     .folder-card { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
     .source-input { width: 100%; padding: 9px 12px; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 12px; }
     .source-input[aria-invalid="true"] { border-color: #B3261E; background: #FFF8F7; }
@@ -504,7 +506,7 @@
 <body>
   <!-- Version badge & Language picker (always visible) -->
   <div class="lang-bar">
-    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.8</span>
+    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.9</span>
     <div class="lang-picker-group">
       <label for="lang-select" data-i18n="lang.label">Language</label>
       <select id="lang-select" onchange="changeLanguage(this.value)"></select>
@@ -585,6 +587,9 @@
 
       <div data-i18n-html="mon.autonomousNote" style="background: #F8FAFD; border: 1px dashed #CBD5E1; border-radius: 8px; padding: 10px 12px; font-size: 11px; color: #64748B; margin-top: 12px;">
         💡 <b>Autonomous Background Worker:</b> You do not need to keep this window open. You can safely close your browser or turn off your computer; execution runs autonomously via Google Apps Script and progress is continuously saved to the <i>⚡ Ingestion Monitor</i> sheet tab.
+      </div>
+      <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+        <a data-i18n="mon.btn.reportProblem" id="btn-mon-report-problem" href="https://goo.gle/cera-feedback" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill">🐞 Report a Problem ↗</a>
       </div>
     </div>
     <div class="dialog-footer">
@@ -1120,7 +1125,8 @@
     <div data-i18n="result.title" style="color: #065F46; font-weight: 700; font-size: 16px;">✅ Chrome Egress Risk Analysis has been generated!</div>
     <div data-i18n="result.summary.default" id="summary-result-txt" style="color: #047857; font-size: 12.5px; margin-top: 6px;">Executive presentation deck is ready.</div>
     <a data-i18n="result.openSlides" id="slides-link" class="btn-slides" href="#" target="_blank" style="display: none;">🔗 Open Google Slides Presentation Deck</a>
-    <div style="margin-top: 18px;">
+    <div style="margin-top: 18px; display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <a data-i18n="result.btn.feedback" id="btn-result-feedback" href="https://goo.gle/cera-feedback" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill">💬 Share Feedback & Ideas ↗</a>
       <button data-i18n="common.close" type="button" class="btn-md3-text" style="color: #065F46; font-weight: 700;" onclick="google.script.host.close()">Close</button>
     </div>
   </div>
