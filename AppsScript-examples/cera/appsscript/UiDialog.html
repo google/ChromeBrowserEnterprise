@@ -32,6 +32,16 @@
       --md-sys-color-on-surface-variant: #444746;
       --md-sys-color-success: #137333;
       --md-sys-color-success-container: #E6F4EA;
+      --bg: #F8F9FA;
+      --card: 128px;
+      --ease: cubic-bezier(.16,1,.3,1);
+      --snake: conic-gradient(from 0deg,
+        #ef4444 0deg, #f43f5e 20deg, #ec4899 45deg, #c026d3 70deg, #7c3aed 92deg,
+        rgba(124,58,237,.6) 106deg, rgba(124,58,237,0) 118deg,
+        rgba(0,98,255,0) 176deg, rgba(0,98,255,.6) 190deg,
+        #0062ff 196deg, #2563eb 240deg, #4f46e5 255deg,
+        rgba(129,140,248,.88) 268deg,
+        #a855f7 282deg, #dc2626 296deg, #ef4444 360deg);
     }
 
     * { box-sizing: border-box; }
@@ -215,8 +225,9 @@
     .progress-bar {
       width: 0%;
       height: 100%;
-      background-color: #0B57D0;
-      transition: width 0.4s ease;
+      border-radius: 9999px;
+      background: linear-gradient(90deg, #0062ff, #ef4444);
+      transition: width 0.4s var(--ease);
     }
 
     /* MD3 Pills Container */
@@ -492,7 +503,57 @@
     }
 
     .spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid rgba(11,87,208,0.2); border-top-color: #0B57D0; border-radius: 50%; animation: spin 0.8s linear infinite; }
+
+    /* Plasma Glow Squircle Loader */
+    .stage {
+      --card: clamp(116px, 32cqi, 144px);
+      position: relative;
+      width: var(--card);
+      height: var(--card);
+      margin: 0 auto 20px;
+      user-select: none;
+    }
+    .glow {
+      position: absolute;
+      inset: -1px;
+      border-radius: calc(var(--card) * .25);
+      overflow: hidden;
+      opacity: .72;
+      filter: blur(calc(var(--card) * .041));
+      animation: surge 3.2s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .glow::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: calc(var(--card) * 1.53);
+      height: calc(var(--card) * 1.53);
+      margin: calc(var(--card) * -.765) 0 0 calc(var(--card) * -.765);
+      border-radius: 50%;
+      background: var(--snake);
+      animation: spin 6s linear infinite;
+      will-change: transform;
+    }
+    .card {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: calc(var(--card) * .245);
+      background: var(--bg);
+      display: grid;
+      place-items: center;
+      font-size: calc(var(--card) * .357);
+      line-height: 1;
+    }
+    .card span {
+      animation: beat 2.2s ease-in-out infinite;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes surge { 50% { opacity: .78; filter: blur(calc(var(--card) * .048)); } }
+    @keyframes beat { 50% { transform: scale(1.035); } }
+    @media (prefers-reduced-motion: reduce) { .glow, .glow::before, .card span { animation: none; } }
 
     .btn-slides { display: inline-block; margin-top: 14px; padding: 11px 22px; background: #059669; color: white; text-decoration: none; border-radius: 9999px; font-weight: 600; font-size: 12.5px; }
     .btn-feedback-pill { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 9999px; border: 1px solid #CBD5E1; background: #FFFFFF; color: #334155; font-size: 11.5px; font-weight: 600; text-decoration: none; transition: all 0.15s ease; }
@@ -506,7 +567,7 @@
 <body>
   <!-- Version badge & Language picker (always visible) -->
   <div class="lang-bar">
-    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.10</span>
+    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.11</span>
     <div class="lang-picker-group">
       <label for="lang-select" data-i18n="lang.label">Language</label>
       <select id="lang-select" onchange="changeLanguage(this.value)"></select>
@@ -515,8 +576,11 @@
 
 
   <!-- Initial Loading Screen -->
-  <div id="init-loader">
-    <div class="spinner"></div>
+  <div id="init-loader" role="status" aria-live="polite">
+    <div class="stage">
+      <div class="glow"></div>
+      <div class="card"><span>🛡️</span></div>
+    </div>
     <div data-i18n="loader.init.title" style="font-weight: 700; font-size: 15px; margin-top: 16px; color: #0F172A;" id="init-loader-title">Initializing CERA...</div>
     <div data-i18n="loader.init.subtitle" style="font-size: 12px; color: #64748B; margin-top: 4px;" id="init-loader-subtitle">Checking background worker & Google Workspace environment...</div>
   </div>
@@ -1105,9 +1169,12 @@
   </div>
 
   <!-- Live Execution Loader (CERA Pipeline Processing) -->
-  <div id="exec-loader">
+  <div id="exec-loader" role="status" aria-live="polite">
     <div style="text-align: center; padding: 25px 0 10px;">
-      <div class="spinner" style="width: 38px; height: 38px;"></div>
+      <div class="stage">
+        <div class="glow"></div>
+        <div class="card"><span>🛡️</span></div>
+      </div>
       <div data-i18n="exec.heading" id="exec-heading" style="font-weight: 700; font-size: 16px; margin-top: 16px; color: #0F172A;">Processing Chrome Log Events...</div>
       <div data-i18n="exec.status.init" id="exec-status-txt" style="font-size: 12px; color: #64748B; margin-top: 6px;">Initializing pipeline...</div>
     </div>
@@ -1116,7 +1183,7 @@
     </div>
     <div style="display: flex; justify-content: space-between; font-size: 11px; color: #64748B;">
       <span data-i18n="exec.preparing" id="current-file-txt">Preparing...</span>
-      <span id="progress-pct-txt">0%</span>
+      <span id="progress-pct-txt" style="color: #2563EB; font-weight: 700;">0%</span>
     </div>
     <div id="error-list-box" style="display: none; background: #FFF1F2; border: 1px solid #FECDD3; border-radius: 8px; padding: 10px; margin-top: 15px; font-size: 11px; color: #9F1239;"></div>
   </div>
