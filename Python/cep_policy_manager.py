@@ -118,8 +118,8 @@ def _load_adc_user_credentials():
             adc_data = json.load(f)
         if adc_data.get("type") != "authorized_user":
             return None
-        creds = oauth2_credentials.Credentials.from_authorized_user_info(adc_data, scopes=SCOPES)
-        if creds and creds.expired and creds.refresh_token:
+        creds = oauth2_credentials.Credentials.from_authorized_user_info(adc_data)
+        if creds and not creds.valid and creds.refresh_token:
             creds.refresh(Request())
         return creds if (creds and creds.valid) else None
     except Exception as e:
@@ -723,7 +723,7 @@ def import_environment(dlp_session, input_file, target_ou_id=None, target_group_
         logging.error(f"Failed to parse JSON file '{input_file}': {e}")
         return
         
-    configs = data.get("cep_configurations", {})
+    configs = data.get("cep_configurations") or data.get("dlp_configurations", {})
     id_mapping = {}
 
     caa_levels = configs.get("caa_access_levels", [])
@@ -752,61 +752,78 @@ def import_environment(dlp_session, input_file, target_ou_id=None, target_group_
 # ==========================================
 # --- CLI ENTRY POINT ---
 # ==========================================
+def _add_common_arguments(target_parser, suppress_defaults=False):
+    default_val = argparse.SUPPRESS if suppress_defaults else None
+    default_bool = argparse.SUPPRESS if suppress_defaults else False
+    target_parser.add_argument(
+        "--use-service-account",
+        action="store_true",
+        default=default_bool,
+        help="Use Service Account authentication",
+    )
+    target_parser.add_argument(
+        "--key-file",
+        default=default_val,
+        help="Path to Service Account JSON key file (default: service_account.json or $GOOGLE_APPLICATION_CREDENTIALS).",
+    )
+    target_parser.add_argument(
+        "--subject",
+        default=default_val,
+        help="Workspace Super Admin email to impersonate via Domain-Wide Delegation for Cloud Identity DLP APIs.",
+    )
+    target_parser.add_argument(
+        "--access-token",
+        default=default_val,
+        help="Pre-minted OAuth 2.0 Bearer Access Token from a Workspace Super Admin (e.g. `gcloud auth application-default print-access-token`).",
+    )
+    target_parser.add_argument(
+        "--client-secrets",
+        default=default_val,
+        help="Path to OAuth 2.0 Desktop client_secrets.json file (default: client_secrets.json).",
+    )
+    target_parser.add_argument(
+        "--token-file",
+        default=default_val,
+        help="Path to cached user OAuth token pickle file (default: token_cep.pickle).",
+    )
+    target_parser.add_argument(
+        "--customer",
+        default=default_val,
+        help="Override Google Workspace Customer ID (e.g., customers/C0xxxxxxx).",
+    )
+    target_parser.add_argument(
+        "--org-id",
+        default=default_val,
+        help="Override GCP Organization ID (e.g., organizations/123456789012).",
+    )
+    target_parser.add_argument(
+        "--project-id",
+        default=default_val,
+        help="Override GCP Project ID for BeyondCorp Secure Gateways.",
+    )
+    target_parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=default_bool,
+        help="Enable verbose debug logging",
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description="Manage Chrome Enterprise Premium (CEP) Policies (DLP, Detectors, CAA, Gateways).")
+    _add_common_arguments(parser, suppress_defaults=False)
     subparsers = parser.add_subparsers(dest='command', help='Action to perform')
     
     parser_export = subparsers.add_parser('export', help='Export CEP Environment (Rules, Detectors, Access Levels, Gateways)')
     parser_export.add_argument("--file", help="Output JSON filename.")
+    _add_common_arguments(parser_export, suppress_defaults=True)
     
     parser_import = subparsers.add_parser('import', help='Import CEP Environment from JSON')
     parser_import.add_argument("--file", required=True, help="Input JSON filename.")
     target_group = parser_import.add_mutually_exclusive_group(required=False)
     target_group.add_argument("--ou-id", help="Override Target Org Unit ID")
     target_group.add_argument("--group-id", help="Override Target Group ID")
-
-    parser.add_argument("--use-service-account", action="store_true", help="Use Service Account authentication")
-    parser.add_argument(
-        "--key-file",
-        default=None,
-        help="Path to Service Account JSON key file (default: service_account.json or $GOOGLE_APPLICATION_CREDENTIALS).",
-    )
-    parser.add_argument(
-        "--subject",
-        default=None,
-        help="Workspace Super Admin email to impersonate via Domain-Wide Delegation for Cloud Identity DLP APIs.",
-    )
-    parser.add_argument(
-        "--access-token",
-        default=None,
-        help="Pre-minted OAuth 2.0 Bearer Access Token from a Workspace Super Admin (e.g. `gcloud auth application-default print-access-token`).",
-    )
-    parser.add_argument(
-        "--client-secrets",
-        default=None,
-        help="Path to OAuth 2.0 Desktop client_secrets.json file (default: client_secrets.json).",
-    )
-    parser.add_argument(
-        "--token-file",
-        default=None,
-        help="Path to cached user OAuth token pickle file (default: token_cep.pickle).",
-    )
-    parser.add_argument(
-        "--customer",
-        default=None,
-        help="Override Google Workspace Customer ID (e.g., customers/C0xxxxxxx).",
-    )
-    parser.add_argument(
-        "--org-id",
-        default=None,
-        help="Override GCP Organization ID (e.g., organizations/123456789012).",
-    )
-    parser.add_argument(
-        "--project-id",
-        default=None,
-        help="Override GCP Project ID for BeyondCorp Secure Gateways.",
-    )
-    parser.add_argument("--debug", action="store_true", help="Enable verbose debug logging")
+    _add_common_arguments(parser_import, suppress_defaults=True)
     
     args = parser.parse_args()
 
