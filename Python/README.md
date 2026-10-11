@@ -124,7 +124,7 @@ Both tools include a `DEBUG` toggle at the top of the script:
 
 # Chrome Enterprise Premium (CEP) Policy Manager
 
-The CEP Policy Manager [cep_policy_manager.py](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cep_policy_manager.py) is a comprehensive Python utility designed to export, backup, and restore Data Loss Prevention (DLP) Rules, Custom Detectors (Regex, Word Lists, URL Lists), Context-Aware Access (CAA) Levels, and Secure Gateway. 
+The CEP Policy Manager [cep_policy_manager.py](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cep_policy_manager.py) is a comprehensive Python utility designed to export, backup, and restore Data Loss Prevention (DLP) Rules, Custom Detectors (Regex, Word Lists, URL Lists), Context-Aware Access (CAA) Levels, and BeyondCorp Secure Gateways.
 
 Unlike standard Admin Console interfaces, this script allows for true "infrastructure as code" management of your CEP environment. It natively handles dependency mapping, making it an ideal tool for cross-tenant migrations (e.g., migrating from a Staging environment to Production).
 
@@ -133,24 +133,26 @@ Unlike standard Admin Console interfaces, this script allows for true "infrastru
   * **DLP Rules** (Automatically filtered to Chrome-specific triggers).
   * **Custom Detectors** (Word Lists, Regular Expressions, URL Lists).
   * **Context-Aware Access (CAA) Levels** (Via Access Context Manager).
-  * **Secure Gateways & Applications**.
-* **Intelligent Dependency Mapping:** Automatically translates old Detector and Access Level IDs to their new, newly-generated IDs during the rule import process.
+  * **Secure Gateways & Applications** (Via BeyondCorp API).
+* **Split-Session & Multi-Mode Authentication:** Separates Cloud Identity DLP API authentication (which strictly requires a **Google Workspace Super Administrator** identity) from GCP Infrastructure API authentication (Access Context Manager & BeyondCorp, which use `cloud-platform` IAM):
+  * **Workspace Super Admin OAuth 2.0 / ADC (No Domain-Wide Delegation Required):** Supports local browser OAuth (`client_secrets.json` / `token_cep.pickle`) and `gcloud` Application Default Credentials (`~/.config/gcloud/application_default_credentials.json`).
+  * **Pre-Minted OAuth 2.0 Bearer Access Token (`--access-token`):** Allows passing a short-lived Super Admin bearer token for DLP Rules & Detectors, optionally paired with `--use-service-account` for CAA and Secure Gateways.
+  * **Service Account with Domain-Wide Delegation (`--use-service-account --subject`):** Impersonates a Workspace Super Admin only for `cloud-identity.policies` scopes while authenticating directly as the Service Account for `cloud-platform` (CAA & BeyondCorp).
+* **Intelligent Dependency Mapping:** Automatically translates old Detector and Access Level IDs to their newly generated IDs during the rule import process.
 * **Dual API Support:** Uses the `v1` endpoint for safe read-only exports and the `v1beta1` endpoint for mutations (imports/creations).
-* **Cross-Tenant Migration Support:** Gracefully handles 409 ALREADY_EXISTS errors. If an Access Level or Gateway already exists in the target environment, it safely skips creation and maps the rules to the existing resource.
+* **Cross-Tenant Migration Support:** Gracefully handles `409 ALREADY_EXISTS` errors. If an Access Level or Gateway already exists in the target environment, it safely skips creation and maps the rules to the existing resource.
+* **Graceful Partial Export/Import:** If a GCP `ORGANIZATION_ID` or `PROJECT_ID` is not configured (or an Access Policy cannot be resolved), the script logs a warning, skips CAA Access Levels / Secure Gateways, and continues exporting or importing Chrome DLP Detectors and Rules.
 * **Built-in Rate Limiting:** Safely throttles API requests (1.5s delay) to respect Google's strict 1 QPS quota on Beta policy APIs, preventing `429 RESOURCE_EXHAUSTED` errors.
-* **Flexible Authentication:** Supports both User OAuth 2.0 (for interactive admin runs) and Service Accounts (for automated/cron jobs).
-* **Dynamic ID Resolution:** Automatically resolves your obscure 12-digit Access Policy ID using your Google Cloud Organization ID.
-* **Target Scoping Overrides:** Allows you to safely sandbox imported rules to a specific test Organizational Unit (OU) or Group using CLI flags.
-* **Robust Logging: Outputs** timestamped execution details and error traces to both the console and a local `cep_policy_manager.log` file.
+* **Dynamic ID Resolution:** Automatically resolves your numeric Access Policy ID using your Google Cloud Organization ID.
+* **Target Scoping Overrides & ID Normalization:** Allows you to safely sandbox imported rules and detectors to a specific test Organizational Unit (`--ou-id`) or Group (`--group-id`), automatically normalizing IDs whether or not `orgUnits/` or `groups/` prefixes are provided.
+* **Robust Logging:** Outputs timestamped execution details, actionable `HTTP 403 Error(7001)` diagnostics, and error traces to both the console and a local `cep_policy_manager.log` file.
 
 ---
 
 ## ⚠️ Important Note on Custom Detectors & Scoping
 
-Due to the architecture of the Cloud Identity Policies API, **Custom Detectors (Regex, Word Lists, URL Lists) cannot be assigned to Google Groups.** They must be assigned to an Organizational Unit (OU). 
-
-* **Best Practice:** When defining Detectors in your import JSON, always set their `policyQuery.orgUnit` to your **Root OU ID**. This ensures that the detectors are globally available and can be referenced by DLP Rules located anywhere in your domain.
-* **Script Behavior:** If you use the `--group-id` flag during an import to override the targets, the script is smart enough to apply that Group *only* to the DLP Rules. For the Detectors, it will ignore the Group override and safely fall back to the native OU ID defined in your JSON file.
+* **Best Practice:** When defining Detectors (Regex, Word Lists, URL Lists) in your import JSON, set their `policyQuery.orgUnit` to your **Root OU ID** so they are globally available and can be referenced by DLP Rules scoped to any sub-OU or Group in your domain.
+* **Prefix Normalization:** Both `--ou-id` and `--group-id` automatically strip leading `orgUnits/` or `groups/` prefixes before constructing `policyQuery` resource paths and CEL `orgUnitId(...)` / `groupId(...)` expressions.
 
 ---
 
@@ -162,101 +164,176 @@ Due to the architecture of the Cloud Identity Policies API, **Custom Detectors (
    * Access Context Manager API (`accesscontextmanager.googleapis.com`)
    * BeyondCorp API (`beyondcorp.googleapis.com`)
 3. **Required Python Packages:**
-   ```python
-   pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+   ```bash
+   pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib requests
    ```
-4. **Required Roles:**
-   * Cloud Identity Policy Admin (or equivalent for DLP mutation)
-   * Access Context Manager Editor (for CAA levels)
-   * BeyondCorp Admin (for Secure Gateways)
+4. **Required Roles & Permissions:**
+   * **Google Workspace (Required for DLP Rules & Detectors):** **Super Administrator** role.
+     > **Important:** The Cloud Identity Policies API (`cloudidentity.googleapis.com/v1/policies` and `v1beta1/policies`) strictly enforces a hardcoded **Super Admin** check for `rule.dlp` and `detector.*` policies. Custom/delegated Workspace admin roles, GCP IAM roles (`roles/cloudidentity.policyAdmin`), or direct Service Account calls without Domain-Wide Delegation will fail with `HTTP 403 PERMISSION_DENIED: Error(7001)`.
+   * **Google Cloud IAM (Required for CAA Levels & BeyondCorp Gateways):**
+     * Access Context Manager Editor (`roles/accesscontextmanager.policyEditor`)
+     * BeyondCorp Admin (`roles/beyondcorp.admin`)
 
 ---
 
 ## 🔧 Setup
 1. Clone or download this repository.
-2. Open [cep_policy_manager.py](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cep_policy_manager.py) in your text editor.
-3. Update the `CONFIGURATION` block at the top of the file with your specific tenant details:
-   ```python
-   # --- CONFIGURATION ---
-   CUSTOMER_ID = "customers/C0xxxxxxx"           # Your Workspace Customer ID
-   ORGANIZATION_ID = "organizations/1234567890"  # Your GCP Organization ID
-   PROJECT_ID = "my-gcp-project"                 # GCP Project for BeyondCorp Gateways
-   LOCATION = "global"                           # Location for BeyondCorp Gateways
-   ```
+2. Configure your tenant identifiers using **any** of the following methods:
+   * **CLI Flags (Recommended):** Pass `--customer`, `--org-id`, and `--project-id` at runtime.
+   * **Environment Variables:** Set `CEP_CUSTOMER_ID`, `CEP_ORGANIZATION_ID`, and `CEP_PROJECT_ID`.
+   * **Script Constants:** Update the `CONFIGURATION` block at the top of [cep_policy_manager.py](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/cep_policy_manager.py):
+     ```python
+     # --- CONFIGURATION ---
+     CUSTOMER_ID = os.environ.get("CEP_CUSTOMER_ID", "customers/C0xxxxxxx")
+     ORGANIZATION_ID = os.environ.get("CEP_ORGANIZATION_ID", "organizations/123456789012")
+     PROJECT_ID = os.environ.get("CEP_PROJECT_ID", "my-gcp-project")
+     LOCATION = "global"
+     ```
 
 ---
 
 ## :factory: Usage
-The script uses standard command-line arguments. Use `--help` to see all available options.
+The script uses standard command-line arguments. Use `python3 cep_policy_manager.py --help` to see all available options:
 
-### 1. Exporting an Environments
+```text
+options:
+  --use-service-account          Use Service Account authentication
+  --key-file KEY_FILE            Path to Service Account JSON key file (default: service_account.json or $GOOGLE_APPLICATION_CREDENTIALS)
+  --subject SUBJECT              Workspace Super Admin email to impersonate via Domain-Wide Delegation for Cloud Identity DLP APIs
+  --access-token ACCESS_TOKEN    Pre-minted OAuth 2.0 Bearer Access Token from a Workspace Super Admin
+  --client-secrets CLIENT_SECRETS Path to OAuth 2.0 Desktop client_secrets.json file (default: client_secrets.json)
+  --token-file TOKEN_FILE        Path to cached user OAuth token pickle file (default: token_cep.pickle)
+  --customer CUSTOMER            Override Google Workspace Customer ID (e.g., customers/C0xxxxxxx)
+  --org-id ORG_ID                Override GCP Organization ID (e.g., organizations/123456789012)
+  --project-id PROJECT_ID        Override GCP Project ID for BeyondCorp Secure Gateways
+  --debug                        Enable verbose debug logging
+```
 
-Extracts all configurations and saves them to a structured JSON file.
+### 1. Exporting an Environment
+
+Extracts configurations and saves them to a structured JSON file.
 
 ```bash
 # Standard export (auto-generates a timestamped filename)
-python cep_policy_manager.py export
+python3 cep_policy_manager.py export --customer C0xxxxxxx --org-id 123456789012
 
 # Export to a specific file
-python cep_policy_manager.py export --file my_cep_backup.json
+python3 cep_policy_manager.py export --file my_cep_backup.json --customer C0xxxxxxx
 
 # Enable verbose debug logging
-python cep_policy_manager.py export --debug
+python3 cep_policy_manager.py export --debug
 ```
 
 ### 2. Importing an Environment
 
-Restores configurations from a JSON file. The script enforces a strict dependency order: Access Levels -> Gateways -> Detectors -> DLP Rules.
+Restores configurations from a JSON file. The script enforces a strict dependency order: `Access Levels -> Gateways -> Detectors -> DLP Rules`.
 
 ```bash
 # Standard import (uses targets defined natively in the JSON)
-python cep_policy_manager.py import --file my_cep_backup.json
+python3 cep_policy_manager.py import --file my_cep_backup.json --customer C0xxxxxxx
 
 # SAFE TEST: Override targets to apply rules/detectors ONLY to a specific Test OU
-python cep_policy_manager.py import --file my_cep_backup.json --ou-id "03ph8a2zXXXXXXX"
+python3 cep_policy_manager.py import --file my_cep_backup.json --ou-id "03ph8a2zXXXXXXX"
 
-# Override targets to apply rules ONLY to a specific Test Group
-python cep_policy_manager.py import --file my_cep_backup.json --group-id "03oy7u29XXXXXXX"
+# Override targets to apply rules/detectors ONLY to a specific Test Group
+python3 cep_policy_manager.py import --file my_cep_backup.json --group-id "03oy7u29XXXXXXX"
 ```
 
 ### 3. Authentication Modes
 
-By default, the script triggers an OAuth 2.0 browser login flow and saves a local `token_cep.pickle file` for subsequent runs. To force the script to use a Service Account instead, use the `--use-service-account` flag:
+Because the Cloud Identity Policies API requires a **Workspace Super Administrator** identity, `cep_policy_manager.py` supports three authentication patterns depending on whether your organization permits Domain-Wide Delegation (DWD):
+
+#### Mode A: Super Admin OAuth 2.0 or `gcloud` ADC (Default — No DWD Required)
+Ideal for interactive runs or environments where Domain-Wide Delegation is prohibited.
+* **Option 1 (Local Browser OAuth):** Place your Desktop OAuth `client_secrets.json` in the working directory and run the script. It will launch a browser login flow as a Workspace Super Admin and cache credentials in `token_cep.pickle`:
+  ```bash
+  python3 cep_policy_manager.py export --customer C0xxxxxxx
+  ```
+* **Option 2 (`gcloud` Application Default Credentials):** Authenticate once via `gcloud` using your custom OAuth client file, and the script will automatically detect `~/.config/gcloud/application_default_credentials.json`:
+  ```bash
+  gcloud auth application-default login \
+    --client-id-file=client_secrets.json \
+    --scopes="https://www.googleapis.com/auth/cloud-identity.policies,https://www.googleapis.com/auth/cloud-platform"
+
+  python3 cep_policy_manager.py export --customer C0xxxxxxx
+  ```
+
+#### Mode B: Pre-Minted Super Admin Bearer Token + Service Account (Hybrid — No DWD Required)
+Ideal for CI/CD or Terraform pipelines without Domain-Wide Delegation. Pass a short-lived Super Admin access token via `--access-token` (or `CEP_ACCESS_TOKEN` / `TF_VAR_access_token`) for Cloud Identity DLP calls, and optionally combine it with `--use-service-account` so CAA and BeyondCorp calls use your GCP Service Account:
 
 ```bash
-python cep_policy_manager.py export --use-service-account
+# Use a pre-minted Super Admin token for DLP + Service Account for GCP CAA/BeyondCorp
+python3 cep_policy_manager.py import \
+  --file my_cep_backup.json \
+  --customer C0xxxxxxx \
+  --org-id 123456789012 \
+  --use-service-account \
+  --key-file service_account.json \
+  --access-token "$(gcloud auth application-default print-access-token)"
 ```
+
+#### Mode C: Service Account with Domain-Wide Delegation (Unattended Automation)
+For fully unattended runs using a Service Account:
+1. Enable **Domain-Wide Delegation** for the Service Account's numeric Client ID in **Google Admin Console → Security → Access and data control → API controls → Manage Domain Wide Delegation** with scopes:
+   * `https://www.googleapis.com/auth/cloud-identity.policies`
+   * `https://www.googleapis.com/auth/cloud-identity.policies.readonly`
+2. Grant the Service Account GCP IAM roles (`Access Context Manager Editor`, `BeyondCorp Admin`) on your GCP Organization/Project.
+3. Run the script with `--use-service-account` and `--subject <super-admin@yourdomain.com>`. The script automatically uses split sessions—impersonating `--subject` only for Cloud Identity DLP calls while using direct Service Account credentials for GCP CAA and BeyondCorp calls:
+   ```bash
+   python3 cep_policy_manager.py export \
+     --use-service-account \
+     --key-file service_account.json \
+     --subject super-admin@yourdomain.com \
+     --customer C0xxxxxxx \
+     --org-id 123456789012
+   ```
 
 ---
 
 ## 🔄 Cross-Tenant Migration Guide
 
-To migrate configurations from a Staging tenant to a Production tenant:
+To migrate configurations from a Staging tenant to a Production tenant without editing the script:
 
-1. Edit the script to contain the `CUSTOMER_ID`, `ORGANIZATION_ID`, and `PROJECT_ID` of the Staging tenant.
-2. Run python `cep_policy_manager.py export --file staging_export.json`.
-3. Edit the script to contain the `CUSTOMER_ID`, `ORGANIZATION_ID`, and `PROJECT_ID` of the Production tenant.
-4. Ensure the authenticating user/service account has privileges in the Production tenant.
-5. Run `python cep_policy_manager.py import --file staging_export.json`.
-    * Note: The script will automatically detect resources that already exist in Production (409 ALREADY_EXISTS) and map the imported rules to those existing dependencies.
+1. Export from the **Staging** tenant:
+   ```bash
+   python3 cep_policy_manager.py export \
+     --file staging_export.json \
+     --customer C0staging \
+     --org-id 111111111111 \
+     --project-id staging-gcp-project
+   ```
+2. Import into the **Production** tenant (authenticating with a Production Super Admin / Service Account):
+   ```bash
+   python3 cep_policy_manager.py import \
+     --file staging_export.json \
+     --customer C0production \
+     --org-id 222222222222 \
+     --project-id prod-gcp-project
+   ```
+   * *Note:* The script automatically detects resources that already exist in Production (`409 ALREADY_EXISTS`) and maps imported DLP rules to those existing dependencies.
 
 ---
 
 ## 📝 Logging & Debugging
-- **HTTP 400 (INVALID_ARGUMENT):** Usually occurs if you attempt to import a rule that references a custom detector ID that does not exist in the JSON payload or the tenant. Ensure you are importing the entire backup payload so detectors are created first.
+- **HTTP 403 (`PERMISSION_DENIED: Error(7001)`):** Returned by the Cloud Identity Policies API when the caller is not a Google Workspace Super Administrator (for example, running `--use-service-account` without `--subject` or `--access-token`, or signing in as a delegated admin). Use Mode A (Super Admin OAuth/ADC), Mode B (`--access-token`), or Mode C (`--use-service-account --subject super-admin@yourdomain.com`).
 
-- **HTTP 429 (RESOURCE_EXHAUSTED):** The Cloud Identity Policies API has a strict 1 QPS limit. The script handles this automatically with a time.sleep(1.5) throttle. Do not remove this throttle.
+- **`unauthorized_client: Client is unauthorized to retrieve access tokens`:** Returned when `--subject` is used with a Service Account whose numeric Client ID has not been authorized in Google Workspace Admin Console (**Security → API controls → Domain-wide Delegation**) for `https://www.googleapis.com/auth/cloud-identity.policies`.
 
-- **Missing BeyondCorp Applications:** Secure Gateways utilize Long-Running Operations (LROs) to provision. The script will trigger the creation, but you may need to wait a few minutes and check the GCP Console to see the Gateway reach a RUNNING state.
+- **HTTP 400 (`INVALID_ARGUMENT`):** Usually occurs if you attempt to import a rule that references a custom detector ID that does not exist in the JSON payload or the tenant. Ensure you are importing the entire backup payload so detectors are created first.
+
+- **HTTP 429 (`RESOURCE_EXHAUSTED`):** The Cloud Identity Policies API has a strict 1 QPS limit. The script handles this automatically with a `time.sleep(1.5)` throttle. Do not remove this throttle.
+
+- **Missing BeyondCorp Applications:** Secure Gateways utilize Long-Running Operations (LROs) to provision. The script will trigger the creation, but you may need to wait a few minutes and check the GCP Console to see the Gateway reach a `RUNNING` state.
 
 ---
 
 ## 🏗️ Hybrid Terraform Integration
 
-Because the official HashiCorp Google Cloud provider does not natively support Cloud Identity DLP rules yet, you can use a hybrid Terraform approach.
+Because the official HashiCorp `google` / `google-beta` provider does not yet offer a native resource for Cloud Identity Chrome DLP rules, you can use a hybrid Terraform approach.
 
-Deploy your Access Levels and Secure Gateways using native `.tf` configuration files, and use a `null_resource` with a `local-exec` provisioner to trigger this Python script to handle the unsupported DLP rules and detectors:
-```Terraform
+Deploy your Access Levels and Secure Gateways using native `.tf` resources (authenticated via your GCP Service Account), and use a `null_resource` with a `local-exec` provisioner to invoke `cep_policy_manager.py` for the DLP rules and detectors:
+
+```hcl
 resource "null_resource" "cep_dlp_manager" {
   depends_on = [
     google_access_context_manager_access_level.all,
@@ -267,8 +344,10 @@ resource "null_resource" "cep_dlp_manager" {
     export_hash = filemd5("${path.module}/cep_export.json")
   }
 
+  # Option 1 (No DWD): Pass a short-lived Super Admin access token via TF_VAR_access_token
+  # Option 2 (With DWD): Pass --use-service-account --subject super-admin@yourdomain.com
   provisioner "local-exec" {
-    command = "python3 cep_policy_manager.py import --file cep_export.json --use-service-account"
+    command = "python3 cep_policy_manager.py import --file cep_export.json --use-service-account --subject ${var.super_admin_email}"
   }
 }
 ```
