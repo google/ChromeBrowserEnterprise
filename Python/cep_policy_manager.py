@@ -4,10 +4,14 @@
 """
 CEP Policy Manager (cep_policy_manager.py)
 Purpose: Export and Import Chrome Enterprise Premium (CEP) configurations:
-         - DLP Rules & Detectors
-         - Context-Aware Access (CAA) Levels
-         - BeyondCorp Secure Gateways & Applications
+         - DLP Rules & Detectors (Cloud Identity Policies API)
+         - Context-Aware Access (CAA) Levels (Access Context Manager API)
+         - BeyondCorp Secure Gateways & Applications (BeyondCorp API)
 Features:
+  - Split-Session & Multi-Mode Auth: Supports Workspace Super Admin User OAuth 2.0 / ADC,
+    pre-minted Bearer Access Tokens (`--access-token`), and Service Account + Domain-Wide
+    Delegation (`--use-service-account --subject <admin@domain.com>`) for Cloud Identity
+    DLP APIs while using direct GCP credentials for ACM and BeyondCorp APIs.
   - Cross-Tenant Support: Handles ALREADY_EXISTS to map dependencies between tenants.
   - Modular Architecture: Distinct methods for handling each API domain.
   - Dynamic Resolution: Automatically fetches Access Policy ID via GCP Organization ID.
@@ -15,39 +19,48 @@ Features:
 """
 
 import argparse
-import json
-import os
-import sys
-import pickle
+import copy
 import datetime
-import time
+import json
 import logging
+import os
+import pickle
+import sys
+import time
 
 # Imports for Auth
+from google.auth.exceptions import RefreshError
+from google.auth.transport.requests import AuthorizedSession, Request
+from google.oauth2 import credentials as oauth2_credentials
 from google.oauth2 import service_account
-from google.auth.transport.requests import Request, AuthorizedSession
 from google_auth_oauthlib.flow import InstalledAppFlow
 import requests
 
 # ==========================================
 # --- CONFIGURATION ---
 # ==========================================
-# TODO: Insert your Google Workspace Customer ID (e.g., "customers/C0xxxxxxx")
-CUSTOMER_ID = "customers/C0xxxxxxx"
+# TODO: Insert your Google Workspace Customer ID (e.g., "customers/C0xxxxxxx") or pass --customer
+CUSTOMER_ID = os.environ.get("CEP_CUSTOMER_ID", "customers/C0xxxxxxx")
 
-# TODO: Insert your GCP Organization ID (e.g., "organizations/123456789012")
-ORGANIZATION_ID = "organizations/123456789012"
+# TODO: Insert your GCP Organization ID (e.g., "organizations/123456789012") or pass --org-id
+ORGANIZATION_ID = os.environ.get("CEP_ORGANIZATION_ID", "organizations/123456789012")
 
-# TODO: Insert your GCP Project ID for Secure Gateways (e.g., "my-gcp-project")
-PROJECT_ID = "my-gcp-project"
+# TODO: Insert your GCP Project ID for Secure Gateways (e.g., "my-gcp-project") or pass --project-id
+PROJECT_ID = os.environ.get("CEP_PROJECT_ID", "my-gcp-project")
 LOCATION = "global"
 
-# Scopes required for Cloud Identity Policies AND Access Context Manager/BeyondCorp
-SCOPES = [
+# Scopes separated by API authorization domain:
+# 1. Cloud Identity Policies API (requires Workspace Super Admin identity; DWD if using a Service Account)
+DLP_SCOPES = [
     "https://www.googleapis.com/auth/cloud-identity.policies",          # Mutation
     "https://www.googleapis.com/auth/cloud-identity.policies.readonly", # Read-only
+]
+# 2. GCP Infrastructure APIs (Access Context Manager & BeyondCorp; supports direct Service Account IAM)
+GCP_SCOPES = [
     "https://www.googleapis.com/auth/cloud-platform"                    # ACM & BeyondCorp
 ]
+# Combined scopes for interactive User OAuth 2.0
+SCOPES = DLP_SCOPES + GCP_SCOPES
 
 # API Endpoints
 BASE_URL_READ = "https://cloudidentity.googleapis.com/v1/policies"
@@ -55,9 +68,11 @@ BASE_URL_WRITE = "https://cloudidentity.googleapis.com/v1beta1/policies"
 BASE_URL_ACM = "https://accesscontextmanager.googleapis.com/v1"
 BASE_URL_BEYONDCORP = "https://beyondcorp.googleapis.com/v1"
 
-# Auth Files
-USE_SERVICE_ACCOUNT = False 
-SERVICE_ACCOUNT_FILE = "service_account.json"
+# Auth Files & Options
+USE_SERVICE_ACCOUNT = False
+SERVICE_ACCOUNT_FILE = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "service_account.json")
+IMPERSONATE_SUBJECT = os.environ.get("CEP_IMPERSONATE_SUBJECT")
+ACCESS_TOKEN = os.environ.get("CEP_ACCESS_TOKEN") or os.environ.get("TF_VAR_access_token")
 CLIENT_SECRETS_FILE = "client_secrets.json"
 TOKEN_PICKLE_FILE = "token_cep.pickle"
 
@@ -93,39 +108,168 @@ def setup_logging(debug_mode):
 # ==========================================
 # --- CORE UTILITIES ---
 # ==========================================
-def get_session():
-    """Handles OAuth or Service Account Authentication."""
-    creds = None
+def _load_adc_user_credentials():
+    """Loads authorized_user credentials from ~/.config/gcloud/application_default_credentials.json if present."""
+    adc_path = os.path.expanduser("~/.config/gcloud/application_default_credentials.json")
+    if not os.path.exists(adc_path):
+        return None
     try:
+        with open(adc_path, "r", encoding="utf-8") as f:
+            adc_data = json.load(f)
+        if adc_data.get("type") != "authorized_user":
+            return None
+        creds = oauth2_credentials.Credentials.from_authorized_user_info(adc_data, scopes=SCOPES)
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        return creds if (creds and creds.valid) else None
+    except Exception as e:
+        logging.debug(f"Could not load user credentials from gcloud ADC: {e}")
+        return None
+
+
+def _load_user_oauth_session():
+    """Authenticates a human Workspace Super Admin via ADC or client_secrets.json + token_cep.pickle."""
+    creds = None
+    if os.path.exists(TOKEN_PICKLE_FILE):
+        try:
+            with open(TOKEN_PICKLE_FILE, "rb") as token:
+                creds = pickle.load(token)
+        except Exception as e:
+            logging.warning(f"Could not read cached token '{TOKEN_PICKLE_FILE}': {e}")
+            creds = None
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            logging.info("Refreshing expired OAuth token...")
+            try:
+                creds.refresh(Request())
+            except RefreshError as e:
+                logging.warning(f"Cached token refresh failed ({e}); checking ADC / browser flow...")
+                creds = None
+
+        if not creds or not creds.valid:
+            adc_creds = _load_adc_user_credentials()
+            if adc_creds:
+                logging.info(
+                    "Auth Mode: Application Default Credentials "
+                    "(~/.config/gcloud/application_default_credentials.json)"
+                )
+                return AuthorizedSession(adc_creds)
+
+            if not os.path.exists(CLIENT_SECRETS_FILE):
+                raise FileNotFoundError(
+                    f"'{CLIENT_SECRETS_FILE}' not found. Provide --client-secrets, "
+                    "authenticate via `gcloud auth application-default login --client-id-file=client_secrets.json "
+                    "--scopes=\"https://www.googleapis.com/auth/cloud-identity.policies,"
+                    "https://www.googleapis.com/auth/cloud-platform\"`, "
+                    "pass --access-token, or use --use-service-account --subject <admin@domain.com>."
+                )
+            logging.info("Starting local browser login flow (sign in as a Workspace Super Admin)...")
+            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
+            creds = flow.run_local_server(port=0)
+
+        with open(TOKEN_PICKLE_FILE, "wb") as token:
+            pickle.dump(creds, token)
+
+    return AuthorizedSession(creds)
+
+
+def get_sessions():
+    """
+    Returns a tuple of (dlp_session, gcp_session) for Cloud Identity Policies API
+    and GCP Infrastructure APIs (Access Context Manager & BeyondCorp).
+
+    Why two sessions are supported:
+      - Cloud Identity Policies API (`v1/policies`, `v1beta1/policies`) strictly requires a
+        Google Workspace Super Administrator identity. Direct Service Account authentication
+        without Domain-Wide Delegation (`--subject`) is rejected with HTTP 403 Error(7001).
+      - Access Context Manager and BeyondCorp APIs use GCP IAM (`cloud-platform` scope), where
+        roles are granted directly to the Service Account principal without DWD.
+    """
+    try:
+        dlp_session = None
+        gcp_session = None
+
+        # 1. If a pre-minted Bearer Access Token is provided, use it for DLP (and GCP if SA is not enabled)
+        if ACCESS_TOKEN:
+            logging.info("DLP Auth Mode: Pre-minted OAuth 2.0 Bearer Access Token")
+            token_creds = oauth2_credentials.Credentials(token=ACCESS_TOKEN.strip())
+            dlp_session = AuthorizedSession(token_creds)
+
+        # 2. If Service Account mode is enabled
         if USE_SERVICE_ACCOUNT:
-            logging.info("Auth Mode: Service Account")
             if not os.path.exists(SERVICE_ACCOUNT_FILE):
                 raise FileNotFoundError(f"Service account file '{SERVICE_ACCOUNT_FILE}' not found.")
-            creds = service_account.Credentials.from_service_account_file(
-                SERVICE_ACCOUNT_FILE, scopes=SCOPES
+
+            # GCP Session (ACM & BeyondCorp): Authenticate directly as the Service Account principal
+            logging.info(f"GCP Auth Mode: Service Account ({SERVICE_ACCOUNT_FILE})")
+            gcp_creds = service_account.Credentials.from_service_account_file(
+                SERVICE_ACCOUNT_FILE, scopes=GCP_SCOPES
             )
-        else:
-            logging.info("Auth Mode: User Authentication (OAuth 2.0)")
-            if os.path.exists(TOKEN_PICKLE_FILE):
-                with open(TOKEN_PICKLE_FILE, "rb") as token:
-                    creds = pickle.load(token)
-            if not creds or not creds.valid:
-                if creds and creds.expired and creds.refresh_token:
-                    logging.info("Refreshing expired OAuth token...")
-                    creds.refresh(Request())
+            gcp_session = AuthorizedSession(gcp_creds)
+
+            # DLP Session (Cloud Identity Policies API): Use DWD subject if not already using ACCESS_TOKEN
+            if dlp_session is None:
+                if IMPERSONATE_SUBJECT:
+                    logging.info(
+                        f"DLP Auth Mode: Service Account ({SERVICE_ACCOUNT_FILE}) with "
+                        f"Domain-Wide Delegation subject '{IMPERSONATE_SUBJECT}'"
+                    )
+                    dlp_creds = service_account.Credentials.from_service_account_file(
+                        SERVICE_ACCOUNT_FILE,
+                        scopes=DLP_SCOPES,
+                        subject=IMPERSONATE_SUBJECT,
+                    )
+                    dlp_session = AuthorizedSession(dlp_creds)
                 else:
-                    if not os.path.exists(CLIENT_SECRETS_FILE):
-                        raise FileNotFoundError(f"'{CLIENT_SECRETS_FILE}' not found.")
-                    logging.info("Starting local browser login flow...")
-                    flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
-                    creds = flow.run_local_server(port=0)
-                with open(TOKEN_PICKLE_FILE, "wb") as token:
-                    pickle.dump(creds, token)
-        logging.info("Authentication successful.")
-        return AuthorizedSession(creds)
+                    logging.warning(
+                        "WARNING: --use-service-account was set without --subject "
+                        "(or env CEP_IMPERSONATE_SUBJECT) or --access-token. "
+                        "The Cloud Identity Policies API requires a Google Workspace Super Admin "
+                        "identity and will return HTTP 403 Error(7001) for DLP Rules & Detectors "
+                        "unless Domain-Wide Delegation (--subject <super-admin@domain.com>) or "
+                        "Super Admin OAuth 2.0 is used."
+                    )
+                    dlp_creds = service_account.Credentials.from_service_account_file(
+                        SERVICE_ACCOUNT_FILE, scopes=SCOPES
+                    )
+                    dlp_session = AuthorizedSession(dlp_creds)
+        else:
+            # 3. User OAuth 2.0 / ADC mode (No DWD required)
+            if dlp_session is None:
+                logging.info("Auth Mode: User Authentication (OAuth 2.0 / ADC as Workspace Super Admin)")
+                user_session = _load_user_oauth_session()
+                dlp_session = user_session
+                gcp_session = user_session
+            else:
+                # ACCESS_TOKEN was provided without --use-service-account; use it for both
+                gcp_session = dlp_session
+
+        logging.info("Authentication initialized successfully.")
+        return dlp_session, gcp_session
     except Exception as e:
         logging.error(f"Authentication failed: {e}", exc_info=True)
-        return None
+        return None, None
+
+
+def get_session():
+    """Backwards-compatible helper returning the primary DLP session."""
+    dlp_session, _ = get_sessions()
+    return dlp_session
+
+
+def _log_dlp_403_hint(status_code, response_text):
+    """Logs an actionable troubleshooting hint when Cloud Identity Policies API returns 403 Error(7001)."""
+    if status_code == 403 and ("7001" in response_text or "PERMISSION_DENIED" in response_text):
+        logging.error(
+            "Hint: Cloud Identity Policies API requires a Google Workspace Super Administrator "
+            "identity. Direct Service Account authentication without Domain-Wide Delegation "
+            "(or a non-Super-Admin user) is rejected with HTTP 403 Error(7001).\n"
+            "  -> Option 1 (No DWD): Run without --use-service-account to use Super Admin OAuth 2.0 / ADC, "
+            "or pass --access-token \"$(gcloud auth application-default print-access-token)\".\n"
+            "  -> Option 2 (With DWD): Pass --use-service-account --subject super-admin@yourdomain.com."
+        )
+
 
 def fetch_policies_by_filter(session, filter_string, label):
     """Generic fetcher for Cloud Identity API with pagination."""
@@ -142,6 +286,7 @@ def fetch_policies_by_filter(session, filter_string, label):
             
             if response.status_code != 200:
                 logging.error(f"Failed fetching {label}: HTTP {response.status_code} - {response.text}")
+                _log_dlp_403_hint(response.status_code, response.text)
                 break
             
             data = response.json()
@@ -290,19 +435,29 @@ def export_dlp_rules(session):
     logging.info(f"Filtered down to {len(chrome_rules)} Chrome-specific rules.")
     return chrome_rules
 
-def export_environment(session, output_file):
+def export_environment(dlp_session, output_file, gcp_session=None):
     logging.info("Starting Chrome Enterprise Premium (CEP) Environment Export...")
-    
-    access_policy_id = get_access_policy_id(session, ORGANIZATION_ID)
-    if not access_policy_id:
-        logging.error("Aborting export: Could not resolve Access Policy ID.")
-        return
+    if gcp_session is None:
+        gcp_session = dlp_session
 
-    # Gather data through domain-specific methods
-    caa_levels = export_caa_policies(session, access_policy_id)
-    secure_gateways = export_secure_gateways(session, PROJECT_ID, LOCATION)
-    detectors = export_detectors(session)
-    rules = export_dlp_rules(session)
+    access_policy_id = None
+    if ORGANIZATION_ID and ORGANIZATION_ID != "organizations/123456789012":
+        access_policy_id = get_access_policy_id(gcp_session, ORGANIZATION_ID)
+    if not access_policy_id:
+        logging.warning(
+            "Could not resolve Access Policy ID (or ORGANIZATION_ID not configured). "
+            "Skipping CAA Access Levels export and continuing with DLP Detectors & Rules."
+        )
+
+    # Gather data through domain-specific methods (GCP session for ACM/BeyondCorp, DLP session for Cloud Identity)
+    caa_levels = export_caa_policies(gcp_session, access_policy_id) if access_policy_id else []
+    secure_gateways = (
+        export_secure_gateways(gcp_session, PROJECT_ID, LOCATION)
+        if PROJECT_ID and PROJECT_ID != "my-gcp-project"
+        else []
+    )
+    detectors = export_detectors(dlp_session)
+    rules = export_dlp_rules(dlp_session)
     
     all_configs = {
         "caa_access_levels": caa_levels,
@@ -342,7 +497,7 @@ def export_environment(session, output_file):
 # --- IMPORT MODULES ---
 # ==========================================
 def clean_policy_for_import(policy_obj, target_ou_id=None, target_group_id=None):
-    import_obj = policy_obj.copy()
+    import_obj = copy.deepcopy(policy_obj)
     for field in ['name', 'createTime', 'updateTime', 'deleteTime', 'etag']:
         import_obj.pop(field, None)
         
@@ -350,23 +505,29 @@ def clean_policy_for_import(policy_obj, target_ou_id=None, target_group_id=None)
     for field in ['createTime', 'updateTime']:
         setting_value.pop(field, None)
         
-    import_obj['customer'] = CUSTOMER_ID
+    customer_norm = CUSTOMER_ID if CUSTOMER_ID.startswith("customers/") else f"customers/{CUSTOMER_ID}"
+    import_obj['customer'] = customer_norm
     policy_type = import_obj.get('setting', {}).get('type', '')
     is_detector = 'detector' in policy_type
 
+    clean_ou_id = target_ou_id.removeprefix("orgUnits/").strip() if target_ou_id else None
+    clean_group_id = target_group_id.removeprefix("groups/").strip() if target_group_id else None
+
     if is_detector:
-        if target_ou_id:
-            import_obj['policyQuery'] = {"orgUnit": f"orgUnits/{target_ou_id}", "sortOrder": 1}
+        if clean_ou_id:
+            import_obj['policyQuery'] = {"orgUnit": f"orgUnits/{clean_ou_id}", "sortOrder": 1}
+        elif clean_group_id:
+            import_obj['policyQuery'] = {"group": f"groups/{clean_group_id}", "sortOrder": 1}
     else:
-        if target_ou_id:
+        if clean_ou_id:
             import_obj['policyQuery'] = {
-                "query": f"entity.org_units.exists(org_unit, org_unit.org_unit_id == orgUnitId('{target_ou_id}'))",
-                "orgUnit": f"orgUnits/{target_ou_id}", "sortOrder": 1
+                "query": f"entity.org_units.exists(org_unit, org_unit.org_unit_id == orgUnitId('{clean_ou_id}'))",
+                "orgUnit": f"orgUnits/{clean_ou_id}", "sortOrder": 1
             }
-        elif target_group_id:
+        elif clean_group_id:
             import_obj['policyQuery'] = {
-                "query": f"entity.groups.exists(group, group.group_id == groupId('{target_group_id}'))",
-                "group": f"groups/{target_group_id}", "sortOrder": 1
+                "query": f"entity.groups.exists(group, group.group_id == groupId('{clean_group_id}'))",
+                "group": f"groups/{clean_group_id}", "sortOrder": 1
             }
     
     if 'policyQuery' not in import_obj:
@@ -507,6 +668,7 @@ def import_detectors(session, detectors, label, target_ou_id, target_group_id, i
                 if old_id and new_id: id_mapping[old_id] = new_id
             else:
                 logging.error(f"[FAILED] HTTP {response.status_code}: {response.text}")
+                _log_dlp_403_hint(response.status_code, response.text)
         except requests.exceptions.RequestException as e:
             logging.error(f"[FAILED] Network error during Detector creation: {e}")
 
@@ -541,11 +703,15 @@ def import_dlp_rules(session, rules, target_ou_id, target_group_id, id_mapping):
                 logging.info(f"[SUCCESS] Created: {response.json().get('response', {}).get('name')}")
             else:
                 logging.error(f"[FAILED] HTTP {response.status_code}: {response.text}")
+                _log_dlp_403_hint(response.status_code, response.text)
         except requests.exceptions.RequestException as e:
             logging.error(f"[FAILED] Network error during Rule creation: {e}")
 
-def import_environment(session, input_file, target_ou_id=None, target_group_id=None):
+def import_environment(dlp_session, input_file, target_ou_id=None, target_group_id=None, gcp_session=None):
     logging.info("Starting Chrome Enterprise Premium (CEP) Environment Import...")
+    if gcp_session is None:
+        gcp_session = dlp_session
+
     if not os.path.exists(input_file):
         logging.error(f"Error: Import file '{input_file}' not found.")
         return
@@ -558,20 +724,27 @@ def import_environment(session, input_file, target_ou_id=None, target_group_id=N
         return
         
     configs = data.get("cep_configurations", {})
-    
-    access_policy_id = get_access_policy_id(session, ORGANIZATION_ID)
-    if not access_policy_id:
-        logging.error("Aborting import: Could not resolve Target Access Policy ID.")
-        return
-
     id_mapping = {}
 
-    import_caa_policies(session, configs.get("caa_access_levels", []), access_policy_id, id_mapping)
-    import_secure_gateways(session, configs.get("secure_gateways", []), PROJECT_ID, LOCATION)
-    import_detectors(session, configs.get("word_list_detectors", []), "Word List Detectors", target_ou_id, target_group_id, id_mapping)
-    import_detectors(session, configs.get("regex_detectors", []), "Regex Detectors", target_ou_id, target_group_id, id_mapping)
-    import_detectors(session, configs.get("url_list_detectors", []), "URL List Detectors", target_ou_id, target_group_id, id_mapping)
-    import_dlp_rules(session, configs.get("rules", []), target_ou_id, target_group_id, id_mapping)
+    caa_levels = configs.get("caa_access_levels", [])
+    if caa_levels:
+        access_policy_id = get_access_policy_id(gcp_session, ORGANIZATION_ID)
+        if access_policy_id:
+            import_caa_policies(gcp_session, caa_levels, access_policy_id, id_mapping)
+        else:
+            logging.warning(
+                "Could not resolve Target Access Policy ID. Skipping CAA Access Levels import "
+                "and continuing with DLP Detectors & Rules."
+            )
+
+    gateways = configs.get("secure_gateways", [])
+    if gateways:
+        import_secure_gateways(gcp_session, gateways, PROJECT_ID, LOCATION)
+
+    import_detectors(dlp_session, configs.get("word_list_detectors", []), "Word List Detectors", target_ou_id, target_group_id, id_mapping)
+    import_detectors(dlp_session, configs.get("regex_detectors", []), "Regex Detectors", target_ou_id, target_group_id, id_mapping)
+    import_detectors(dlp_session, configs.get("url_list_detectors", []), "URL List Detectors", target_ou_id, target_group_id, id_mapping)
+    import_dlp_rules(dlp_session, configs.get("rules", []), target_ou_id, target_group_id, id_mapping)
     
     logging.info("Import sequence completed.")
 
@@ -592,7 +765,47 @@ def main():
     target_group.add_argument("--ou-id", help="Override Target Org Unit ID")
     target_group.add_argument("--group-id", help="Override Target Group ID")
 
-    parser.add_argument("--use-service-account", action="store_true", help="Force Service Account Auth")
+    parser.add_argument("--use-service-account", action="store_true", help="Use Service Account authentication")
+    parser.add_argument(
+        "--key-file",
+        default=None,
+        help="Path to Service Account JSON key file (default: service_account.json or $GOOGLE_APPLICATION_CREDENTIALS).",
+    )
+    parser.add_argument(
+        "--subject",
+        default=None,
+        help="Workspace Super Admin email to impersonate via Domain-Wide Delegation for Cloud Identity DLP APIs.",
+    )
+    parser.add_argument(
+        "--access-token",
+        default=None,
+        help="Pre-minted OAuth 2.0 Bearer Access Token from a Workspace Super Admin (e.g. `gcloud auth application-default print-access-token`).",
+    )
+    parser.add_argument(
+        "--client-secrets",
+        default=None,
+        help="Path to OAuth 2.0 Desktop client_secrets.json file (default: client_secrets.json).",
+    )
+    parser.add_argument(
+        "--token-file",
+        default=None,
+        help="Path to cached user OAuth token pickle file (default: token_cep.pickle).",
+    )
+    parser.add_argument(
+        "--customer",
+        default=None,
+        help="Override Google Workspace Customer ID (e.g., customers/C0xxxxxxx).",
+    )
+    parser.add_argument(
+        "--org-id",
+        default=None,
+        help="Override GCP Organization ID (e.g., organizations/123456789012).",
+    )
+    parser.add_argument(
+        "--project-id",
+        default=None,
+        help="Override GCP Project ID for BeyondCorp Secure Gateways.",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable verbose debug logging")
     
     args = parser.parse_args()
@@ -600,18 +813,39 @@ def main():
     # Configure Logging First
     setup_logging(args.debug)
 
-    global USE_SERVICE_ACCOUNT
+    global USE_SERVICE_ACCOUNT, SERVICE_ACCOUNT_FILE, IMPERSONATE_SUBJECT, ACCESS_TOKEN
+    global CLIENT_SECRETS_FILE, TOKEN_PICKLE_FILE, CUSTOMER_ID, ORGANIZATION_ID, PROJECT_ID
     if args.use_service_account: 
         USE_SERVICE_ACCOUNT = True
+    if args.key_file:
+        SERVICE_ACCOUNT_FILE = args.key_file
+    if args.subject:
+        IMPERSONATE_SUBJECT = args.subject
+    if args.access_token:
+        ACCESS_TOKEN = args.access_token
+    if args.client_secrets:
+        CLIENT_SECRETS_FILE = args.client_secrets
+    if args.token_file:
+        TOKEN_PICKLE_FILE = args.token_file
+    if args.customer:
+        CUSTOMER_ID = args.customer if args.customer.startswith("customers/") else f"customers/{args.customer}"
+    if args.org_id:
+        ORGANIZATION_ID = args.org_id if args.org_id.startswith("organizations/") else f"organizations/{args.org_id}"
+    if args.project_id:
+        PROJECT_ID = args.project_id
 
-    session = get_session()
-    if not session: 
+    if not args.command:
+        parser.print_help()
+        return
+
+    dlp_session, gcp_session = get_sessions()
+    if not dlp_session: 
         return
 
     if args.command == 'export': 
-        export_environment(session, args.file)
+        export_environment(dlp_session, args.file, gcp_session=gcp_session)
     elif args.command == 'import': 
-        import_environment(session, args.file, args.ou_id, args.group_id)
+        import_environment(dlp_session, args.file, args.ou_id, args.group_id, gcp_session=gcp_session)
     else: 
         parser.print_help()
 
