@@ -59,7 +59,7 @@ They show how data leaves the organization through the browser, which organizati
 | 5. Step 2 — Corporate Domains & Threat Vectors | 6. Analysis Complete & Deliverable Links |
 | :---: | :---: |
 | ![Step 2: Corporate Domains and Threat Vectors](./assets/05-domains-and-vectors.png) | ![Analysis Complete Screen](./assets/06-generation-complete.png) |
-| *Auto-loads verified corporate domains from Google Workspace Directory and lets you customize Sanctioned Enterprise AI, Productivity Suites (`🏢 All Registered Domains`), Web Messaging, and Partner domains.* | *Displays the Plasma Glow Squircle Loader (`🛡️`) at `100%`, the total sheets and assembled user actions analyzed, and a direct link to open the generated Google Slides Executive Briefing Deck.* |
+| *Auto-loads verified corporate domains from Google Workspace Directory and lets you customize Sanctioned Enterprise AI, Productivity Suites (`🏢 All Registered Domains`), Web Messaging, and Partner domains.* | *Shows `✅ Chrome Egress Risk Analysis has been generated!` with the number of sheets aggregated and user actions analyzed, a link to open the generated Google Slides deck, and **`💬 Share Feedback & Ideas ↗`**.* |
 
 ---
 
