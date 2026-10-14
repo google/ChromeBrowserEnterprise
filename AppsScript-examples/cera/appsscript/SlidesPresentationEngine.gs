@@ -172,6 +172,36 @@ var ExecutivePresentationEngine = {
       oldSlides = presentation.getSlides();
     } else {
       presentation = SlidesApp.create(title);
+      try {
+        if (typeof ceraEnsureRootFolder_ === 'function' && typeof Drive !== 'undefined' && Drive.Files) {
+          const presId = presentation.getId();
+          const fileMeta = Drive.Files.get(presId, { fields: 'parents', supportsAllDrives: true });
+          const prevParents = (fileMeta && Array.isArray(fileMeta.parents) && fileMeta.parents.length)
+            ? fileMeta.parents.join(',')
+            : 'root';
+          const ceraRootId = ceraEnsureRootFolder_(false);
+          if (ceraRootId) {
+            try {
+              Drive.Files.update({}, presId, null, {
+                addParents: ceraRootId,
+                removeParents: prevParents,
+                supportsAllDrives: true
+              });
+            } catch (moveErr) {
+              const freshRootId = ceraEnsureRootFolder_(true);
+              if (freshRootId) {
+                Drive.Files.update({}, presId, null, {
+                  addParents: freshRootId,
+                  removeParents: prevParents,
+                  supportsAllDrives: true
+                });
+              }
+            }
+          }
+        }
+      } catch (rootMoveErr) {
+        console.warn('Could not move presentation into CERA folder: ' + (rootMoveErr && rootMoveErr.message ? rootMoveErr.message : rootMoveErr));
+      }
       oldSlides = presentation.getSlides();
     }
     const w = 720;

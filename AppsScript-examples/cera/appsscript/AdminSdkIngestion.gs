@@ -122,10 +122,69 @@ function ceraRangeDays_(dateRangeDays) {
 }
 
 /**
- * Engages a new autonomous ingestion job for the selected time range (7 days when none is given)
- * Runs Batch #1 immediately and schedules subsequent batches in Google Apps Script background
+ * Finds or creates the top-level "CERA" folder in the user's My Drive via the Drive v3 API
+ * so all CERA artifacts (Direct Ingestion job folders, generated decks, and workbooks) live in one place.
  */
-function engageCloudIngestion(dateRangeDays) {
+function ceraEnsureRootFolder_(forceCreateNew) {
+  let docProps = null;
+  let userProps = null;
+  try { docProps = PropertiesService.getDocumentProperties(); } catch (e) {}
+  try { userProps = PropertiesService.getUserProperties(); } catch (e) {}
+
+  const cachedId = !forceCreateNew
+    ? ((docProps && docProps.getProperty('CERA_ROOT_FOLDER_ID')) || (userProps && userProps.getProperty('CERA_ROOT_FOLDER_ID')) || '')
+    : '';
+
+  if (cachedId) {
+    try {
+      const existing = Drive.Files.get(cachedId, { fields: 'id,name,mimeType,trashed', supportsAllDrives: true });
+      if (existing && existing.id && !existing.trashed && existing.name === 'CERA') {
+        return existing.id;
+      }
+    } catch (getErr) {
+      // Stale or inaccessible folder ID; fall through to list/create
+    }
+  }
+
+  let resolvedId = '';
+  if (!forceCreateNew && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.list === 'function') {
+    try {
+      const listRes = Drive.Files.list({
+        q: "'root' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+        pageSize: 50,
+        fields: 'files(id,name,parents,trashed)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
+      });
+      const files = (listRes && Array.isArray(listRes.files)) ? listRes.files : [];
+      const match = files.find(f => f && f.id && !f.trashed && f.name === 'CERA');
+      if (match) resolvedId = match.id;
+    } catch (listErr) {
+      // Drive.Files.list unavailable or failed; fall through to create
+    }
+  }
+
+  if (!resolvedId) {
+    const created = Drive.Files.create(
+      { name: 'CERA', mimeType: 'application/vnd.google-apps.folder' },
+      null,
+      { supportsAllDrives: true }
+    );
+    resolvedId = (created && created.id) || '';
+  }
+
+  if (resolvedId) {
+    try { if (docProps) docProps.setProperty('CERA_ROOT_FOLDER_ID', resolvedId); } catch (e) {}
+    try { if (userProps) userProps.setProperty('CERA_ROOT_FOLDER_ID', resolvedId); } catch (e) {}
+  }
+  return resolvedId;
+}
+
+/**
+ * Engages a new autonomous ingestion job for the selected time range (7 days when none is given).
+ * Optionally runs Batch #1 inline when runFirstBatchInline is true, and schedules subsequent batches in Google Apps Script background.
+ */
+function engageCloudIngestion(dateRangeDays, runFirstBatchInline) {
   const daysFilter = ceraRangeDays_(dateRangeDays);
   const nowMs = Date.now();
   const windowStartMs = nowMs - (daysFilter * 86400000);
@@ -133,8 +192,39 @@ function engageCloudIngestion(dateRangeDays) {
 
   const timestampStr = Utilities.formatDate(new Date(), ceraTimeZone(), 'yyyyMMdd_HHmmss');
   const folderName = `Chrome_SecurityLogs_${daysFilter}d_${timestampStr}`;
-  // Created through the Drive API, so the drive.file scope covers the folder and the partitions created in it
-  const folder = Drive.Files.create({ name: folderName, mimeType: 'application/vnd.google-apps.folder' });
+  // Created through the Drive API inside the top-level CERA folder, so the drive.file scope covers the folder and the partitions created in it
+  let folder = null;
+  let ceraRootId = '';
+  try {
+    ceraRootId = ceraEnsureRootFolder_(false);
+  } catch (rootErr) {
+    ceraRootId = '';
+  }
+  if (ceraRootId) {
+    try {
+      folder = Drive.Files.create({
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [ceraRootId]
+      });
+    } catch (subErr) {
+      try {
+        const freshRootId = ceraEnsureRootFolder_(true);
+        if (freshRootId) {
+          folder = Drive.Files.create({
+            name: folderName,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [freshRootId]
+          });
+        }
+      } catch (retryErr) {
+        folder = null;
+      }
+    }
+  }
+  if (!folder) {
+    folder = Drive.Files.create({ name: folderName, mimeType: 'application/vnd.google-apps.folder' });
+  }
   const folderId = folder.id;
   const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
 
@@ -229,6 +319,17 @@ function engageCloudIngestion(dateRangeDays) {
   // Register autonomous background trigger to run in Google Apps Script
   registerCloudIngestionTrigger();
 
+  if (runFirstBatchInline) {
+    try {
+      processCloudIngestionBatch();
+    } catch (inlineErr) {
+      console.warn('Inline first batch notice: ' + (inlineErr.message || inlineErr));
+    }
+  }
+
+  const latestState = runFirstBatchInline ? (getProgressUpdate() || initialState) : initialState;
+  const finalStatus = (latestState && latestState.status) ? latestState.status : 'RUNNING';
+
   return {
     success: true,
     folderId: folderId,
@@ -237,7 +338,13 @@ function engageCloudIngestion(dateRangeDays) {
     logFolderId: (diagMeta && diagMeta.logFolderId) || '',
     logFolderUrl: (diagMeta && diagMeta.logFolderUrl) || folderUrl,
     logFileId: (diagMeta && diagMeta.logFileId) || '',
-    status: 'RUNNING'
+    status: finalStatus,
+    isCompleted: finalStatus === 'COMPLETED' || !!(latestState && latestState.isCompleted),
+    processedCount: Number((latestState && latestState.processedCount) || 0),
+    timeSpanPct: finalStatus === 'COMPLETED' ? 100 : Number((latestState && latestState.timeSpanPct) || 0),
+    rate: Number((latestState && (latestState.processingRate || latestState.rate)) || 0),
+    fileIndex: Number((latestState && latestState.fileIndex) || 1),
+    etaSec: finalStatus === 'COMPLETED' ? 0 : Number((latestState && latestState.etaSec) || 0)
   };
 }
 
@@ -1874,22 +1981,23 @@ function detectExistingSession() {
       if (monitorSheet) {
         const a2Val = String(monitorSheet.getRange('A2').getValue() || '').trim();
         const a3Val = String(monitorSheet.getRange('A3').getValue() || '').trim();
-        const statusVal = (a2Val.includes('COMPLETED') || a2Val.includes('READY FOR CERA')) ? a2Val : a3Val;
+        const isDoneStr = v => v.includes('✅') || v.includes('COMPLETED') || v.includes('READY FOR CERA');
+        const statusVal = isDoneStr(a2Val) ? a2Val : a3Val;
 
-        if (statusVal.includes('COMPLETED') || statusVal.includes('READY FOR CERA ANALYSIS')) {
+        if (isDoneStr(statusVal)) {
           if (!state || state.status !== 'COMPLETED') {
             if (!state) state = {};
             state.status = 'COMPLETED';
             state.timeSpanPct = 100;
             state.isCompleted = true;
 
-            // Sync total logs from cell A5 (or legacy A6, e.g. "966 Events")
+            // Sync total logs from cell A5 (or legacy A6, e.g. "966 Events" or "12.500 Peristiwa")
             const a5Val = String(monitorSheet.getRange('A5').getValue() || '');
             const a6Val = String(monitorSheet.getRange('A6').getValue() || '');
-            const logsStr = a5Val.match(/([\d,]+)/) ? a5Val : a6Val;
-            const matchLogs = logsStr.match(/([\d,]+)/);
+            const logsStr = /\d/.test(a5Val) ? a5Val : a6Val;
+            const matchLogs = logsStr.match(/(\d[\d,.]*)/);
             if (matchLogs) {
-              const parsedLogs = parseInt(matchLogs[1].replace(/,/g, ''), 10);
+              const parsedLogs = parseInt(matchLogs[1].replace(/[^\d]/g, ''), 10);
               if (!isNaN(parsedLogs) && parsedLogs > (state.processedCount || 0)) {
                 state.processedCount = parsedLogs;
               }
@@ -1989,17 +2097,55 @@ const CERA_DIAG_LOG_SOFT_BYTES = Math.floor(CERA_DIAG_LOG_MAX_BYTES * 0.94);
 /**
  * Retrieves the Drive IDs/URLs of the `logs/` subfolder and `cera-diagnostic-log.txt` for a Direct Ingestion job folder.
  * Stored in its own DocumentProperties key (`CERA_DIAG_LOG_META`) so `SIERRA_SESSION` stays well under its 9,216-byte limit.
+ * Falls back to `Drive.Files.list` if `CERA_DIAG_LOG_META` is missing or belongs to another folder (e.g. cross-spreadsheet analysis).
  */
-function ceraGetDiagLogMeta_(folderId) {
+function ceraGetDiagLogMeta_(folderId, allowListFallback) {
   try {
     const raw = PropertiesService.getDocumentProperties().getProperty('CERA_DIAG_LOG_META');
-    if (!raw) return null;
-    const meta = JSON.parse(raw);
-    if (!meta || (folderId && meta.folderId && meta.folderId !== folderId)) return null;
-    return meta;
-  } catch (e) {
-    return null;
+    if (raw) {
+      const meta = JSON.parse(raw);
+      if (meta && (!folderId || !meta.folderId || meta.folderId === folderId)) {
+        return meta;
+      }
+    }
+  } catch (e) {}
+
+  if (allowListFallback && folderId && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.list === 'function') {
+    try {
+      const logFolderName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FOLDER_NAME) ? CeraConfig.DIAG_LOG_FOLDER_NAME : 'logs';
+      const logFileName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FILE_NAME) ? CeraConfig.DIAG_LOG_FILE_NAME : 'cera-diagnostic-log.txt';
+      const folderList = Drive.Files.list({
+        q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+        pageSize: 20,
+        fields: 'files(id,name,trashed)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
+      });
+      const subFolders = (folderList && Array.isArray(folderList.files)) ? folderList.files : [];
+      const logFolder = subFolders.find(f => f && f.id && !f.trashed && f.name === logFolderName);
+      if (logFolder) {
+        const fileList = Drive.Files.list({
+          q: `'${logFolder.id}' in parents and trashed = false`,
+          pageSize: 20,
+          fields: 'files(id,name,trashed)',
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true
+        });
+        const files = (fileList && Array.isArray(fileList.files)) ? fileList.files : [];
+        const logFile = files.find(f => f && f.id && !f.trashed && f.name === logFileName);
+        if (logFile) {
+          return {
+            activityId: '',
+            folderId: folderId,
+            logFolderId: logFolder.id,
+            logFolderUrl: `https://drive.google.com/drive/folders/${logFolder.id}`,
+            logFileId: logFile.id
+          };
+        }
+      }
+    } catch (listErr) {}
   }
+  return null;
 }
 
 /**
@@ -2085,6 +2231,13 @@ function ceraInitDiagnosticLog_(initialState, firstPartition) {
 
     let tz = 'UTC';
     try { tz = Session.getScriptTimeZone() || 'UTC'; } catch (e) {}
+    let hostSpreadsheetId = '';
+    try {
+      const activeSs = SpreadsheetApp.getActiveSpreadsheet();
+      if (activeSs && typeof activeSs.getId === 'function') {
+        hostSpreadsheetId = activeSs.getId() || '';
+      }
+    } catch (e) {}
 
     let policyPrecheck = null;
     let preflight = null;
@@ -2130,6 +2283,7 @@ function ceraInitDiagnosticLog_(initialState, firstPartition) {
       createdAtUtc: nowIso,
       updatedAtUtc: nowIso,
       environment: {
+        hostSpreadsheetId: hostSpreadsheetId,
         locale: (typeof ceraGetLanguage === 'function') ? ceraGetLanguage() : 'en',
         scriptTimeZone: tz,
         targetEventsCount: TARGET_EVENTS.length,
@@ -2388,6 +2542,7 @@ function ceraRenderDiagnosticLogTxt_(diag) {
     `Privacy Guarantee  : ZERO-PII / ZERO-SENSITIVE-DATA (Safe to inspect & share)`,
     '================================================================================',
     `Activity ID        : ${diag.activityId || 'N/A'}`,
+    `Host Spreadsheet   : ${(diag.environment && diag.environment.hostSpreadsheetId) || 'N/A'}`,
     `Job Status         : ${diag.status || 'UNKNOWN'}`,
     `Created (UTC)      : ${diag.createdAtUtc || 'N/A'}`,
     `Last Updated (UTC) : ${diag.updatedAtUtc || 'N/A'}`,
@@ -2407,7 +2562,7 @@ function ceraRenderDiagnosticLogTxt_(diag) {
     `  Policy Precheck  : ${pol.status || 'NOT_RUN'}${pol.connectorStatus ? ' (Connector: ' + pol.connectorStatus + ')' : ''}`,
     `  Preflight Est.   : ${pre.status || 'NOT_RUN'} (Expected: ${pre.expectedEvents || 0}, Active Slices: ${pre.activeSlicesCount || 0}/${pre.plannedSlicesCount || 0})`,
     `  Anomalies Logged : ${anoms.length}${lastAnom ? ' | Latest: [' + lastAnom.code + '] ' + lastAnom.detail : ''}`,
-    `  Analysis Summary : ${diag.analysisSummary ? 'COMPLETED (Sheets Read: ' + diag.analysisSummary.sheetsRead + '/' + diag.analysisSummary.sheetsTotal + ', Actions: ' + diag.analysisSummary.actionsAssembled + ')' : 'NOT_RUN_YET'}`,
+    `  Analysis Summary : ${diag.analysisSummary ? 'COMPLETED (Sheets Read: ' + diag.analysisSummary.sheetsRead + '/' + diag.analysisSummary.sheetsTotal + ', Actions: ' + diag.analysisSummary.actionsAssembled + (diag.analysisSummary.analyzedFromSpreadsheetId ? ', Analyzed From: ' + diag.analysisSummary.analyzedFromSpreadsheetId : '') + ')' : 'NOT_RUN_YET'}`,
     '================================================================================',
     '',
     '--- BEGIN CERA DIAGNOSTIC PAYLOAD (JSON) ---',
@@ -2621,14 +2776,23 @@ function ceraRecordDiagLifecycle_(state, statusLabel, code, detail) {
 function ceraRecordDiagAnalysisSummary_(folderId, analysisStats) {
   if (!folderId || !analysisStats) return;
   try {
-    const meta = ceraGetDiagLogMeta_(folderId);
+    const meta = ceraGetDiagLogMeta_(folderId, !!(analysisStats.slidesGenerated || analysisStats.sheetsGenerated));
     if (!meta || !meta.logFileId) return;
     const diag = ceraLoadDiagState_(meta.activityId, meta.logFileId);
     if (!diag) return;
 
+    let analyzedFromSpreadsheetId = '';
+    try {
+      const activeSs = SpreadsheetApp.getActiveSpreadsheet();
+      if (activeSs && typeof activeSs.getId === 'function') {
+        analyzedFromSpreadsheetId = activeSs.getId() || '';
+      }
+    } catch (e) {}
+
     const nowIso = new Date().toISOString();
     diag.analysisSummary = {
       completedAtUtc: nowIso,
+      analyzedFromSpreadsheetId: analyzedFromSpreadsheetId,
       sheetsTotal: analysisStats.sheetsTotal || 0,
       sheetsRead: analysisStats.sheetsRead || 0,
       rowsRead: analysisStats.rowsRead || 0,
@@ -2646,7 +2810,7 @@ function ceraRecordDiagAnalysisSummary_(folderId, analysisStats) {
       code: 'ANALYSIS_COMPLETED',
       detail: `Report generation completed: ${analysisStats.sheetsRead || 0}/${analysisStats.sheetsTotal || 0} partitions read, ${analysisStats.actions || 0} user actions assembled.`
     });
-    ceraSaveDiagState_(meta.activityId, diag, meta.logFileId, false);
+    ceraSaveDiagState_(meta.activityId || diag.activityId, diag, meta.logFileId, false);
   } catch (err) {
     console.warn('ceraRecordDiagAnalysisSummary_ non-fatal notice: ' + (err.message || err));
   }

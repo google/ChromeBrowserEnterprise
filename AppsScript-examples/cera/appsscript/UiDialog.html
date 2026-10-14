@@ -2282,13 +2282,15 @@
           document.getElementById('cloud-monitor-container').style.display = 'block';
           activeExtractedFolderId = res.folderId;
           activeExtractedFolderName = res.folderName;
-          // Render initial state instantly
+          const initialStatus = (res && res.status) || 'RUNNING';
+          // Render initial state (including inline first-batch progress or completion)
           renderCloudMonitor({
-            status: 'RUNNING',
-            timeSpanPct: 0,
-            totalLogsProcessed: 0,
-            rate: 0,
-            fileIndex: 1,
+            status: initialStatus,
+            isCompleted: Boolean(res && res.isCompleted) || initialStatus === 'COMPLETED',
+            timeSpanPct: Number((res && res.timeSpanPct) || 0),
+            totalLogsProcessed: Number((res && (res.processedCount !== undefined ? res.processedCount : res.totalLogsProcessed)) || 0),
+            rate: Number((res && res.rate) || 0),
+            fileIndex: Number((res && res.fileIndex) || 1),
             folderId: res.folderId,
             folderName: res.folderName,
             folderUrl: res.folderUrl,
@@ -2296,15 +2298,17 @@
             logFolderUrl: res.logFolderUrl || '',
             logFileId: res.logFileId || '',
             totalDays: days,
-            etaSec: 0
+            etaSec: Number((res && res.etaSec) || 0)
           });
-          startCloudPolling();
+          if (initialStatus !== 'COMPLETED' && !(res && res.isCompleted)) {
+            startCloudPolling();
+          }
         })
         .withFailureHandler(err => {
           alert(t('alert.engageFailed', { error: err.message }));
           goToStep0();
         })
-        .engageCloudIngestion(days);
+        .engageCloudIngestion(days, true);
     }
 
     function handleEmergencyStopAndReset() {
