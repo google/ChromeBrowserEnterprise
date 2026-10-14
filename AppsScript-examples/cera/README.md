@@ -17,7 +17,7 @@ They show how data leaves the organization through the browser, which organizati
 > **One-Time Generation Lifecycle — Always Start Fresh from [`https://goo.gle/cera`](https://goo.gle/cera):**
 > Each copied CERA spreadsheet is designed for a **single, one-time report generation**. Whenever you want to generate another Google Slides deck or Sheets workbook—whether for a new assessment, an updated domain configuration, or a fresh 7-day log window—simply open [**`https://goo.gle/cera`**](https://goo.gle/cera) and click **Make a copy**.
 >
-> Starting from a fresh copy at [**`https://goo.gle/cera`**](https://goo.gle/cera) guarantees a clean workbook state and automatically provisions the **latest verified release** every time, with zero manual updates required. If you already extracted logs into Google Drive via Direct Ingestion (`Chrome_SecurityLogs_7d_YYYY-MM-DD`), you can reuse that existing Google Drive folder URL on your fresh [**`https://goo.gle/cera`**](https://goo.gle/cera) copy via **Manual Export** without re-extracting!
+> Starting from a fresh copy at [**`https://goo.gle/cera`**](https://goo.gle/cera) guarantees a clean workbook state and automatically provisions the **latest verified release** every time, with zero manual updates required. If you already extracted logs into Google Drive via Direct Ingestion (`Chrome_SecurityLogs_7d_yyyyMMdd_HHmmss`), you can reuse that existing Google Drive folder URL on your fresh [**`https://goo.gle/cera`**](https://goo.gle/cera) copy via **Manual Export** without re-extracting!
 
 ---
 
@@ -31,13 +31,13 @@ They show how data leaves the organization through the browser, which organizati
   4. **Web Messaging** — browser chat and collaboration platforms.
   * *Counted separately:* **Physical & PDF Printing** (`PAGE_PRINT` gets its own dedicated slide and Policy Outcomes breakdown, never mixed into web channels) and **Security Signals Radar** (Safe Browsing warnings and bypass rates, corporate password reuse, flagged downloads, and browser launches with command-line switches).
 * **Policy Outcome Modes (CEC & CEP):** Automatically classifies the tenant's data-protection posture from log outcomes into **Enforced** mode (Chrome Enterprise Premium blocking, warning, user cancellation, or masking), **Audit-only** mode (Chrome Enterprise Core listening/detection mode), or **Not Reported**.
-* **Guided `CERA 2.0` Quick-Start Landing Tab & Automated Chrome Policy Pre-Check:**
+* **Guided `CERA 2.0` Quick-Start Landing Tab & Step 0 Policy Pre-Check:**
   * **Built-In `CERA 2.0` Quick-Start Guide Tab:** Every copy made from [`https://goo.gle/cera`](https://goo.gle/cera) opens onto the interactive **`CERA 2.0`** landing tab featuring a visual menu locator for **`🛡️ CERA`**, a **`Ctrl + Shift + F`** tip if the top Google Sheets menu bar is hidden, a 3-step onboarding guide, an expandable **`⚖️ Disclaimer & Privacy Policy`** drawer, a **`</> GitHub`** source link, an FAQ, and a **`💬 Report a Problem / Feedback`** button.
-  * **Automated Chrome Policy Pre-Check (Step 0):** When an administrator opens the wizard, CERA automatically queries the Chrome Policy API to verify whether **Managed Browser Cloud Reporting**, **Security Event Reporting** (across all 7 required event types), and the **Chrome Enterprise Reporting Connector** are enabled (`✅ Chrome Reporting Policies Verified`), with expandable Admin Console remediation steps. Non-admin users are guided seamlessly to the Manual Export workflow (`🔒 Admin Role Required` on Direct Ingestion).
+  * **Step 0 Pre-requisite Check (administrators):** Before an administrator chooses an ingestion method, CERA reads the Chrome Policy API to check the 3 Chrome Enterprise reporting policies it needs—**Event reporting**, **Managed browser reporting**, and **Managed profile reporting**. It either confirms `✅ All 3 pre-requisite policies are enabled in your organization` or asks you to enable them through each policy's `Open ↗` link in the Admin Console, then **`🔄 Re-check`**. Users without the admin role are guided to the Manual Export workflow (`🔒 Admin Role Required` on Direct Ingestion), and its checklist tells them which 3 policies to ask their administrator to enable.
 * **Focused 7-Day Sample Window (`7 Days`), `50,000`-Row Partitions & Partial-Log Analysis:**
   * Both **Manual Export** (from [`https://goo.gle/cera-logs`](https://goo.gle/cera-logs)) and **Direct Ingestion via Admin SDK** operate on a focused **7-day sample window (`7 Days`)** to deliver high-signal executive insights reliably within Google Apps Script quotas.
-  * **Autonomous `50,000`-Row Partitions:** Direct Ingestion streams events via 1-minute background triggers into Google Drive (`Chrome_SecurityLogs_7d_YYYY-MM-DD`), rotating partition sheets every **50,000 rows** (`50k rows max/sheet`).
-  * **`⚡ Stop & Analyze Extracted Logs Now`:** During Direct Ingestion, you can click **`⚡ Stop & Analyze Extracted Logs Now`** at any point in the Cloud Monitor to stop the background worker and immediately generate the executive deck and workbook from the logs extracted so far—or reuse that `Chrome_SecurityLogs_7d_YYYY-MM-DD` Drive folder URL via **Manual Export** on any fresh [`https://goo.gle/cera`](https://goo.gle/cera) copy.
+  * **Autonomous `50,000`-Row Partitions:** Direct Ingestion streams events via 1-minute background triggers into a Google Drive folder named `Chrome_SecurityLogs_7d_yyyyMMdd_HHmmss`, rotating partition sheets every **50,000 rows** (`50k rows max/sheet`).
+  * **`⚡ Stop & Analyze Extracted Logs Now`:** During Direct Ingestion, this Cloud Monitor button asks for confirmation, stops the background extraction, and takes you to Step 1 to analyze the logs already saved in Drive. You can also reuse that `Chrome_SecurityLogs_7d_yyyyMMdd_HHmmss` Drive folder URL via **Manual Export** on any fresh [`https://goo.gle/cera`](https://goo.gle/cera) copy.
 * **Five Built-In Languages (`en`, `id`, `ja`, `ko`, `zh-CN`) & Manual Export Normalization:**
   * Full localization in **English (`en`)**, **Bahasa Indonesia (`id`)**, **日本語 (`ja`)**, **한국어 (`ko`)**, and **简体中文 (`zh-CN`)** across the setup dialog, `⚡ Ingestion Monitor` tab, workbook, and slide deck.
   * **Multi-Locale Manual Export Normalization:** Automatically normalizes Google Admin Console manual export column headers (both 21-column Admin Console exports and 49-column Security Investigation Tool exports) and categorical event values exported in any of the **5 supported languages (`en`, `id`, `ja`, `ko`, `zh-CN`)**. If your Google Account uses another language, switch to **English** at [`myaccount.google.com/language`](https://myaccount.google.com/language) before exporting from [`https://goo.gle/cera-logs`](https://goo.gle/cera-logs).
@@ -46,15 +46,15 @@ They show how data leaves the organization through the browser, which organizati
 
 ## 🖼️ Application Workflow & UI Highlights (`v2.0.11`)
 
-| 1. Step 0 — Policy Pre-Check & 7-Day Ingestion Setup | 2. Pre-Flight 7-Day Volume & Duration Estimator |
+| 1. 7-Day Ingestion Setup | 2. Pre-Flight 7-Day Volume & Duration Estimator |
 | :---: | :---: |
-| ![Step 0: Ingestion Setup](./assets/01-ingestion-setup.png) | ![Pre-Flight Volume Estimate](./assets/02-preflight-estimate.png) |
-| *Select your report language (`en`, `id`, `ja`, `ko`, `zh-CN`), review the automated **`✅ Chrome Reporting Policies Verified`** banner, and choose between Manual Export (`7 Days`) or Direct Ingestion via Admin SDK (`7 Days`).* | *Before starting Direct Ingestion, CERA samples your 7-day Chrome log volume and estimates total events, `50,000`-row Drive partition sheets, and background extraction time.* |
+| ![7-Day Ingestion Setup](./assets/01-ingestion-setup.png) | ![Pre-Flight Volume Estimate](./assets/02-preflight-estimate.png) |
+| *Select your report language (`en`, `id`, `ja`, `ko`, `zh-CN`) and choose between Manual Export (`7 Days`) or Direct Ingestion via Admin SDK (`7 Days`).* | *Before starting Direct Ingestion, CERA samples your 7-day Chrome log volume and estimates total events, `50,000`-row Drive partition sheets, and background extraction time.* |
 
-| 3. Autonomous Cloud Monitor (`⚡ Stop & Analyze Now`) | 4. Step 1 — Telemetry Source & Output Formats |
+| 3. Autonomous Cloud Monitor (`⚡ Stop & Analyze Extracted Logs Now`) | 4. Step 1 — Telemetry Source & Output Formats |
 | :---: | :---: |
 | ![Autonomous Background Extraction Monitor](./assets/03-cloud-monitor.png) | ![Step 1: Source and Output Formats](./assets/04-source-and-outputs.png) |
-| *Tracks live extraction with the Plasma Glow Squircle Loader (`🛡️`), `50k rows max/sheet` partitions, **`⚡ Stop & Analyze Extracted Logs Now`**, and **`📄 Open Diagnostic Logs (logs/) ↗`**.* | *Paste a Google Sheet URL or a Google Drive folder URL (including an existing `Chrome_SecurityLogs_7d_...` folder), and select your deliverables (Executive Slide Deck and/or Sheets Workbook).* |
+| *Tracks live extraction progress with `50k rows max/sheet` partitions, **`⚡ Stop & Analyze Extracted Logs Now`**, **`📄 Open Diagnostic Logs (logs/) ↗`**, and **`🐞 Report a Problem ↗`**.* | *Paste a Google Sheet URL or a Google Drive folder URL (including an existing `Chrome_SecurityLogs_7d_...` folder), and select your deliverables (Executive Slide Deck and/or Sheets Workbook).* |
 
 | 5. Step 2 — Corporate Domains & Threat Vectors | 6. Analysis Complete & Deliverable Links |
 | :---: | :---: |
@@ -65,9 +65,9 @@ They show how data leaves the organization through the browser, which organizati
 
 ## 📋 Prerequisites
 
-1. **Chrome Enterprise Telemetry:** Managed Chrome browsers (Chrome Enterprise Core or Chrome Enterprise Premium) with **Managed browser reporting**, **Event reporting** (`Content transfer`, `Sensitive data transfer`, `Malware transfer`, `Content unscanned`, `Password reuse`, `Unsafe site visit`, `Suspicious browser launch`), and the **Chrome Enterprise reporting connector** enabled in the Google Admin Console (`Devices › Chrome › Settings › Users & browsers`), logging events to [**`https://goo.gle/cera-logs`**](https://goo.gle/cera-logs).
+1. **Chrome Enterprise Telemetry:** Managed Chrome browsers (Chrome Enterprise Core or Chrome Enterprise Premium) with the 3 reporting policies that CERA's Step 0 check looks for—**Event reporting** (CERA reads `Content transfer`, `Sensitive data transfer`, `Malware transfer`, `Content unscanned`, `Password reuse`, `Unsafe site visit`, and `Suspicious browser launch`), **Managed browser reporting**, and **Managed profile reporting**—enabled in the Google Admin Console (`Devices › Chrome › Settings › Users & browsers`), logging events to [**`https://goo.gle/cera-logs`**](https://goo.gle/cera-logs).
 2. **Permissions:**
-   * **Manual Export path (Recommended):** Standard Google Drive and Google Sheets access to the exported 7-day log sheet(s) from [`https://goo.gle/cera-logs`](https://goo.gle/cera-logs) (or an existing `Chrome_SecurityLogs_7d_YYYY-MM-DD` Drive folder). No Admin Console API role is required to run the analysis on exported sheets. *(Manual exports generated in English, Bahasa Indonesia, Japanese, Korean, or Simplified Chinese are normalized automatically; if your account uses another language, switch to English at [`myaccount.google.com/language`](https://myaccount.google.com/language) before exporting).*
+   * **Manual Export path (Recommended):** Standard Google Drive and Google Sheets access to the exported 7-day log sheet(s) from [`https://goo.gle/cera-logs`](https://goo.gle/cera-logs) (or an existing `Chrome_SecurityLogs_7d_yyyyMMdd_HHmmss` Drive folder). No Admin Console API role is required to run the analysis on exported sheets. *(Manual exports generated in English, Bahasa Indonesia, Japanese, Korean, or Simplified Chinese are normalized automatically; if your account uses another language, switch to English at [`myaccount.google.com/language`](https://myaccount.google.com/language) before exporting).*
    * **Direct Ingestion & Policy Pre-Check path:** A Google Workspace administrator account with **Reports** (`admin.reports.audit.readonly`), **Domain / Org Unit Read** (`admin.directory.domain.readonly`, `admin.directory.orgunit.readonly`), and **Chrome Policy Read** (`chrome.management.policy.readonly`) privileges.
 
 ---
@@ -85,7 +85,7 @@ You can deploy and run CERA in two ways: **Option A (1-Click Template Copy via `
    * *Tip:* If the Google Sheets menu bar (`File`, `Edit`, `View`, …, `Help`, `🛡️ CERA`) is hidden in compact mode, press **`Ctrl + Shift + F`** to unhide the top header.
 3. **Authorize Your Self-Owned Copy & Launch:**
    * Click **`🛡️ CERA` ➔ `Chrome Egress Risk Analysis`** and approve the one-time OAuth prompt for your self-owned spreadsheet copy.
-   * Choose your display language (`en`, `id`, `ja`, `ko`, `zh-CN`), review the **Automated Chrome Policy Pre-Check**, and run either **Manual Export (`7 Days`)** or **Direct Ingestion via Admin SDK (`7 Days`)**.
+   * Choose your display language (`en`, `id`, `ja`, `ko`, `zh-CN`); administrators then see the **Step 0 pre-requisite check** of 3 Chrome reporting policies. Run either **Manual Export (`7 Days`)** or **Direct Ingestion via Admin SDK (`7 Days`)**.
 
 ---
 
@@ -136,8 +136,8 @@ CERA is a **container-bound Google Sheets script**. All Apps Script runtime file
 | `Utils.gs` | Formatting, dates, domain matching, MIME and URL category labels, and locale-aware list joining |
 | `I18n.gs`, `I18nMessages.gs` | Runtime translation (`ceraT`, plurals, number formats) and pre-compiled 5-locale (`en`, `id`, `ja`, `ko`, `zh-CN`) message catalog |
 | `ConsoleLabels.gs` | Pre-compiled 5-locale (`en`, `id`, `ja`, `ko`, `zh-CN`) Google Admin Console manual-export column header and categorical value normalization tables |
-| `UiController.gs`, `UiDialog.html` | Custom `🛡️ CERA` menu, Automated Chrome Policy Pre-Check (`runAdminPolicyPrecheck`), setup dialog UI (`v2.0.11`), Plasma Glow Squircle Loader (`🛡️`), and server-side handlers |
-| `PreflightEstimator.gs` | Pre-flight Reports API access check, 7-day log volume sampling probes, partition plan, and duration estimator |
+| `UiController.gs`, `UiDialog.html` | Custom `🛡️ CERA` menu, setup dialog UI (`v2.0.11`) including the Step 0 pre-requisite screen, Plasma Glow Squircle Loader (`🛡️`), and server-side handlers |
+| `PreflightEstimator.gs` | Step 0 Chrome policy pre-check (`runAdminPolicyPrecheck`), pre-flight Reports API access check, 7-day log volume sampling probes, partition plan, and duration estimator |
 | `AdminSdkIngestion.gs` | Direct Ingestion worker: 7 Chrome event streams, pagination, `50,000`-row Drive partitions, checkpointing, rate-limit backoff, partial-run `stopAndFinalizeCurrentIngestion`, and local zero-PII `logs/cera-diagnostic-log.txt` |
 | `IngestionMonitorSheet.gs` | Renders and updates the live **⚡ Ingestion Monitor** sheet tab in the selected CERA language |
 | `IngestionPipeline.gs` | Core analysis pipeline (`executeDlpAnalysis`), multi-batch continuation, column resolution, row normalization, and vector aggregation |
@@ -149,7 +149,7 @@ CERA is a **container-bound Google Sheets script**. All Apps Script runtime file
 | `SheetsReportEngine.gs`, `SheetsChartEngine.gs` | Multi-tab Google Sheets analytical workbook and native Sheets charts |
 | `SlidesPresentationEngine.gs`, `VectorChartEngine.gs` | 16:9 widescreen Google Slides executive deck and native vector shape charts |
 | `EventDiscovery.gs` | Diagnostic utility to inspect Chrome event names and parameter keys present in a tenant's logs |
-| `DISCLAIMER.md` | Official Disclaimer, Terms of Use (Apache 2.0), Quota Notice & Tenant Privacy Policy |
+| `DISCLAIMER.md` | Disclaimer, Terms of Use & Tenant Privacy Policy: support and "AS IS" terms (Apache 2.0), sample scope, quotas, and in-tenant privacy architecture |
 
 ---
 
@@ -158,7 +158,7 @@ CERA is a **container-bound Google Sheets script**. All Apps Script runtime file
 * **100% In-Tenant Execution & Zero External Telemetry:** All log ingestion, action assembly, threat classification, spreadsheet generation, and slide deck rendering run exclusively inside your organization's Google Workspace environment. CERA makes no external network requests and collects **100% zero external telemetry** (verifiable anytime via **`🛡️ CERA ➔ 🔒 Privacy Policy`** or the **`⚖️ Disclaimer & Privacy Policy`** drawer on the **`CERA 2.0`** landing tab).
 * **Local-Only, Zero-PII Diagnostic Log (`logs/cera-diagnostic-log.txt` — Direct Ingestion Only):** When running **Direct Ingestion via Admin SDK**, CERA writes a lightweight diagnostic file at `logs/cera-diagnostic-log.txt` inside the extracted Google Drive folder (strictly capped at $\le 1\text{ MB}$). It contains a human-readable summary header and a structured JSON payload recording only execution metrics, partition counts, timing breakdowns, and sanitized error/status codes—**never** user emails, corporate/partner domains, Organizational Units, URLs, file names, or device names. The file remains 100% private in your own Google Drive unless you choose to download and attach it when reporting an issue. *(Manual Export does not generate a diagnostic log).*
 * **Informational Sample & Workspace Quotas:** CERA analyzes a 7-day sample of available Chrome logs for directional executive insights (it is not a formal compliance certification or continuous SIEM) and consumes the authorizing user's Google Apps Script runtime, Google Drive storage, and Admin SDK API quotas.
-* **Official Disclaimer & License (`Apache 2.0`):** See [**`./DISCLAIMER.md`**](./DISCLAIMER.md) (`https://github.com/google/ChromeBrowserEnterprise/blob/main/AppsScript-examples/cera/DISCLAIMER.md`) and [**`../../LICENSE`**](../../LICENSE).
+* **Disclaimer & License (`Apache 2.0`):** See [**`./DISCLAIMER.md`**](./DISCLAIMER.md) (`https://github.com/google/ChromeBrowserEnterprise/blob/main/AppsScript-examples/cera/DISCLAIMER.md`) and [**`../../LICENSE`**](../../LICENSE).
 
 ---
 
@@ -166,6 +166,6 @@ CERA is a **container-bound Google Sheets script**. All Apps Script runtime file
 
 Have a question, encountered a technical issue during ingestion or report generation, or want to suggest an enhancement?
 
-* **Submit Feedback or Report a Problem:** [**`https://goo.gle/cera-feedback`**](https://goo.gle/cera-feedback) *(also accessible via **`💬 Report a problem / Feedback`** on the `CERA 2.0` landing tab, the wizard footer, the Cloud Monitor, and the `⚡ Ingestion Monitor` tab).*
+* **Submit Feedback or Report a Problem:** [**`https://goo.gle/cera-feedback`**](https://goo.gle/cera-feedback) *(also linked from **`💬 Report a Problem / Feedback`** on the `CERA 2.0` landing tab, **`🐞 Report a Problem ↗`** in the Cloud Monitor and on the `⚡ Ingestion Monitor` tab, and **`💬 Share Feedback & Ideas ↗`** on the completion card).*
 * **Attaching Diagnostic Logs (Optional — Direct Ingestion):** If you encounter a stuck or failed Direct Ingestion run, click **`📄 Open Diagnostic Logs (logs/) ↗`** in the Cloud Monitor dialog or the **`⚡ Ingestion Monitor`** sheet tab, download **`cera-diagnostic-log.txt`**, and attach it to the feedback form so the maintainers can diagnose the exact step or quota bottleneck.
 * *(Privacy reminder: `cera-diagnostic-log.txt` is automatically sanitized to contain zero PII; please also avoid including real internal domain names or employee PII in your free-text description).*
