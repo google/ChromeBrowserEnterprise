@@ -19,9 +19,9 @@
  */
 
 var CeraConfig = {
-  VERSION: '2.0.11',
+  VERSION: '2.0.12',
   SUITE_NAME: 'Chrome Egress Risk Analysis (CERA)',
-  SHORT_NAME: 'CERA v2.0.11',
+  SHORT_NAME: 'CERA v2.0.12',
   FEEDBACK_URL: 'https://goo.gle/cera-feedback',
   DIAG_LOG_FOLDER_NAME: 'logs',
   DIAG_LOG_FILE_NAME: 'cera-diagnostic-log.txt',

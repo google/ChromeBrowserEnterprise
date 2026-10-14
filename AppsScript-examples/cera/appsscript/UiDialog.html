@@ -295,6 +295,38 @@
       font-size: 11.5px;
       cursor: pointer;
     }
+    .suggest-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .suggest-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748B;
+      margin-right: 2px;
+    }
+    .chip-suggest {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #137333;
+      background: #F0FDF4;
+      border: 1px dashed #86EFAC;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .chip-suggest:hover {
+      background: #DCFCE7;
+      border-style: solid;
+      border-color: #16A34A;
+    }
 
     /* Sticky Footer */
     .dialog-footer {
@@ -567,7 +599,7 @@
 <body>
   <!-- Version badge & Language picker (always visible) -->
   <div class="lang-bar">
-    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.11</span>
+    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.12</span>
     <div class="lang-picker-group">
       <label for="lang-select" data-i18n="lang.label">Language</label>
       <select id="lang-select" onchange="changeLanguage(this.value)"></select>
@@ -1064,7 +1096,7 @@
           <span style="font-size: 16px;">🏢</span>
           <div>
             <div data-i18n="step2.corp.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Corporate / Managed Domains</div>
-            <div data-i18n="step2.corp.hint" style="font-size: 11px; color: #64748B;" id="corpDomainsHint">Internal enterprise domains excluded from unmanaged threat vectors.</div>
+            <div data-i18n="step2.corp.hint" style="font-size: 11px; color: #64748B;" id="corpDomainsHint">Primary and subsidiary company domains. Accounts outside these domains (and Partner Organizations) are classified as personal accounts.</div>
           </div>
         </div>
         <span class="md3-badge badge-primary" id="corp-badge">0 Domains</span>
@@ -1073,7 +1105,7 @@
       <div class="input-row">
         <div class="input-field-wrap">
           <span class="input-icon">🌐</span>
-          <input type="text" id="corp-input" data-i18n-placeholder="step2.corp.placeholder" placeholder="Type domain (e.g. enterprise.com) and press Enter..." autocomplete="off">
+          <input type="text" id="corp-input" data-i18n-placeholder="step2.corp.placeholder" placeholder="Add corporate or subsidiary domain (e.g. subsidiary.com) and press Enter..." autocomplete="off">
         </div>
         <button data-i18n="common.add" type="button" class="btn-add-chip" id="btn-add-corp">+ Add</button>
       </div>
@@ -1084,8 +1116,8 @@
         <div style="display: flex; align-items: flex-start; gap: 8px;">
           <span style="font-size: 16px;">🤖</span>
           <div>
-            <div data-i18n="step2.ai.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Sanctioned Enterprise AI Endpoints (Gemini)</div>
-            <div data-i18n="step2.ai.desc" style="font-size: 11px; color: #64748B;">Approved internal AI portals benchmarked against Shadow AI</div>
+            <div data-i18n="step2.ai.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Sanctioned Enterprise AI</div>
+            <div data-i18n="step2.ai.desc" style="font-size: 11px; color: #64748B;">Approved enterprise AI tools benchmarked against unsanctioned Shadow AI</div>
           </div>
         </div>
         <span class="md3-badge badge-success" id="ai-badge">1 Endpoint</span>
@@ -1094,10 +1126,11 @@
       <div class="input-row">
         <div class="input-field-wrap">
           <span class="input-icon">✨</span>
-          <input type="text" id="ai-input" data-i18n-placeholder="step2.ai.placeholder" placeholder="Type AI endpoint (e.g. gemini.google.com)..." autocomplete="off">
+          <input type="text" id="ai-input" data-i18n-placeholder="step2.ai.placeholder" placeholder="Type AI domain (e.g. notebooklm.google.com) and press Enter..." autocomplete="off">
         </div>
         <button data-i18n="common.add" type="button" class="btn-add-chip" id="btn-add-ai">+ Add</button>
       </div>
+      <div class="suggest-row" id="ai-suggestions"></div>
     </div>
 
     <div class="md3-card" id="card-prod">
@@ -1105,8 +1138,8 @@
         <div style="display: flex; align-items: flex-start; gap: 8px;">
           <span style="font-size: 16px;">📁</span>
           <div>
-            <div data-i18n="step2.prod.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Sanctioned Productivity Suites</div>
-            <div data-i18n="step2.prod.desc" style="font-size: 11px; color: #64748B;">Managed suites excluded from Unmanaged SaaS classification</div>
+            <div data-i18n="step2.prod.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Managed Apps (Internal / SaaS)</div>
+            <div data-i18n="step2.prod.desc" style="font-size: 11px; color: #64748B;">Approved workspace suites, internal portals, and business SaaS excluded from Unmanaged Apps</div>
           </div>
         </div>
         <span class="md3-badge badge-info" id="prod-badge">5 Domains</span>
@@ -1115,7 +1148,7 @@
       <div class="input-row">
         <div class="input-field-wrap">
           <span class="input-icon">☁️</span>
-          <input type="text" id="prod-input" data-i18n-placeholder="step2.prod.placeholder" placeholder="Type suite domain (e.g. drive.google.com)..." autocomplete="off">
+          <input type="text" id="prod-input" data-i18n-placeholder="step2.prod.placeholder" placeholder="Type managed app or SaaS domain (e.g. autodesk.com, salesforce.com)..." autocomplete="off">
         </div>
         <button data-i18n="common.add" type="button" class="btn-add-chip" id="btn-add-prod">+ Add</button>
       </div>
@@ -1127,7 +1160,7 @@
           <span style="font-size: 16px;">💬</span>
           <div>
             <div data-i18n="step2.msg.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Monitored Web Messaging Platforms</div>
-            <div data-i18n="step2.msg.desc" style="font-size: 11px; color: #64748B;">Browser chat & collaboration platforms monitored for data exfiltration</div>
+            <div data-i18n="step2.msg.desc" style="font-size: 11px; color: #64748B;">Browser chat & collaboration platforms monitored for outbound data transfers</div>
           </div>
         </div>
         <span class="md3-badge badge-purple" id="msg-badge">7 Domains</span>
@@ -1147,7 +1180,7 @@
           <span style="font-size: 16px;">🤝</span>
           <div>
             <div style="font-weight: 700; font-size: 12.5px; color: #0F172A;" data-i18n="step2.partner.title">Partner Organizations</div>
-            <div style="font-size: 11px; color: #64748B;" data-i18n="step2.partner.desc">Domains of organizations you work with. Their accounts are not counted as personal accounts.</div>
+            <div style="font-size: 11px; color: #64748B;" data-i18n="step2.partner.desc">External partner, vendor, or agency domains you work with. Their accounts are not counted as personal accounts.</div>
           </div>
         </div>
         <span class="md3-badge badge-neutral" id="partner-badge">0 Domains</span>
@@ -1319,9 +1352,13 @@
         this.badge = document.getElementById(config.badgeId);
         this.badgeKey = config.badgeKey || 'chips.count.domains';
         this.chipClass = config.chipClass || 'chip-primary';
+        this.suggestionsContainer = config.suggestionsId ? document.getElementById(config.suggestionsId) : null;
+        this.suggestions = Array.isArray(config.suggestions) ? config.suggestions : [];
+        this.suggestLabelKey = config.suggestLabelKey || 'step2.ai.suggestLabel';
         this.items = [];
 
         if (config.defaultItems) this.addItems(config.defaultItems);
+        else this.renderSuggestions();
 
         if (this.input) {
           this.input.addEventListener('keydown', (e) => {
@@ -1442,6 +1479,34 @@
         if (this.badge) {
           setT(this.badge, this.badgeKey, { n: this.items.length });
         }
+        this.renderSuggestions();
+      }
+
+      renderSuggestions() {
+        if (!this.suggestionsContainer) return;
+        this.suggestionsContainer.innerHTML = '';
+        const remaining = this.suggestions.filter(s => !this.items.includes(s));
+        if (remaining.length === 0) {
+          this.suggestionsContainer.style.display = 'none';
+          return;
+        }
+        this.suggestionsContainer.style.display = 'flex';
+        const label = document.createElement('span');
+        label.className = 'suggest-label';
+        setT(label, 'step2.ai.suggestLabel');
+        this.suggestionsContainer.appendChild(label);
+        remaining.forEach(domain => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'chip-suggest';
+          btn.setAttribute('data-suggest-domain', domain);
+          btn.textContent = '+ ' + domain;
+          btn.onclick = (e) => {
+            if (e && e.preventDefault) e.preventDefault();
+            this.addItems([domain]);
+          };
+          this.suggestionsContainer.appendChild(btn);
+        });
       }
 
       getValue() {
@@ -1475,7 +1540,18 @@
 
     window.onload = function() {
       corpChips = new ChipManager({ pillsId: 'corp-pills', inputId: 'corp-input', addBtnId: 'btn-add-corp', badgeId: 'corp-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-primary', defaultItems: [] });
-      aiChips = new ChipManager({ pillsId: 'ai-pills', inputId: 'ai-input', addBtnId: 'btn-add-ai', badgeId: 'ai-badge', badgeKey: 'chips.count.endpoints', chipClass: 'chip-success', defaultItems: ['gemini.google.com'] });
+      aiChips = new ChipManager({
+        pillsId: 'ai-pills',
+        inputId: 'ai-input',
+        addBtnId: 'btn-add-ai',
+        badgeId: 'ai-badge',
+        badgeKey: 'chips.count.endpoints',
+        chipClass: 'chip-success',
+        defaultItems: ['gemini.google.com'],
+        suggestionsId: 'ai-suggestions',
+        suggestions: ['notebooklm.google.com', 'aistudio.google.com', 'vertexai.google.com'],
+        suggestLabelKey: 'step2.ai.suggestLabel'
+      });
       prodChips = new ChipManager({ pillsId: 'prod-pills', inputId: 'prod-input', addBtnId: 'btn-add-prod', badgeId: 'prod-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-info', defaultItems: ['google.com', 'drive.google.com', 'docs.google.com', 'googleusercontent.com', 'gmail.com'] });
       msgChips = new ChipManager({ pillsId: 'msg-pills', inputId: 'msg-input', addBtnId: 'btn-add-msg', badgeId: 'msg-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-purple', defaultItems: ['web.whatsapp.com', 'whatsapp.com', 'telegram.org', 'web.telegram.org', 'messenger.com', 'discord.com', 'slack.com'] });
       partnerChips = new ChipManager({ pillsId: 'partner-pills', inputId: 'partner-input', addBtnId: 'btn-add-partner', badgeId: 'partner-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-primary', defaultItems: [] });
