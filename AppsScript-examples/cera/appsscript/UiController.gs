@@ -502,11 +502,14 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
 
   // Check active cloud ingestion background job
   const cloudSession = detectExistingSession();
+  const docProps = PropertiesService.getDocumentProperties();
+  const workbookAlreadyUsed = ceraGetWorkbookUsageState_(SpreadsheetApp.getActiveSpreadsheet(), docProps);
+  const currentSessionAnalyzed = !!(workbookAlreadyUsed.report && docProps && docProps.getProperty('CERA_ANALYSIS_EXECUTED') === 'true');
 
   let activeExtractedFolderId = passedFolderId || '';
   let activeExtractedFolderName = passedFolderName || '';
 
-  if (!activeExtractedFolderId && cloudSession && cloudSession.folderId) {
+  if (!activeExtractedFolderId && cloudSession && cloudSession.folderId && !currentSessionAnalyzed) {
     activeExtractedFolderId = cloudSession.folderId;
     activeExtractedFolderName = cloudSession.folderName || 'Admin SDK Export Folder';
   }
@@ -514,7 +517,6 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
   // Deduplicate domains
   const uniqueDomains = Array.from(new Set(detectedDomains.filter(Boolean)));
   const detectedCorpDomain = uniqueDomains.length > 0 ? uniqueDomains.join(', ') : '';
-  const workbookAlreadyUsed = ceraGetWorkbookUsageState_(SpreadsheetApp.getActiveSpreadsheet(), PropertiesService.getDocumentProperties());
 
   return {
     primaryDomain: primaryDomain || (uniqueDomains.length > 0 ? uniqueDomains[0] : ''),
@@ -526,7 +528,8 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
     cloudSession: cloudSession,
     extractedFolderId: activeExtractedFolderId,
     extractedFolderName: activeExtractedFolderName,
-    workbookAlreadyUsed: workbookAlreadyUsed
+    workbookAlreadyUsed: workbookAlreadyUsed,
+    currentSessionAnalyzed: currentSessionAnalyzed
   };
 }
 

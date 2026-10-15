@@ -2105,14 +2105,14 @@ function detectExistingSession() {
 }
 
 // ==============================================================================
-// 5. DIRECT INGESTION DIAGNOSTIC LOGGER (logs/cera-diagnostic-log.txt)
+// 5. DIRECT INGESTION DIAGNOSTIC LOGGER (diagnostics/cera-diagnostic-log.txt)
 // ==============================================================================
 
 const CERA_DIAG_LOG_MAX_BYTES = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_MAX_BYTES) ? CeraConfig.DIAG_LOG_MAX_BYTES : 1000000;
 const CERA_DIAG_LOG_SOFT_BYTES = Math.floor(CERA_DIAG_LOG_MAX_BYTES * 0.94);
 
 /**
- * Retrieves the Drive IDs/URLs of the `logs/` subfolder and `cera-diagnostic-log.txt` for a Direct Ingestion job folder.
+ * Retrieves the Drive IDs/URLs of the `diagnostics/` subfolder and `cera-diagnostic-log.txt` for a Direct Ingestion job folder.
  * Stored in its own DocumentProperties key (`CERA_DIAG_LOG_META`) so `SIERRA_SESSION` stays well under its 9,216-byte limit.
  * Falls back to `Drive.Files.list` if `CERA_DIAG_LOG_META` is missing or belongs to another folder (e.g. cross-spreadsheet analysis).
  */
@@ -2129,7 +2129,7 @@ function ceraGetDiagLogMeta_(folderId, allowListFallback) {
 
   if (allowListFallback && folderId && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.list === 'function') {
     try {
-      const logFolderName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FOLDER_NAME) ? CeraConfig.DIAG_LOG_FOLDER_NAME : 'logs';
+      const logFolderName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FOLDER_NAME) ? CeraConfig.DIAG_LOG_FOLDER_NAME : 'diagnostics';
       const logFileName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FILE_NAME) ? CeraConfig.DIAG_LOG_FILE_NAME : 'cera-diagnostic-log.txt';
       const folderList = Drive.Files.list({
         q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
@@ -2139,7 +2139,11 @@ function ceraGetDiagLogMeta_(folderId, allowListFallback) {
         includeItemsFromAllDrives: true
       });
       const subFolders = (folderList && Array.isArray(folderList.files)) ? folderList.files : [];
-      const logFolder = subFolders.find(f => f && f.id && !f.trashed && f.name === logFolderName);
+      const candidateNames = [logFolderName, 'diagnostics', 'diagnostic-logs', 'logs'];
+      let logFolder = null;
+      for (let i = 0; i < candidateNames.length && !logFolder; i++) {
+        logFolder = subFolders.find(f => f && f.id && !f.trashed && f.name === candidateNames[i]);
+      }
       if (logFolder) {
         const fileList = Drive.Files.list({
           q: `'${logFolder.id}' in parents and trashed = false`,
@@ -2229,13 +2233,13 @@ function ceraRecordDiagRowSchema_(schemaMap, evName, row) {
 }
 
 /**
- * Initializes the `logs/` subfolder and `logs/cera-diagnostic-log.txt` file inside the Direct Ingestion Drive folder.
+ * Initializes the `diagnostics/` subfolder and `diagnostics/cera-diagnostic-log.txt` file inside the Direct Ingestion Drive folder.
  * Non-fatal: any Drive error is logged as a warning and never blocks ingestion.
  */
 function ceraInitDiagnosticLog_(initialState, firstPartition) {
   if (!initialState || !initialState.folderId) return null;
   try {
-    const logFolderName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FOLDER_NAME) ? CeraConfig.DIAG_LOG_FOLDER_NAME : 'logs';
+    const logFolderName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FOLDER_NAME) ? CeraConfig.DIAG_LOG_FOLDER_NAME : 'diagnostics';
     const logFileName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FILE_NAME) ? CeraConfig.DIAG_LOG_FILE_NAME : 'cera-diagnostic-log.txt';
 
     const logFolder = Drive.Files.create({

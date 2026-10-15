@@ -606,10 +606,46 @@
     </div>
   </div>
 
-  <!-- Non-Blocking Single-Use Workbook Recommendation Banner (shown on 2nd ingestion or 2nd report generation) -->
+  <!-- Non-Blocking Single-Use Workbook Recommendation Banner (shown when continuing after unlocking the gate) -->
   <div id="single-use-warning-banner" role="status" aria-live="polite" style="display: none; background: #FFFBEB; border: 1.5px solid #FDE68A; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; color: #92400E;">
     <div id="single-use-warning-title" data-i18n="reuse.warn.title" style="font-weight: 700; font-size: 12px; margin-bottom: 3px; color: #92400E;">⚠️ Single-Use Workbook Recommendation</div>
     <div id="single-use-warning-body" data-i18n-html="reuse.warn.body" style="font-size: 11.5px; color: #78350F; line-height: 1.45;">CERA is designed for a single assessment per workbook. To ensure a clean workspace and the latest CERA version, we recommend making a fresh copy at <a href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer"><b>goo.gle/cera</b> ↗</a> — or you may continue in this workbook below.</div>
+  </div>
+
+  <!-- FULL-POPUP INTERSTITIAL GATE: Single-Use Workbook Enforcement ("Persulit User" + goo.gle/cera CTA) -->
+  <div id="single-use-gate-container" style="display: none;">
+    <div class="step-header">
+      <div id="reuse-gate-pill" data-i18n="reuse.gate.pill" class="step-pill" style="background: #FEF3C7; color: #92400E; border-color: #FDE68A;">⚠️ Single-Use Workbook Limit</div>
+      <h1 id="reuse-gate-title" data-i18n="reuse.gate.title" class="step-title">This Workbook Has Already Been Used</h1>
+      <p id="reuse-gate-desc" data-i18n="reuse.gate.desc" class="step-desc">Each CERA spreadsheet is designed for a single, one-time assessment so your generated report tabs, charts, and diagnostic logs stay clean and intact.</p>
+    </div>
+
+    <!-- Primary Recommended Hero Card: Make a Fresh Copy at goo.gle/cera -->
+    <div id="reuse-gate-hero-card" style="background: #F0FDF4; border: 2px solid #86EFAC; border-radius: 12px; padding: 16px; margin-bottom: 14px;">
+      <div id="reuse-gate-rec-title" data-i18n="reuse.gate.recTitle" style="font-weight: 700; font-size: 13.5px; color: #14532D; margin-bottom: 8px;">✨ Recommended: Start a Fresh Copy for Your Next Run</div>
+      <ul style="margin: 0 0 14px 18px; padding: 0; font-size: 11.5px; color: #166534; line-height: 1.5;">
+        <li id="reuse-gate-rec-b1" data-i18n="reuse.gate.recB1" style="margin-bottom: 4px;">Protects this report: re-running in the same spreadsheet overwrites and can corrupt existing report tabs, merged ranges, and charts.</li>
+        <li id="reuse-gate-rec-b2" data-i18n="reuse.gate.recB2" style="margin-bottom: 4px;">Always latest version: making a fresh copy from goo.gle/cera automatically provisions the latest verified CERA release.</li>
+        <li id="reuse-gate-rec-b3" data-i18n="reuse.gate.recB3">Zero re-extraction needed: if you already extracted logs to Google Drive, paste that Drive folder link into your new copy via Manual Export to analyze in seconds.</li>
+      </ul>
+      <a id="btn-reuse-fresh-copy" data-i18n="reuse.gate.ctaFresh" href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer" class="btn-md3-filled" style="display: block; text-align: center; background: #16A34A; color: #FFFFFF; text-decoration: none; padding: 11px 18px; border-radius: 9999px; font-weight: 700; font-size: 13px;">🚀 Open goo.gle/cera to Make a Fresh Copy (Recommended) ↗</a>
+    </div>
+
+    <!-- Intentional Friction Card: Continue in Same Workbook at Own Risk -->
+    <div id="reuse-gate-risk-card" style="background: #FEF2F2; border: 1.5px dashed #FCA5A5; border-radius: 12px; padding: 14px;">
+      <div id="reuse-gate-risk-title" data-i18n="reuse.gate.riskTitle" style="font-weight: 700; font-size: 12px; color: #991B1B; margin-bottom: 8px;">⚠️ Advanced: Reuse This Workbook Anyway (Not Recommended)</div>
+      <label class="interactive-checkbox-label" style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; margin-bottom: 12px;">
+        <input type="checkbox" id="chk-reuse-risk" onchange="toggleReuseContinueBtn()" style="margin-top: 2px;">
+        <span id="reuse-gate-risk-check" data-i18n="reuse.gate.riskCheck" style="font-size: 11.5px; color: #7F1D1D; line-height: 1.45;">I understand this workbook is single-use and continuing here may overwrite, mix, or corrupt existing report sheets and charts.</span>
+      </label>
+      <div style="text-align: right;">
+        <button id="btn-reuse-continue" data-i18n="reuse.gate.btnContinue" type="button" class="btn-md3-danger" disabled onclick="proceedPastSingleUseGate()">⚠️ Continue in This Workbook at My Own Risk ➔</button>
+      </div>
+    </div>
+
+    <div class="dialog-footer">
+      <button id="btn-reuse-close" data-i18n="common.close" type="button" class="btn-md3-text" onclick="google.script.host.close()">Close</button>
+    </div>
   </div>
 
   <!-- Initial Loading Screen -->
@@ -690,7 +726,7 @@
         💡 <b>Autonomous Background Worker:</b> You do not need to keep this window open. You can safely close your browser or turn off your computer; execution runs autonomously via Google Apps Script and progress is continuously saved to the <i>⚡ Ingestion Monitor</i> sheet tab.
       </div>
       <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
-        <a data-i18n="mon.btn.openLogs" id="btn-mon-open-logs" href="#" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill" style="display: none;">📄 Open Diagnostic Logs (logs/) ↗</a>
+        <a data-i18n="mon.btn.openLogs" id="btn-mon-open-logs" href="#" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill" style="display: none;">📄 Open Diagnostic Logs (diagnostics/) ↗</a>
         <a data-i18n="mon.btn.reportProblem" id="btn-mon-report-problem" href="https://goo.gle/cera-feedback" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill">🐞 Report a Problem ↗</a>
       </div>
     </div>
@@ -1586,6 +1622,11 @@
               report: Boolean(data.workbookAlreadyUsed.report)
             };
           }
+          currentSessionAnalyzed = Boolean(
+            data.currentSessionAnalyzed ||
+            (data.workbookAlreadyUsed && data.workbookAlreadyUsed.currentSessionAnalyzed)
+          );
+          lastCloudSession = data.cloudSession || null;
 
           applyAdminSdkAccessState(data.adminSdkAccess !== false);
           if (data.policyPrecheck) {
@@ -1594,9 +1635,11 @@
 
           document.getElementById('init-loader').style.display = 'none';
 
-          // Check if a cloud session is currently active
+          // Check if a cloud session is currently active or if the single-use gate should intercept
           const cs = data.cloudSession;
-          if (cs && cs.hasExisting && (cs.status === 'RUNNING' || cs.status === 'PAUSED' || cs.status === 'FAILED' || cs.status === 'COMPLETED' || cs.isCompleted)) {
+          if (shouldShowSingleUseGate(cs)) {
+            goToSingleUseGate();
+          } else if (cs && cs.hasExisting && (cs.status === 'RUNNING' || cs.status === 'PAUSED' || cs.status === 'QUOTA_PAUSED' || cs.status === 'FAILED' || cs.status === 'COMPLETED' || cs.isCompleted)) {
             document.getElementById('cloud-monitor-container').style.display = 'block';
             renderCloudMonitor(cs);
             if (cs.status === 'RUNNING' && !cs.isCompleted) {
@@ -1621,7 +1664,23 @@
     let hasAdminSdkAccess = true;
     let lastPolicyPrecheck = null;
     let workbookAlreadyUsed = { ingestion: false, report: false };
+    let currentSessionAnalyzed = false;
     let currentMonitorCompleted = false;
+    let singleUseGateUnlocked = false;
+    let lastCloudSession = null;
+
+    function shouldShowSingleUseGate(cs) {
+      if (singleUseGateUnlocked) return false;
+      if (cs && cs.hasExisting) {
+        if (cs.status === 'RUNNING' || cs.status === 'PAUSED' || cs.status === 'QUOTA_PAUSED' || cs.status === 'FAILED') {
+          return false;
+        }
+        if ((cs.status === 'COMPLETED' || cs.isCompleted) && !currentSessionAnalyzed) {
+          return false;
+        }
+      }
+      return Boolean(workbookAlreadyUsed.report || workbookAlreadyUsed.ingestion);
+    }
 
     function updateSingleUseWarningBanner(activeContainerId) {
       const banner = document.getElementById('single-use-warning-banner');
@@ -1632,9 +1691,50 @@
       } else if (activeContainerId === 'prereq-check-container' || activeContainerId === 'prereq-guide-container' || activeContainerId === 'step1-container' || activeContainerId === 'step2-container') {
         show = Boolean(workbookAlreadyUsed.report);
       } else if (activeContainerId === 'cloud-monitor-container') {
-        show = Boolean(currentMonitorCompleted && workbookAlreadyUsed.report);
+        show = Boolean(currentMonitorCompleted && currentSessionAnalyzed);
       }
       banner.style.display = show ? 'block' : 'none';
+    }
+
+    function goToSingleUseGate() {
+      hideAllContainers();
+      const chk = document.getElementById('chk-reuse-risk');
+      const btn = document.getElementById('btn-reuse-continue');
+      if (chk) chk.checked = false;
+      if (btn) btn.disabled = true;
+      const gate = document.getElementById('single-use-gate-container');
+      if (gate) gate.style.display = 'block';
+      updateSingleUseWarningBanner('single-use-gate-container');
+    }
+    const showSingleUseGate = goToSingleUseGate;
+
+    function toggleReuseContinueBtn() {
+      const chk = document.getElementById('chk-reuse-risk');
+      const btn = document.getElementById('btn-reuse-continue');
+      if (btn && chk) {
+        btn.disabled = !chk.checked;
+      }
+    }
+
+    function proceedPastSingleUseGate() {
+      const chk = document.getElementById('chk-reuse-risk');
+      if (!chk || !chk.checked) return;
+      singleUseGateUnlocked = true;
+      currentSessionAnalyzed = false;
+      activeExtractedFolderId = '';
+      activeExtractedFolderName = '';
+      if (lastCloudSession && lastCloudSession.hasExisting) {
+        lastCloudSession = null;
+        google.script.run
+          .withSuccessHandler(function() {})
+          .withFailureHandler(function() {})
+          .emergencyResetIngestion(true);
+      }
+      if (hasAdminSdkAccess) {
+        goToPolicyPrecheck();
+      } else {
+        goToStep0();
+      }
     }
 
     function applyAdminSdkAccessState(hasAccess) {
@@ -1674,6 +1774,7 @@
     // State Transitions & Container Visibility
     function hideAllContainers() {
       const ids = [
+        'single-use-gate-container',
         'cloud-monitor-container',
         'policy-precheck-container',
         'step0-container',
@@ -1781,12 +1882,16 @@
     }
 
     function goToPrereqCheck() {
+      activeExtractedFolderId = '';
+      activeExtractedFolderName = '';
       hideAllContainers();
       document.getElementById('prereq-check-container').style.display = 'block';
       updateSingleUseWarningBanner('prereq-check-container');
     }
 
     function goToPrereqGuide() {
+      activeExtractedFolderId = '';
+      activeExtractedFolderName = '';
       hideAllContainers();
       document.getElementById('prereq-guide-container').style.display = 'block';
       updateSingleUseWarningBanner('prereq-guide-container');
@@ -2331,6 +2436,7 @@
           document.getElementById('init-loader').style.display = 'none';
           document.getElementById('cloud-monitor-container').style.display = 'block';
           workbookAlreadyUsed.ingestion = true;
+          currentSessionAnalyzed = false;
           if (res && res.workbookAlreadyUsed) {
             workbookAlreadyUsed.ingestion = Boolean(res.workbookAlreadyUsed.ingestion) || true;
             workbookAlreadyUsed.report = Boolean(res.workbookAlreadyUsed.report) || workbookAlreadyUsed.report;
@@ -2400,15 +2506,18 @@
           }
           if (res && res.workbookAlreadyUsed) {
             workbookAlreadyUsed = {
-              ingestion: Boolean(res.workbookAlreadyUsed.ingestion),
+              ingestion: Boolean(res.workbookAlreadyUsed.ingestion) || true,
               report: Boolean(res.workbookAlreadyUsed.report)
             };
           } else {
             workbookAlreadyUsed.ingestion = true;
           }
+          currentSessionAnalyzed = false;
+          singleUseGateUnlocked = false;
+          lastCloudSession = null;
           activeExtractedFolderId = '';
           activeExtractedFolderName = '';
-          goToStep0();
+          goToSingleUseGate();
         })
         .withFailureHandler(err => {
           if (btn) {
@@ -2528,6 +2637,8 @@
             document.getElementById('exec-loader').style.display = 'none';
             workbookAlreadyUsed.report = true;
             workbookAlreadyUsed.ingestion = true;
+            currentSessionAnalyzed = true;
+            singleUseGateUnlocked = false;
             if (res && res.workbookAlreadyUsed) {
               workbookAlreadyUsed = {
                 ingestion: Boolean(res.workbookAlreadyUsed.ingestion) || true,
@@ -2535,10 +2646,17 @@
               };
             }
             updateSingleUseWarningBanner('result-card');
-            if (res && res.slidesUrl) {
+            if (res && (res.slidesUrl || res.success)) {
               document.getElementById('result-card').style.display = 'block';
-              document.getElementById('slides-link').href = res.slidesUrl;
-              document.getElementById('slides-link').style.display = 'inline-block';
+              const slidesLinkEl = document.getElementById('slides-link');
+              if (slidesLinkEl) {
+                if (res.slidesUrl) {
+                  slidesLinkEl.href = res.slidesUrl;
+                  slidesLinkEl.style.display = 'inline-block';
+                } else {
+                  slidesLinkEl.style.display = 'none';
+                }
+              }
               if (res.summaryTxt) setRaw('summary-result-txt', res.summaryTxt);
             } else {
               google.script.host.close();

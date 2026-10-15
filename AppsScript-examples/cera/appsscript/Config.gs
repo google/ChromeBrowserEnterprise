@@ -23,7 +23,7 @@ var CeraConfig = {
   SUITE_NAME: 'Chrome Egress Risk Analysis (CERA)',
   SHORT_NAME: 'CERA v2.0.12',
   FEEDBACK_URL: 'https://goo.gle/cera-feedback',
-  DIAG_LOG_FOLDER_NAME: 'logs',
+  DIAG_LOG_FOLDER_NAME: 'diagnostics',
   DIAG_LOG_FILE_NAME: 'cera-diagnostic-log.txt',
   DIAG_LOG_MAX_BYTES: 1000000,
   DEFAULT_TIMEZONE: 'Etc/UTC',
