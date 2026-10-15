@@ -276,9 +276,31 @@ function showPrivacyPolicyDialog() {
 }
 
 /**
+ * Returns whether the active spreadsheet (by its own spreadsheet ID, so File -> Make a copy starts clean)
+ * has already been used for a Direct Ingestion run or a full Report Generation run.
+ */
+function ceraGetWorkbookUsageState_(ss, docProps) {
+  let ingUsed = false;
+  let repUsed = false;
+  try {
+    const activeSs = ss || SpreadsheetApp.getActiveSpreadsheet();
+    const ssId = (activeSs && typeof activeSs.getId === 'function' && activeSs.getId()) ? String(activeSs.getId()) : '';
+    const props = docProps || PropertiesService.getDocumentProperties();
+    if (ssId && props) {
+      const ingUsedId = props.getProperty('CERA_INGESTION_USED_SHEET_ID') || '';
+      const repUsedId = props.getProperty('CERA_REPORT_USED_SHEET_ID') || '';
+      repUsed = (repUsedId === ssId);
+      ingUsed = (ingUsedId === ssId || repUsed);
+    }
+  } catch (e) {}
+  return { ingestion: ingUsed, report: repUsed };
+}
+
+/**
  * Emergency Reset: Immediately halts background triggers, clears locks, cache, and session.
- * If the previous extraction was already COMPLETED and forceReset is not true (e.g. accidental menu click),
- * keeps the completed session and the ⚡ Ingestion Monitor sheet intact.
+ * If the previous extraction was already COMPLETED, report generation has not yet executed on it,
+ * and forceReset is not true (e.g. accidental menu click), keeps the completed session and the
+ * ⚡ Ingestion Monitor sheet intact.
  */
 function emergencyResetIngestion(forceReset) {
   try {
@@ -289,6 +311,8 @@ function emergencyResetIngestion(forceReset) {
 
     const existing = (typeof getProgressUpdate === 'function') ? getProgressUpdate() : null;
     const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const docProps = PropertiesService.getDocumentProperties();
+    const analysisAlreadyExecuted = !!(docProps && docProps.getProperty('CERA_ANALYSIS_EXECUTED') === 'true');
     const monSheetName = typeof MONITOR_SHEET_NAME !== 'undefined' ? MONITOR_SHEET_NAME : '⚡ Ingestion Monitor';
     const monSheet = (ss && typeof ss.getSheetByName === 'function') ? ss.getSheetByName(monSheetName) : null;
     let sheetAlreadyCompleted = false;
@@ -299,7 +323,7 @@ function emergencyResetIngestion(forceReset) {
       }
     } catch (e) {}
 
-    if (!forceReset && ((existing && (existing.status === 'COMPLETED' || existing.isCompleted)) || (!existing && sheetAlreadyCompleted))) {
+    if (!forceReset && !analysisAlreadyExecuted && ((existing && (existing.status === 'COMPLETED' || existing.isCompleted)) || (!existing && sheetAlreadyCompleted))) {
       if (ss && typeof ss.toast === 'function') {
         ss.toast(
           ceraT('resume.complete.body', {
@@ -316,7 +340,8 @@ function emergencyResetIngestion(forceReset) {
         status: 'COMPLETED',
         folderId: (existing && existing.folderId) || '',
         folderName: (existing && existing.folderName) || '',
-        processedCount: Number((existing && existing.processedCount) || 0)
+        processedCount: Number((existing && existing.processedCount) || 0),
+        workbookAlreadyUsed: ceraGetWorkbookUsageState_(ss, docProps)
       };
     }
 
@@ -324,9 +349,15 @@ function emergencyResetIngestion(forceReset) {
       ceraRecordDiagLifecycle_(existing, 'STOPPED', 'EMERGENCY_RESET', 'User triggered Emergency Reset.');
     }
 
-    PropertiesService.getDocumentProperties().deleteProperty('SIERRA_SESSION');
-    PropertiesService.getDocumentProperties().deleteProperty('CERA_CURRENT_ACTIVITY_ID');
-    PropertiesService.getDocumentProperties().deleteProperty('CERA_ANALYSIS_EXECUTED');
+    if (existing && ss && typeof ss.getId === 'function' && ss.getId() && docProps) {
+      docProps.setProperty('CERA_INGESTION_USED_SHEET_ID', String(ss.getId()));
+    }
+
+    if (docProps) {
+      docProps.deleteProperty('SIERRA_SESSION');
+      docProps.deleteProperty('CERA_CURRENT_ACTIVITY_ID');
+      docProps.deleteProperty('CERA_ANALYSIS_EXECUTED');
+    }
     CacheService.getUserCache().remove('SIERRA_LIVE_PROGRESS');
     CacheService.getScriptCache().remove('SIERRA_LIVE_PROGRESS');
 
@@ -354,7 +385,11 @@ function emergencyResetIngestion(forceReset) {
         ss.toast(ceraT('toast.reset.body'), ceraT('toast.reset.title'), 6);
       }
     }
-    return { success: true, status: 'IDLE' };
+    return {
+      success: true,
+      status: 'IDLE',
+      workbookAlreadyUsed: ceraGetWorkbookUsageState_(ss, docProps)
+    };
   } catch (err) {
     Logger.log('emergencyResetIngestion error: ' + err.message);
     return { success: false, error: err.message };
@@ -479,6 +514,7 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
   // Deduplicate domains
   const uniqueDomains = Array.from(new Set(detectedDomains.filter(Boolean)));
   const detectedCorpDomain = uniqueDomains.length > 0 ? uniqueDomains.join(', ') : '';
+  const workbookAlreadyUsed = ceraGetWorkbookUsageState_(SpreadsheetApp.getActiveSpreadsheet(), PropertiesService.getDocumentProperties());
 
   return {
     primaryDomain: primaryDomain || (uniqueDomains.length > 0 ? uniqueDomains[0] : ''),
@@ -489,7 +525,8 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
     policyPrecheck: policyPrecheck,
     cloudSession: cloudSession,
     extractedFolderId: activeExtractedFolderId,
-    extractedFolderName: activeExtractedFolderName
+    extractedFolderName: activeExtractedFolderName,
+    workbookAlreadyUsed: workbookAlreadyUsed
   };
 }
 

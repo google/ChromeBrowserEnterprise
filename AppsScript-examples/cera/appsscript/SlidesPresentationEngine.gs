@@ -159,6 +159,42 @@ var ExecutivePresentationEngine = {
     this.addLineBox(slide, this.t_(ctx, 'deck.header.scope', { domain: ctx['{{primaryDomain}}'] }), 470, 12, 214, 16, 'Roboto', 8, 'bold', '#64748B', 'right');
   },
 
+  /**
+   * A new deck, created through the Drive API inside the top-level CERA folder (ceraEnsureRootFolder_), as the
+   * ingestion partitions are: drive.file covers what CERA creates through the Drive API, so nothing is moved
+   * afterwards. Null when the deck cannot be created there; buildDeck then creates it in My Drive.
+   */
+  createInCeraFolder_(title) {
+    if (typeof ceraEnsureRootFolder_ !== 'function' || typeof Drive === 'undefined' || !Drive.Files) return null;
+    let fileId = '';
+    try {
+      const folderId = ceraEnsureRootFolder_(false);
+      if (!folderId) return null;
+      const file = Drive.Files.create(
+        { name: title, mimeType: 'application/vnd.google-apps.presentation', parents: [folderId] },
+        null,
+        { supportsAllDrives: true }
+      );
+      fileId = (file && file.id) || '';
+      if (!fileId) return null;
+      try {
+        return SlidesApp.openById(fileId);
+      } catch (openErr) {
+        // One retry after a short wait, like the partition setup after its creation
+        Utilities.sleep(1000);
+        return SlidesApp.openById(fileId);
+      }
+    } catch (e) {
+      // No new CERA folder is forced from here: one made after a failed write stays empty and becomes the cached folder.
+      // A deck created here but not opened is trashed, so the folder keeps no empty deck.
+      if (fileId) {
+        try { Drive.Files.update({ trashed: true }, fileId); } catch (trashErr) {}
+      }
+      console.warn('The deck could not be created in the CERA folder and is created in My Drive: ' + (e && e.message ? e.message : e));
+      return null;
+    }
+  },
+
   buildDeck(state, corpDomains, dateRangeString, outlierMetrics, currentSs, targetPresentationId) {
     this.currentSpreadsheet = currentSs || null;
     const p = this.getPalette();
@@ -171,37 +207,7 @@ var ExecutivePresentationEngine = {
       presentation = SlidesApp.openById(targetPresentationId);
       oldSlides = presentation.getSlides();
     } else {
-      presentation = SlidesApp.create(title);
-      try {
-        if (typeof ceraEnsureRootFolder_ === 'function' && typeof Drive !== 'undefined' && Drive.Files) {
-          const presId = presentation.getId();
-          const fileMeta = Drive.Files.get(presId, { fields: 'parents', supportsAllDrives: true });
-          const prevParents = (fileMeta && Array.isArray(fileMeta.parents) && fileMeta.parents.length)
-            ? fileMeta.parents.join(',')
-            : 'root';
-          const ceraRootId = ceraEnsureRootFolder_(false);
-          if (ceraRootId) {
-            try {
-              Drive.Files.update({}, presId, null, {
-                addParents: ceraRootId,
-                removeParents: prevParents,
-                supportsAllDrives: true
-              });
-            } catch (moveErr) {
-              const freshRootId = ceraEnsureRootFolder_(true);
-              if (freshRootId) {
-                Drive.Files.update({}, presId, null, {
-                  addParents: freshRootId,
-                  removeParents: prevParents,
-                  supportsAllDrives: true
-                });
-              }
-            }
-          }
-        }
-      } catch (rootMoveErr) {
-        console.warn('Could not move presentation into CERA folder: ' + (rootMoveErr && rootMoveErr.message ? rootMoveErr.message : rootMoveErr));
-      }
+      presentation = this.createInCeraFolder_(title) || SlidesApp.create(title);
       oldSlides = presentation.getSlides();
     }
     const w = 720;

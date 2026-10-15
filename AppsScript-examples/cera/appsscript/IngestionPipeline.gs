@@ -457,7 +457,11 @@ function executeDlpAnalysis(params) {
   }
 
   try {
-    PropertiesService.getDocumentProperties().setProperty('CERA_ANALYSIS_EXECUTED', 'true');
+    const docProps = PropertiesService.getDocumentProperties();
+    docProps.setProperty('CERA_ANALYSIS_EXECUTED', 'true');
+    if (currentSs && typeof currentSs.getId === 'function' && currentSs.getId()) {
+      docProps.setProperty('CERA_REPORT_USED_SHEET_ID', String(currentSs.getId()));
+    }
   } catch (cpErr) {}
 
   try {
@@ -485,6 +489,7 @@ function executeDlpAnalysis(params) {
     slidesUrl: presentationUrl,
     sheetsGenerated: !!params.generateSheets,
     summaryTxt: summaryTxt,
+    workbookAlreadyUsed: { ingestion: true, report: true },
     coverage: {
       sheetsRead: coverage.sheetsRead,
       sheetsAttempted: coverage.sheetsAttempted,

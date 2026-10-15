@@ -1580,7 +1580,9 @@ var CERA_I18N_MESSAGES = {
     "precheck.nonAdmin.body": "If you do not have Google Admin Console access, ask your administrator to enable the 3 Chrome Enterprise pre-requisite policies below and export the Chrome audit log sheets to Google Drive for you:",
     "mon.btn.openLogs": "📄 Open Diagnostic Logs (logs/) ↗",
     "mon.btn.reportProblem": "🐞 Report a Problem ↗",
-    "result.btn.feedback": "💬 Share Feedback & Ideas ↗"
+    "result.btn.feedback": "💬 Share Feedback & Ideas ↗",
+    "reuse.warn.title": "⚠️ Single-Use Workbook Recommendation",
+    "reuse.warn.body": "CERA is designed for a single assessment per workbook. To ensure a clean workspace and the latest CERA version, we recommend making a fresh copy at <a href=\"https://goo.gle/cera\" target=\"_blank\" rel=\"noopener noreferrer\"><b>goo.gle/cera</b> ↗</a> — or you may continue in this workbook below."
   },
   "id": {
     "lang.label": "Bahasa",
@@ -3143,7 +3145,9 @@ var CERA_I18N_MESSAGES = {
     "precheck.nonAdmin.body": "Jika Anda tidak memiliki akses Google Admin Console, minta administrator Anda untuk mengaktifkan 3 kebijakan pre-requisite Chrome Enterprise di bawah ini dan mengekspor sheet log audit Chrome ke Google Drive untuk Anda:",
     "mon.btn.openLogs": "📄 Buka Log Diagnostik (logs/) ↗",
     "mon.btn.reportProblem": "🐞 Laporkan Masalah ↗",
-    "result.btn.feedback": "💬 Beri Masukan & Saran ↗"
+    "result.btn.feedback": "💬 Beri Masukan & Saran ↗",
+    "reuse.warn.title": "⚠️ Rekomendasi Workbook Sekali Pakai",
+    "reuse.warn.body": "CERA dirancang untuk satu kali asesmen per workbook. Untuk memastikan ruang kerja yang bersih dan versi CERA terbaru, silakan buat salinan baru (Make a copy) di <a href=\"https://goo.gle/cera\" target=\"_blank\" rel=\"noopener noreferrer\"><b>goo.gle/cera</b> ↗</a> — atau Anda tetap dapat melanjutkan di workbook ini di bawah."
   },
   "ja": {
     "lang.label": "言語",
@@ -4706,7 +4710,9 @@ var CERA_I18N_MESSAGES = {
     "precheck.nonAdmin.body": "Google 管理コンソールへのアクセス権がない場合は、管理者に以下の 3 つの Chrome Enterprise 前提条件ポリシーを有効にし、Chrome 監査ログのスプレッドシートを Google ドライブへエクスポートするよう依頼してください：",
     "mon.btn.openLogs": "📄 診断ログを開く (logs/) ↗",
     "mon.btn.reportProblem": "🐞 問題を報告 ↗",
-    "result.btn.feedback": "💬 フィードバックを送る ↗"
+    "result.btn.feedback": "💬 フィードバックを送る ↗",
+    "reuse.warn.title": "⚠️ 1回使い切りワークブックの推奨",
+    "reuse.warn.body": "CERA は 1 回の評価につき 1 つのワークブックとして設計されています。クリーンな作業環境と最新バージョンの CERA を確保するため、<a href=\"https://goo.gle/cera\" target=\"_blank\" rel=\"noopener noreferrer\"><b>goo.gle/cera</b> ↗</a> から新しいコピーを作成することをおすすめします（このまま下の操作を続行することも可能です）。"
   },
   "ko": {
     "lang.label": "언어",
@@ -6269,7 +6275,9 @@ var CERA_I18N_MESSAGES = {
     "precheck.nonAdmin.body": "Google 관리 콘솔 액세스 권한이 없는 경우 관리자에게 아래 3가지 Chrome Enterprise 사전 요구사항 정책을 사용 설정하고 Chrome 감사 로그 시트를 Google Drive로 내보내 달라고 요청하세요:",
     "mon.btn.openLogs": "📄 진단 로그 열기 (logs/) ↗",
     "mon.btn.reportProblem": "🐞 문제 신고 ↗",
-    "result.btn.feedback": "💬 피드백 및 의견 보내기 ↗"
+    "result.btn.feedback": "💬 피드백 및 의견 보내기 ↗",
+    "reuse.warn.title": "⚠️ 1회용 워크북 사용 권장",
+    "reuse.warn.body": "CERA는 평가당 1회 사용 워크북으로 설계되었습니다. 깨끗한 작업 환경과 최신 CERA 버전을 보장하려면 <a href=\"https://goo.gle/cera\" target=\"_blank\" rel=\"noopener noreferrer\"><b>goo.gle/cera</b> ↗</a>에서 새 사본(사본 만들기)을 만드는 것이 좋으며, 아래에서 현재 워크북으로 계속 진행할 수도 있습니다."
   },
   "zh-CN": {
     "lang.label": "语言",
@@ -7832,6 +7840,8 @@ var CERA_I18N_MESSAGES = {
     "precheck.nonAdmin.body": "如果您没有 Google 管理控制台访问权限，请请求您的管理员启用以下 3 项 Chrome Enterprise 先决条件策略，并将 Chrome 审核日志表格导出到 Google 云端硬盘供您使用：",
     "mon.btn.openLogs": "📄 打开诊断日志 (logs/) ↗",
     "mon.btn.reportProblem": "🐞 报告问题 ↗",
-    "result.btn.feedback": "💬 提交反馈与建议 ↗"
+    "result.btn.feedback": "💬 提交反馈与建议 ↗",
+    "reuse.warn.title": "⚠️ 建议使用一次性工作簿",
+    "reuse.warn.body": "CERA 专为每次评估使用一个独立工作簿而设计。为确保干净的工作区并获取最新版本的 CERA，建议您在 <a href=\"https://goo.gle/cera\" target=\"_blank\" rel=\"noopener noreferrer\"><b>goo.gle/cera</b> ↗</a> 重新创建副本（创建副本）——或者您也可以在下方继续使用当前工作簿。"
   }
 };

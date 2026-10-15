@@ -606,6 +606,11 @@
     </div>
   </div>
 
+  <!-- Non-Blocking Single-Use Workbook Recommendation Banner (shown on 2nd ingestion or 2nd report generation) -->
+  <div id="single-use-warning-banner" role="status" aria-live="polite" style="display: none; background: #FFFBEB; border: 1.5px solid #FDE68A; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; color: #92400E;">
+    <div id="single-use-warning-title" data-i18n="reuse.warn.title" style="font-weight: 700; font-size: 12px; margin-bottom: 3px; color: #92400E;">⚠️ Single-Use Workbook Recommendation</div>
+    <div id="single-use-warning-body" data-i18n-html="reuse.warn.body" style="font-size: 11.5px; color: #78350F; line-height: 1.45;">CERA is designed for a single assessment per workbook. To ensure a clean workspace and the latest CERA version, we recommend making a fresh copy at <a href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer"><b>goo.gle/cera</b> ↗</a> — or you may continue in this workbook below.</div>
+  </div>
 
   <!-- Initial Loading Screen -->
   <div id="init-loader" role="status" aria-live="polite">
@@ -1575,6 +1580,12 @@
             activeExtractedFolderId = data.extractedFolderId;
             activeExtractedFolderName = data.extractedFolderName || t('step1.auto.defaultName');
           }
+          if (data.workbookAlreadyUsed) {
+            workbookAlreadyUsed = {
+              ingestion: Boolean(data.workbookAlreadyUsed.ingestion),
+              report: Boolean(data.workbookAlreadyUsed.report)
+            };
+          }
 
           applyAdminSdkAccessState(data.adminSdkAccess !== false);
           if (data.policyPrecheck) {
@@ -1586,8 +1597,8 @@
           // Check if a cloud session is currently active
           const cs = data.cloudSession;
           if (cs && cs.hasExisting && (cs.status === 'RUNNING' || cs.status === 'PAUSED' || cs.status === 'FAILED' || cs.status === 'COMPLETED' || cs.isCompleted)) {
-            renderCloudMonitor(cs);
             document.getElementById('cloud-monitor-container').style.display = 'block';
+            renderCloudMonitor(cs);
             if (cs.status === 'RUNNING' && !cs.isCompleted) {
               startCloudPolling();
             }
@@ -1609,6 +1620,22 @@
 
     let hasAdminSdkAccess = true;
     let lastPolicyPrecheck = null;
+    let workbookAlreadyUsed = { ingestion: false, report: false };
+    let currentMonitorCompleted = false;
+
+    function updateSingleUseWarningBanner(activeContainerId) {
+      const banner = document.getElementById('single-use-warning-banner');
+      if (!banner) return;
+      let show = false;
+      if (activeContainerId === 'policy-precheck-container' || activeContainerId === 'step0-container' || activeContainerId === 'preflight-container') {
+        show = Boolean(workbookAlreadyUsed.ingestion || workbookAlreadyUsed.report);
+      } else if (activeContainerId === 'prereq-check-container' || activeContainerId === 'prereq-guide-container' || activeContainerId === 'step1-container' || activeContainerId === 'step2-container') {
+        show = Boolean(workbookAlreadyUsed.report);
+      } else if (activeContainerId === 'cloud-monitor-container') {
+        show = Boolean(currentMonitorCompleted && workbookAlreadyUsed.report);
+      }
+      banner.style.display = show ? 'block' : 'none';
+    }
 
     function applyAdminSdkAccessState(hasAccess) {
       hasAdminSdkAccess = hasAccess !== false;
@@ -1660,11 +1687,13 @@
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
       });
+      updateSingleUseWarningBanner('');
     }
 
     function goToPolicyPrecheck() {
       hideAllContainers();
       document.getElementById('policy-precheck-container').style.display = 'block';
+      updateSingleUseWarningBanner('policy-precheck-container');
     }
 
     function renderPolicyPrecheck(precheckData) {
@@ -1740,6 +1769,7 @@
       hideAllContainers();
       document.getElementById('step0-container').style.display = 'block';
       toggleRangeWarning();
+      updateSingleUseWarningBanner('step0-container');
     }
 
     // The recommended range needs no warning; any other range says inline why it is not recommended
@@ -1753,11 +1783,13 @@
     function goToPrereqCheck() {
       hideAllContainers();
       document.getElementById('prereq-check-container').style.display = 'block';
+      updateSingleUseWarningBanner('prereq-check-container');
     }
 
     function goToPrereqGuide() {
       hideAllContainers();
       document.getElementById('prereq-guide-container').style.display = 'block';
+      updateSingleUseWarningBanner('prereq-guide-container');
     }
 
     function toggleChecklistItem(step) {
@@ -1813,6 +1845,7 @@
     function goToStep1() {
       hideAllContainers();
       document.getElementById('step1-container').style.display = 'block';
+      updateSingleUseWarningBanner('step1-container');
 
       // Check if arriving from direct autonomous extraction
       if (activeExtractedFolderId) {
@@ -1872,6 +1905,7 @@
       if (activeExtractedFolderId) {
         hideAllContainers();
         document.getElementById('cloud-monitor-container').style.display = 'block';
+        updateSingleUseWarningBanner('cloud-monitor-container');
       } else {
         goToPrereqCheck();
       }
@@ -1880,6 +1914,7 @@
     function backToStep1() {
       hideAllContainers();
       document.getElementById('step1-container').style.display = 'block';
+      updateSingleUseWarningBanner('step1-container');
     }
 
     function commitAllInputs() {
@@ -1903,6 +1938,7 @@
 
       hideAllContainers();
       document.getElementById('step2-container').style.display = 'block';
+      updateSingleUseWarningBanner('step2-container');
     }
 
     function detectSourceType(val) {
@@ -1944,9 +1980,13 @@
       if (!cs) return;
       const status = cs.status || 'RUNNING';
       const isCompleted = (status === 'COMPLETED' || cs.isCompleted === true);
+      currentMonitorCompleted = isCompleted;
       const pct = isCompleted ? '100.0' : Number(cs.timeSpanPct || 0).toFixed(1);
       lastMonitorLogs = Number(cs.totalLogsProcessed || 0);
       lastMonitorParts = Number(cs.fileIndex || 1);
+      if (isCompleted || lastMonitorLogs > 0 || cs.folderId) {
+        workbookAlreadyUsed.ingestion = true;
+      }
 
       document.getElementById('mon-progress-bar').style.width = pct + '%';
       document.getElementById('mon-progress-pct').innerText = pct + '%';
@@ -2021,7 +2061,11 @@
       if (isCompleted) {
         pulse.style.background = '#16A34A';
         setT(statusTxt, 'mon.status.complete', { days: Number(cs.totalDays || DEFAULT_RANGE_DAYS) });
-        if (btnStopReset) btnStopReset.style.display = 'none';
+        if (btnStopReset) {
+          btnStopReset.style.display = 'inline-block';
+          btnStopReset.disabled = false;
+          setT(btnStopReset, 'mon.btn.reset');
+        }
         if (btnProceed) btnProceed.style.display = 'inline-block';
         if (btnResume) btnResume.style.display = 'none';
         if (errBanner) errBanner.style.display = 'none';
@@ -2108,6 +2152,11 @@
           else setT(errMsgEl, 'mon.failedDefault');
         }
         if (compBanner) compBanner.style.display = 'none';
+      }
+
+      const monContainer = document.getElementById('cloud-monitor-container');
+      if (monContainer && monContainer.style.display !== 'none') {
+        updateSingleUseWarningBanner('cloud-monitor-container');
       }
     }
 
@@ -2210,6 +2259,7 @@
       document.getElementById('init-loader').style.display = 'none';
       hideAllContainers();
       document.getElementById('preflight-container').style.display = 'block';
+      updateSingleUseWarningBanner('preflight-container');
 
       const fmt = n => (n === null || n === undefined) ? t('common.na') : fmtNum(n);
       const title = document.getElementById('pf-title');
@@ -2280,13 +2330,18 @@
         .withSuccessHandler(res => {
           document.getElementById('init-loader').style.display = 'none';
           document.getElementById('cloud-monitor-container').style.display = 'block';
+          workbookAlreadyUsed.ingestion = true;
+          if (res && res.workbookAlreadyUsed) {
+            workbookAlreadyUsed.ingestion = Boolean(res.workbookAlreadyUsed.ingestion) || true;
+            workbookAlreadyUsed.report = Boolean(res.workbookAlreadyUsed.report) || workbookAlreadyUsed.report;
+          }
           activeExtractedFolderId = res.folderId;
           activeExtractedFolderName = res.folderName;
           const initialStatus = (res && res.status) || 'RUNNING';
-          // Render initial state (including inline first-batch progress or completion)
+          const isDone = Boolean(res && res.isCompleted) || initialStatus === 'COMPLETED';
           renderCloudMonitor({
             status: initialStatus,
-            isCompleted: Boolean(res && res.isCompleted) || initialStatus === 'COMPLETED',
+            isCompleted: isDone,
             timeSpanPct: Number((res && res.timeSpanPct) || 0),
             totalLogsProcessed: Number((res && (res.processedCount !== undefined ? res.processedCount : res.totalLogsProcessed)) || 0),
             rate: Number((res && res.rate) || 0),
@@ -2300,15 +2355,28 @@
             totalDays: days,
             etaSec: Number((res && res.etaSec) || 0)
           });
-          if (initialStatus !== 'COMPLETED' && !(res && res.isCompleted)) {
+          if (!isDone) {
             startCloudPolling();
+            google.script.run
+              .withSuccessHandler(function() {
+                google.script.run.withSuccessHandler(function(st) {
+                  if (st && st.hasExisting) {
+                    renderCloudMonitor(st);
+                    if (st.status === 'COMPLETED' || st.isCompleted || st.status === 'PAUSED' || st.status === 'FAILED') {
+                      if (cloudPollInterval) clearInterval(cloudPollInterval);
+                    }
+                  }
+                }).getCloudIngestionStatus();
+              })
+              .withFailureHandler(function() {})
+              .processCloudIngestionBatch();
           }
         })
         .withFailureHandler(err => {
           alert(t('alert.engageFailed', { error: err.message }));
           goToStep0();
         })
-        .engageCloudIngestion(days, true);
+        .engageCloudIngestion(days);
     }
 
     function handleEmergencyStopAndReset() {
@@ -2325,10 +2393,18 @@
       if (statusTxt) setT(statusTxt, 'mon.status.stopping');
 
       google.script.run
-        .withSuccessHandler(() => {
+        .withSuccessHandler(res => {
           if (btn) {
             btn.disabled = false;
             setT(btn, 'mon.btn.reset');
+          }
+          if (res && res.workbookAlreadyUsed) {
+            workbookAlreadyUsed = {
+              ingestion: Boolean(res.workbookAlreadyUsed.ingestion),
+              report: Boolean(res.workbookAlreadyUsed.report)
+            };
+          } else {
+            workbookAlreadyUsed.ingestion = true;
           }
           activeExtractedFolderId = '';
           activeExtractedFolderName = '';
@@ -2364,6 +2440,7 @@
             btn.disabled = false;
             setT(btn, 'mon.btn.stopAnalyze');
           }
+          workbookAlreadyUsed.ingestion = true;
           if (res && res.folderId) {
             activeExtractedFolderId = res.folderId;
             activeExtractedFolderName = res.folderName || activeExtractedFolderName || t('step1.auto.defaultName');
@@ -2406,6 +2483,7 @@
 
       document.getElementById('step2-container').style.display = 'none';
       document.getElementById('exec-loader').style.display = 'block';
+      updateSingleUseWarningBanner('exec-loader');
 
       const payload = {
         corpDomains: corpChips ? corpChips.getValue() : '',
@@ -2448,6 +2526,15 @@
             }
             if (pollInterval) clearInterval(pollInterval);
             document.getElementById('exec-loader').style.display = 'none';
+            workbookAlreadyUsed.report = true;
+            workbookAlreadyUsed.ingestion = true;
+            if (res && res.workbookAlreadyUsed) {
+              workbookAlreadyUsed = {
+                ingestion: Boolean(res.workbookAlreadyUsed.ingestion) || true,
+                report: Boolean(res.workbookAlreadyUsed.report) || true
+              };
+            }
+            updateSingleUseWarningBanner('result-card');
             if (res && res.slidesUrl) {
               document.getElementById('result-card').style.display = 'block';
               document.getElementById('slides-link').href = res.slidesUrl;
@@ -2462,6 +2549,7 @@
             alert(t('alert.execError', { error: err.message }));
             document.getElementById('exec-loader').style.display = 'none';
             document.getElementById('step2-container').style.display = 'block';
+            updateSingleUseWarningBanner('step2-container');
           })
           .executeDlpAnalysis(batchPayload);
       }
