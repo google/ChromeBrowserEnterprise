@@ -1590,13 +1590,13 @@ var CERA_I18N_MESSAGES = {
     "reuse.gate.slidesDesc": "Your CERA presentation deck has already been generated from this workbook.",
     "reuse.gate.openSlides": "Open Google Slides Presentation Deck ↗",
     "reuse.gate.recTitle": "✨ Recommended: Start a Fresh Copy for Your Next Run",
-    "reuse.gate.recB1": "Protects this report: re-running in the same spreadsheet overwrites and can corrupt existing report tabs, merged ranges, and charts.",
+    "reuse.gate.recB1": "Protects this report: re-running in the same spreadsheet replaces the existing report tabs and charts.",
     "reuse.gate.recB2": "Always latest version: making a fresh copy from goo.gle/cera automatically provisions the latest verified CERA release.",
     "reuse.gate.recB3": "Zero re-extraction needed: if you already extracted logs to Google Drive, paste that Drive folder link into your new copy via Manual Export to analyze in seconds.",
     "reuse.gate.ctaFresh": "Open goo.gle/cera to Make a Fresh Copy (Recommended) ↗",
-    "reuse.gate.riskTitle": "⚠️ Advanced: Reuse This Workbook Anyway (Not Recommended)",
-    "reuse.gate.riskCheck": "I understand this workbook is single-use and continuing here may overwrite, mix, or corrupt existing report sheets and charts.",
-    "reuse.gate.btnContinue": "Continue in This Workbook at My Own Risk ➔"
+    "reuse.gate.riskTitle": "Or reuse this workbook (not recommended)",
+    "reuse.gate.riskCheck": "I understand that continuing in this workbook will overwrite the current report sheets.",
+    "reuse.gate.btnContinue": "Continue in This Workbook →"
   },
   "id": {
     "lang.label": "Bahasa",
@@ -3169,13 +3169,13 @@ var CERA_I18N_MESSAGES = {
     "reuse.gate.slidesDesc": "Deck presentasi CERA Anda sudah pernah dibuat dari workbook ini.",
     "reuse.gate.openSlides": "Buka Deck Presentasi Google Slides ↗",
     "reuse.gate.recTitle": "✨ Direkomendasikan: Buat Salinan Baru untuk Eksekusi Berikutnya",
-    "reuse.gate.recB1": "Melindungi laporan ini: menjalankan ulang di spreadsheet yang sama akan menimpa dan dapat merusak tab laporan, sel gabungan, serta grafik yang sudah ada.",
+    "reuse.gate.recB1": "Melindungi laporan ini: menjalankan ulang di spreadsheet yang sama akan menggantikan tab laporan dan grafik yang sudah ada.",
     "reuse.gate.recB2": "Selalu versi terbaru: membuat salinan baru dari goo.gle/cera otomatis memberikan rilis CERA terbaru yang terverifikasi.",
     "reuse.gate.recB3": "Tanpa ekstraksi ulang: jika Anda sudah mengekstrak log ke Google Drive, cukup tempel tautan folder Drive tersebut di salinan baru melalui Manual Export untuk menganalisis dalam hitungan detik.",
     "reuse.gate.ctaFresh": "Buka goo.gle/cera untuk Buat Salinan Baru (Direkomendasikan) ↗",
-    "reuse.gate.riskTitle": "⚠️ Lanjutan: Tetap Gunakan Kembali Workbook Ini (Tidak Direkomendasikan)",
-    "reuse.gate.riskCheck": "Saya memahami workbook ini hanya untuk sekali pakai dan melanjutkan di sini dapat menimpa, mencampur, atau merusak sheet laporan dan grafik yang ada.",
-    "reuse.gate.btnContinue": "Lanjutkan di Workbook Ini dengan Risiko Sendiri ➔"
+    "reuse.gate.riskTitle": "Atau gunakan kembali workbook ini (tidak direkomendasikan)",
+    "reuse.gate.riskCheck": "Saya memahami bahwa melanjutkan di workbook ini akan menimpa sheet laporan yang ada saat ini.",
+    "reuse.gate.btnContinue": "Lanjutkan di Workbook Ini →"
   },
   "ja": {
     "lang.label": "言語",
@@ -4748,13 +4748,13 @@ var CERA_I18N_MESSAGES = {
     "reuse.gate.slidesDesc": "このワークブックからすでに CERA のプレゼンテーション資料が生成されています。",
     "reuse.gate.openSlides": "Google Slides のプレゼンテーション資料を開く ↗",
     "reuse.gate.recTitle": "✨ 推奨：次の実行には新しいコピーを作成してください",
-    "reuse.gate.recB1": "現在のレポートを保護：同じスプレッドシートで再実行すると、既存のレポートタブ・結合セル・グラフが上書きされ破損する恐れがあります。",
+    "reuse.gate.recB1": "現在のレポートを保護：同じスプレッドシートで再実行すると、既存のレポートタブやグラフが上書きされます。",
     "reuse.gate.recB2": "常に最新バージョン：goo.gle/cera から新しいコピーを作成すると、検証済みの最新 CERA リリースが自動的に適用されます。",
     "reuse.gate.recB3": "再抽出は不要：すでに Google ドライブへログを抽出済みの場合は、新しいコピーの「手動エクスポート」にそのドライブ フォルダのリンクを貼り付けるだけで数秒で分析できます。",
     "reuse.gate.ctaFresh": "goo.gle/cera を開いて新しいコピーを作成（推奨）↗",
-    "reuse.gate.riskTitle": "⚠️ 詳細オプション：このワークブックをそのまま再利用する（非推奨）",
-    "reuse.gate.riskCheck": "このワークブックは1回使い切りであり、このまま続行すると既存のレポートシートやグラフが上書き・混在・破損する可能性があることを理解しています。",
-    "reuse.gate.btnContinue": "自己責任でこのワークブックのまま続行する ➔"
+    "reuse.gate.riskTitle": "またはこのワークブックを再利用する（非推奨）",
+    "reuse.gate.riskCheck": "このワークブックで続行すると、現在のレポートシートが上書きされることを理解しています。",
+    "reuse.gate.btnContinue": "このワークブックで続行 →"
   },
   "ko": {
     "lang.label": "언어",
@@ -6327,13 +6327,13 @@ var CERA_I18N_MESSAGES = {
     "reuse.gate.slidesDesc": "이 워크북에서 이미 CERA 프레젠테이션이 생성되었습니다.",
     "reuse.gate.openSlides": "Google Slides 프레젠테이션 열기 ↗",
     "reuse.gate.recTitle": "✨ 권장: 다음 실행을 위해 새 사본을 만드세요",
-    "reuse.gate.recB1": "현재 보고서 보호: 동일한 스프레드시트에서 다시 실행하면 기존 보고서 탭, 병합된 범위 및 차트가 덮어쓰여지거나 손상될 수 있습니다.",
+    "reuse.gate.recB1": "현재 보고서 보호: 동일한 스프레드시트에서 다시 실행하면 기존 보고서 탭과 차트가 덮어쓰여집니다.",
     "reuse.gate.recB2": "항상 최신 버전 제공: goo.gle/cera에서 새 사본을 만들면 최신 검증된 CERA 릴리스가 자동으로 적용됩니다.",
     "reuse.gate.recB3": "재추출 불필요: 이미 Google Drive로 로그를 추출한 경우 새 사본의 수동 내보내기(Manual Export)에 해당 Drive 폴더 링크를 붙여넣어 몇 초 만에 분석할 수 있습니다.",
     "reuse.gate.ctaFresh": "goo.gle/cera를 열어 새 사본 만들기 (권장) ↗",
-    "reuse.gate.riskTitle": "⚠️ 고급: 이 워크북을 계속 재사용하기 (권장하지 않음)",
-    "reuse.gate.riskCheck": "이 워크북은 1회용이며 여기서 계속 진행하면 기존 보고서 시트와 차트가 덮어쓰여지거나 섞이거나 손상될 수 있음을 이해합니다.",
-    "reuse.gate.btnContinue": "위험을 감수하고 이 워크북에서 계속하기 ➔"
+    "reuse.gate.riskTitle": "또는 이 워크북 재사용 (권장하지 않음)",
+    "reuse.gate.riskCheck": "이 워크북에서 계속 진행하면 현재 보고서 시트가 덮어쓰여진다는 점을 이해합니다.",
+    "reuse.gate.btnContinue": "이 워크북에서 계속 →"
   },
   "zh-CN": {
     "lang.label": "语言",
@@ -7906,12 +7906,12 @@ var CERA_I18N_MESSAGES = {
     "reuse.gate.slidesDesc": "已从此工作簿生成您的 CERA 演示文稿。",
     "reuse.gate.openSlides": "打开 Google Slides 演示文稿 ↗",
     "reuse.gate.recTitle": "✨ 推荐：为下一次运行创建全新副本",
-    "reuse.gate.recB1": "保护当前报告：在同一电子表格中重复运行会覆盖并可能损坏现有的报告标签页、合并单元格和图表。",
+    "reuse.gate.recB1": "保护当前报告：在同一电子表格中重复运行会覆盖现有的报告标签页和图表。",
     "reuse.gate.recB2": "始终保持最新版本：从 goo.gle/cera 创建新副本会自动提供最新经过验证的 CERA 版本。",
     "reuse.gate.recB3": "无需重新提取：如果您已将日志提取到 Google 云端硬盘，只需在新副本中选择“手动导出”并粘贴该文件夹链接，几秒钟内即可完成分析。",
     "reuse.gate.ctaFresh": "打开 goo.gle/cera 创建全新副本（推荐）↗",
-    "reuse.gate.riskTitle": "⚠️ 高级选项：仍在此工作簿中继续运行（不推荐）",
-    "reuse.gate.riskCheck": "我了解此工作簿仅供单次使用，在此继续运行可能会覆盖、混淆或损坏现有的报告工作表和图表。",
-    "reuse.gate.btnContinue": "自行承担风险并在此工作簿中继续 ➔"
+    "reuse.gate.riskTitle": "或重复使用此工作簿（不推荐）",
+    "reuse.gate.riskCheck": "我了解在此工作簿中继续运行将覆盖当前的报告工作表。",
+    "reuse.gate.btnContinue": "在此工作簿中继续 →"
   }
 };
