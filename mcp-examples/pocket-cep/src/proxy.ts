@@ -79,7 +79,10 @@ export async function proxy(request: NextRequest) {
     if (isEnvValidationError(error)) {
       return new NextResponse(renderEnvErrorHtml(error.issues), {
         status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        },
       });
     }
     throw error;
@@ -125,7 +128,10 @@ export async function proxy(request: NextRequest) {
     if (!mcpOk) {
       return new NextResponse(renderMcpUnreachableHtml(env.MCP_SERVER_URL), {
         status: 503,
-        headers: { "content-type": "text/html; charset=utf-8" },
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        },
       });
     }
   }
