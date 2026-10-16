@@ -360,6 +360,9 @@ var InsightEngine = {
         h[k] = T(dest ? 'deck.v.hl' : 'deck.v.hlNoDest', { vector: v.name, bytes: amount, dest: dest, n: v.destinations });
       }
       h[k + 'Sub'] = T(v.topDetector ? 'deck.v.subDetector' : 'deck.v.sub', { n: v.count, people: P(v.users), detector: v.topDetector || '' });
+      h[k + 'DeepSub'] = v.mixText
+        ? T(v.topDetector ? 'deck.v.subDeepDetector' : 'deck.v.subDeep', { n: v.count, people: P(v.users), mix: v.mixText, detector: v.topDetector || '' })
+        : h[k + 'Sub'];
       if (k === 'shadowAi' && f.aiTotal > 0) {
         // Shares of what users sent to AI tools; sanctioned tools used from non-corporate accounts fold into the
         // other-tools share so the two-part percentage bar adds up to 100%, with the detail explained below the bar
@@ -883,8 +886,13 @@ function ceraOutboundFormats(vec, lang, limit) {
   }
   items = items.filter(i => validOuName_(i.name) && (i.bytes > 0 || i.count > 0));
   const byCount = !items.some(i => i.bytes > 0);
+  const totalFormatBasis = items.reduce((s, i) => s + (byCount ? i.count : i.bytes), 0);
   items.sort((a, b) => (byCount ? b.count - a.count : (b.bytes - a.bytes || b.count - a.count)));
-  items.forEach(i => { i.volumeGb = i.bytes / (1024 ** 3); i.totalBytes = i.bytes; });
+  items.forEach(i => {
+    i.volumeGb = i.bytes / (1024 ** 3);
+    i.totalBytes = i.bytes;
+    i.sharePct = totalFormatBasis > 0 ? Math.round(((byCount ? i.count : i.bytes) / totalFormatBasis) * 100) : 0;
+  });
   return limit ? items.slice(0, limit) : items;
 }
 

@@ -1312,7 +1312,7 @@ var CERA_I18N_MESSAGES = {
     "deck.family.image": "Image",
     "deck.family.video": "Video",
     "deck.family.audio": "Audio",
-    "deck.family.text": "Text",
+    "deck.family.text": "Text & Pastes",
     "deck.family.code": "Code",
     "deck.family.executable": "Executable",
     "deck.family.extension": "Browser extension",
@@ -1596,7 +1596,49 @@ var CERA_I18N_MESSAGES = {
     "reuse.gate.ctaFresh": "Open goo.gle/cera to Make a Fresh Copy (Recommended) ↗",
     "reuse.gate.riskTitle": "Or reuse this workbook (not recommended)",
     "reuse.gate.riskCheck": "I understand that continuing in this workbook will overwrite the current report sheets.",
-    "reuse.gate.btnContinue": "Continue in This Workbook →"
+    "reuse.gate.btnContinue": "Continue in This Workbook →",
+    "deck.s3.funnelTitleNone": "Destination Funneling",
+    "deck.s3.scatterTitleSingle": "Single-Destination Activity: {ou}",
+    "deck.s3.scatterTitleNone": "Multi-Portal Dispersion",
+    "deck.s3.afterHoursNote": {
+      "one": "After-hours activity: {n} outbound transfer ({pct}, {amount}) occurred outside 08:00–18:00.",
+      "other": "After-hours activity: {n} outbound transfers ({pct}, {amount}) occurred outside 08:00–18:00."
+    },
+    "deck.s3.scatterNote": "In \"{ou}\", one person spread outbound data across {n} destinations.",
+    "deck.s4.unscannedNote": {
+      "one": "Inspection gap: {n} file ({amount}) was not scanned (encrypted, password-protected or too large).",
+      "other": "Inspection gap: {n} files ({amount}) were not scanned (encrypted, password-protected or too large)."
+    },
+    "deck.s4.onPageNote": {
+      "one": "Page exposure: sensitive data was also matched on pages without a transfer ({n} detection).",
+      "other": "Page exposure: sensitive data was also matched on pages without a transfer ({n} detections)."
+    },
+    "deck.s4.onPageUnmaskedNote": {
+      "one": "Page exposure: sensitive data was matched on pages ({n} detection; {unmasked} unmasked by users).",
+      "other": "Page exposure: sensitive data was matched on pages ({n} detections; {unmasked} unmasked by users)."
+    },
+    "deck.v.subDeep": {
+      "one": "{n} outbound transfer by {people} • {mix}",
+      "other": "{n} outbound transfers by {people} • {mix}"
+    },
+    "deck.v.subDeepDetector": {
+      "one": "{n} outbound transfer by {people} • {mix} • most notable match: {detector}",
+      "other": "{n} outbound transfers by {people} • {mix} • most notable match: {detector}"
+    },
+    "deck.v.primaryTop3": "Top {m} destinations account for {pct} of this channel.",
+    "deck.v.formatUnscanned": {
+      "one": "Unscanned: {n} file ({amount}).",
+      "other": "Unscanned: {n} files ({amount})."
+    },
+    "deck.ai.topTools": "Top unsanctioned tools: {list}.",
+    "deck.sig.pwExternal": {
+      "one": "{n} of {total} event was on an external site.",
+      "other": "{n} of {total} events were on external sites."
+    },
+    "deck.sig.pwChanged": {
+      "one": "Password changes logged: {n}.",
+      "other": "Password changes logged: {n}."
+    }
   },
   "id": {
     "lang.label": "Bahasa",
@@ -2891,7 +2933,7 @@ var CERA_I18N_MESSAGES = {
     "deck.family.image": "Gambar",
     "deck.family.video": "File video",
     "deck.family.audio": "File audio",
-    "deck.family.text": "Teks",
+    "deck.family.text": "Teks & Tempelan",
     "deck.family.code": "Kode",
     "deck.family.executable": "File program",
     "deck.family.extension": "Ekstensi browser",
@@ -3175,7 +3217,49 @@ var CERA_I18N_MESSAGES = {
     "reuse.gate.ctaFresh": "Buka goo.gle/cera untuk Buat Salinan Baru (Direkomendasikan) ↗",
     "reuse.gate.riskTitle": "Atau gunakan kembali workbook ini (tidak direkomendasikan)",
     "reuse.gate.riskCheck": "Saya memahami bahwa melanjutkan di workbook ini akan menimpa sheet laporan yang ada saat ini.",
-    "reuse.gate.btnContinue": "Lanjutkan di Workbook Ini →"
+    "reuse.gate.btnContinue": "Lanjutkan di Workbook Ini →",
+    "deck.s3.funnelTitleNone": "Pemusatan Tujuan",
+    "deck.s3.scatterTitleSingle": "Aktivitas Satu Tujuan: {ou}",
+    "deck.s3.scatterTitleNone": "Sebaran Lintas Portal",
+    "deck.s3.afterHoursNote": {
+      "one": "Aktivitas di luar jam kerja: {n} transfer keluar ({pct}, {amount}) terjadi di luar pukul 08.00–18.00.",
+      "other": "Aktivitas di luar jam kerja: {n} transfer keluar ({pct}, {amount}) terjadi di luar pukul 08.00–18.00."
+    },
+    "deck.s3.scatterNote": "Di \"{ou}\", satu orang menyebarkan data keluar ke {n} tujuan.",
+    "deck.s4.unscannedNote": {
+      "one": "Celah inspeksi: {n} file ({amount}) tidak dipindai (terenkripsi, dilindungi sandi, atau terlalu besar).",
+      "other": "Celah inspeksi: {n} file ({amount}) tidak dipindai (terenkripsi, dilindungi sandi, atau terlalu besar)."
+    },
+    "deck.s4.onPageNote": {
+      "one": "Eksposur halaman: data sensitif juga terdeteksi pada halaman tanpa transfer ({n} deteksi).",
+      "other": "Eksposur halaman: data sensitif juga terdeteksi pada halaman tanpa transfer ({n} deteksi)."
+    },
+    "deck.s4.onPageUnmaskedNote": {
+      "one": "Eksposur halaman: data sensitif terdeteksi pada halaman ({n} deteksi; {unmasked} dibuka samaran oleh pengguna).",
+      "other": "Eksposur halaman: data sensitif terdeteksi pada halaman ({n} deteksi; {unmasked} dibuka samaran oleh pengguna)."
+    },
+    "deck.v.subDeep": {
+      "one": "{n} transfer keluar oleh {people} • {mix}",
+      "other": "{n} transfer keluar oleh {people} • {mix}"
+    },
+    "deck.v.subDeepDetector": {
+      "one": "{n} transfer keluar oleh {people} • {mix} • kecocokan utama: {detector}",
+      "other": "{n} transfer keluar oleh {people} • {mix} • kecocokan utama: {detector}"
+    },
+    "deck.v.primaryTop3": "{m} tujuan teratas mencakup {pct} dari kanal ini.",
+    "deck.v.formatUnscanned": {
+      "one": "Tidak dipindai: {n} file ({amount}).",
+      "other": "Tidak dipindai: {n} file ({amount})."
+    },
+    "deck.ai.topTools": "Alat AI tidak resmi teratas: {list}.",
+    "deck.sig.pwExternal": {
+      "one": "{n} dari {total} kejadian terjadi di situs eksternal.",
+      "other": "{n} dari {total} kejadian terjadi di situs eksternal."
+    },
+    "deck.sig.pwChanged": {
+      "one": "Perubahan sandi tercatat: {n}.",
+      "other": "Perubahan sandi tercatat: {n}."
+    }
   },
   "ja": {
     "lang.label": "言語",
@@ -4470,7 +4554,7 @@ var CERA_I18N_MESSAGES = {
     "deck.family.image": "画像",
     "deck.family.video": "動画",
     "deck.family.audio": "音声",
-    "deck.family.text": "テキスト",
+    "deck.family.text": "テキスト・貼り付け",
     "deck.family.code": "コード",
     "deck.family.executable": "実行ファイル",
     "deck.family.extension": "ブラウザ拡張機能",
@@ -4754,7 +4838,49 @@ var CERA_I18N_MESSAGES = {
     "reuse.gate.ctaFresh": "goo.gle/cera を開いて新しいコピーを作成（推奨）↗",
     "reuse.gate.riskTitle": "またはこのワークブックを再利用する（非推奨）",
     "reuse.gate.riskCheck": "このワークブックで続行すると、現在のレポートシートが上書きされることを理解しています。",
-    "reuse.gate.btnContinue": "このワークブックで続行 →"
+    "reuse.gate.btnContinue": "このワークブックで続行 →",
+    "deck.s3.funnelTitleNone": "送信先の集中",
+    "deck.s3.scatterTitleSingle": "単一送信先のアクティビティ: {ou}",
+    "deck.s3.scatterTitleNone": "複数サイトへの分散",
+    "deck.s3.afterHoursNote": {
+      "one": "時間外のアクティビティ: {n} 件の外部送信（{pct}、{amount}）が 08:00〜18:00 以外に発生しました。",
+      "other": "時間外のアクティビティ: {n} 件の外部送信（{pct}、{amount}）が 08:00〜18:00 以外に発生しました。"
+    },
+    "deck.s3.scatterNote": "「{ou}」では 1 人が {n} 件の送信先にデータを分散送信しました。",
+    "deck.s4.unscannedNote": {
+      "one": "検査対象外: {n} 件のファイル（{amount}）が未スキャンでした（暗号化、パスワード保護、またはサイズ超過）。",
+      "other": "検査対象外: {n} 件のファイル（{amount}）が未スキャンでした（暗号化、パスワード保護、またはサイズ超過）。"
+    },
+    "deck.s4.onPageNote": {
+      "one": "ページ上の検出: 送信を伴わないページ表示でも機密データが {n} 件検出されました。",
+      "other": "ページ上の検出: 送信を伴わないページ表示でも機密データが {n} 件検出されました。"
+    },
+    "deck.s4.onPageUnmaskedNote": {
+      "one": "ページ上の検出: ページ上で機密データが {n} 件検出されました（うち {unmasked} 件はユーザーがマスクを解除）。",
+      "other": "ページ上の検出: ページ上で機密データが {n} 件検出されました（うち {unmasked} 件はユーザーがマスクを解除）。"
+    },
+    "deck.v.subDeep": {
+      "one": "{people}による {n} 件の送信転送 • {mix}",
+      "other": "{people}による {n} 件の送信転送 • {mix}"
+    },
+    "deck.v.subDeepDetector": {
+      "one": "{people}による {n} 件の送信転送 • {mix} • 主な一致：{detector}",
+      "other": "{people}による {n} 件の送信転送 • {mix} • 主な一致：{detector}"
+    },
+    "deck.v.primaryTop3": "上位 {m} 件の送信先でこのチャネルの {pct} を占めています。",
+    "deck.v.formatUnscanned": {
+      "one": "未スキャン: {n} ファイル（{amount}）。",
+      "other": "未スキャン: {n} ファイル（{amount}）。"
+    },
+    "deck.ai.topTools": "上位の非公認ツール: {list}。",
+    "deck.sig.pwExternal": {
+      "one": "{total} 件中 {n} 件が外部サイトで発生しました。",
+      "other": "{total} 件中 {n} 件が外部サイトで発生しました。"
+    },
+    "deck.sig.pwChanged": {
+      "one": "記録されたパスワード変更: {n} 件。",
+      "other": "記録されたパスワード変更: {n} 件。"
+    }
   },
   "ko": {
     "lang.label": "언어",
@@ -6049,7 +6175,7 @@ var CERA_I18N_MESSAGES = {
     "deck.family.image": "이미지",
     "deck.family.video": "동영상",
     "deck.family.audio": "오디오",
-    "deck.family.text": "텍스트",
+    "deck.family.text": "텍스트 및 붙여넣기",
     "deck.family.code": "코드",
     "deck.family.executable": "실행 파일",
     "deck.family.extension": "브라우저 확장 프로그램",
@@ -6333,7 +6459,49 @@ var CERA_I18N_MESSAGES = {
     "reuse.gate.ctaFresh": "goo.gle/cera를 열어 새 사본 만들기 (권장) ↗",
     "reuse.gate.riskTitle": "또는 이 워크북 재사용 (권장하지 않음)",
     "reuse.gate.riskCheck": "이 워크북에서 계속 진행하면 현재 보고서 시트가 덮어쓰여진다는 점을 이해합니다.",
-    "reuse.gate.btnContinue": "이 워크북에서 계속 →"
+    "reuse.gate.btnContinue": "이 워크북에서 계속 →",
+    "deck.s3.funnelTitleNone": "대상 집중",
+    "deck.s3.scatterTitleSingle": "단일 대상 활동: {ou}",
+    "deck.s3.scatterTitleNone": "다중 포털 분산",
+    "deck.s3.afterHoursNote": {
+      "one": "일과 외 활동: 외부 전송 {n}건({pct}, {amount})이 08:00~18:00 외 시간대에 발생했습니다.",
+      "other": "일과 외 활동: 외부 전송 {n}건({pct}, {amount})이 08:00~18:00 외 시간대에 발생했습니다."
+    },
+    "deck.s3.scatterNote": "\"{ou}\"에서 1명이 {n}개 대상으로 외부 데이터를 분산 전송했습니다.",
+    "deck.s4.unscannedNote": {
+      "one": "검사 공백: 파일 {n}개({amount})가 스캔되지 않았습니다(암호화, 비밀번호 보호 또는 크기 초과).",
+      "other": "검사 공백: 파일 {n}개({amount})가 스캔되지 않았습니다(암호화, 비밀번호 보호 또는 크기 초과)."
+    },
+    "deck.s4.onPageNote": {
+      "one": "페이지 노출: 전송 없이 페이지에 표시된 민감한 데이터도 {n}건 감지되었습니다.",
+      "other": "페이지 노출: 전송 없이 페이지에 표시된 민감한 데이터도 {n}건 감지되었습니다."
+    },
+    "deck.s4.onPageUnmaskedNote": {
+      "one": "페이지 노출: 페이지에서 민감한 데이터가 {n}건 감지되었습니다(사용자 마스킹 해제 {unmasked}건).",
+      "other": "페이지 노출: 페이지에서 민감한 데이터가 {n}건 감지되었습니다(사용자 마스킹 해제 {unmasked}건)."
+    },
+    "deck.v.subDeep": {
+      "one": "{people}의 외부 전송 {n}건 • {mix}",
+      "other": "{people}의 외부 전송 {n}건 • {mix}"
+    },
+    "deck.v.subDeepDetector": {
+      "one": "{people}의 외부 전송 {n}건 • {mix} • 주요 감지 항목: {detector}",
+      "other": "{people}의 외부 전송 {n}건 • {mix} • 주요 감지 항목: {detector}"
+    },
+    "deck.v.primaryTop3": "상위 {m}개 대상이 이 채널의 {pct}를 차지합니다.",
+    "deck.v.formatUnscanned": {
+      "one": "미스캔: 파일 {n}개({amount}).",
+      "other": "미스캔: 파일 {n}개({amount})."
+    },
+    "deck.ai.topTools": "상위 비인가 도구: {list}.",
+    "deck.sig.pwExternal": {
+      "one": "{total}건 중 {n}건이 외부 사이트에서 발생했습니다.",
+      "other": "{total}건 중 {n}건이 외부 사이트에서 발생했습니다."
+    },
+    "deck.sig.pwChanged": {
+      "one": "기록된 비밀번호 변경: {n}건.",
+      "other": "기록된 비밀번호 변경: {n}건."
+    }
   },
   "zh-CN": {
     "lang.label": "语言",
@@ -7628,7 +7796,7 @@ var CERA_I18N_MESSAGES = {
     "deck.family.image": "图片",
     "deck.family.video": "视频",
     "deck.family.audio": "音频",
-    "deck.family.text": "文本",
+    "deck.family.text": "文本与粘贴",
     "deck.family.code": "代码",
     "deck.family.executable": "可执行文件",
     "deck.family.extension": "浏览器扩展程序",
@@ -7912,6 +8080,48 @@ var CERA_I18N_MESSAGES = {
     "reuse.gate.ctaFresh": "打开 goo.gle/cera 创建全新副本（推荐）↗",
     "reuse.gate.riskTitle": "或重复使用此工作簿（不推荐）",
     "reuse.gate.riskCheck": "我了解在此工作簿中继续运行将覆盖当前的报告工作表。",
-    "reuse.gate.btnContinue": "在此工作簿中继续 →"
+    "reuse.gate.btnContinue": "在此工作簿中继续 →",
+    "deck.s3.funnelTitleNone": "目标集中",
+    "deck.s3.scatterTitleSingle": "单一目标活动：{ou}",
+    "deck.s3.scatterTitleNone": "多门户分散",
+    "deck.s3.afterHoursNote": {
+      "one": "非工作时间活动：{n} 次外发传输（{pct}，{amount}）发生在 08:00–18:00 之外。",
+      "other": "非工作时间活动：{n} 次外发传输（{pct}，{amount}）发生在 08:00–18:00 之外。"
+    },
+    "deck.s3.scatterNote": "在“{ou}”中，1 人将外发数据分散发送至 {n} 个目标。",
+    "deck.s4.unscannedNote": {
+      "one": "检查盲区：{n} 个文件（{amount}）未扫描（加密、受密码保护或体积过大）。",
+      "other": "检查盲区：{n} 个文件（{amount}）未扫描（加密、受密码保护或体积过大）。"
+    },
+    "deck.s4.onPageNote": {
+      "one": "页面暴露：在无传输的页面上也检测到敏感数据（{n} 次检测）。",
+      "other": "页面暴露：在无传输的页面上也检测到敏感数据（{n} 次检测）。"
+    },
+    "deck.s4.onPageUnmaskedNote": {
+      "one": "页面暴露：页面上检测到敏感数据（{n} 次检测；其中 {unmasked} 次被用户取消遮盖）。",
+      "other": "页面暴露：页面上检测到敏感数据（{n} 次检测；其中 {unmasked} 次被用户取消遮盖）。"
+    },
+    "deck.v.subDeep": {
+      "one": "{people}进行了 {n} 次外发传输 • {mix}",
+      "other": "{people}进行了 {n} 次外发传输 • {mix}"
+    },
+    "deck.v.subDeepDetector": {
+      "one": "{people}进行了 {n} 次外发传输 • {mix} • 最值得关注的匹配项：{detector}",
+      "other": "{people}进行了 {n} 次外发传输 • {mix} • 最值得关注的匹配项：{detector}"
+    },
+    "deck.v.primaryTop3": "前 {m} 个目标占该渠道的 {pct}。",
+    "deck.v.formatUnscanned": {
+      "one": "未扫描：{n} 个文件（{amount}）。",
+      "other": "未扫描：{n} 个文件（{amount}）。"
+    },
+    "deck.ai.topTools": "主要非授权工具：{list}。",
+    "deck.sig.pwExternal": {
+      "one": "{total} 起事件中有 {n} 起发生在外部网站上。",
+      "other": "{total} 起事件中有 {n} 起发生在外部网站上。"
+    },
+    "deck.sig.pwChanged": {
+      "one": "已记录的密码更改：{n} 次。",
+      "other": "已记录的密码更改：{n} 次。"
+    }
   }
 };

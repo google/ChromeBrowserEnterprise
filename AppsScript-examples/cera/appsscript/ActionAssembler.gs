@@ -433,7 +433,7 @@ function ceraRowJoinsAction_(action, r) {
  * executable, extension or other. The extension of the Content Name decides first (CERA_FILE_FAMILY_EXTENSIONS);
  * without a known one the MIME type does. A paste or a printed page (text/plain, text/html) is text.
  */
-function ceraFileFamily_(contentName, mime) {
+function ceraFileFamily_(contentName, mime, outboundKind) {
   const name = String(contentName || '').trim().toLowerCase();
   const dot = name.lastIndexOf('.');
   if (dot > 0 && dot < name.length - 1) {
@@ -444,7 +444,7 @@ function ceraFileFamily_(contentName, mime) {
     }
   }
   const m = String(mime || '').trim().toLowerCase().split(';')[0];
-  if (!m) return 'other';
+  if (!m) return outboundKind === 'paste' ? 'text' : 'other';
   if (m === 'application/pdf') return 'pdf';
   if (/x-chrome-extension|x-xpinstall/.test(m)) return 'extension';
   if (/spreadsheet|excel|^text\/csv$|^application\/csv$|tab-separated-values/.test(m)) return 'spreadsheet';

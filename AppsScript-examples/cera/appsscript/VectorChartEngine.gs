@@ -177,12 +177,18 @@ var VectorChartEngine = {
     const displayItems = items.slice(0, 5);
 
     // Calculate maximum total for proportional scaling
+    const hasByteVolume = displayItems.some(i => {
+      const up = Number(i.uploadGb || 0);
+      const down = Number(i.downloadGb || 0);
+      const prn = Number(i.printGb || 0);
+      return Number(i.volumeGb || (up + down + prn) || 0) > 0;
+    });
     let maxTotal = 0;
     displayItems.forEach(i => {
       const up = Number(i.uploadGb || 0);
       const down = Number(i.downloadGb || 0);
       const prn = Number(i.printGb || 0);
-      const total = Number(i.volumeGb || (up + down + prn) || i.count || 0);
+      const total = hasByteVolume ? Number(i.volumeGb || (up + down + prn) || 0) : Number(i.count || 0);
       if (total > maxTotal) maxTotal = total;
     });
     if (maxTotal <= 0) maxTotal = 1.0;
@@ -262,6 +268,9 @@ var VectorChartEngine = {
         if (total > 0 && count > 0) {
           valStr = `${totalStr} • ${this.countText_(count, options)}`;
         }
+        if (typeof item.sharePct === 'number' && item.sharePct > 0) {
+          valStr += ` (${item.sharePct}%)`;
+        }
       }
       const valBox = slide.insertTextBox(valStr, x + 168, rowY + 1.5, cardW - 172, 15);
       valBox.getText().getTextStyle().setFontFamily('Roboto').setFontSize(this.fitSize_(valStr, cardW - 172, 7)).setBold(true).setForegroundColor(isTop ? (options.vectorColor || p.primary) : p.textMuted);
@@ -277,11 +286,23 @@ var VectorChartEngine = {
       track.getFill().setSolidFill('#F1F5F9');
       track.getBorder().setTransparent();
 
-      // Proportional Segment Fills
+      // Proportional Segment Fills (byte-weighted when bytes exist, count-weighted for sizeless pastes/uploads)
       let segX = barX;
-      const upW = Math.max(0, (up / maxTotal) * trackW);
-      const downW = Math.max(0, (down / maxTotal) * trackW);
-      const prnW = Math.max(0, (prn / maxTotal) * trackW);
+      let upW = Math.max(0, (up / maxTotal) * trackW);
+      let downW = Math.max(0, (down / maxTotal) * trackW);
+      let prnW = Math.max(0, (prn / maxTotal) * trackW);
+      if (up === 0 && down === 0 && prn === 0 && count > 0) {
+        const upCount = Number(item.uploadCount || 0);
+        const pasteCount = Number(item.pasteCount || 0);
+        const kindTotal = upCount + pasteCount;
+        const barTotalW = hasByteVolume ? Math.max(4, Math.min(18, trackW * 0.08)) : Math.max(2, (count / maxTotal) * trackW);
+        if (kindTotal > 0) {
+          upW = (upCount / kindTotal) * barTotalW;
+          downW = (pasteCount / kindTotal) * barTotalW;
+        } else {
+          upW = barTotalW;
+        }
+      }
 
       if (upW > 0.5) {
         const segUp = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, segX, barY, Math.min(upW, (barX + trackW) - segX), barH);
@@ -388,6 +409,9 @@ var VectorChartEngine = {
       } else {
         valStr = (typeof val === 'number' && val % 1 !== 0 ? val.toFixed(2) : Number(val || 0).toLocaleString()) + suffix;
       }
+      if (typeof item.sharePct === 'number' && item.sharePct > 0) {
+        valStr += ` (${item.sharePct}%)`;
+      }
       const valBox = slide.insertTextBox(valStr, x + 168, rowY + 1.5, cardW - 172, 15);
       valBox.getText().getTextStyle().setFontFamily('Roboto').setFontSize(this.fitSize_(valStr, cardW - 172, 7)).setBold(true).setForegroundColor(isTop ? barColor : p.textMuted);
       valBox.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.END);
@@ -489,6 +513,18 @@ var VectorChartEngine = {
       line.getFill().setSolidFill(step.ratio === 0.0 ? '#CBD5E1' : '#F1F5F9');
       line.getBorder().setTransparent();
     });
+
+    // Active-day average reference line when at least 2 active days are charted
+    const activeVols = volumes.filter(v => v > 0);
+    if (activeVols.length >= 2) {
+      const avgVol = activeVols.reduce((s, v) => s + v, 0) / activeVols.length;
+      if (avgVol > 0 && avgVol < topGridVal * 0.92) {
+        const avgY = plotY + plotH - ((avgVol / topGridVal) * plotH);
+        const avgLine = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, plotX, avgY, plotW, 1);
+        avgLine.getFill().setSolidFill(p.amber || '#D97706');
+        avgLine.getBorder().setTransparent();
+      }
+    }
 
     // 2. Smart Column Spacing & Distribution
     const numPoints = volumes.length;

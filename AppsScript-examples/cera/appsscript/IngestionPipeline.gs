@@ -1294,17 +1294,30 @@ function ceraAggregateAction_(a, scope, state) {
     // Outbound volume by file family: the extension of the Content Name first, the MIME type otherwise
     if (isEgressAction(action)) {
       if (!assignedVector.families) assignedVector.families = {};
-      const family = ceraFileFamily_(a.contentName, a.contentType);
+      const family = ceraFileFamily_(a.contentName, a.contentType, outboundKind);
       const fam = assignedVector.families[family] || (assignedVector.families[family] = { bytes: 0, count: 0 });
       fam.bytes += sizeBytes;
       fam.count++;
+      if (a.unscanned) {
+        if (!assignedVector.egress.unscanned) assignedVector.egress.unscanned = { count: 0, bytes: 0 };
+        assignedVector.egress.unscanned.count++;
+        assignedVector.egress.unscanned.bytes += sizeBytes;
+      }
     }
     // Detector names as the customer's rules report them (NIK, Date of Birth, custom rules), not only the
     // four coarse categories, so insights can name what was detected
     if (isSensitive && a.detectors.length) {
       if (!assignedVector.detectorNames) assignedVector.detectorNames = {};
+      if (isEgressAction(action)) {
+        if (!assignedVector.egress.detectorNames) assignedVector.egress.detectorNames = {};
+        if (!state.egress.detectorNames) state.egress.detectorNames = {};
+      }
       a.detectors.forEach(d => {
         assignedVector.detectorNames[d] = (assignedVector.detectorNames[d] || 0) + 1;
+        if (isEgressAction(action)) {
+          assignedVector.egress.detectorNames[d] = (assignedVector.egress.detectorNames[d] || 0) + 1;
+          state.egress.detectorNames[d] = (state.egress.detectorNames[d] || 0) + 1;
+        }
       });
     }
     // Outbound actions per account class (consumer, otherOrg), next to the vector's outbound count: a download made
@@ -1399,6 +1412,11 @@ function ceraAggregateAction_(a, scope, state) {
         state.egress.sensitiveCount = (state.egress.sensitiveCount || 0) + 1;
         assignedVector.egress.sensitiveCount = (assignedVector.egress.sensitiveCount || 0) + 1;
         if (left) state.egress.sensitiveLeft = (state.egress.sensitiveLeft || 0) + 1;
+      }
+      if (a.unscanned) {
+        if (!state.egress.unscanned) state.egress.unscanned = { count: 0, bytes: 0 };
+        state.egress.unscanned.count++;
+        state.egress.unscanned.bytes += sizeBytes;
       }
     }
 

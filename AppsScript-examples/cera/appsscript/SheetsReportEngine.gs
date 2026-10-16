@@ -252,11 +252,14 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   // Unit that sent the most data out (outbound bytes, or outbound transfers when none had a size), as on the deck's
   // unit slide; downloads do not rank a unit here
   const outboundBySize = reportNum_(state.egress && state.egress.bytes) > 0;
-  const topOutUnit = Object.keys(state.globalOUs || {}).map(k => {
+  const notRepOu = ceraT('report.ou.notReported', null, lang);
+  const allOutUnits = Object.keys(state.globalOUs || {}).map(k => {
     const e = state.globalOUs[k] || {};
     return { name: e.name || k, bytes: reportNum_(e.egressBytes), count: reportNum_(e.egressCount) };
   }).filter(u => u.name && u.name !== 'N/A' && (u.bytes > 0 || u.count > 0))
-    .sort((a, b) => b.bytes - a.bytes || b.count - a.count || (a.name < b.name ? -1 : 1))[0] || null;
+    .sort((a, b) => b.bytes - a.bytes || b.count - a.count || (a.name < b.name ? -1 : 1));
+  const realOutUnits = allOutUnits.filter(u => u.name !== notRepOu && u.name !== 'Unassigned OU');
+  const topOutUnit = (realOutUnits.length ? realOutUnits : allOutUnits)[0] || null;
   const topTypeName = topGlobalType.length ? ceraMimeLabel(topGlobalType[0].name, lang) : T('deck.notRecorded');
 
   // User concentration measured like the deck: the fewest people holding 80% of the outbound data of identified people
