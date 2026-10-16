@@ -336,7 +336,7 @@
       right: 0;
       background: #FFFFFF;
       border-top: 1px solid #E2E8F0;
-      padding: 10px 22px 24px 22px;
+      padding: 12px 22px 12px 175px;
       display: flex;
       justify-content: flex-end;
       align-items: center;
@@ -346,18 +346,17 @@
     }
     #cera-disclaimer-footer {
       position: fixed;
-      bottom: 4px;
-      left: 0;
-      right: 0;
+      bottom: 20px;
+      left: 22px;
       z-index: 101;
-      font-size: 10.5px;
-      color: #64748B;
-      text-align: center;
+      font-size: 11px;
+      color: #94A3B8;
+      text-align: left;
       line-height: 1.2;
       pointer-events: none;
     }
     #cera-disclaimer-footer a {
-      color: #64748B;
+      color: #94A3B8;
       text-decoration: none;
       pointer-events: auto;
     }
@@ -608,7 +607,8 @@
     @keyframes beat { 50% { transform: scale(1.035); } }
     @media (prefers-reduced-motion: reduce) { .glow, .glow::before, .card span { animation: none; } }
 
-    .btn-slides { display: inline-block; margin-top: 14px; padding: 11px 22px; background: #059669; color: white; text-decoration: none; border-radius: 9999px; font-weight: 600; font-size: 12.5px; }
+    .btn-slides { display: inline-block; margin-top: 14px; padding: 11px 22px; background: #D97706; color: #FFFFFF; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 12.5px; box-shadow: 0 2px 6px rgba(217, 119, 6, 0.25); transition: background 0.15s ease; }
+    .btn-slides:hover { background: #B45309; color: #FFFFFF; text-decoration: none; }
     .btn-feedback-pill { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 9999px; border: 1px solid #CBD5E1; background: #FFFFFF; color: #334155; font-size: 11.5px; font-weight: 600; text-decoration: none; transition: all 0.15s ease; }
     .btn-feedback-pill:hover { background: #F1F5F9; border-color: #94A3B8; color: #0F172A; text-decoration: none; }
     .folder-card { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
@@ -641,11 +641,11 @@
       <p id="reuse-gate-desc" data-i18n="reuse.gate.desc" class="step-desc">Each CERA spreadsheet is designed for a single, one-time assessment so your generated report tabs, charts, and diagnostic logs stay clean and intact.</p>
     </div>
 
-    <!-- Generated Executive Presentation Card (shown when a Slide Deck was already generated in this workbook) -->
-    <div id="reuse-gate-slides-card" style="display: none; background: #ECFDF5; border: 2px solid #6EE7B7; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; text-align: center;">
-      <div id="reuse-gate-slides-title" data-i18n="reuse.gate.slidesTitle" style="font-weight: 700; font-size: 13.5px; color: #065F46; margin-bottom: 4px;">✅ Generated Executive Presentation Ready</div>
-      <div id="reuse-gate-slides-summary" data-i18n="reuse.gate.slidesDesc" style="font-size: 11.5px; color: #047857; line-height: 1.45; margin-bottom: 10px;">Your CERA presentation deck has already been generated from this workbook.</div>
-      <a id="btn-reuse-open-slides" data-i18n="reuse.gate.openSlides" href="#" target="_blank" rel="noopener noreferrer" class="btn-slides" style="display: inline-block; margin-top: 0; padding: 10px 20px; background: #059669; color: #FFFFFF; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open Google Slides Presentation Deck ↗</a>
+    <!-- Generated Executive Presentation Card (Google Slides Warm Amber/Gold Theme) -->
+    <div id="reuse-gate-slides-card" style="display: none; background: #FFFBEB; border: 2px solid #FCD34D; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; text-align: center;">
+      <div id="reuse-gate-slides-title" data-i18n="reuse.gate.slidesTitle" style="font-weight: 700; font-size: 13.5px; color: #92400E; margin-bottom: 4px;">📊 Generated Executive Presentation Ready</div>
+      <div id="reuse-gate-slides-summary" data-i18n="reuse.gate.slidesDesc" style="font-size: 11.5px; color: #B45309; line-height: 1.45; margin-bottom: 10px;">Your CERA presentation deck has already been generated from this workbook.</div>
+      <a id="btn-reuse-open-slides" data-i18n="reuse.gate.openSlides" href="#" target="_blank" rel="noopener noreferrer" class="btn-slides" style="display: inline-block; margin-top: 0; padding: 10px 20px; background: #D97706; color: #FFFFFF; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open Google Slides Presentation Deck ↗</a>
     </div>
 
     <!-- Primary Recommended Hero Card: Make a Fresh Copy at goo.gle/cera -->
@@ -1301,7 +1301,7 @@
     </div>
   </div>
 
-  <div id="cera-disclaimer-footer" data-i18n-html="dialog.disclaimer"><a href="https://github.com/google/ChromeBrowserEnterprise/blob/main/AppsScript-examples/cera/DISCLAIMER.md" target="_blank" rel="noopener noreferrer">Disclaimer &amp; Privacy Policy ↗</a></div>
+  <div id="cera-disclaimer-footer" data-i18n-html="dialog.disclaimer"><a href="https://github.com/google/ChromeBrowserEnterprise/blob/main/AppsScript-examples/cera/DISCLAIMER.md" target="_blank" rel="noopener noreferrer">Disclaimer &amp; Privacy Policy</a></div>
 
   <script>
     let pollInterval = null;
