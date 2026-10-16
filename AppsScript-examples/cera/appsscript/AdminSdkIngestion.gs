@@ -258,15 +258,19 @@ function engageCloudIngestion(dateRangeDays, runFirstBatchInline) {
   // Pre-flight plan (active weeks and expected events per day), when it ran for this range just now
   const plan = ceraLoadPreflightPlan_(daysFilter);
   const firstActiveMs = plan ? ceraPlanFirstActiveMs_(plan, windowStartMs) : 0;
+  const initialExpected = plan && Number(plan.total) > 0 ? Number(plan.total) : 0;
+  const initialEtaSec = plan && Number(plan.etaSec) > 0 ? Number(plan.etaSec) : 0;
 
   const initialState = {
     activityId: activityId,
     plan: plan,
+    expectedEvents: initialExpected,
+    etaSec: initialEtaSec,
     status: 'RUNNING',
     processedCount: 0,
     scannedCount: 0,
     timeSpanPct: 0,
-    estimatedRemainingSec: 0,
+    estimatedRemainingSec: initialEtaSec,
     elapsedTimeSec: 0,
     totalRealTimeElapsedMs: 0,
     processingRate: 0,
@@ -342,7 +346,8 @@ function engageCloudIngestion(dateRangeDays, runFirstBatchInline) {
     timeSpanPct: finalStatus === 'COMPLETED' ? 100 : Number((latestState && latestState.timeSpanPct) || 0),
     rate: Number((latestState && (latestState.processingRate || latestState.rate)) || 0),
     fileIndex: Number((latestState && latestState.fileIndex) || 1),
-    etaSec: finalStatus === 'COMPLETED' ? 0 : Number((latestState && latestState.etaSec) || 0)
+    expectedEvents: Number((latestState && latestState.expectedEvents) || initialExpected || 0),
+    etaSec: finalStatus === 'COMPLETED' ? 0 : Number((latestState && latestState.etaSec) || initialEtaSec || 0)
   };
 }
 
@@ -746,6 +751,16 @@ function processCloudIngestionBatch() {
         state.sliceChecked = true;
       }
 
+      // Fast-skip streams proven to have 0 events across the window in preflight census on historical day slices
+      if (state.plan && state.plan.zeroStreams && sliceEndMs <= targetEndMs - 15 * 60000) {
+        TARGET_EVENTS.forEach(ev => {
+          if (state.plan.zeroStreams[ev]) {
+            if (!eventStreams[ev]) eventStreams[ev] = { pageToken: null, completed: true, count: 0, dayRows: 0 };
+            else eventStreams[ev].completed = true;
+          }
+        });
+      }
+
       // Check active event streams for current day slice
       const activeEvents = TARGET_EVENTS.filter(ev => !eventStreams[ev] || !eventStreams[ev].completed);
       if (activeEvents.length === 0) {
@@ -921,10 +936,12 @@ function processCloudIngestionBatch() {
     const tickEndMs = Date.now();
     const workEstimate = ceraUpdateWorkEstimate_(state, work, executionStartTime, tickEndMs, currentCursorMs, targetEndMs, eventStreams, totalScanned);
     let workPct = null;
-    if (workEstimate && !jobComplete) {
-      etaSec = workEstimate.etaSec;
-      workPct = workEstimate.pct;
-      state.expectedEvents = workEstimate.expectedEvents;
+    if (workEstimate) {
+      state.expectedEvents = jobComplete && totalScanned > 0 ? totalScanned : workEstimate.expectedEvents;
+      if (!jobComplete) {
+        etaSec = workEstimate.etaSec;
+        workPct = workEstimate.pct;
+      }
     }
 
     let displayCursorMs = currentCursorMs;
@@ -1154,8 +1171,8 @@ function ceraTakenFromStream_(stream, ms, id) {
 // REMAINING-WORK ESTIMATE (progress and ETA)
 // ==============================================================================
 
-// Finished active days at which the pre-flight plan and the measured volume weigh equally in the estimate
-var CERA_ETA_PLAN_DAYS = (typeof globalThis !== 'undefined' && globalThis.OVERRIDE_ETA_PLAN_DAYS) || 5;
+// Finished active days at which the pre-flight plan and the measured volume weigh equally in the estimate (2 days on a 7-day window)
+var CERA_ETA_PLAN_DAYS = (typeof globalThis !== 'undefined' && globalThis.OVERRIDE_ETA_PLAN_DAYS) || 2;
 
 /**
  * The plan saved by the pre-flight for the same range, if it ran within the last 2 hours.
@@ -1164,7 +1181,15 @@ function ceraLoadPreflightPlan_(days) {
   try {
     const plan = JSON.parse(PropertiesService.getDocumentProperties().getProperty(CERA_PREFLIGHT_PLAN_KEY) || 'null');
     if (!plan || Number(plan.days) !== Number(days) || Date.now() - Number(plan.savedMs) > CERA_PREFLIGHT_PLAN_TTL_MS) return null;
-    return { startMs: Number(plan.startMs), weeks: String(plan.weeks || ''), perDay: plan.perDay || {}, total: Number(plan.total) || 0 };
+    return {
+      startMs: Number(plan.startMs),
+      weeks: String(plan.weeks || ''),
+      perDay: plan.perDay || {},
+      total: Number(plan.total) || 0,
+      etaSec: Number(plan.etaSec) || 0,
+      isExact: Boolean(plan.isExact),
+      zeroStreams: plan.zeroStreams || null
+    };
   } catch (e) {
     return null;
   }
@@ -1201,8 +1226,9 @@ function ceraRecordDayDone_(state, dayStartMs, eventStreams) {
     day[0] += Number((plan.perDay[ev] || [0, 0])[weekend]) || 0;
     day[1] += Number(eventStreams[ev] && eventStreams[ev].dayRows) || 0;
   });
-  // Empty days before the first event (an active week can start mid-week) say nothing about volume
-  if (!state.recentDays && day[1] === 0) return;
+  // Empty days before the first event when the plan also expected 0 say nothing about volume;
+  // when the plan expected events (day[0] > 0) and actual was 0, record it for downward calibration
+  if (!state.recentDays && day[0] === 0 && day[1] === 0) return;
   state.recentDays = (state.recentDays || []).concat([day]).slice(-7);
   const calib = state.calib || [0, 0, 0];
   state.calib = [calib[0] + 1, calib[1] + day[0], calib[2] + day[1]];
@@ -1211,12 +1237,11 @@ function ceraRecordDayDone_(state, dayStartMs, eventStreams) {
 /**
  * Records this tick's work and cost, then estimates what is left. Returns null without a pre-flight plan.
  *
- * Rows left: the pre-flight total minus the rows already read, spread over the remaining active days in the
- * plan's weekday/weekend shape. This stays right when volume grows over the range (a browser rollout), since the
- * pre-flight sampled the whole range. When the finished days show the plan is off by more than 3x, or more rows
- * were read than it expected, the measured volume of the last 7 active days is used instead.
- * Cost: seconds per request and per row measured over the last 3 ticks, and the wall-clock time those ticks
- * took (trigger gaps included).
+ * Rows left: combines the pre-flight per-day plan with measured daily volume from finished active days (starting from
+ * Day 1) and symmetric intra-day progress from each stream's timestamp edge. Never inflates future days when early
+ * days are quieter than planned.
+ * Cost: seconds per request and per row measured over the last 3 ticks, bounded by physical Apps Script limits so a
+ * sparse tick cannot explode the remaining wall-clock estimate.
  */
 function ceraUpdateWorkEstimate_(state, work, tickStartMs, tickEndMs, cursorMs, targetEndMs, eventStreams, totalScanned) {
   // Wall time per tick includes the gap until the next trigger; the first tick has no previous one to measure from
@@ -1232,10 +1257,14 @@ function ceraUpdateWorkEstimate_(state, work, tickStartMs, tickEndMs, cursorMs, 
   if (!plan) return null;
 
   const sum = key => state.recentTicks.reduce((a, t) => a + (Number(t[key]) || 0), 0);
-  const secPerRequest = sum('r') > 0 ? sum('rm') / sum('r') / 1000 : 0.5;
-  const secPerRow = sum('w') >= 500 ? sum('wm') / sum('w') / 1000 : LEGACY_SHEET_WRITE_SEC_PER_PAGE / 1000;
+  const rawSecPerReq = sum('r') > 0 ? sum('rm') / sum('r') / 1000 : 0.5;
+  const secPerRequest = Math.min(4.0, Math.max(0.2, rawSecPerReq));
+  const rawSecPerRow = sum('w') >= 500 ? sum('wm') / sum('w') / 1000 : LEGACY_SHEET_WRITE_SEC_PER_PAGE / 1000;
+  const secPerRow = Math.min(0.008, Math.max(0.0005, rawSecPerRow));
   const busyMs = sum('rm') + sum('wm');
-  const wallPerBusy = busyMs > 0 ? sum('wall') / busyMs : 60000 / TIME_BUDGET_MS;
+  const defaultDuty = 60000 / TIME_BUDGET_MS;
+  const rawWallPerBusy = busyMs >= 4000 ? sum('wall') / busyMs : defaultDuty;
+  const wallPerBusy = Math.min(2.0, Math.max(1.05, rawWallPerBusy));
 
   // Rows and requests left at a given scale of the plan's per-day rows
   const DAY_MS = 86400000;
@@ -1250,16 +1279,25 @@ function ceraUpdateWorkEstimate_(state, work, tickStartMs, tickEndMs, cursorMs, 
     const sliceEndMs = Math.min(targetEndMs, cursorMs + DAY_MS);
     if (state.sliceChecked || ceraPlanIsActive_(plan, cursorMs)) {
       TARGET_EVENTS.forEach(ev => {
+        if (plan.zeroStreams && plan.zeroStreams[ev] && sliceEndMs <= targetEndMs - 15 * 60000) return;
         const st = eventStreams[ev] || {};
         if (st.completed) return;
         const dayRows = Number(st.dayRows) || 0;
         const plannedDayRows = rowsFor(ev, cursorMs) * share;
         let left = Math.max(0, plannedDayRows - dayRows);
-        // When an active stream has already read more rows than planned for this slice, estimate what remains in the
-        // slice from how far its timestamp edge has moved from sliceEndMs toward cursorMs instead of clamping to 0
-        if (dayRows > 0 && dayRows >= plannedDayRows && Number(st.edgeMs) > cursorMs && Number(st.edgeMs) < sliceEndMs) {
-          const coveredFrac = Math.max(0.05, (sliceEndMs - Number(st.edgeMs)) / Math.max(1, sliceEndMs - cursorMs));
-          left = Math.max(0, Math.round(dayRows * (1 - coveredFrac) / coveredFrac));
+        if (Number(st.edgeMs) > cursorMs && Number(st.edgeMs) < sliceEndMs) {
+          const linearFrac = (sliceEndMs - Number(st.edgeMs)) / Math.max(1, sliceEndMs - cursorMs);
+          // Floor coveredFrac at 0.12 so an early peak-hour burst never extrapolates by 19x
+          const coveredFrac = Math.min(0.98, Math.max(0.12, linearFrac));
+          if (dayRows > 0 && dayRows >= plannedDayRows) {
+            left = Math.max(0, Math.round(dayRows * (1 - coveredFrac) / coveredFrac));
+          } else if (coveredFrac >= 0.20 && plannedDayRows > 0 && dayRows < plannedDayRows * coveredFrac * 0.85) {
+            // Symmetric intra-day downward adjustment when >=20% of the slice is scanned at a lower rate than planned
+            const empiricalLeft = Math.max(0, Math.round(dayRows * (1 - coveredFrac) / coveredFrac));
+            const plannedLeft = Math.max(0, plannedDayRows - dayRows);
+            const trust = Math.min(1, (coveredFrac - 0.15) / 0.65);
+            left = Math.max(0, Math.round((1 - trust) * plannedLeft + trust * empiricalLeft));
+          }
         }
         rows += left;
         requests += Math.max(1, Math.ceil(left / 1000));
@@ -1268,7 +1306,9 @@ function ceraUpdateWorkEstimate_(state, work, tickStartMs, tickEndMs, cursorMs, 
     for (let dayMs = cursorMs + DAY_MS; dayMs < targetEndMs; dayMs += DAY_MS) {
       if (!ceraPlanIsActive_(plan, dayMs)) continue;
       const dayShare = Math.min(1, (targetEndMs - dayMs) / DAY_MS);
+      const dayEndMs = Math.min(targetEndMs, dayMs + DAY_MS);
       TARGET_EVENTS.forEach(ev => {
+        if (plan.zeroStreams && plan.zeroStreams[ev] && dayEndMs <= targetEndMs - 15 * 60000) return;
         const dayRows = rowsFor(ev, dayMs) * dayShare;
         rows += dayRows;
         requests += ceraPagesFor_(dayRows);
@@ -1281,19 +1321,20 @@ function ceraUpdateWorkEstimate_(state, work, tickStartMs, tickEndMs, cursorMs, 
   const calib = state.calib || [0, 0, 0];
   const cumRatio = calib[1] > 0 ? calib[2] / calib[1] : Infinity;
   const planTotal = Number(plan.total) || 0;
-  const planIsOff = (calib[0] >= 7 && (cumRatio > 3 || cumRatio < 1 / 3)) || (planTotal > 0 && totalScanned > planTotal) ||
+  // Two-way calibration from Day 1 (calib[0] >= 1): triggers when actual volume diverges by >2.5x up or down
+  const planIsOff = (calib[0] >= 1 && (cumRatio > 2.5 || cumRatio < 0.4)) ||
+    (planTotal > 0 && totalScanned > planTotal * 1.15) ||
     (planTotal === 0 && totalScanned > 0);
-  // Two views of what is left: the plan total minus the rows read (right when volume changes over the range, as
-  // the plan sampled all of it) and the last 7 active days' volume (right when the plan sample was off). The plan
-  // starts with full weight and hands over as finished days accumulate; it is dropped when it is clearly wrong.
   const recent = state.recentDays || [];
   const recentExpected = recent.reduce((a, d) => a + d[0], 0);
   const recentActual = recent.reduce((a, d) => a + d[1], 0);
-  const measured = (recent.length >= 7 || (planIsOff && recent.length >= 1))
+  const measured = recent.length >= 1
     ? (recentExpected > 0 ? remaining(recentActual / recentExpected) : remaining(1, recentActual / recent.length / TARGET_EVENTS.length))
     : null;
   const raw = remaining(1);
-  const scale = raw.rows > 0 ? Math.max(0, planTotal - totalScanned) / raw.rows : 1;
+  // Never inflate remaining days above 1.0x when early days are quieter than an estimated plan
+  const rawScale = raw.rows > 0 ? Math.max(0, planTotal - totalScanned) / raw.rows : 1;
+  const scale = plan.isExact ? rawScale : Math.min(1, rawScale);
   const anchored = !planIsOff && scale <= 3 && scale >= 1 / 3 ? remaining(scale) : null;
   const planWeight = CERA_ETA_PLAN_DAYS / (CERA_ETA_PLAN_DAYS + calib[0]);
   let left;
@@ -1308,8 +1349,19 @@ function ceraUpdateWorkEstimate_(state, work, tickStartMs, tickEndMs, cursorMs, 
 
   const remainingSec = left.requests * secPerRequest + left.rows * secPerRow;
   const doneSec = state.requestsDone * secPerRequest + totalScanned * secPerRow;
+  const rawEtaSec = Math.round(remainingSec * wallPerBusy);
+  const prevEtaSec = Number(state.etaSec || 0);
+  let finalEtaSec = rawEtaSec;
+  if (prevEtaSec > 0 && state.recentTicks.length >= 2) {
+    const predictedEtaSec = Math.max(0, prevEtaSec - Math.round(wallMs / 1000));
+    if (predictedEtaSec > 0 && !planIsOff && rawEtaSec > predictedEtaSec * 1.35) {
+      finalEtaSec = Math.round(0.35 * (predictedEtaSec * 1.35) + 0.65 * predictedEtaSec);
+    } else if (predictedEtaSec > 0) {
+      finalEtaSec = Math.round(0.45 * rawEtaSec + 0.55 * predictedEtaSec);
+    }
+  }
   return {
-    etaSec: Math.round(remainingSec * wallPerBusy),
+    etaSec: finalEtaSec,
     pct: doneSec + remainingSec > 0 ? Math.round((doneSec / (doneSec + remainingSec)) * 1000) / 10 : 0,
     expectedEvents: Math.round(totalScanned + left.rows)
   };
@@ -2685,7 +2737,7 @@ function ceraRecordDiagTick_(state, work, tickDiag, outcome, rawErrMsg) {
     const tickScanned = (work && work.scanned !== undefined)
       ? Number(work.scanned)
       : Math.max(tickWritten, Number(state.scannedCount || 0) - prevScanned);
-    if (state.expectedEvents && !sd.expectedEvents) {
+    if (state.expectedEvents) {
       sd.expectedEvents = state.expectedEvents;
     }
     if (tickWritten > (sd.peakTickEvents || 0)) sd.peakTickEvents = tickWritten;

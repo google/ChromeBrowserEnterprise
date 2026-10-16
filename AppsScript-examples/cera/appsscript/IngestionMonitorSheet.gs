@@ -240,7 +240,7 @@ var IngestionMonitorSheet = {
     const etaText = (status === 'COMPLETED' || status === 'SUCCESS') ? T('mon.eta.finished')
       : (isIdle || status === 'FAILED') ? T('mon.status.stopped')
         : (status === 'PAUSED') ? T('mon.sheet.streamStatus.paused')
-          : (timeSpanPct >= 1 && etaSec > 0 ? this.formatDuration(etaSec, lang) : T('mon.eta.calculating'));
+          : (etaSec > 0 ? this.formatDuration(etaSec, lang) : T('mon.eta.calculating'));
     sheet.getRange('G4:H4').merge().setValue(T('mon.kpi.eta').toUpperCase())
       .setFontSize(8.5).setFontWeight('bold').setFontColor('#64748B').setBackground('#F1F5F9');
     sheet.getRange('G5:H5').merge().setValue(etaText)

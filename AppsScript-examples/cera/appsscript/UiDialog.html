@@ -2119,7 +2119,7 @@
 
       const eta = Number(cs.etaSec || 0);
       if (isCompleted) setT('mon-eta-txt', 'mon.eta.finished');
-      else if (pct >= 1 && eta > 0) setRaw('mon-eta-txt', formatSec(eta));
+      else if (eta > 0) setRaw('mon-eta-txt', formatSec(eta));
       else setT('mon-eta-txt', 'mon.eta.calculating');
 
       // Controls State
@@ -2335,6 +2335,16 @@
     // Ingestion Actions
     let preflightDays = DEFAULT_RANGE_DAYS;
 
+    function shouldStopAtPreflightGate(res) {
+      if (!res || res.recommendManual) return true;
+      if (res.requiresConfirmation === true) return true;
+      const est = res.estimate || {};
+      const totalEvents = Number(est.totalEvents || 0);
+      const wallHours = Number((est.legacy && est.legacy.wallHours) || 0);
+      if (totalEvents === 0 || totalEvents > 150000 || wallHours > 2.0) return true;
+      return false;
+    }
+
     function startCloudEngage() {
       if (!hasAdminSdkAccess) return;
       preflightDays = Number(document.getElementById('cloudRangeDays').value) || DEFAULT_RANGE_DAYS;
@@ -2346,7 +2356,14 @@
       document.getElementById('init-loader').style.display = 'block';
 
       google.script.run
-        .withSuccessHandler(renderPreflight)
+        .withSuccessHandler(res => {
+          if (res && res.autoStart && !shouldStopAtPreflightGate(res)) {
+            lastPreflight = res;
+            engageAfterPreflight();
+            return;
+          }
+          renderPreflight(res);
+        })
         .withFailureHandler(err => {
           renderPreflight({ recommendManual: true, messageKey: 'pf.failed', messageParams: { error: err.message }, warnings: [] });
         })
@@ -2441,11 +2458,22 @@
           activeExtractedFolderName = res.folderName;
           const initialStatus = (res && res.status) || 'RUNNING';
           const isDone = Boolean(res && res.isCompleted) || initialStatus === 'COMPLETED';
+          const seededExpectedEvents = Number(
+            (res && res.expectedEvents) ||
+            (lastPreflight && lastPreflight.estimate && lastPreflight.estimate.totalEvents) ||
+            0
+          );
+          const seededEtaSec = Number(
+            (res && res.etaSec) ||
+            (lastPreflight && lastPreflight.estimate && lastPreflight.estimate.legacy && lastPreflight.estimate.legacy.etaSec) ||
+            0
+          );
           renderCloudMonitor({
             status: initialStatus,
             isCompleted: isDone,
             timeSpanPct: Number((res && res.timeSpanPct) || 0),
             totalLogsProcessed: Number((res && (res.processedCount !== undefined ? res.processedCount : res.totalLogsProcessed)) || 0),
+            expectedEvents: seededExpectedEvents,
             rate: Number((res && res.rate) || 0),
             fileIndex: Number((res && res.fileIndex) || 1),
             folderId: res.folderId,
@@ -2455,7 +2483,7 @@
             logFolderUrl: res.logFolderUrl || '',
             logFileId: res.logFileId || '',
             totalDays: days,
-            etaSec: Number((res && res.etaSec) || 0)
+            etaSec: seededEtaSec
           });
           if (!isDone) {
             startCloudPolling();

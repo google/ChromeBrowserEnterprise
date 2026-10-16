@@ -45,6 +45,10 @@ const LEGACY_PACING_SEC_PER_PAGE = 0.12;
 const LEGACY_ROWS_PER_PARTITION = 50000;
 const LEGACY_TICK_DUTY = 42 / 60;
 
+// Option B Smart Exception Gate thresholds: normal runs (1..150k events and <= 2h) auto-start directly to monitor
+const PREFLIGHT_GATE_MAX_EVENTS = 150000;
+const PREFLIGHT_GATE_MAX_WALL_HOURS = 2.0;
+
 const REPORTS_CHROME_URL = 'https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome';
 const PREFLIGHT_PROBE_FIELDS = 'nextPageToken,items(id(time))';
 const PREFLIGHT_TRIMMED_FIELDS = 'nextPageToken,items(id(time,uniqueQualifier),actor(email),events(name,parameters(name,value,intValue,boolValue,multiValue)))';
@@ -84,6 +88,8 @@ function runIngestionPreflight(dateRangeDays) {
   _preflightSavePlan_(result);
   _preflightAddWarnings_(result);
   result.summaryParams = _preflightSummaryParams_(result);
+  result.requiresConfirmation = _preflightRequiresConfirmation_(result);
+  result.autoStart = !result.requiresConfirmation;
   result.elapsedSec = Math.round((Date.now() - startedMs) / 1000);
 
   console.log('[Preflight] ' + JSON.stringify({
@@ -243,11 +249,41 @@ function _preflightWindows_(days, activity) {
   });
 }
 
+function _preflightDiurnalFraction_(sliceStartMs, sliceEndMs, oldestMs, tz) {
+  const spanMs = Math.max(1, sliceEndMs - sliceStartMs);
+  const coveredMs = Math.max(0, Math.min(spanMs, sliceEndMs - oldestMs));
+  const linearFrac = coveredMs / spanMs;
+  if (linearFrac <= 0) return 0.12;
+  if (linearFrac >= 0.98) return 1.0;
+  const steps = 24;
+  const stepMs = spanMs / steps;
+  let totalWeight = 0;
+  let coveredWeight = 0;
+  for (let i = 0; i < steps; i++) {
+    const segStart = sliceStartMs + i * stepMs;
+    const segEnd = segStart + stepMs;
+    const midMs = segStart + stepMs / 2;
+    const hour = Number(Utilities.formatDate(new Date(midMs), tz || 'UTC', 'HH'));
+    const w = (hour >= 8 && hour < 18) ? 0.08 : ((hour === 7 || (hour >= 18 && hour < 22)) ? 0.03 : 0.0056);
+    totalWeight += w;
+    if (segEnd > oldestMs) {
+      const overlap = Math.min(stepMs, segEnd - Math.max(segStart, oldestMs)) / stepMs;
+      coveredWeight += w * overlap;
+    }
+  }
+  const diurnalFrac = totalWeight > 0 ? coveredWeight / totalWeight : linearFrac;
+  return Math.min(1.0, Math.max(0.20, 0.5 * linearFrac + 0.5 * diurnalFrac));
+}
+
 function _preflightProbe_(token, days, startedMs, activity) {
+  const tz = ceraTimeZone();
   // Sample only days inside active weeks; when nothing is active, fall back to the whole range
   let windows = activity && activity.activeDays ? _preflightWindows_(days, activity) : [];
   if (!windows.length) windows = _preflightWindows_(days);
-  const measured = _preflightMeasurePayload_(token, windows[0]);
+  const benchmarkWindow = (activity && activity.activeDays && activity.firstActiveMs < activity.endMs)
+    ? { startIso: new Date(activity.firstActiveMs).toISOString(), endIso: new Date(activity.endMs).toISOString() }
+    : windows[0];
+  const measured = _preflightMeasurePayload_(token, benchmarkWindow);
   const streams = [];
   TARGET_EVENTS.forEach(ev => {
     windows.forEach((w, wi) => {
@@ -321,29 +357,121 @@ function _preflightProbe_(token, days, startedMs, activity) {
     return { event: s.event, stratum: w.stratum, rate: rate, capped: capped, error: s.error };
   });
 
-  // One page per event over the whole active span: when it has no next page it is the exact count, which
-  // matters for quiet tenants where 15-minute samples are mostly empty (one filter query per event of TARGET_EVENTS)
+  // Stage 1: One page per event over the whole active span: when it has no next page it is the exact count
   const exact = {};
+  const heavyEvents = [];
   if (activity && activity.activeDays) {
     const spanStartIso = new Date(activity.firstActiveMs).toISOString();
     const spanEndIso = new Date(activity.endMs).toISOString();
+    const tStage1 = Date.now();
     const responses = UrlFetchApp.fetchAll(TARGET_EVENTS.map(ev => _preflightRequest_(_preflightReportsUrl_({
       eventName: ev, maxResults: 1000, fields: PREFLIGHT_PROBE_FIELDS, startTime: spanStartIso, endTime: spanEndIso
     }), token)));
+    fetchMs += Date.now() - tStage1;
     requests += responses.length;
     responses.forEach((resp, i) => {
+      const ev = TARGET_EVENTS[i];
       const res = _preflightParse_(resp);
       if (res.code !== 200 || !res.json) return;
       const items = res.json.items || [];
       if (!res.json.nextPageToken) {
-        exact[TARGET_EVENTS[i]] = { count: items.length };
+        let weekdayCount = 0;
+        let weekendCount = 0;
+        items.forEach(it => {
+          const ms = Date.parse(it && it.id && it.id.time);
+          if (!isNaN(ms) && ceraIsWeekendMs_(ms, tz)) weekendCount++;
+          else weekdayCount++;
+        });
+        exact[ev] = { count: items.length, weekdayCount: weekdayCount, weekendCount: weekendCount, isExact: true };
         return;
       }
-      // Newest first: the page covers the most recent days; at least a full day of it gives a usable daily rate
+      // Newest first: use effective covered days floored at 0.15 so <24h bursts (>1,000 events/day) never collapse to perDay = 0
       const oldestMs = items.reduce((m, it) => Math.min(m, Date.parse(it.id && it.id.time) || m), activity.endMs);
-      const coveredDays = (activity.endMs - oldestMs) / 86400000;
-      exact[TARGET_EVENTS[i]] = { atLeast: items.length, perDay: coveredDays >= 1 ? items.length / coveredDays : 0 };
+      const coveredDays = Math.max(0.15, (activity.endMs - oldestMs) / 86400000);
+      exact[ev] = { atLeast: items.length, perDay: items.length / coveredDays, isExact: false };
+      heavyEvents.push(ev);
     });
+
+    // Stage 2: Per-day parallel slice census for heavy streams (>=1,000 events in window) on <=14-day ranges
+    if (heavyEvents.length > 0 && days <= 14) {
+      const DAY_MS = 86400000;
+      const daySlices = [];
+      for (let ds = activity.startMs; ds < activity.endMs; ds += DAY_MS) {
+        if (!_preflightIsActiveMs_(activity, ds)) continue;
+        const de = Math.min(activity.endMs, ds + DAY_MS);
+        daySlices.push({
+          startMs: ds,
+          endMs: de,
+          startIso: new Date(ds).toISOString(),
+          endIso: new Date(de).toISOString(),
+          isWeekend: ceraIsWeekendMs_(ds + DAY_MS / 2, tz)
+        });
+      }
+      if (daySlices.length > 0) {
+        const dayTasks = [];
+        heavyEvents.forEach(ev => {
+          daySlices.forEach(sl => {
+            dayTasks.push({ ev: ev, slice: sl });
+          });
+        });
+        const dayResults = [];
+        for (let b = 0; b < dayTasks.length; b += PREFLIGHT_FETCHALL_BATCH) {
+          const chunk = dayTasks.slice(b, b + PREFLIGHT_FETCHALL_BATCH);
+          const tBatch = Date.now();
+          const resps = UrlFetchApp.fetchAll(chunk.map(tk => _preflightRequest_(_preflightReportsUrl_({
+            eventName: tk.ev, maxResults: 1000, fields: PREFLIGHT_PROBE_FIELDS, startTime: tk.slice.startIso, endTime: tk.slice.endIso
+          }), token)));
+          fetchMs += Date.now() - tBatch;
+          requests += resps.length;
+          resps.forEach((r, idx) => dayResults.push({ task: chunk[idx], res: _preflightParse_(r) }));
+        }
+        heavyEvents.forEach(ev => {
+          const evSlices = dayResults.filter(dr => dr.task.ev === ev && dr.res.code === 200 && dr.res.json);
+          if (evSlices.length !== daySlices.length) return;
+          let byDayTotal = 0;
+          let byDayLo = 0;
+          let byDayHi = 0;
+          let byDayAtLeast = 0;
+          let weekdayTotal = 0;
+          let weekendTotal = 0;
+          let anyDayCapped = false;
+          evSlices.forEach(dr => {
+            const sl = dr.task.slice;
+            const dItems = dr.res.json.items || [];
+            byDayAtLeast += dItems.length;
+            let dayMid = dItems.length;
+            let dayLo = dItems.length;
+            let dayHi = dItems.length;
+            if (dr.res.json.nextPageToken && dItems.length > 0) {
+              anyDayCapped = true;
+              const oldestDayMs = dItems.reduce((m, it) => Math.min(m, Date.parse(it.id && it.id.time) || m), sl.endMs);
+              const frac = _preflightDiurnalFraction_(sl.startMs, sl.endMs, oldestDayMs, tz);
+              dayMid = Math.max(dItems.length, Math.round(dItems.length / frac));
+              dayLo = Math.max(dItems.length, Math.round(dayMid * 0.75));
+              dayHi = Math.max(dayMid, Math.round(dayMid * 1.30));
+            }
+            byDayTotal += dayMid;
+            byDayLo += dayLo;
+            byDayHi += dayHi;
+            if (sl.isWeekend) weekendTotal += dayMid;
+            else weekdayTotal += dayMid;
+          });
+          const prevAtLeast = (exact[ev] && exact[ev].atLeast) || 0;
+          const totalActiveDays = Math.max(1, activity.weekdays + activity.weekendDays);
+          exact[ev] = {
+            atLeast: Math.max(prevAtLeast, byDayAtLeast),
+            perDay: byDayTotal / totalActiveDays,
+            byDayTotal: byDayTotal,
+            byDayLo: byDayLo,
+            byDayHi: byDayHi,
+            weekdayTotal: weekdayTotal,
+            weekendTotal: weekendTotal,
+            anyDayCapped: anyDayCapped,
+            isExact: !anyDayCapped
+          };
+        });
+      }
+    }
   }
 
   measured.probeRequests = requests;
@@ -407,14 +535,30 @@ function _preflightEstimate_(probe, days, activity) {
     let mid = total(mean);
     let lo = total(list => pick(list, Math.min));
     let hi = total(list => pick(list, Math.max));
+    let isCapped = rows.some(r => r.capped);
     const exact = (probe.exact || {})[ev];
     if (exact && exact.count !== undefined) {
-      // Known count: keep the sampled weekday/weekend shape when there is one, else spread it evenly
-      const scale = mid > 0 ? exact.count / mid : 0;
-      const even = wd + we > 0 ? exact.count / (wd + we) : 0;
-      perWeekday = scale ? perWeekday * scale : even;
-      perWeekendDay = scale ? perWeekendDay * scale : even;
+      // Stage 1 exact count (<1,000 events across the active span)
+      if (exact.weekdayCount !== undefined && exact.weekendCount !== undefined && (wd > 0 || we > 0)) {
+        perWeekday = wd > 0 ? exact.weekdayCount / wd : 0;
+        perWeekendDay = we > 0 ? exact.weekendCount / we : 0;
+      } else {
+        const scale = mid > 0 ? exact.count / mid : 0;
+        const even = wd + we > 0 ? exact.count / (wd + we) : 0;
+        perWeekday = scale ? perWeekday * scale : even;
+        perWeekendDay = scale ? perWeekendDay * scale : even;
+      }
       mid = lo = hi = exact.count;
+      isCapped = false;
+    } else if (exact && exact.byDayTotal !== undefined) {
+      // Stage 2 per-day census of a heavy stream
+      const even = wd + we > 0 ? exact.byDayTotal / (wd + we) : 0;
+      perWeekday = wd > 0 ? exact.weekdayTotal / wd : even;
+      perWeekendDay = we > 0 ? exact.weekendTotal / we : even;
+      mid = exact.byDayTotal;
+      lo = exact.anyDayCapped ? Math.max(exact.atLeast || 0, exact.byDayLo) : mid;
+      hi = exact.anyDayCapped ? Math.max(mid, exact.byDayHi) : mid;
+      isCapped = Boolean(exact.anyDayCapped);
     } else if (exact && exact.atLeast) {
       if (exact.perDay && mid < exact.perDay * (wd + we)) {
         // Sparse samples missed most events; the recent daily rate is the better basis
@@ -426,6 +570,7 @@ function _preflightEstimate_(probe, days, activity) {
       lo = Math.max(lo, exact.atLeast);
       mid = Math.max(mid, lo);
       hi = Math.max(hi, mid);
+      isCapped = true;
     }
     return {
       event: ev,
@@ -434,7 +579,7 @@ function _preflightEstimate_(probe, days, activity) {
       total: mid,
       lo: lo,
       hi: hi,
-      capped: rows.some(r => r.capped),
+      capped: isCapped,
       error: (probe.rates.find(r => r.event === ev && r.error) || {}).error || ''
     };
   });
@@ -449,9 +594,16 @@ function _preflightEstimate_(probe, days, activity) {
   const legacyRequests = Math.round(weekChecks + perEvent.reduce((a, e) => a + (activity
     ? activity.weekdays * ceraPagesFor_(e.perWeekday) + activity.weekendDays * ceraPagesFor_(e.perWeekendDay)
     : days * ceraPagesFor_(e.total / days)), 0));
-  // Every request pays the fetch and the pacing; only returned rows pay the Sheets appends
-  const legacyRuntimeSec = legacyRequests * ((m.serialFullPageMs / 1000) + LEGACY_PACING_SEC_PER_PAGE) +
-    (totalEvents / 1000) * LEGACY_SHEET_WRITE_SEC_PER_PAGE;
+  // Enforce a realistic full-page latency floor when estimating multi-page workloads so an empty/small benchmark
+  // sample never causes a 5x-8x initial underestimate
+  const effectivePageMs = totalEvents >= 1000
+    ? (m.sampleItems >= 500 ? Math.max(1200, m.serialFullPageMs) : Math.max(1500, m.serialFullPageMs))
+    : Math.max(250, m.serialFullPageMs);
+  const partitions = totalEvents > 0 ? Math.ceil(totalEvents / LEGACY_ROWS_PER_PARTITION) : 0;
+  // Every request pays the fetch and the pacing; returned rows pay Sheets appends plus partition creation overhead
+  const legacyRuntimeSec = legacyRequests * ((effectivePageMs / 1000) + LEGACY_PACING_SEC_PER_PAGE) +
+    (totalEvents / 1000) * LEGACY_SHEET_WRITE_SEC_PER_PAGE +
+    partitions * 3.5;
 
   // Rollup engine: hour slices per event, parallel fetchAll capped by the filter-query limit
   const rollupRequests = perEvent.reduce((a, e) => a + days * 24 * Math.max(1, Math.ceil(e.total / days / 24 / 1000)), 0);
@@ -460,11 +612,13 @@ function _preflightEstimate_(probe, days, activity) {
   const rollupPerDay = Math.min(rollupReqPerSec * TRIGGER_RUNTIME_SEC_PER_DAY, URLFETCH_CALLS_PER_DAY);
 
   const round1 = x => Math.round(x * 10) / 10;
+  const isExact = perEvent.every(e => !e.capped);
   return {
     perEvent: perEvent,
     totalEvents: totalEvents,
     totalLo: sum('lo'),
     totalHi: sum('hi'),
+    isExact: isExact,
     measured: m,
     legacy: {
       requests: legacyRequests,
@@ -472,7 +626,8 @@ function _preflightEstimate_(probe, days, activity) {
       calendarDays: round1(legacyRuntimeSec / TRIGGER_RUNTIME_SEC_PER_DAY),
       wallHours: round1(legacyRuntimeSec / LEGACY_TICK_DUTY / 3600),
       wallMinutes: Math.ceil(legacyRuntimeSec / LEGACY_TICK_DUTY / 60),
-      partitions: Math.ceil(totalEvents / LEGACY_ROWS_PER_PARTITION),
+      etaSec: totalEvents > 0 ? Math.max(60, Math.round(legacyRuntimeSec / LEGACY_TICK_DUTY)) : 0,
+      partitions: partitions,
       assumedSheetWriteSec: LEGACY_SHEET_WRITE_SEC_PER_PAGE
     },
     rollup: {
@@ -487,29 +642,51 @@ function ceraPagesFor_(events) {
   return Math.max(1, Math.ceil((Number(events) || 0) / 1000));
 }
 
+function _preflightRequiresConfirmation_(result) {
+  if (!result || result.recommendManual) return true;
+  const est = result.estimate;
+  if (!est || !(Number(est.totalEvents) > 0)) return true;
+  const leg = est.legacy || {};
+  if (Number(est.totalEvents) > PREFLIGHT_GATE_MAX_EVENTS) return true;
+  if (Number(leg.wallHours) > PREFLIGHT_GATE_MAX_WALL_HOURS) return true;
+  return false;
+}
+
 /**
  * Keeps what ingestion needs to report real progress: which weeks are active and the expected events per
  * weekday and weekend day for each event. engageCloudIngestion picks it up when it starts within 2 hours.
  */
 function _preflightSavePlan_(result) {
   try {
+    const est = result.estimate || {};
+    const leg = est.legacy || {};
+    const exactMap = (result.probe && result.probe.exact) || {};
+    const zeroStreams = {};
+    TARGET_EVENTS.forEach(ev => {
+      if (exactMap[ev] && exactMap[ev].count === 0) zeroStreams[ev] = true;
+    });
     const plan = {
       savedMs: Date.now(),
       days: result.days,
       startMs: result.activity.startMs,
       weeks: result.activity.weeks.map(w => (w ? '1' : '0')).join(''),
-      total: result.estimate.totalEvents,
+      status: est.isExact ? 'EXACT' : 'ESTIMATED',
+      total: est.totalEvents,
+      expectedEvents: Number(est.totalEvents) || 0,
+      etaSec: Number(leg.etaSec) || Math.max(60, (Number(leg.wallMinutes) || 1) * 60),
+      isExact: Boolean(est.isExact),
+      zeroStreams: zeroStreams,
       perDay: {}
     };
-    result.estimate.perEvent.forEach(e => { plan.perDay[e.event] = [e.perWeekday, e.perWeekendDay]; });
+    (est.perEvent || []).forEach(e => { plan.perDay[e.event] = [e.perWeekday, e.perWeekendDay]; });
     const docProps = PropertiesService.getDocumentProperties();
     docProps.setProperty(CERA_PREFLIGHT_PLAN_KEY, JSON.stringify(plan));
-    const est = result.estimate || {};
     const m = est.measured || {};
-    const leg = est.legacy || {};
     const pfDiag = {
       savedMs: plan.savedMs,
       days: result.days,
+      status: est.isExact ? 'EXACT' : 'ESTIMATED',
+      expectedEvents: Number(est.totalEvents) || 0,
       estimatedEvents: Number(est.totalEvents) || 0,
       estimatedLo: Number(est.totalLo) || 0,
       estimatedHi: Number(est.totalHi) || 0,
@@ -551,7 +728,10 @@ function _preflightAddWarnings_(result) {
  */
 function ceraDurationParts_(legacy) {
   // One tick per minute, so the first result shows up after a minute at the earliest
-  if (legacy.wallHours < 1) return { unit: 'minutes', n: Math.max(2, Math.ceil(legacy.wallMinutes / 5) * 5) };
+  if (legacy.wallHours < 1) {
+    const mins = Math.max(1, Math.ceil(Number(legacy.wallMinutes) || 1));
+    return { unit: 'minutes', n: mins <= 5 ? Math.max(2, mins) : Math.ceil(mins / 5) * 5 };
+  }
   if (legacy.wallHours < 20) return { unit: 'hours', n: Math.max(1, Math.round(legacy.wallHours)) };
   return { unit: 'days', n: Math.ceil(legacy.calendarDays) };
 }
