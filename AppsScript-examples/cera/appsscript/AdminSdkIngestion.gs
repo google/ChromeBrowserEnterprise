@@ -447,7 +447,7 @@ function discardCloudIngestion() {
   } catch (e) {}
 
   const existing = getProgressUpdate();
-  if (existing && existing.folderId) {
+  if (existing && existing.folderId && existing.status !== 'COMPLETED' && !existing.isCompleted) {
     ceraRecordDiagLifecycle_(existing, 'STOPPED', 'SESSION_DISCARDED', 'User discarded or reset active ingestion session.');
   }
 
@@ -2002,7 +2002,9 @@ function detectExistingSession() {
         const statusVal = isDoneStr(a2Val) ? a2Val : a3Val;
 
         if (isDoneStr(statusVal)) {
-          if (!state || state.status !== 'COMPLETED') {
+          const wasExplicitlyReset = (!state || state.status === 'IDLE') && ss && typeof ss.getId === 'function' && ss.getId() &&
+            PropertiesService.getDocumentProperties().getProperty('CERA_INGESTION_USED_SHEET_ID') === String(ss.getId());
+          if (!wasExplicitlyReset && (!state || state.status !== 'COMPLETED')) {
             if (!state) state = {};
             state.status = 'COMPLETED';
             state.timeSpanPct = 100;
@@ -2306,7 +2308,7 @@ function ceraInitDiagnosticLog_(initialState, firstPartition) {
     );
     const diag = {
       schemaVersion: '1.0',
-      ceraVersion: (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.10',
+      ceraVersion: (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.12',
       privacyNotice: 'Zero-PII Diagnostic Log: Contains only execution metrics, partition counts, timing, and sanitized status codes. No user emails, domains, OUs, URLs, file names, or device names are recorded.',
       activityId: initialState.activityId || '',
       status: initialState.status || 'RUNNING',
@@ -2579,7 +2581,7 @@ function ceraRenderDiagnosticLogTxt_(diag) {
   const headerLines = [
     '================================================================================',
     `CERA (Chrome Egress Risk Analysis) — Direct Ingestion Diagnostic Log`,
-    `Version            : v${diag.ceraVersion || '2.0.10'} (Schema v${diag.schemaVersion || '1.0'})`,
+    `Version            : v${diag.ceraVersion || '2.0.12'} (Schema v${diag.schemaVersion || '1.0'})`,
     `Privacy Guarantee  : ZERO-PII / ZERO-SENSITIVE-DATA (Safe to inspect & share)`,
     '================================================================================',
     `Activity ID        : ${diag.activityId || 'N/A'}`,

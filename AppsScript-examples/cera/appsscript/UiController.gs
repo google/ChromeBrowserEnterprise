@@ -345,7 +345,7 @@ function emergencyResetIngestion(forceReset) {
       };
     }
 
-    if (existing && existing.folderId && typeof ceraRecordDiagLifecycle_ === 'function') {
+    if (existing && existing.folderId && existing.status !== 'COMPLETED' && !existing.isCompleted && typeof ceraRecordDiagLifecycle_ === 'function') {
       ceraRecordDiagLifecycle_(existing, 'STOPPED', 'EMERGENCY_RESET', 'User triggered Emergency Reset.');
     }
 

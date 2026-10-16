@@ -1534,7 +1534,7 @@
         this.suggestionsContainer.style.display = 'flex';
         const label = document.createElement('span');
         label.className = 'suggest-label';
-        setT(label, 'step2.ai.suggestLabel');
+        setT(label, this.suggestLabelKey || 'step2.ai.suggestLabel');
         this.suggestionsContainer.appendChild(label);
         remaining.forEach(domain => {
           const btn = document.createElement('button');
@@ -1590,7 +1590,7 @@
         chipClass: 'chip-success',
         defaultItems: ['gemini.google.com'],
         suggestionsId: 'ai-suggestions',
-        suggestions: ['notebooklm.google.com', 'aistudio.google.com', 'vertexai.google.com'],
+        suggestions: ['gemini.google.com', 'notebooklm.google.com', 'aistudio.google.com', 'vertexai.google.com'],
         suggestLabelKey: 'step2.ai.suggestLabel'
       });
       prodChips = new ChipManager({ pillsId: 'prod-pills', inputId: 'prod-input', addBtnId: 'btn-add-prod', badgeId: 'prod-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-info', defaultItems: ['google.com', 'drive.google.com', 'docs.google.com', 'googleusercontent.com', 'gmail.com'] });
@@ -1723,13 +1723,7 @@
       currentSessionAnalyzed = false;
       activeExtractedFolderId = '';
       activeExtractedFolderName = '';
-      if (lastCloudSession && lastCloudSession.hasExisting) {
-        lastCloudSession = null;
-        google.script.run
-          .withSuccessHandler(function() {})
-          .withFailureHandler(function() {})
-          .emergencyResetIngestion(true);
-      }
+      lastCloudSession = null;
       if (hasAdminSdkAccess) {
         goToPolicyPrecheck();
       } else {
@@ -2324,6 +2318,8 @@
       if (cloudPollInterval) clearInterval(cloudPollInterval);
       const pollFn = function() {
         google.script.run.withSuccessHandler(res => {
+          const monEl = document.getElementById('cloud-monitor-container');
+          if (!monEl || monEl.style.display === 'none') return;
           if (res && res.hasExisting) {
             renderCloudMonitor(res);
             if (res.status === 'COMPLETED' || res.isCompleted || res.status === 'PAUSED' || res.status === 'FAILED') {
@@ -2466,6 +2462,8 @@
             google.script.run
               .withSuccessHandler(function() {
                 google.script.run.withSuccessHandler(function(st) {
+                  const monEl = document.getElementById('cloud-monitor-container');
+                  if (!monEl || monEl.style.display === 'none') return;
                   if (st && st.hasExisting) {
                     renderCloudMonitor(st);
                     if (st.status === 'COMPLETED' || st.isCompleted || st.status === 'PAUSED' || st.status === 'FAILED') {
@@ -2479,6 +2477,8 @@
           }
         })
         .withFailureHandler(err => {
+          const initLoader = document.getElementById('init-loader');
+          if (initLoader) initLoader.style.display = 'none';
           alert(t('alert.engageFailed', { error: err.message }));
           goToStep0();
         })
