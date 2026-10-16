@@ -1560,8 +1560,9 @@ var ExecutivePresentationEngine = {
     if (!recs.length) return;
     this.addCard(slide, 36, 350, 648, 42, bg, border, 4, 0.5);
     const txt = recs.map(r => ceraT('deck.v.recommended', { rec: r }, ctx._lang)).join('\n');
-    // Up to two lines fit the card at 7.5 pt; three or four lines at 6.5 pt
-    this.addTextBox(slide, txt, 48, 356, 624, 30, 'Roboto', recs.length >= 3 ? 6.5 : 7.5, 'normal', '#334155', 'left');
+    // Up to two lines fit the card at 7.5 pt; three or four lines at 6.5 pt; scale down further when long multi-bullet translations exceed 340 chars
+    const recFontSize = (recs.length >= 3 || txt.length > 340) ? (txt.length > 460 ? 5.5 : 6.0) : (recs.length === 2 || txt.length > 220 ? 6.8 : 7.5);
+    this.addTextBox(slide, txt, 48, 355, 624, 34, 'Roboto', recFontSize, 'normal', '#334155', 'left');
   },
 
   /** Background image with its tint, or a plain fill when the image cannot be loaded. */
@@ -1971,13 +1972,14 @@ var ExecutivePresentationEngine = {
     {
       let txt = '{{pwAdvText}}';
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
-      this.addTextBox(slide, txt, 56, 266, 280, 29, 'Roboto', 6.8, 'normal', '#0F172A', 'left');
-    }
-    {
+      const pwFont = txt.length > 140 ? 6.0 : 6.8;
+      const pwRecY = txt.length > 140 ? 302 : 296;
+      const pwRecH = txt.length > 140 ? 28 : 32;
+      this.addTextBox(slide, txt, 56, 265, 280, pwRecY - 266, 'Roboto', pwFont, 'normal', '#0F172A', 'left');
       // The action the recommendations slide lists for password reuse, or nothing
       const rec = (ctx._recByTopic.password || [])[0];
-      let txt = rec ? '• ' + ceraT('deck.v.recommended', { rec: rec }, ctx._lang) : '';
-      this.addTextBox(slide, txt, 56, 296, 280, 32, 'Roboto', 6.8, 'normal', '#0F172A', 'left');
+      let recTxt = rec ? '• ' + ceraT('deck.v.recommended', { rec: rec }, ctx._lang) : '';
+      this.addTextBox(slide, recTxt, 56, pwRecY, 280, pwRecH, 'Roboto', pwFont, 'normal', '#0F172A', 'left');
     }
     {
       let txt = this.t_(ctx, 'deck.sig.malTitle');
@@ -2051,13 +2053,14 @@ var ExecutivePresentationEngine = {
     {
       let txt = '{{malAdvText}}';
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
-      this.addTextBox(slide, txt, 387, 266, 280, 29, 'Roboto', 6.8, 'normal', '#0F172A', 'left');
-    }
-    {
+      const malFont = txt.length > 140 ? 6.0 : 6.8;
+      const malRecY = txt.length > 140 ? 302 : 296;
+      const malRecH = txt.length > 140 ? 28 : 32;
+      this.addTextBox(slide, txt, 387, 265, 280, malRecY - 266, 'Roboto', malFont, 'normal', '#0F172A', 'left');
       // The action the recommendations slide lists for potentially malicious files, or nothing
       const rec = (ctx._recByTopic.malware || [])[0];
-      let txt = rec ? '• ' + ceraT('deck.v.recommended', { rec: rec }, ctx._lang) : '';
-      this.addTextBox(slide, txt, 387, 296, 280, 32, 'Roboto', 6.8, 'normal', '#0F172A', 'left');
+      let recTxt = rec ? '• ' + ceraT('deck.v.recommended', { rec: rec }, ctx._lang) : '';
+      this.addTextBox(slide, recTxt, 387, malRecY, 280, malRecH, 'Roboto', malFont, 'normal', '#0F172A', 'left');
     }
     this.addLaunchNote_(slide, ctx, 'signals2');
   },
