@@ -170,6 +170,22 @@ describe("proxy — normal auth routing", () => {
     // NextResponse.next() sets an internal header; status stays 200.
     expect(res.headers.get("location")).toBeNull();
   });
+
+  it("user_oauth + HTTPS proxy + __Secure-better-auth.session_token → allows /dashboard access without redirecting to root", async () => {
+    mockGetEnv.mockReturnValue({
+      AUTH_MODE: "user_oauth",
+      MCP_SERVER_URL: "http://localhost:4000/mcp",
+    });
+    mockGetSessionCookie.mockReturnValue(null);
+
+    const req = new NextRequest(new URL("https://pocket-cep-12345.cr.gclb.goog/dashboard"), {
+      headers: { "x-forwarded-proto": "https" },
+    });
+    req.cookies.set("__Secure-better-auth.session_token", "signed-secure-token");
+
+    const res = await proxy(req);
+    expect(res.headers.get("location")).toBeNull();
+  });
 });
 
 describe("proxy — MCP reachability gate", () => {

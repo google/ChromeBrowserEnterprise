@@ -85,7 +85,10 @@ export async function proxy(request: NextRequest) {
     throw error;
   }
 
-  const sessionCookie = getSessionCookie(request);
+  const sessionCookie =
+    getSessionCookie(request) ||
+    request.cookies.get("__Secure-better-auth.session_token") ||
+    request.cookies.get("better-auth.session_token");
   const { pathname } = request.nextUrl;
 
   // Auth-mode redirects. Each branch either returns a redirect or
