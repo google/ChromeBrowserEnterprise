@@ -336,13 +336,34 @@
       right: 0;
       background: #FFFFFF;
       border-top: 1px solid #E2E8F0;
-      padding: 12px 22px;
+      padding: 10px 22px 24px 22px;
       display: flex;
       justify-content: flex-end;
       align-items: center;
       gap: 10px;
       z-index: 100;
       box-shadow: 0 -3px 12px rgba(0,0,0,0.04);
+    }
+    #cera-disclaimer-footer {
+      position: fixed;
+      bottom: 4px;
+      left: 0;
+      right: 0;
+      z-index: 101;
+      font-size: 10.5px;
+      color: #64748B;
+      text-align: center;
+      line-height: 1.2;
+      pointer-events: none;
+    }
+    #cera-disclaimer-footer a {
+      color: #64748B;
+      text-decoration: none;
+      pointer-events: auto;
+    }
+    #cera-disclaimer-footer a:hover {
+      color: #0B57D0;
+      text-decoration: underline;
     }
     .btn-md3-text {
       padding: 9px 18px;
@@ -620,26 +641,33 @@
       <p id="reuse-gate-desc" data-i18n="reuse.gate.desc" class="step-desc">Each CERA spreadsheet is designed for a single, one-time assessment so your generated report tabs, charts, and diagnostic logs stay clean and intact.</p>
     </div>
 
+    <!-- Generated Executive Presentation Card (shown when a Slide Deck was already generated in this workbook) -->
+    <div id="reuse-gate-slides-card" style="display: none; background: #ECFDF5; border: 2px solid #6EE7B7; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; text-align: center;">
+      <div id="reuse-gate-slides-title" data-i18n="reuse.gate.slidesTitle" style="font-weight: 700; font-size: 13.5px; color: #065F46; margin-bottom: 4px;">✅ Generated Executive Presentation Ready</div>
+      <div id="reuse-gate-slides-summary" data-i18n="reuse.gate.slidesDesc" style="font-size: 11.5px; color: #047857; line-height: 1.45; margin-bottom: 10px;">Your CERA presentation deck has already been generated from this workbook.</div>
+      <a id="btn-reuse-open-slides" data-i18n="reuse.gate.openSlides" href="#" target="_blank" rel="noopener noreferrer" class="btn-slides" style="display: inline-block; margin-top: 0; padding: 10px 20px; background: #059669; color: #FFFFFF; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open Google Slides Presentation Deck ↗</a>
+    </div>
+
     <!-- Primary Recommended Hero Card: Make a Fresh Copy at goo.gle/cera -->
-    <div id="reuse-gate-hero-card" style="background: #F0FDF4; border: 2px solid #86EFAC; border-radius: 12px; padding: 16px; margin-bottom: 14px;">
-      <div id="reuse-gate-rec-title" data-i18n="reuse.gate.recTitle" style="font-weight: 700; font-size: 13.5px; color: #14532D; margin-bottom: 8px;">✨ Recommended: Start a Fresh Copy for Your Next Run</div>
-      <ul style="margin: 0 0 14px 18px; padding: 0; font-size: 11.5px; color: #166534; line-height: 1.5;">
-        <li id="reuse-gate-rec-b1" data-i18n="reuse.gate.recB1" style="margin-bottom: 4px;">Protects this report: re-running in the same spreadsheet overwrites and can corrupt existing report tabs, merged ranges, and charts.</li>
-        <li id="reuse-gate-rec-b2" data-i18n="reuse.gate.recB2" style="margin-bottom: 4px;">Always latest version: making a fresh copy from goo.gle/cera automatically provisions the latest verified CERA release.</li>
+    <div id="reuse-gate-hero-card" style="background: #F0FDF4; border: 2px solid #86EFAC; border-radius: 12px; padding: 15px 16px; margin-bottom: 12px;">
+      <div id="reuse-gate-rec-title" data-i18n="reuse.gate.recTitle" style="font-weight: 700; font-size: 13px; color: #14532D; margin-bottom: 6px;">✨ Recommended: Start a Fresh Copy for Your Next Run</div>
+      <ul style="margin: 0 0 12px 18px; padding: 0; font-size: 11.5px; color: #166534; line-height: 1.45;">
+        <li id="reuse-gate-rec-b1" data-i18n="reuse.gate.recB1" style="margin-bottom: 3px;">Protects this report: re-running in the same spreadsheet overwrites and can corrupt existing report tabs, merged ranges, and charts.</li>
+        <li id="reuse-gate-rec-b2" data-i18n="reuse.gate.recB2" style="margin-bottom: 3px;">Always latest version: making a fresh copy from goo.gle/cera automatically provisions the latest verified CERA release.</li>
         <li id="reuse-gate-rec-b3" data-i18n="reuse.gate.recB3">Zero re-extraction needed: if you already extracted logs to Google Drive, paste that Drive folder link into your new copy via Manual Export to analyze in seconds.</li>
       </ul>
-      <a id="btn-reuse-fresh-copy" data-i18n="reuse.gate.ctaFresh" href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer" class="btn-md3-filled" style="display: block; text-align: center; background: #16A34A; color: #FFFFFF; text-decoration: none; padding: 11px 18px; border-radius: 9999px; font-weight: 700; font-size: 13px;">🚀 Open goo.gle/cera to Make a Fresh Copy (Recommended) ↗</a>
+      <a id="btn-reuse-fresh-copy" data-i18n="reuse.gate.ctaFresh" href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer" class="btn-md3-filled" style="display: block; text-align: center; background: #16A34A; color: #FFFFFF; text-decoration: none; padding: 10px 18px; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open goo.gle/cera to Make a Fresh Copy (Recommended) ↗</a>
     </div>
 
     <!-- Intentional Friction Card: Continue in Same Workbook at Own Risk -->
-    <div id="reuse-gate-risk-card" style="background: #FEF2F2; border: 1.5px dashed #FCA5A5; border-radius: 12px; padding: 14px;">
-      <div id="reuse-gate-risk-title" data-i18n="reuse.gate.riskTitle" style="font-weight: 700; font-size: 12px; color: #991B1B; margin-bottom: 8px;">⚠️ Advanced: Reuse This Workbook Anyway (Not Recommended)</div>
-      <label class="interactive-checkbox-label" style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; margin-bottom: 12px;">
+    <div id="reuse-gate-risk-card" style="background: #FEF2F2; border: 1px dashed #FCA5A5; border-radius: 10px; padding: 11px 13px;">
+      <div id="reuse-gate-risk-title" data-i18n="reuse.gate.riskTitle" style="font-weight: 700; font-size: 11.5px; color: #991B1B; margin-bottom: 6px;">⚠️ Advanced: Reuse This Workbook Anyway (Not Recommended)</div>
+      <label class="interactive-checkbox-label" style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; margin-bottom: 8px;">
         <input type="checkbox" id="chk-reuse-risk" onchange="toggleReuseContinueBtn()" style="margin-top: 2px;">
-        <span id="reuse-gate-risk-check" data-i18n="reuse.gate.riskCheck" style="font-size: 11.5px; color: #7F1D1D; line-height: 1.45;">I understand this workbook is single-use and continuing here may overwrite, mix, or corrupt existing report sheets and charts.</span>
+        <span id="reuse-gate-risk-check" data-i18n="reuse.gate.riskCheck" style="font-size: 11px; color: #7F1D1D; line-height: 1.4;">I understand this workbook is single-use and continuing here may overwrite, mix, or corrupt existing report sheets and charts.</span>
       </label>
       <div style="text-align: right;">
-        <button id="btn-reuse-continue" data-i18n="reuse.gate.btnContinue" type="button" class="btn-md3-danger" disabled onclick="proceedPastSingleUseGate()">⚠️ Continue in This Workbook at My Own Risk ➔</button>
+        <button id="btn-reuse-continue" data-i18n="reuse.gate.btnContinue" type="button" class="btn-md3-danger" style="padding: 7px 14px; font-size: 11.5px;" disabled onclick="proceedPastSingleUseGate()">Continue in This Workbook at My Own Risk ➔</button>
       </div>
     </div>
 
@@ -703,7 +731,7 @@
         <div class="kpi-item">
           <div data-i18n="mon.kpi.drive" class="kpi-item-label">Google Drive Target</div>
           <div class="kpi-item-val" style="font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="mon-folder-txt">Target Folder</div>
-          <div class="kpi-item-sub"><a data-i18n="mon.kpi.viewDrive" id="mon-drive-link" href="#" target="_blank" style="color: #0B57D0; font-weight: 600;">📁 View in Drive</a></div>
+          <div class="kpi-item-sub"><a data-i18n="mon.kpi.viewDrive" id="mon-drive-link" href="#" target="_blank" style="color: #0B57D0; font-weight: 600;">View in Drive ↗</a></div>
         </div>
       </div>
 
@@ -711,7 +739,7 @@
         <div data-i18n="mon.err.title" style="font-weight: 700; margin-bottom: 4px;">⚠️ Diagnostic Notice:</div>
         <div id="mon-error-msg" style="margin-bottom: 8px; word-break: break-word;"></div>
         <div data-i18n-html="mon.err.zeroLoss" style="font-size: 11px; color: #7F1D1D; margin-bottom: 8px;">💡 <b>Zero Data Loss:</b> Ingestion cursor is safely preserved in Google Drive. You can resume extraction from the last recorded timestamp.</div>
-        <button data-i18n="mon.err.resumeNow" type="button" class="btn-md3-filled" style="background: #0B57D0; font-size: 11.5px; padding: 6px 14px; font-weight: 600;" onclick="handleResumeFromDialog()">⚡ Resume Ingestion Now</button>
+        <button data-i18n="mon.err.resumeNow" type="button" class="btn-md3-filled" style="background: #0B57D0; font-size: 11.5px; padding: 6px 14px; font-weight: 600;" onclick="handleResumeFromDialog()">Resume Ingestion Now</button>
       </div>
 
       <div data-i18n-html="mon.completed" id="mon-completed-banner" style="display: none; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 12px; margin-top: 10px; color: #166534; font-size: 12px; text-align: center;">
@@ -726,15 +754,15 @@
         💡 <b>Autonomous Background Worker:</b> You do not need to keep this window open. You can safely close your browser or turn off your computer; execution runs autonomously via Google Apps Script and progress is continuously saved to the <i>⚡ Ingestion Monitor</i> sheet tab.
       </div>
       <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
-        <a data-i18n="mon.btn.openLogs" id="btn-mon-open-logs" href="#" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill" style="display: none;">📄 Open Diagnostic Logs (diagnostics/) ↗</a>
-        <a data-i18n="mon.btn.reportProblem" id="btn-mon-report-problem" href="https://goo.gle/cera-feedback" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill">🐞 Report a Problem ↗</a>
+        <a data-i18n="mon.btn.openLogs" id="btn-mon-open-logs" href="#" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill" style="display: none;">Open Diagnostic Logs (diagnostics/) ↗</a>
+        <a data-i18n="mon.btn.reportProblem" id="btn-mon-report-problem" href="https://goo.gle/cera-feedback" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill">Report a Problem ↗</a>
       </div>
     </div>
     <div class="dialog-footer">
-      <button data-i18n="mon.btn.resumeCloud" type="button" class="btn-md3-filled" id="btn-mon-resume" style="display: none; background: #0B57D0;" onclick="handleResumeFromDialog()">⚡ Resume Cloud Ingestion</button>
-      <button data-i18n="mon.btn.stopAnalyze" type="button" class="btn-md3-filled" id="btn-mon-stop-analyze" style="display: none; background: #0D9488;" onclick="handleStopAndAnalyzeNow()">⚡ Stop & Analyze Extracted Logs Now</button>
-      <button data-i18n="mon.btn.reset" type="button" class="btn-md3-danger" id="btn-mon-stop-reset" onclick="handleEmergencyStopAndReset()">🛑 Emergency Reset & Stop Ingestion</button>
-      <button data-i18n="mon.btn.proceed" type="button" class="btn-md3-filled" id="btn-mon-proceed" style="display: none; background: #16A34A;" onclick="handleProceedToAnalysis()">🚀 Proceed to CERA Analysis</button>
+      <button data-i18n="mon.btn.resumeCloud" type="button" class="btn-md3-filled" id="btn-mon-resume" style="display: none; background: #0B57D0;" onclick="handleResumeFromDialog()">Resume Cloud Ingestion</button>
+      <button data-i18n="mon.btn.stopAnalyze" type="button" class="btn-md3-filled" id="btn-mon-stop-analyze" style="display: none; background: #0D9488;" onclick="handleStopAndAnalyzeNow()">Stop & Analyze Extracted Logs Now</button>
+      <button data-i18n="mon.btn.reset" type="button" class="btn-md3-danger" id="btn-mon-stop-reset" onclick="handleEmergencyStopAndReset()">Emergency Reset & Stop Ingestion</button>
+      <button data-i18n="mon.btn.proceed" type="button" class="btn-md3-filled" id="btn-mon-proceed" style="display: none; background: #16A34A;" onclick="handleProceedToAnalysis()">Proceed to CERA Analysis</button>
       <button data-i18n="common.close" type="button" class="btn-md3-text" onclick="google.script.host.close()">Close</button>
     </div>
   </div>
@@ -789,7 +817,7 @@
 
     <div class="dialog-footer">
       <button data-i18n="common.cancel" type="button" class="btn-md3-text" onclick="google.script.host.close()">Cancel</button>
-      <button data-i18n="precheck.btn.recheck" type="button" class="btn-md3-text" id="btn-precheck-refresh" style="color: #0B57D0;" onclick="refreshPolicyPrecheck()">🔄 Re-check</button>
+      <button data-i18n="precheck.btn.recheck" type="button" class="btn-md3-text" id="btn-precheck-refresh" style="color: #0B57D0;" onclick="refreshPolicyPrecheck()">Re-check</button>
       <button data-i18n="precheck.btn.continue" type="button" class="btn-md3-filled" id="btn-precheck-continue" onclick="goToStep0()">Continue to Ingestion Setup ➔</button>
     </div>
   </div>
@@ -856,7 +884,7 @@
         </div>
 
         <div style="margin-top: 12px; text-align: right;">
-          <button data-i18n="step0.cloud.engage" id="btn-cloud-engage" type="button" class="btn-md3-filled" onclick="startCloudEngage()">🚀 Engage Background Extraction</button>
+          <button data-i18n="step0.cloud.engage" id="btn-cloud-engage" type="button" class="btn-md3-filled" onclick="startCloudEngage()">Engage Background Extraction</button>
         </div>
       </div>
     </div>
@@ -879,7 +907,7 @@
     <div class="dialog-footer">
       <button data-i18n="common.back" type="button" class="btn-md3-text" onclick="goToStep0()">Back</button>
       <button data-i18n="pf.btn.manual" type="button" class="btn-md3-text" id="pf-manual" onclick="goToPrereqCheck()">Use manual import (Drive folder / Sheet)</button>
-      <button data-i18n="pf.btn.start" type="button" class="btn-md3-filled" id="pf-start" onclick="engageAfterPreflight()">🚀 Start extraction</button>
+      <button data-i18n="pf.btn.start" type="button" class="btn-md3-filled" id="pf-start" onclick="engageAfterPreflight()">Start extraction</button>
     </div>
   </div>
 
@@ -1238,7 +1266,7 @@
 
     <div class="dialog-footer">
       <button data-i18n="common.backArrow" type="button" class="btn-md3-text" onclick="backToStep1()">← Back</button>
-      <button data-i18n="step2.submit" type="button" class="btn-md3-filled" onclick="submitPipeline()">Process Sheets & Generate 🚀</button>
+      <button data-i18n="step2.submit" type="button" class="btn-md3-filled" onclick="submitPipeline()">Process Sheets & Generate</button>
     </div>
   </div>
 
@@ -1266,14 +1294,14 @@
   <div id="result-card">
     <div data-i18n="result.title" style="color: #065F46; font-weight: 700; font-size: 16px;">✅ Chrome Egress Risk Analysis has been generated!</div>
     <div data-i18n="result.summary.default" id="summary-result-txt" style="color: #047857; font-size: 12.5px; margin-top: 6px;">Executive presentation deck is ready.</div>
-    <a data-i18n="result.openSlides" id="slides-link" class="btn-slides" href="#" target="_blank" style="display: none;">🔗 Open Google Slides Presentation Deck</a>
+    <a data-i18n="result.openSlides" id="slides-link" class="btn-slides" href="#" target="_blank" style="display: none;">Open Google Slides Presentation Deck ↗</a>
     <div style="margin-top: 18px; display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;">
-      <a data-i18n="result.btn.feedback" id="btn-result-feedback" href="https://goo.gle/cera-feedback" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill">💬 Share Feedback & Ideas ↗</a>
+      <a data-i18n="result.btn.feedback" id="btn-result-feedback" href="https://goo.gle/cera-feedback" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill">Share Feedback & Ideas ↗</a>
       <button data-i18n="common.close" type="button" class="btn-md3-text" style="color: #065F46; font-weight: 700;" onclick="google.script.host.close()">Close</button>
     </div>
   </div>
 
-  <div id="cera-disclaimer-footer" data-i18n-html="dialog.disclaimer" style="font-size: 10.5px; color: #64748B; text-align: center; margin-top: 10px;">Not an officially supported Google product. Provided &quot;AS IS&quot; without warranty or liability; runs in your tenant using your Workspace quotas. <a href="https://github.com/google/ChromeBrowserEnterprise/blob/main/AppsScript-examples/cera/DISCLAIMER.md" target="_blank" rel="noopener noreferrer">Disclaimer &amp; Privacy Policy ↗</a></div>
+  <div id="cera-disclaimer-footer" data-i18n-html="dialog.disclaimer"><a href="https://github.com/google/ChromeBrowserEnterprise/blob/main/AppsScript-examples/cera/DISCLAIMER.md" target="_blank" rel="noopener noreferrer">Disclaimer &amp; Privacy Policy ↗</a></div>
 
   <script>
     let pollInterval = null;
@@ -1626,6 +1654,8 @@
             data.currentSessionAnalyzed ||
             (data.workbookAlreadyUsed && data.workbookAlreadyUsed.currentSessionAnalyzed)
           );
+          lastSlidesUrl = String(data.lastSlidesUrl || '');
+          lastReportSummary = String(data.lastReportSummary || '');
           lastCloudSession = data.cloudSession || null;
 
           applyAdminSdkAccessState(data.adminSdkAccess !== false);
@@ -1668,6 +1698,8 @@
     let currentMonitorCompleted = false;
     let singleUseGateUnlocked = false;
     let lastCloudSession = null;
+    let lastSlidesUrl = '';
+    let lastReportSummary = '';
 
     function shouldShowSingleUseGate(cs) {
       if (singleUseGateUnlocked) return false;
@@ -1702,6 +1734,21 @@
       const btn = document.getElementById('btn-reuse-continue');
       if (chk) chk.checked = false;
       if (btn) btn.disabled = true;
+      const slidesCard = document.getElementById('reuse-gate-slides-card');
+      const slidesSummary = document.getElementById('reuse-gate-slides-summary');
+      const slidesBtn = document.getElementById('btn-reuse-open-slides');
+      if (slidesCard && slidesBtn) {
+        if (lastSlidesUrl) {
+          slidesCard.style.display = 'block';
+          slidesBtn.href = lastSlidesUrl;
+          if (slidesSummary) {
+            if (lastReportSummary) setRaw(slidesSummary, lastReportSummary);
+            else setT(slidesSummary, 'reuse.gate.slidesDesc');
+          }
+        } else {
+          slidesCard.style.display = 'none';
+        }
+      }
       const gate = document.getElementById('single-use-gate-container');
       if (gate) gate.style.display = 'block';
       updateSingleUseWarningBanner('single-use-gate-container');
@@ -2161,9 +2208,7 @@
         pulse.style.background = '#16A34A';
         setT(statusTxt, 'mon.status.complete', { days: Number(cs.totalDays || DEFAULT_RANGE_DAYS) });
         if (btnStopReset) {
-          btnStopReset.style.display = 'inline-block';
-          btnStopReset.disabled = false;
-          setT(btnStopReset, 'mon.btn.reset');
+          btnStopReset.style.display = 'none';
         }
         if (btnProceed) btnProceed.style.display = 'inline-block';
         if (btnResume) btnResume.style.display = 'none';
@@ -2672,6 +2717,12 @@
                 ingestion: Boolean(res.workbookAlreadyUsed.ingestion) || true,
                 report: Boolean(res.workbookAlreadyUsed.report) || true
               };
+            }
+            if (res && res.slidesUrl) {
+              lastSlidesUrl = String(res.slidesUrl);
+            }
+            if (res && res.summaryTxt) {
+              lastReportSummary = String(res.summaryTxt);
             }
             updateSingleUseWarningBanner('result-card');
             if (res && (res.slidesUrl || res.success)) {

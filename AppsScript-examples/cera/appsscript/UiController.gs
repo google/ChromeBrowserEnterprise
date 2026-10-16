@@ -505,6 +505,8 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
   const docProps = PropertiesService.getDocumentProperties();
   const workbookAlreadyUsed = ceraGetWorkbookUsageState_(SpreadsheetApp.getActiveSpreadsheet(), docProps);
   const currentSessionAnalyzed = !!(workbookAlreadyUsed.report && docProps && docProps.getProperty('CERA_ANALYSIS_EXECUTED') === 'true');
+  const lastSlidesUrl = (workbookAlreadyUsed.report && docProps) ? (docProps.getProperty('CERA_LAST_SLIDES_URL') || '') : '';
+  const lastReportSummary = (workbookAlreadyUsed.report && docProps) ? (docProps.getProperty('CERA_LAST_REPORT_SUMMARY') || '') : '';
 
   let activeExtractedFolderId = passedFolderId || '';
   let activeExtractedFolderName = passedFolderName || '';
@@ -529,7 +531,9 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
     extractedFolderId: activeExtractedFolderId,
     extractedFolderName: activeExtractedFolderName,
     workbookAlreadyUsed: workbookAlreadyUsed,
-    currentSessionAnalyzed: currentSessionAnalyzed
+    currentSessionAnalyzed: currentSessionAnalyzed,
+    lastSlidesUrl: lastSlidesUrl,
+    lastReportSummary: lastReportSummary
   };
 }
 

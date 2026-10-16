@@ -458,9 +458,19 @@ function executeDlpAnalysis(params) {
 
   try {
     const docProps = PropertiesService.getDocumentProperties();
+    const prevRepSheetId = docProps.getProperty('CERA_REPORT_USED_SHEET_ID') || '';
+    const currSheetId = (currentSs && typeof currentSs.getId === 'function' && currentSs.getId()) ? String(currentSs.getId()) : '';
     docProps.setProperty('CERA_ANALYSIS_EXECUTED', 'true');
-    if (currentSs && typeof currentSs.getId === 'function' && currentSs.getId()) {
-      docProps.setProperty('CERA_REPORT_USED_SHEET_ID', String(currentSs.getId()));
+    if (currSheetId) {
+      docProps.setProperty('CERA_REPORT_USED_SHEET_ID', currSheetId);
+    }
+    if (presentationUrl) {
+      docProps.setProperty('CERA_LAST_SLIDES_URL', String(presentationUrl));
+    } else if (currSheetId && prevRepSheetId !== currSheetId) {
+      docProps.deleteProperty('CERA_LAST_SLIDES_URL');
+    }
+    if (summaryTxt) {
+      docProps.setProperty('CERA_LAST_REPORT_SUMMARY', String(summaryTxt));
     }
   } catch (cpErr) {}
 
