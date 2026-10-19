@@ -684,7 +684,7 @@
       <a id="btn-reuse-open-slides" data-i18n="reuse.gate.openSlides" href="#" target="_blank" rel="noopener noreferrer" class="btn-slides" style="display: inline-block; margin-top: 0; padding: 10px 20px; background: #D97706; color: #FFFFFF; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open Google Slides Presentation Deck ↗</a>
     </div>
 
-    <!-- Primary Recommended Hero Card: Make a Fresh Copy at goo.gle/cera -->
+    <!-- Primary Hero Card: Make a Fresh Copy at goo.gle/cera -->
     <div id="reuse-gate-hero-card" style="background: #F0FDF4; border: 2px solid #86EFAC; border-radius: 12px; padding: 15px 16px; margin-bottom: 12px;">
       <div id="reuse-gate-rec-title" data-i18n="reuse.gate.recTitle" style="font-weight: 700; font-size: 13px; color: #14532D; margin-bottom: 6px;">✨ Recommended: Start a Fresh Copy for Your Next Run</div>
       <ul style="margin: 0 0 12px 18px; padding: 0; font-size: 11.5px; color: #166534; line-height: 1.45;">
@@ -693,18 +693,6 @@
         <li id="reuse-gate-rec-b3" data-i18n="reuse.gate.recB3">Zero re-extraction needed: if you already extracted logs to Google Drive, paste that Drive folder link into your new copy via Manual Export to analyze in seconds.</li>
       </ul>
       <a id="btn-reuse-fresh-copy" data-i18n="reuse.gate.ctaFresh" href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer" class="btn-md3-filled" style="display: block; text-align: center; background: #16A34A; color: #FFFFFF; text-decoration: none; padding: 10px 18px; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open goo.gle/cera to Make a Fresh Copy (Recommended) ↗</a>
-    </div>
-
-    <!-- Subtle Secondary Option: Reuse Current Workbook (Overwrite Existing Report Sheets) -->
-    <div id="reuse-gate-risk-card" style="background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 10px; padding: 11px 13px;">
-      <div id="reuse-gate-risk-title" data-i18n="reuse.gate.riskTitle" style="font-weight: 600; font-size: 11.5px; color: #475569; margin-bottom: 6px;">Or reuse this workbook (not recommended)</div>
-      <label class="interactive-checkbox-label" style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; margin-bottom: 8px;">
-        <input type="checkbox" id="chk-reuse-risk" onchange="toggleReuseContinueBtn()" style="margin-top: 2px;">
-        <span id="reuse-gate-risk-check" data-i18n="reuse.gate.riskCheck" style="font-size: 11px; color: #64748B; line-height: 1.4;">I understand that continuing in this workbook will overwrite the current report sheets.</span>
-      </label>
-      <div style="text-align: right;">
-        <button id="btn-reuse-continue" data-i18n="reuse.gate.btnContinue" type="button" class="btn-md3-tonal" style="padding: 6px 14px; font-size: 11.5px;" disabled onclick="proceedPastSingleUseGate()">Continue in This Workbook →</button>
-      </div>
     </div>
 
     <div class="dialog-footer">
@@ -1790,7 +1778,6 @@
     let lastReportSummary = '';
 
     function shouldShowSingleUseGate(cs) {
-      if (singleUseGateUnlocked) return false;
       if (cs && cs.hasExisting) {
         if (cs.status === 'RUNNING' || cs.status === 'PAUSED' || cs.status === 'QUOTA_PAUSED' || cs.status === 'FAILED' || cs.status === 'TRANSIENT_READ_ERROR' || cs.isStalled) {
           return false;
@@ -1818,10 +1805,6 @@
 
     function goToSingleUseGate() {
       hideAllContainers();
-      const chk = document.getElementById('chk-reuse-risk');
-      const btn = document.getElementById('btn-reuse-continue');
-      if (chk) chk.checked = false;
-      if (btn) btn.disabled = true;
       const slidesCard = document.getElementById('reuse-gate-slides-card');
       const slidesSummary = document.getElementById('reuse-gate-slides-summary');
       const slidesBtn = document.getElementById('btn-reuse-open-slides');
@@ -1843,27 +1826,10 @@
     }
     const showSingleUseGate = goToSingleUseGate;
 
-    function toggleReuseContinueBtn() {
-      const chk = document.getElementById('chk-reuse-risk');
-      const btn = document.getElementById('btn-reuse-continue');
-      if (btn && chk) {
-        btn.disabled = !chk.checked;
-      }
-    }
+    function toggleReuseContinueBtn() {}
 
     function proceedPastSingleUseGate() {
-      const chk = document.getElementById('chk-reuse-risk');
-      if (!chk || !chk.checked) return;
-      singleUseGateUnlocked = true;
-      currentSessionAnalyzed = false;
-      activeExtractedFolderId = '';
-      activeExtractedFolderName = '';
-      lastCloudSession = null;
-      if (hasAdminSdkAccess) {
-        goToPolicyPrecheck();
-      } else {
-        goToStep0();
-      }
+      return false;
     }
 
     function applyAdminSdkAccessState(hasAccess) {
