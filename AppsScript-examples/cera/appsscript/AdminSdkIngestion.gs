@@ -1666,6 +1666,10 @@ function fetchChromeLogPage(pageToken, startTimeIso, currentLogTimestampMs, even
     } catch (e) {
       const classified = ceraClassifyIngestionError_(e);
       const errMsg = (e.message || String(e)).toLowerCase();
+      if (options.fields && !options.pageToken && (classified.httpStatus === 400 || errMsg.includes('invalid field') || errMsg.includes('field'))) {
+        delete options.fields;
+        return AdminReports.Activities.list('all', 'chrome', options);
+      }
       // Checked first: a rate limit can come as a 403, and it clears with time
       const isRateLimit = classified.isRateLimit || ceraIsRateLimitError_(errMsg);
       const isFatal = !isRateLimit && (classified.isPermission || classified.isInvalidToken || classified.isNotFound ||
@@ -1981,13 +1985,14 @@ function createTargetSheetFile(folderId, startStr, endStr, index) {
   }
 
   const fileId = newFile.id;
-  // The new spreadsheet has one sheet (sheetId 0) titled in the user's language: name it Sheet1, where the appends
-  // write, with a grid of one row and one column per header. Retried like the creation, so a transient error does not
-  // fail the run and leave an unnamed partition behind.
+  // The new spreadsheet has one sheet (sheetId 0) titled in the user's language: name it Sheet1, where positional
+  // updates write, pre-sized to MAX_ROWS_PER_SHEET + 1 rows and one column per header (Q3a-C). Retried like the
+  // creation, so a transient error does not fail the run and leave an unnamed partition behind.
+  const initialGridRows = Math.max(2, (Number(MAX_ROWS_PER_SHEET) || 50000) + 1);
   const sheetSetup = {
     requests: [{
       updateSheetProperties: {
-        properties: { sheetId: 0, title: 'Sheet1', gridProperties: { rowCount: 1, columnCount: PARTITION_HEADERS.length } },
+        properties: { sheetId: 0, title: 'Sheet1', gridProperties: { rowCount: initialGridRows, columnCount: PARTITION_HEADERS.length } },
         fields: 'title,gridProperties.rowCount,gridProperties.columnCount'
       }
     }]
@@ -2063,6 +2068,41 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress, startRowOffset)
     } catch (e) {
       const classified = ceraClassifyIngestionError_(e);
       const errMsg = (e.message || String(e)).toLowerCase();
+
+      // Self-healing grid expansion (BP-06 / Q3a-C): if Values.update hits a 1-row legacy partition or grid limit,
+      // expand Sheet1's grid immediately and retry Values.update in the same attempt.
+      if (startRowOffset >= 1 && (errMsg.includes('exceeds grid limits') || errMsg.includes('grid limits')) &&
+          typeof Sheets !== 'undefined' && Sheets.Spreadsheets && typeof Sheets.Spreadsheets.batchUpdate === 'function' &&
+          Sheets.Spreadsheets.Values && typeof Sheets.Spreadsheets.Values.update === 'function') {
+        try {
+          const endRowOffset = startRowOffset + sanitizedRows.length - 1;
+          const targetGridRows = Math.max(endRowOffset + 1000, (Number(MAX_ROWS_PER_SHEET) || 50000) + 1);
+          console.warn(`[Self-Healing Grid] Expanding Sheet1 grid of ${fileId} to ${targetGridRows} rows after grid-limit notice...`);
+          Sheets.Spreadsheets.batchUpdate({
+            requests: [{
+              updateSheetProperties: {
+                properties: {
+                  sheetId: 0,
+                  gridProperties: { rowCount: targetGridRows, columnCount: PARTITION_HEADERS.length }
+                },
+                fields: 'gridProperties.rowCount,gridProperties.columnCount'
+              }
+            }]
+          }, fileId);
+          const endColLetter = String.fromCharCode(64 + PARTITION_HEADERS.length);
+          Sheets.Spreadsheets.Values.update(
+            resource,
+            fileId,
+            `Sheet1!A${startRowOffset}:${endColLetter}${endRowOffset}`,
+            { valueInputOption: 'RAW' }
+          );
+          if (progress) progress.written += sanitizedRows.length;
+          return sanitizedRows.length;
+        } catch (expandErr) {
+          console.warn(`[Self-Healing Grid] Grid expansion retry notice: ${expandErr.message || expandErr}`);
+        }
+      }
+
       // Checked first: a rate limit or quota can come as a 403, and it clears with time
       const isRateLimit = classified.isRateLimit || ceraIsRateLimitError_(errMsg);
       const isFatal = !isRateLimit && (classified.isNotFound || classified.isPermission ||
@@ -2127,12 +2167,22 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress, startRowOffset)
  */
 function safeUpdateDashboard(ss, state, partitions) {
   try {
-    let viewState = state;
-    if (state && !state.logFolderUrl && state.folderId) {
-      const diagMeta = ceraGetDiagLogMeta_(state.folderId);
+    let viewState = state ? Object.assign({}, state) : state;
+    if (viewState && !viewState.logFolderUrl && viewState.folderId) {
+      const diagMeta = ceraGetDiagLogMeta_(viewState.folderId);
       if (diagMeta && diagMeta.logFolderUrl) {
-        viewState = Object.assign({}, state, { logFolderUrl: diagMeta.logFolderUrl });
+        viewState.logFolderUrl = diagMeta.logFolderUrl;
       }
+    }
+    if (viewState && !viewState.healthState && typeof ceraComputeJobHealth_ === 'function') {
+      try {
+        const health = ceraComputeJobHealth_(viewState, ceraLoadJobCtl_());
+        if (health) {
+          viewState.healthState = health.healthState;
+          if (viewState.isStalled === undefined) viewState.isStalled = health.isStalled;
+          if (viewState.heartbeatAgeSec === undefined) viewState.heartbeatAgeSec = health.heartbeatAgeSec;
+        }
+      } catch (hErr) {}
     }
     IngestionMonitorSheet.updateDashboard(ss, viewState, partitions);
   } catch (mErr) {

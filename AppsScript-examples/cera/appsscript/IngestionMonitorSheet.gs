@@ -255,9 +255,10 @@ var IngestionMonitorSheet = {
         : isQuotaWait ? T('mon.kpi.health.quota')
           : (status === 'PAUSED') ? T('mon.kpi.health.paused')
             : (status === 'FAILED' || isIdle) ? T('mon.kpi.health.failed')
-              : (state.heartbeatAgeSec !== undefined && state.heartbeatAgeSec !== null && Number(state.heartbeatAgeSec) >= 0)
-                ? T('mon.kpi.health.heartbeat', { age: this.formatDuration(Math.max(1, Number(state.heartbeatAgeSec)), lang) })
-                : T('mon.kpi.watchdog');
+              : (healthState === 'RETRYING') ? T('mon.health.retrying')
+                : (state.heartbeatAgeSec !== undefined && state.heartbeatAgeSec !== null && Number(state.heartbeatAgeSec) >= 0)
+                  ? T('mon.kpi.health.heartbeat', { age: this.formatDuration(Math.max(1, Number(state.heartbeatAgeSec)), lang) })
+                  : T('mon.kpi.watchdog');
     sheet.getRange('G4:H4').merge().setValue(T('mon.kpi.eta').toUpperCase())
       .setFontSize(8.5).setFontWeight('bold').setFontColor('#64748B').setBackground('#F1F5F9');
     sheet.getRange('G5:H5').merge().setValue(etaText)
