@@ -103,6 +103,9 @@ var IngestionMonitorSheet = {
     const linkLabel = text => String(text).replace(/"/g, '""');
 
     const status = (state.status || 'RUNNING').toUpperCase();
+    const healthState = String(state.healthState || '').toUpperCase();
+    const isStalled = Boolean(state.isStalled || healthState === 'STALLED' || healthState === 'NEEDS_OWNER');
+    const isQuotaWait = Boolean(status === 'QUOTA_PAUSED' || healthState === 'WAITING_FOR_QUOTA');
     const isIdle = (status === 'IDLE' || status === 'STOPPED' || status === 'RESET');
     const totalLogs = Number(state.processedCount || state.totalLogsProcessed || 0);
     const timeSpanPct = Number(state.timeSpanPct || 0);
@@ -135,11 +138,15 @@ var IngestionMonitorSheet = {
       statusBg = '#E6F4EA';
       statusFg = '#137333';
       statusText = T('mon.sheet.status.completed');
+    } else if (isStalled) {
+      statusBg = '#FEF7E0';
+      statusFg = '#B06000';
+      statusText = '⚠️ ' + T(healthState === 'NEEDS_OWNER' ? 'mon.status.needsOwner' : 'mon.status.stalled');
     } else if (status === 'PAUSED') {
       statusBg = '#FEF7E0';
       statusFg = '#B06000';
       statusText = T('mon.sheet.status.paused');
-    } else if (status === 'QUOTA_PAUSED') {
+    } else if (isQuotaWait) {
       statusBg = '#F5F3FF';
       statusFg = '#7C3AED';
       statusText = T('mon.status.quota');
@@ -238,14 +245,24 @@ var IngestionMonitorSheet = {
 
     // Card 4: Estimated Completion & Watchdog (G4:H6)
     const etaText = (status === 'COMPLETED' || status === 'SUCCESS') ? T('mon.eta.finished')
-      : (isIdle || status === 'FAILED') ? T('mon.status.stopped')
-        : (status === 'PAUSED') ? T('mon.sheet.streamStatus.paused')
-          : (etaSec > 0 ? this.formatDuration(etaSec, lang) : T('mon.eta.calculating'));
+      : isStalled ? T('mon.eta.stalled')
+        : isQuotaWait ? T('mon.eta.quotaWait')
+          : (isIdle || status === 'FAILED') ? T('mon.status.stopped')
+            : (status === 'PAUSED') ? T('mon.sheet.streamStatus.paused')
+              : (etaSec > 0 ? this.formatDuration(etaSec, lang) : T('mon.eta.calculating'));
+    const watchdogText = (status === 'COMPLETED' || status === 'SUCCESS') ? T('mon.kpi.health.completed')
+      : isStalled ? T(healthState === 'NEEDS_OWNER' ? 'mon.kpi.health.needsOwner' : 'mon.kpi.health.stalled')
+        : isQuotaWait ? T('mon.kpi.health.quota')
+          : (status === 'PAUSED') ? T('mon.kpi.health.paused')
+            : (status === 'FAILED' || isIdle) ? T('mon.kpi.health.failed')
+              : (state.heartbeatAgeSec !== undefined && state.heartbeatAgeSec !== null && Number(state.heartbeatAgeSec) >= 0)
+                ? T('mon.kpi.health.heartbeat', { age: this.formatDuration(Math.max(1, Number(state.heartbeatAgeSec)), lang) })
+                : T('mon.kpi.watchdog');
     sheet.getRange('G4:H4').merge().setValue(T('mon.kpi.eta').toUpperCase())
       .setFontSize(8.5).setFontWeight('bold').setFontColor('#64748B').setBackground('#F1F5F9');
     sheet.getRange('G5:H5').merge().setValue(etaText)
       .setFontSize(15).setFontWeight('bold').setFontColor(isIdle || status === 'FAILED' ? '#C5221F' : '#B06000').setBackground('#FFFBEB');
-    sheet.getRange('G6:H6').merge().setValue(T('mon.kpi.watchdog'))
+    sheet.getRange('G6:H6').merge().setValue(watchdogText)
       .setFontSize(9).setFontColor('#64748B').setBackground('#FFFBEB');
 
     sheet.getRange('A4:H6').setBorder(true, true, true, true, true, true, '#CBD5E1', SpreadsheetApp.BorderStyle.SOLID);
@@ -370,12 +387,18 @@ var IngestionMonitorSheet = {
     const nextRow = firstPartRow + 1 + partRows.length;
     sheet.setRowHeight(nextRow - 1, 14);
 
-    if (status === 'QUOTA_PAUSED') {
+    if (isQuotaWait) {
       sheet.getRange(nextRow, 1, 2, 8).merge()
         .setValue(T('mon.quotaDefault'))
         .setBackground('#F5F3FF').setFontColor('#6D28D9').setFontSize(9.5).setFontWeight('bold')
         .setHorizontalAlignment('center').setVerticalAlignment('middle');
       sheet.getRange(nextRow, 1, 2, 8).setBorder(true, true, true, true, false, false, '#C4B5FD', SpreadsheetApp.BorderStyle.SOLID);
+    } else if (isStalled) {
+      sheet.getRange(nextRow, 1, 2, 8).merge()
+        .setValue(T(healthState === 'NEEDS_OWNER' ? 'mon.needsOwnerDefault' : 'mon.stalledDefault'))
+        .setBackground('#FFFBEB').setFontColor('#B45309').setFontSize(9.5).setFontWeight('bold')
+        .setHorizontalAlignment('center').setVerticalAlignment('middle');
+      sheet.getRange(nextRow, 1, 2, 8).setBorder(true, true, true, true, false, false, '#FCD34D', SpreadsheetApp.BorderStyle.SOLID);
     } else if (status === 'FAILED' && state.errorMessage) {
       const lastCursorInfo = state.currentLogDateStr ? T('mon.sheet.lastDate', { date: state.currentLogDateStr }) : '';
       sheet.getRange(nextRow, 1, 2, 8).merge()

@@ -207,11 +207,27 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
     .setBackground('#0F172A').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(13).setHorizontalAlignment('left');
 
   // What the counts below are made of: the log rows read and, when ingestion counts user actions, the actions those
-  // rows were merged into (the same disclosure as the deck cover)
+  // rows were merged into (the same disclosure as the deck cover), plus active time zone and partial-window metadata
   const cov = state.coverage || {};
-  const coverageNote = typeof cov.actions === 'number'
+  const covMeta = state.coverageMeta || {};
+  const reportTz = String(state.reportTz || covMeta.reportTz || (typeof ceraTimeZone === 'function' ? ceraTimeZone() : 'UTC')).trim() || 'UTC';
+  const baseCoverageNote = typeof cov.actions === 'number'
     ? ceraT('report.coverage.actions', { rows: reportNum_(cov.rowsRead), actions: cov.actions, merged: reportNum_(cov.rowsMerged) }, lang)
     : ceraT('report.coverage.rows', { rows: reportNum_(cov.rowsRead), deduped: reportNum_(cov.dedupedRows) }, lang);
+  const covExtraParts = [reportTz];
+  const partRead = reportNum_(covMeta.partitionsRead !== undefined ? covMeta.partitionsRead : cov.partitionsRead);
+  const partTotal = reportNum_(covMeta.partitionsTotal !== undefined ? covMeta.partitionsTotal : cov.partitionsTotal);
+  if (covMeta.stoppedEarly && Number(covMeta.actualSpanDays) > 0 && Number(covMeta.windowDays) > 0) {
+    const actualSpanNum = Number(covMeta.actualSpanDays);
+    const actualSpanStr = (Math.abs(actualSpanNum - Math.round(actualSpanNum)) < 0.05)
+      ? String(Math.round(actualSpanNum))
+      : actualSpanNum.toFixed(1);
+    covExtraParts.push(ceraT('pf.days', { n: actualSpanStr + '/' + Number(covMeta.windowDays) }, lang));
+  }
+  if (partRead > 0 && partTotal > partRead) {
+    covExtraParts.push(ceraT('result.partial', { read: partRead, total: partTotal }, lang));
+  }
+  const coverageNote = baseCoverageNote + (covExtraParts.length ? ' • ' + covExtraParts.join(' • ') : '');
   sheet.getRange('B3:S3').merge().setValue(coverageNote)
     .setFontStyle('italic').setFontColor('#64748B').setFontSize(8).setHorizontalAlignment('left');
 

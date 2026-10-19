@@ -25,9 +25,16 @@
 function onOpen(e) {
   buildCeraMenu_();
 
-  // If running via an Installable Trigger (AuthMode.FULL), we can safely launch showSetupDialog
+  // If running via an Installable Trigger (AuthMode.FULL), we can safely auto-heal stalled triggers and launch showSetupDialog
   if (e && e.authMode === ScriptApp.AuthMode.FULL) {
     try {
+      if (typeof ceraMaybeAutoHealIngestionOnOpen_ === 'function') {
+        try {
+          ceraMaybeAutoHealIngestionOnOpen_('onOpen');
+        } catch (healErr) {
+          Logger.log('Installable onOpen auto-heal notice: ' + healErr.message);
+        }
+      }
       const docProps = PropertiesService.getDocumentProperties();
       const isAnalysisDone = docProps && docProps.getProperty('CERA_ANALYSIS_EXECUTED') === 'true';
       if (!isAnalysisDone && typeof detectExistingSession === 'function') {
@@ -54,6 +61,11 @@ function onOpen(e) {
             if (ss && typeof ss.toast === 'function') {
               ss.toast(ceraT('toast.ready.body'), ceraT('toast.ready.title'), 15);
             }
+          }
+        } else if (session && (session.isStalled || session.healthState === 'STALLED' || session.healthState === 'NEEDS_OWNER')) {
+          const ss = SpreadsheetApp.getActiveSpreadsheet();
+          if (ss && typeof ss.toast === 'function') {
+            ss.toast(ceraT('toast.stalled.body'), ceraT('toast.stalled.title'), 15);
           }
         }
       }
@@ -258,6 +270,13 @@ function showPrivacyPolicyDialog() {
             </p>
           </div>
 
+          <div class="clause-card">
+            <div class="clause-title">${tx('privacy.c5.title')}</div>
+            <p class="clause-desc">
+              ${tx('privacy.c5.body')}
+            </p>
+          </div>
+
           <div class="dialog-actions">
             <button class="btn-close" onclick="google.script.host.close()">${tx('common.close')}</button>
           </div>
@@ -267,7 +286,7 @@ function showPrivacyPolicyDialog() {
 
     const html = HtmlService.createHtmlOutput(htmlContent)
       .setWidth(540)
-      .setHeight(480);
+      .setHeight(520);
     SpreadsheetApp.getUi().showModalDialog(html, ceraT('privacy.dialogTitle'));
   } catch (err) {
     Logger.log('showPrivacyPolicyDialog error: ' + err.toString());
@@ -305,7 +324,7 @@ function ceraGetWorkbookUsageState_(ss, docProps) {
 function emergencyResetIngestion(forceReset) {
   try {
     Logger.log('emergencyResetIngestion triggered by user...');
-    cleanupAllIngestionTriggers();
+    cleanupAllIngestionTriggers('EMERGENCY_RESET');
     const lock = LockService.getScriptLock();
     try { lock.releaseLock(); } catch (e) {}
 
@@ -345,6 +364,11 @@ function emergencyResetIngestion(forceReset) {
       };
     }
 
+    let activeActId = '';
+    try {
+      activeActId = (docProps && docProps.getProperty('CERA_CURRENT_ACTIVITY_ID')) || (existing && existing.activityId) || '';
+    } catch (e) {}
+
     if (existing && existing.folderId && existing.status !== 'COMPLETED' && !existing.isCompleted && typeof ceraRecordDiagLifecycle_ === 'function') {
       ceraRecordDiagLifecycle_(existing, 'STOPPED', 'EMERGENCY_RESET', 'User triggered Emergency Reset.');
     }
@@ -357,6 +381,23 @@ function emergencyResetIngestion(forceReset) {
       docProps.deleteProperty('SIERRA_SESSION');
       docProps.deleteProperty('CERA_CURRENT_ACTIVITY_ID');
       docProps.deleteProperty('CERA_ANALYSIS_EXECUTED');
+      docProps.deleteProperty('CERA_PART_REG');
+      docProps.deleteProperty('CERA_FR_HOT');
+      docProps.deleteProperty('CERA_FR_RING');
+      docProps.deleteProperty('CERA_FR_INC');
+      docProps.deleteProperty('CERA_JOB_BEAT');
+      docProps.deleteProperty('CERA_ANALYSIS_JOB');
+      try {
+        docProps.setProperty('CERA_JOB_CTL', JSON.stringify({
+          activityId: activeActId,
+          status: 'DISCARDED',
+          rev: 1,
+          updatedMs: Date.now(),
+          heartbeatMs: Date.now(),
+          lastHeartbeatMs: Date.now(),
+          lastReason: 'EMERGENCY_RESET'
+        }));
+      } catch (e) {}
     }
     CacheService.getUserCache().remove('SIERRA_LIVE_PROGRESS');
     CacheService.getScriptCache().remove('SIERRA_LIVE_PROGRESS');
@@ -500,10 +541,21 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
     }
   }
 
+  // Attempt owner auto-heal if a background ingestion session was interrupted
+  let autoHealResult = null;
+  if (typeof ceraMaybeAutoHealIngestionOnOpen_ === 'function') {
+    try {
+      autoHealResult = ceraMaybeAutoHealIngestionOnOpen_('setup');
+    } catch (healErr) {
+      Logger.log('getAsyncSetupMetadata auto-heal notice: ' + healErr.message);
+    }
+  }
+
   // Check active cloud ingestion background job
   const cloudSession = detectExistingSession();
+  const activeSs = SpreadsheetApp.getActiveSpreadsheet();
   const docProps = PropertiesService.getDocumentProperties();
-  const workbookAlreadyUsed = ceraGetWorkbookUsageState_(SpreadsheetApp.getActiveSpreadsheet(), docProps);
+  const workbookAlreadyUsed = ceraGetWorkbookUsageState_(activeSs, docProps);
   const currentSessionAnalyzed = !!(workbookAlreadyUsed.report && docProps && docProps.getProperty('CERA_ANALYSIS_EXECUTED') === 'true');
   const lastSlidesUrl = (workbookAlreadyUsed.report && docProps) ? (docProps.getProperty('CERA_LAST_SLIDES_URL') || '') : '';
   const lastReportSummary = (workbookAlreadyUsed.report && docProps) ? (docProps.getProperty('CERA_LAST_REPORT_SUMMARY') || '') : '';
@@ -515,6 +567,32 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
     activeExtractedFolderId = cloudSession.folderId;
     activeExtractedFolderName = cloudSession.folderName || 'Admin SDK Export Folder';
   }
+
+  // Local template freshness calculation (zero external network calls)
+  const releaseDate = (typeof CeraConfig !== 'undefined' && CeraConfig.RELEASE_DATE)
+    ? String(CeraConfig.RELEASE_DATE)
+    : '2026-10-19';
+  const freshnessWarnDays = (typeof CeraConfig !== 'undefined' && Number(CeraConfig.FRESHNESS_WARN_DAYS) > 0)
+    ? Number(CeraConfig.FRESHNESS_WARN_DAYS)
+    : 90;
+  const parsedReleaseMs = Date.parse(releaseDate);
+  const templateAgeDays = Number.isFinite(parsedReleaseMs)
+    ? Math.max(0, Math.floor((Date.now() - parsedReleaseMs) / 86400000))
+    : 0;
+  const isTemplateStale = templateAgeDays > freshnessWarnDays;
+
+  // Check for resumable multi-batch analysis job scoped to this spreadsheet
+  let analysisJob = null;
+  try {
+    const rawJob = docProps ? docProps.getProperty('CERA_ANALYSIS_JOB') : '';
+    if (rawJob) {
+      const parsedJob = JSON.parse(rawJob);
+      const ssId = (activeSs && typeof activeSs.getId === 'function') ? String(activeSs.getId() || '') : '';
+      if (parsedJob && (!parsedJob.hostSpreadsheetId || !ssId || parsedJob.hostSpreadsheetId === ssId)) {
+        analysisJob = parsedJob;
+      }
+    }
+  } catch (ajErr) {}
 
   // Deduplicate domains
   const uniqueDomains = Array.from(new Set(detectedDomains.filter(Boolean)));
@@ -528,12 +606,18 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
     adminSdkAccess: adminSdkAccess,
     policyPrecheck: policyPrecheck,
     cloudSession: cloudSession,
+    autoHealResult: autoHealResult,
     extractedFolderId: activeExtractedFolderId,
     extractedFolderName: activeExtractedFolderName,
     workbookAlreadyUsed: workbookAlreadyUsed,
     currentSessionAnalyzed: currentSessionAnalyzed,
     lastSlidesUrl: lastSlidesUrl,
-    lastReportSummary: lastReportSummary
+    lastReportSummary: lastReportSummary,
+    releaseDate: releaseDate,
+    freshnessWarnDays: freshnessWarnDays,
+    templateAgeDays: templateAgeDays,
+    isTemplateStale: isTemplateStale,
+    analysisJob: analysisJob
   };
 }
 
@@ -542,6 +626,48 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
  */
 function getCloudIngestionStatus() {
   return detectExistingSession();
+}
+
+/**
+ * Builds and returns a sanitized, zero-PII incident summary packet for clipboard copy in the Setup Dialog.
+ */
+function copyIngestionIncidentPacket() {
+  try {
+    if (typeof ceraBuildIncidentPacket_ === 'function') {
+      const state = (typeof getProgressUpdate === 'function') ? getProgressUpdate() : null;
+      const packet = ceraBuildIncidentPacket_(state);
+      return {
+        success: true,
+        incidentSummary: typeof packet === 'string' ? packet : JSON.stringify(packet, null, 2)
+      };
+    }
+    const session = (typeof detectExistingSession === 'function') ? detectExistingSession() : null;
+    if (session && session.incidentSummary) {
+      return {
+        success: true,
+        incidentSummary: String(session.incidentSummary)
+      };
+    }
+    const fallbackLines = [
+      'CERA Diagnostic Incident Summary (Zero-PII)',
+      'Version: v' + ((typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.12'),
+      'Status: ' + ((session && session.status) || 'IDLE'),
+      'Health: ' + ((session && session.healthState) || 'IDLE'),
+      'Progress: ' + Number((session && session.timeSpanPct) || 0) + '% (' + Number((session && session.processedCount) || 0) + ' events)',
+      'Partitions: ' + Number((session && session.fileIndex) || 0),
+      'Error Key: ' + ((session && session.errorKey) || 'NONE')
+    ];
+    return {
+      success: true,
+      incidentSummary: fallbackLines.join('\n')
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message || String(err),
+      incidentSummary: ''
+    };
+  }
 }
 
 /**

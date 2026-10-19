@@ -216,12 +216,16 @@ var ExecutivePresentationEngine = {
     // One outcome mode for the whole deck (ceraOutcomeMode): the cover note, every channel note and the
     // recommendations subtitle all read it, so a deck never mixes the enforced, audit and not-reported framings
     const mode = ceraOutcomeMode(state);
-    const ctx = this.buildRuntimeContext(state, primaryDomain, dateRangeString, outlierMetrics, corpDomains, mode);
+    const effectiveDays = this.resolveWindowDays_(state, outlierMetrics);
+    const effectiveOutlierMetrics = (outlierMetrics && effectiveDays > 0 && outlierMetrics.calendarDays !== effectiveDays)
+      ? Object.assign({}, outlierMetrics, { calendarDays: effectiveDays, rawCalendarDays: outlierMetrics.calendarDays })
+      : outlierMetrics;
+    const ctx = this.buildRuntimeContext(state, primaryDomain, dateRangeString, effectiveOutlierMetrics, corpDomains, mode);
     ctx.state = state;
-    ctx.outlierMetrics = outlierMetrics;
+    ctx.outlierMetrics = effectiveOutlierMetrics;
 
     // Story: headlines, vector gates and recommendations computed from the data (InsightEngine)
-    const insights = InsightEngine.build(state, outlierMetrics, {
+    const insights = InsightEngine.build(state, effectiveOutlierMetrics, {
       lang: (state && state.reportLang) || 'en',
       dateRange: dateRangeString,
       authorizedGenAi: (state && state.scope && state.scope.authorizedGenAi) || [],
@@ -231,10 +235,13 @@ var ExecutivePresentationEngine = {
     ctx._recByTopic = insights.recByTopic || {};
     const hl = insights.headlines;
     Object.keys(hl).forEach(k => { ctx['{{hl_' + k + '}}'] = hl[k]; });
+    if (!ctx['{{hl_s2note}}'] && ctx._partialCoverageNote) {
+      ctx['{{hl_s2note}}'] = ctx._partialCoverageNote;
+    }
     const gate = insights.tiers;
 
     // Slide 1: Executive Cover Briefing
-    this.buildSlide_slide_01(presentation, ctx, p, w, h, state, outlierMetrics);
+    this.buildSlide_slide_01(presentation, ctx, p, w, h, state, effectiveOutlierMetrics);
 
     // Slide 2: Enterprise Threat Matrix: Cross-Channel Benchmark
     this.buildSlide_slide_02(presentation, ctx, p, w, h, state, outlierMetrics);
@@ -415,10 +422,45 @@ var ExecutivePresentationEngine = {
     return result;
   },
 
+  resolveWindowDays_(state, outlierMetrics) {
+    const om = outlierMetrics || {};
+    const calDays = Number(om.calendarDays) || 0;
+    const covMeta = (state && state.coverageMeta) || {};
+    if (covMeta.stoppedEarly && Number(covMeta.actualSpanDays) > 0) {
+      return Math.max(1, Math.round(Number(covMeta.actualSpanDays)));
+    }
+    if (Number(covMeta.effectiveDays) > 0) {
+      return Math.max(1, Math.round(Number(covMeta.effectiveDays)));
+    }
+    if (!covMeta.stoppedEarly && Number(covMeta.windowDays) > 0 && (calDays === Number(covMeta.windowDays) + 1 || calDays === 0)) {
+      return Number(covMeta.windowDays);
+    }
+    const minMs = state && state.minDate instanceof Date ? state.minDate.getTime() : (state && state.minDate ? new Date(state.minDate).getTime() : NaN);
+    const maxMs = state && state.maxDate instanceof Date ? state.maxDate.getTime() : (state && state.maxDate ? new Date(state.maxDate).getTime() : NaN);
+    if (isFinite(minMs) && isFinite(maxMs) && maxMs >= minMs && calDays > 1) {
+      const spanDays = (maxMs - minMs) / 86400000;
+      if ([1, 7, 14, 30, 60, 90, 180].indexOf(calDays - 1) !== -1 && spanDays <= (calDays - 1) + 0.05) {
+        return calDays - 1;
+      }
+    }
+    return calDays;
+  },
+
+  resolveReportTz_(state) {
+    const covMeta = (state && state.coverageMeta) || {};
+    const tz = (state && state.reportTz) || covMeta.reportTz || (typeof ceraTimeZone === 'function' ? ceraTimeZone() : 'UTC');
+    return String(tz || 'UTC').trim();
+  },
+
   buildRuntimeContext(state, primaryDomain, dateRangeString, outlierMetrics, corpDomains, mode) {
     const self = this;
     const GB = 1024 ** 3;
-    const om = outlierMetrics || {};
+    const resolvedDays = self.resolveWindowDays_(state, outlierMetrics);
+    const om = (outlierMetrics && resolvedDays > 0 && outlierMetrics.calendarDays !== resolvedDays)
+      ? Object.assign({}, outlierMetrics, { calendarDays: resolvedDays, rawCalendarDays: outlierMetrics.calendarDays })
+      : (outlierMetrics || {});
+    const covMeta = (state && state.coverageMeta) || {};
+    const reportTz = self.resolveReportTz_(state);
     // Language of the deck, for the sentences that come from the message catalogs
     const lang = ceraNormalizeLang_((state && state.reportLang) || 'en');
     const NR = ceraT('deck.notRecorded', null, lang);
@@ -609,15 +651,29 @@ var ExecutivePresentationEngine = {
     const skewTitle = s3Cards.skewTitle;
     const skewNarrative = s3Cards.skewNarrative;
 
+    const workHours = (typeof CeraConfig !== 'undefined' && CeraConfig.WORK_HOURS) || { start: 8, end: 19 };
+    const workStartStr = (Number(workHours.start) < 10 ? '0' : '') + Number(workHours.start) + ':00';
+    const workEndStr = (Number(workHours.end) < 10 ? '0' : '') + Number(workHours.end) + ':00';
+    const workWindowStr = workStartStr + '–' + workEndStr;
+
     const outlierParts = [];
     const afterHoursCount = Number(state && state.egress && state.egress.afterHoursCount) || 0;
     const afterHoursBytes = Number(state && state.egress && state.egress.afterHoursBytes) || 0;
     if (afterHoursCount > 0 && outAllCount > 0) {
-      outlierParts.push(T('deck.s3.afterHoursNote', {
+      let ahNote = T('deck.s3.afterHoursNote', {
         n: afterHoursCount,
         pct: pctStr(afterHoursCount, outAllCount),
-        amount: outAllBytes > 0 ? fmtB(afterHoursBytes) : T('deck.transfers', { n: afterHoursCount })
-      }));
+        amount: outAllBytes > 0 ? fmtB(afterHoursBytes) : T('deck.transfers', { n: afterHoursCount }),
+        hours: workWindowStr,
+        start: workStartStr,
+        end: workEndStr,
+        tz: reportTz
+      });
+      ahNote = ahNote.replace(/08:00[–-]18:00/g, workWindowStr);
+      if (reportTz && ahNote.indexOf(reportTz) === -1) {
+        ahNote = ahNote.replace(workWindowStr, workWindowStr + ' (' + reportTz + ')');
+      }
+      outlierParts.push(ahNote);
     }
     // An index of 0.75 or more: one destination received most of that person's outbound data
     if (hasFunnel && funnelHHI >= 0.75) outlierParts.push(T('deck.narr.funnel', { ou: funnelOU, dest: funnelDomain, hhi: funnelHHIStr }));
@@ -1013,9 +1069,26 @@ var ExecutivePresentationEngine = {
       ].filter(Boolean).join(' ')
       : threatMatrixBase;
 
+    const periodExtra = [];
+    if (covMeta.stoppedEarly && Number(covMeta.actualSpanDays) > 0 && Number(covMeta.windowDays) > 0) {
+      const actualSpanStr = Number(covMeta.actualSpanDays).toFixed(1).replace(/\.0$/, '');
+      periodExtra.push(ceraT('pf.days', { n: actualSpanStr + '/' + covMeta.windowDays }, lang));
+    } else if ((covMeta.isPartial || covMeta.partial) && Number(covMeta.sheetsRead || covMeta.partitionsRead) > 0 &&
+        Number(covMeta.sheetsTotal || covMeta.partitionsTotal) > Number(covMeta.sheetsRead || covMeta.partitionsRead)) {
+      periodExtra.push(Number(covMeta.sheetsRead || covMeta.partitionsRead) + '/' + Number(covMeta.sheetsTotal || covMeta.partitionsTotal));
+    }
+    const partRead = Number(covMeta.sheetsRead || covMeta.partitionsRead) || 0;
+    const partTotal = Number(covMeta.sheetsTotal || covMeta.partitionsTotal) || 0;
+    const partialCoverageNote = ((covMeta.isPartial || covMeta.stoppedEarly || (partRead > 0 && partTotal > partRead)) && partRead > 0 && partTotal > partRead)
+      ? ceraT('result.partial', { read: partRead, total: partTotal }, lang)
+      : '';
+
     return {
       '{{primaryDomain}}': domainLabel,
       '{{dateRange}}': validName(dateRangeString) ? dateRangeString : NR,
+      _reportTz: reportTz,
+      _periodSuffix: periodExtra.join(' • '),
+      _partialCoverageNote: partialCoverageNote,
       '{{coverCount}}': ceraFormatNumber(effectiveCoverActions !== null ? effectiveCoverActions : coverRows, lang),
       '{{coverCountLabel}}': T(effectiveCoverActions !== null ? 'deck.cover.actions' : 'deck.cover.rows'),
       '{{coverCountDef}}': effectiveCoverActions !== null ? T('deck.cover.actionsDef', { n: coverRows }) : T('deck.cover.rowsDef'),
@@ -1044,7 +1117,7 @@ var ExecutivePresentationEngine = {
       '{{userConcText}}': conc.text,
       '{{burstNarrative}}': burstNarrative,
       // Daily, weekly or monthly bars (buildVelocitySeries), of outbound volume or of all transfers
-      '{{velocityTitle}}': T('deck.s3.velocity.' + (velocity.granularity || 'day') + (velocityIsEgress ? 'Outbound' : 'Transfer')),
+      '{{velocityTitle}}': T('deck.s3.velocity.' + (velocity.granularity || 'day') + (velocityIsEgress ? 'Outbound' : 'Transfer')) + (reportTz ? ' (' + reportTz + ')' : ''),
       '{{funnelOU}}': funnelOU,
       '{{funnelTitle}}': funnelTitle,
       '{{funnelNarrative}}': funnelNarrative,
@@ -1192,7 +1265,12 @@ var ExecutivePresentationEngine = {
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
       this.addTextBox(slide, txt, 52, 202, 181, 32, 'Outfit', 13, 'bold', '#2563eb', 'left');
     }
-    this.addLineBox(slide, this.t_(ctx, 'deck.cover.periodLabel'), 269, 186, 181, 16, 'Roboto', 7, 'bold', '#64748B', 'left');
+    {
+      const periodHeader = this.t_(ctx, 'deck.cover.periodLabel') +
+        (ctx._reportTz ? ' (' + ctx._reportTz + ')' : '') +
+        (ctx._periodSuffix ? ' • ' + ctx._periodSuffix : '');
+      this.addLineBox(slide, periodHeader, 269, 186, 410, 16, 'Roboto', 7, 'bold', '#64748B', 'left');
+    }
     this.addLineBox(slide, ctx['{{dateRange}}'], 269, 202, 220, 32, 'Outfit', 12, 'bold', '#0F172A', 'left');
     this.addCard(slide, 40, 258, 151, 76, '#FFFFFF', '#E2E8F0', 4, 0.5); // KPI Card 1
     {
@@ -1410,7 +1488,7 @@ var ExecutivePresentationEngine = {
     {
       let txt = '{{velocityTitle}}';
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
-      this.addLineBox(slide, txt, 48, 82, 296, 16, 'Outfit', 10, 'bold', '#D97706', 'left');
+      this.addLineBox(slide, txt, 48, 82, 296, 16, 'Outfit', this.fitFont(txt, 296, 10, 7.5), 'bold', '#D97706', 'left');
     }
     // Vector Chart: Velocity Line Chart (Daily Velocity Timeline)
     if (typeof VectorChartEngine !== 'undefined') {

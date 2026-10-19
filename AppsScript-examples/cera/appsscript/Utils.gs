@@ -222,24 +222,64 @@ function isGenAiExcludedHost(host) {
 }
 
 var _ceraTimeZone_ = null;
+var _ceraReportTimeZone_ = '';
 var _ceraDayKeyTz_ = null;
 var _ceraDayKeyCache_ = {};
 
 /**
- * Time zone for day buckets and displayed dates. CERA runs in many customer domains from copies of one
- * project, so the script time zone (fixed in appsscript.json) is not the customer's. The customer's
- * spreadsheet time zone (File > Settings) is used first, then the script time zone, then the config default.
+ * Validates an IANA or UTC/GMT offset time zone identifier. Returns the trimmed identifier when valid, or ''.
  */
-function ceraTimeZone() {
+function ceraValidateTimeZone_(tz) {
+  if (typeof tz !== 'string') return '';
+  const s = tz.trim();
+  if (!s) return '';
+  if (/^(UTC|GMT)([+-]\d{1,2}(:?\d{2})?)?$/i.test(s)) return s;
+  try {
+    if (typeof Intl !== 'undefined' && Intl && typeof Intl.DateTimeFormat === 'function') {
+      new Intl.DateTimeFormat('en-US', { timeZone: s });
+    }
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+      Utilities.formatDate(new Date(0), s, 'yyyy');
+    }
+    return s;
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * Sets or clears the explicit report time zone override for the current analysis run and resets cached day/hour slots.
+ */
+function ceraSetReportTimeZone_(tz) {
+  _ceraReportTimeZone_ = ceraValidateTimeZone_(tz);
+  _ceraTimeZone_ = null;
+  _ceraDayKeyTz_ = null;
+  _ceraDayKeyCache_ = {};
+  _ceraHourCacheTz_ = null;
+  _ceraHourCache_ = {};
+  return ceraTimeZone();
+}
+
+/**
+ * Time zone for day buckets and displayed dates. CERA runs in many customer domains from copies of one
+ * project, so the script time zone (fixed in appsscript.json) is not the customer's. An explicit report time zone
+ * (params.reportTz) wins when valid; otherwise the customer's spreadsheet time zone (File > Settings) is used first,
+ * then the script time zone, then the config default.
+ */
+function ceraTimeZone(tzOverride) {
+  if (tzOverride) {
+    const validOverride = ceraValidateTimeZone_(tzOverride);
+    if (validOverride) return validOverride;
+  }
+  if (_ceraReportTimeZone_) return _ceraReportTimeZone_;
   if (_ceraTimeZone_) return _ceraTimeZone_;
   let tz = '';
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    if (ss && typeof ss.getSpreadsheetTimeZone === 'function') tz = ss.getSpreadsheetTimeZone();
+    if (ss && typeof ss.getSpreadsheetTimeZone === 'function') tz = ceraValidateTimeZone_(ss.getSpreadsheetTimeZone());
   } catch (e) {}
-  if (typeof tz !== 'string') tz = '';
   if (!tz) {
-    try { tz = Session.getScriptTimeZone(); } catch (e) {}
+    try { tz = ceraValidateTimeZone_(Session.getScriptTimeZone()); } catch (e) {}
   }
   _ceraTimeZone_ = tz || CeraConfig.DEFAULT_TIMEZONE || 'UTC';
   return _ceraTimeZone_;
@@ -381,6 +421,148 @@ function ceraCalendarDayKeys(firstKey, lastKey) {
     keys.push(new Date(t).toISOString().slice(0, 10));
   }
   return keys;
+}
+
+/**
+ * Detects column-level slash-date order ('DMY' vs 'MDY') by scanning unambiguous day > 12 tokens in a timestamp list.
+ * When all tokens are <= 12 or no slash dates are present, returns defaultOrder ('MDY' by default).
+ */
+function ceraDetectDateOrder_(values, defaultOrder) {
+  let dmyVotes = 0;
+  let mdyVotes = 0;
+  const list = Array.isArray(values) ? values : [];
+  for (let i = 0; i < list.length; i++) {
+    const v = list[i];
+    if (typeof v !== 'string') continue;
+    const m = v.match(/^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+    if (!m) continue;
+    const first = Number(m[1]);
+    const second = Number(m[2]);
+    if (first > 12 && first <= 31 && second >= 1 && second <= 12) dmyVotes++;
+    else if (second > 12 && second <= 31 && first >= 1 && first <= 12) mdyVotes++;
+  }
+  if (dmyVotes > mdyVotes) return 'DMY';
+  if (mdyVotes > dmyVotes) return 'MDY';
+  return (defaultOrder && String(defaultOrder).toUpperCase() === 'DMY') ? 'DMY' : 'MDY';
+}
+
+/**
+ * Parses a timestamp cell (Date, epoch ms, ISO 8601, or localized slash-date dd/MM/yyyy / MM/dd/yyyy) into
+ * { ms, offsetMin }, respecting column-level dateOrder ('DMY' vs 'MDY') so dd/MM/yyyy manual exports never flip day/month.
+ */
+function ceraParseTimestamp_(rawVal, dateOrder) {
+  if (rawVal instanceof Date) return { ms: rawVal.getTime(), offsetMin: null };
+  if (typeof rawVal === 'number') return { ms: rawVal, offsetMin: null };
+  if (typeof rawVal !== 'string') return { ms: NaN, offsetMin: null };
+  const s = rawVal.trim();
+  if (!s) return { ms: NaN, offsetMin: null };
+
+  const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\sT]+(\d{1,2}):(\d{2})(?::(\d{2})(?:[.,](\d{1,3}))?)?\s*(AM|PM|am|pm)?)?(?:\s*(?:GMT|UTC)?\s*([+-])(\d{2}):?(\d{2})|\s*(Z|UTC|GMT))?$/i);
+  if (slashMatch) {
+    const a = Number(slashMatch[1]);
+    const b = Number(slashMatch[2]);
+    const year = Number(slashMatch[3]);
+    let day, month;
+    if (a > 12 && b <= 12) {
+      day = a;
+      month = b;
+    } else if (b > 12 && a <= 12) {
+      month = a;
+      day = b;
+    } else if (String(dateOrder || '').toUpperCase() === 'DMY') {
+      day = a;
+      month = b;
+    } else {
+      month = a;
+      day = b;
+    }
+    if (month < 1 || month > 12 || day < 1 || day > 31) return { ms: NaN, offsetMin: null };
+    let hh = slashMatch[4] !== undefined ? Number(slashMatch[4]) : 0;
+    const mm = slashMatch[5] !== undefined ? Number(slashMatch[5]) : 0;
+    const ss = slashMatch[6] !== undefined ? Number(slashMatch[6]) : 0;
+    const msStr = slashMatch[7] !== undefined ? String(slashMatch[7]) : '';
+    const msPart = msStr ? Number((msStr + '000').slice(0, 3)) : 0;
+    const ampm = slashMatch[8] ? slashMatch[8].toUpperCase() : '';
+    if (ampm === 'PM' && hh < 12) hh += 12;
+    else if (ampm === 'AM' && hh === 12) hh = 0;
+
+    if (slashMatch[9]) {
+      const offSign = slashMatch[9] === '-' ? -1 : 1;
+      const offMin = offSign * (Number(slashMatch[10]) * 60 + Number(slashMatch[11]));
+      if (Math.abs(offMin) <= 14 * 60) {
+        const utcMs = Date.UTC(year, month - 1, day, hh, mm, ss, msPart) - offMin * 60000;
+        return { ms: utcMs, offsetMin: offMin };
+      }
+    }
+    if (slashMatch[12]) {
+      return { ms: Date.UTC(year, month - 1, day, hh, mm, ss, msPart), offsetMin: null };
+    }
+    const localDt = new Date(year, month - 1, day, hh, mm, ss, msPart);
+    return { ms: localDt.getTime(), offsetMin: null };
+  }
+
+  const dt = new Date(s);
+  const ms = dt.getTime();
+  return { ms: ms, offsetMin: isNaN(ms) ? null : ceraTimestampOffset_(s) };
+}
+
+function parseTimestampToMs_(rawVal, dateOrder) {
+  return ceraParseTimestamp_(rawVal, dateOrder).ms;
+}
+
+/**
+ * UTF-8 byte length of a string (for CacheService 100 KB per-key limit safety with multibyte CJK/emoji text).
+ */
+function ceraUtf8ByteLength_(str) {
+  const s = String(str === null || str === undefined ? '' : str);
+  try {
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.newBlob === 'function') {
+      const b = Utilities.newBlob(s);
+      if (b && typeof b.getBytes === 'function') return b.getBytes().length;
+    }
+  } catch (e) {}
+  let bytes = 0;
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    if (code <= 0x7f) bytes += 1;
+    else if (code <= 0x7ff) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      bytes += 4;
+      i++;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+/**
+ * Splits a string into chunks of at most maxBytes UTF-8 bytes without splitting surrogate pairs.
+ */
+function ceraSliceUtf8Chunks_(str, maxBytes) {
+  const s = String(str === null || str === undefined ? '' : str);
+  const limit = Number(maxBytes) > 0 ? Number(maxBytes) : 75000;
+  if (!s) return [''];
+  const out = [];
+  let start = 0;
+  let bytes = 0;
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    let charBytes = 1;
+    let step = 1;
+    if (code > 0x7f && code <= 0x7ff) charBytes = 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      charBytes = 4;
+      step = 2;
+    } else if (code > 0x7ff) charBytes = 3;
+    if (bytes + charBytes > limit && i > start) {
+      out.push(s.slice(start, i));
+      start = i;
+      bytes = 0;
+    }
+    bytes += charBytes;
+    if (step === 2) i++;
+  }
+  if (start < s.length) out.push(s.slice(start));
+  return out.length ? out : [''];
 }
 
 var _ceraCleanDomainCache_ = Object.create(null);
@@ -966,6 +1148,7 @@ function resolveColumnIndices(headers) {
   col.deviceName = findRe(/^(device[\s_-]*name|device|device[\s_-]*fqdn|machine[\s_-]*name|host[\s_-]*name)$/);
   col.deviceUser = findRe(/^device[\s_-]*user(name)?$/);
   col.switches = findRe(/command[\s_-]*line|switch/);
+  col.eventId = findExact(['event id', 'event_id', 'eventid', 'uniquequalifier', 'unique qualifier', 'id.uniquequalifier', 'event identifier']);
 
   return col;
 }

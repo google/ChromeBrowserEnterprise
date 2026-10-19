@@ -63,50 +63,108 @@ const EVENT_DISPLAY_NAMES = {
 };
 
 /**
- * Columns of a partition. Device Name, Client Type and Command Line Switches come after the first 15 so that the
+ * Columns of a partition. Device Name, Client Type, Command Line Switches, and Event ID come after the first 15 so that
  * partitions written before them keep their layout: the reader maps every column by its header (resolveColumnIndices),
- * so a folder can hold partitions of both widths. Command Line Switches holds one switch per line.
+ * so a folder can hold partitions of any width (15, 18, or 19 columns). Command Line Switches holds one switch per line.
  */
 const PARTITION_HEADERS = [
   'Timestamp', 'Event', 'Event Reason', 'Detector Name', 'Organizational Unit',
   'User Profile', 'Content Size', 'Content Type', 'Trigger Type',
   'Web App Account', 'URL', 'Tab URL', 'URL Category', 'Event Result', 'Content Name',
-  'Device Name', 'Client Type', 'Command Line Switches'
+  'Device Name', 'Client Type', 'Command Line Switches', 'Event ID'
 ];
+
+const CERA_EXTRACTION_TRIGGER_MINUTES = (typeof CeraConfig !== 'undefined' && Number(CeraConfig.EXTRACTION_TRIGGER_MINUTES))
+  ? Number(CeraConfig.EXTRACTION_TRIGGER_MINUTES)
+  : 5;
+const CERA_EXTRACTION_LEASE_MS = (typeof CeraConfig !== 'undefined' && Number(CeraConfig.EXTRACTION_LEASE_MS))
+  ? Number(CeraConfig.EXTRACTION_LEASE_MS)
+  : 390000;
+const CERA_EXTRACTION_STALE_MS = (typeof CeraConfig !== 'undefined' && Number(CeraConfig.EXTRACTION_STALE_MS))
+  ? Number(CeraConfig.EXTRACTION_STALE_MS)
+  : 600000;
+const CERA_EXTRACTION_STALL_MS = (typeof CeraConfig !== 'undefined' && Number(CeraConfig.EXTRACTION_STALL_MS))
+  ? Number(CeraConfig.EXTRACTION_STALL_MS)
+  : 900000;
+const CERA_OPEN_REPAIR_HANDLER = 'ceraOnSpreadsheetOpenTrigger';
 
 // ==============================================================================
 // SECTION 1: TRIGGER LIFECYCLE MANAGEMENT (ZERO GHOST TRIGGERS)
 // ==============================================================================
 
 /**
- * Completely removes all active or orphaned cloud ingestion triggers
+ * Completely removes all active or orphaned cloud ingestion triggers with a mandatory reason code
  */
-function cleanupAllIngestionTriggers() {
+function cleanupAllIngestionTriggers(reasonCode) {
+  const reason = String(reasonCode || 'CLEANUP_REQUESTED').trim() || 'CLEANUP_REQUESTED';
   try {
     const triggers = ScriptApp.getProjectTriggers();
+    let deletedCount = 0;
     triggers.forEach(t => {
       if (t.getHandlerFunction() === TRIGGER_HANDLER_NAME) {
         try {
           ScriptApp.deleteTrigger(t);
+          deletedCount++;
         } catch (e) {
           Logger.log('Delete trigger notice: ' + e.message);
         }
       }
     });
+    if (deletedCount > 0 && reason !== 'TRIGGER_ROTATION') {
+      ceraAppendFlightIncident_('TRIGGER_DELETED', reason);
+    }
   } catch (err) {
     Logger.log('cleanupAllIngestionTriggers notice: ' + err.message);
   }
 }
 
 /**
- * Registers a fresh 1-minute time-driven trigger for autonomous cloud execution
+ * Registers a fresh time-driven trigger (default 5-minute cadence) for autonomous cloud execution
  */
-function registerCloudIngestionTrigger() {
-  cleanupAllIngestionTriggers();
-  ScriptApp.newTrigger(TRIGGER_HANDLER_NAME)
+function registerCloudIngestionTrigger(cadenceMinutes) {
+  cleanupAllIngestionTriggers('TRIGGER_ROTATION');
+  const mins = Number(cadenceMinutes) || CERA_EXTRACTION_TRIGGER_MINUTES || 5;
+  const validMins = [1, 5, 10, 15, 30].indexOf(mins) !== -1 ? mins : 5;
+  const created = ScriptApp.newTrigger(TRIGGER_HANDLER_NAME)
     .timeBased()
-    .everyMinutes(1)
+    .everyMinutes(validMins)
     .create();
+  ensureOwnerOpenRepairTrigger_();
+  return created;
+}
+
+/**
+ * Ensures an installable onOpen trigger is registered for the active spreadsheet so reopening the
+ * sheet can auto-heal missing or stalled background extraction triggers when opened by the owner.
+ */
+function ensureOwnerOpenRepairTrigger_() {
+  try {
+    if (typeof ScriptApp === 'undefined' || typeof ScriptApp.getProjectTriggers !== 'function') return false;
+    const triggers = ScriptApp.getProjectTriggers() || [];
+    const exists = triggers.some(t => t && typeof t.getHandlerFunction === 'function' && t.getHandlerFunction() === CERA_OPEN_REPAIR_HANDLER);
+    if (exists) return true;
+    const ss = (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.getActiveSpreadsheet) ? SpreadsheetApp.getActiveSpreadsheet() : null;
+    if (!ss) return false;
+    const builder = ScriptApp.newTrigger(CERA_OPEN_REPAIR_HANDLER);
+    if (builder && typeof builder.forSpreadsheet === 'function') {
+      builder.forSpreadsheet(ss).onOpen().create();
+      return true;
+    }
+  } catch (e) {
+    // Non-fatal in mock environments or when trigger quota is full
+  }
+  return false;
+}
+
+/**
+ * Installable onOpen trigger handler for automatic trigger self-repair.
+ */
+function ceraOnSpreadsheetOpenTrigger() {
+  try {
+    return ceraMaybeAutoHealIngestionOnOpen_('on_open_trigger');
+  } catch (e) {
+    return { healed: false, reason: 'ERROR' };
+  }
 }
 
 // ==============================================================================
@@ -303,6 +361,8 @@ function engageCloudIngestion(dateRangeDays, runFirstBatchInline) {
   };
 
   saveStateToStorage(initialState);
+  ceraInitJobCtl_(initialState);
+  ceraRegisterPartition_(folderId, 1, firstPartition.fileId, firstPartition.fileName, 'IN_PROGRESS', 1);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   try {
     const docProps = PropertiesService.getDocumentProperties();
@@ -355,11 +415,12 @@ function engageCloudIngestion(dateRangeDays, runFirstBatchInline) {
  * Pauses active cloud ingestion and self-cleans background triggers
  */
 function pauseCloudIngestion() {
-  cleanupAllIngestionTriggers();
+  cleanupAllIngestionTriggers('USER_PAUSED');
 
   let state = getProgressUpdate();
   state.status = 'PAUSED';
   saveStateToStorage(state);
+  ceraUpdateJobCtlStatus_(state, 'PAUSED', 'USER_PAUSED');
   ceraRecordDiagLifecycle_(state, 'PAUSED', 'USER_PAUSED', 'User paused background ingestion.');
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -373,7 +434,7 @@ function pauseCloudIngestion() {
  * extracted so far, allowing the user to proceed directly to CERA analysis without waiting for remaining slices.
  */
 function stopAndFinalizeCurrentIngestion() {
-  cleanupAllIngestionTriggers();
+  cleanupAllIngestionTriggers('STOPPED_EARLY_FOR_ANALYSIS');
 
   let state = getProgressUpdate();
   if (!state || !state.folderId) {
@@ -391,6 +452,7 @@ function stopAndFinalizeCurrentIngestion() {
     state.partitions[state.partitions.length - 1].status = 'COMPLETED';
   }
   saveStateToStorage(state);
+  ceraUpdateJobCtlStatus_(state, 'COMPLETED', 'STOPPED_EARLY_FOR_ANALYSIS');
   ceraRecordDiagLifecycle_(state, 'COMPLETED', 'STOPPED_EARLY_FOR_ANALYSIS', 'User stopped extraction early to analyze collected partitions immediately.');
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -425,6 +487,7 @@ function resumeCloudIngestion() {
   state.errorKey = '';
   state.consecutiveFailures = 0;
   saveStateToStorage(state);
+  ceraUpdateJobCtlStatus_(state, 'RUNNING', 'USER_RESUMED');
   ceraRecordDiagLifecycle_(state, 'RUNNING', 'USER_RESUMED', 'User resumed background ingestion from checkpoint.');
 
   registerCloudIngestionTrigger();
@@ -452,14 +515,34 @@ function discardCloudIngestion() {
   } catch (e) {}
 
   const existing = getProgressUpdate();
+  if (!activeActId && existing && existing.activityId) {
+    activeActId = existing.activityId;
+  }
   if (existing && existing.folderId && existing.status !== 'COMPLETED' && !existing.isCompleted) {
     ceraRecordDiagLifecycle_(existing, 'STOPPED', 'SESSION_DISCARDED', 'User discarded or reset active ingestion session.');
   }
 
-  cleanupAllIngestionTriggers();
+  cleanupAllIngestionTriggers('SESSION_DISCARDED');
 
-  PropertiesService.getDocumentProperties().deleteProperty('SIERRA_SESSION');
-  PropertiesService.getDocumentProperties().deleteProperty('CERA_CURRENT_ACTIVITY_ID');
+  const docProps = PropertiesService.getDocumentProperties();
+  docProps.deleteProperty('SIERRA_SESSION');
+  docProps.deleteProperty('CERA_CURRENT_ACTIVITY_ID');
+  docProps.deleteProperty('CERA_PART_REG');
+  docProps.deleteProperty('CERA_FR_HOT');
+  docProps.deleteProperty('CERA_FR_RING');
+  docProps.deleteProperty('CERA_FR_INC');
+  docProps.deleteProperty('CERA_JOB_BEAT');
+  try {
+    docProps.setProperty('CERA_JOB_CTL', JSON.stringify({
+      activityId: activeActId,
+      status: 'DISCARDED',
+      rev: 1,
+      updatedMs: Date.now(),
+      heartbeatMs: Date.now(),
+      lastHeartbeatMs: Date.now(),
+      lastReason: 'SESSION_DISCARDED'
+    }));
+  } catch (e) {}
   CacheService.getUserCache().remove('SIERRA_LIVE_PROGRESS');
   CacheService.getScriptCache().remove('SIERRA_LIVE_PROGRESS');
 
@@ -484,38 +567,51 @@ function discardCloudIngestion() {
 
 /**
  * Main autonomous worker invoked on each trigger tick
- * Protected by LockService and governed by 4-minute time-budget watchdog
+ * Protected by LockService and governed by time-budget watchdog
  */
 function processCloudIngestionBatch() {
   // 1. Concurrency Protection: Avoid overlapping trigger ticks (wait up to 10s if previous batch is finalizing)
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) {
     Logger.log('Previous background execution still active. Skipping concurrent tick.');
+    ceraRecordLockSkipped_();
     return;
   }
 
   const executionStartTime = Date.now();
   let state = getProgressUpdate();
 
-  // If job is no longer running or in active quota sleep, self-destruct trigger and exit
+  // Tri-state read guard (BP-01 / Q2-B): NEVER delete triggers on a transient property read error!
+  if (state && (state.status === 'TRANSIENT_READ_ERROR' || state.readState === 'UNREADABLE')) {
+    console.warn('[Liveness] Transient DocumentProperties read error during tick; keeping background trigger alive.');
+    ceraRecordTransientReadStrike_();
+    lock.releaseLock();
+    return;
+  }
+
+  // If job is no longer running or in active quota sleep, self-destruct trigger with explicit reason and exit
   if (!state || (state.status !== 'RUNNING' && state.status !== 'QUOTA_PAUSED')) {
-    cleanupAllIngestionTriggers();
+    cleanupAllIngestionTriggers('STATUS_' + (state && state.status || 'IDLE'));
+    lock.releaseLock();
+    return;
+  }
+
+  // Check if in active quota sleep with a future resume timestamp
+  if (state.status === 'QUOTA_PAUSED' && Number(state.quotaResumeAtMs) > executionStartTime) {
+    ceraAppendBeat_('Q');
     lock.releaseLock();
     return;
   }
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // If user deleted '⚡ Ingestion Monitor' tab during background execution, abort and reset session
+  // Views never change state (d2 §2.4): if '⚡ Ingestion Monitor' tab was accidentally deleted, recreate it instead of wiping the session
   if (ss && !ss.getSheetByName('⚡ Ingestion Monitor')) {
-    Logger.log("'⚡ Ingestion Monitor' tab was deleted. Aborting background batch and wiping session.");
-    cleanupAllIngestionTriggers();
-    PropertiesService.getDocumentProperties().deleteProperty('SIERRA_SESSION');
-    CacheService.getScriptCache().remove('SIERRA_LIVE_PROGRESS');
-    CacheService.getUserCache().remove('SIERRA_LIVE_PROGRESS');
-    lock.releaseLock();
-    return;
+    Logger.log("'⚡ Ingestion Monitor' tab missing during active job; recreating monitor sheet without wiping session.");
+    safeUpdateDashboard(ss, state, state.partitions || []);
   }
+
+  ceraAcquireTickLease_(state, executionStartTime);
 
   let totalLogsProcessed = Number(state.processedCount || 0);
   let totalScanned = Number(state.scannedCount || 0);
@@ -587,13 +683,16 @@ function processCloudIngestionBatch() {
     if (partitions.length > 0) {
       partitions[partitions.length - 1].rowCount = currentSheetRows - 1;
     }
+    ceraUpdatePartitionRows_(folderId, fileIndex, currentFileId, currentFileName, currentSheetRows, 'IN_PROGRESS');
   };
   const openPartition = () => {
+    ceraUpdatePartitionRows_(folderId, fileIndex, currentFileId, currentFileName, currentSheetRows, 'COMPLETED');
     fileIndex++;
     const nextPart = createTargetSheetFile(folderId, state.startStr, state.endStr, fileIndex);
     currentFileId = nextPart.fileId;
     currentFileName = nextPart.fileName;
     currentSheetRows = 1;
+    ceraRegisterPartition_(folderId, fileIndex, nextPart.fileId, nextPart.fileName, 'IN_PROGRESS', 1);
     partitions.push({
       fileIndex: fileIndex,
       fileName: nextPart.fileName,
@@ -625,7 +724,7 @@ function processCloudIngestionBatch() {
   };
   const appendWithRecovery = (targetFileId, rows, progress) => {
     try {
-      return flushBufferWithRetry(targetFileId, rows, 0, progress);
+      return flushBufferWithRetry(targetFileId, rows, 0, progress, currentSheetRows + 1);
     } catch (appendErr) {
       const errStr = (appendErr.message || String(appendErr)).toLowerCase();
       if (errStr.includes('404') || errStr.includes('not found')) {
@@ -638,10 +737,11 @@ function processCloudIngestionBatch() {
           action: 'OPENED_NEW_PARTITION',
           detail: 'Active partition sheet was missing or deleted; auto-generated replacement partition.'
         });
+        ceraAppendFlightIncident_('PARTITION_RECOVERED', 'Active partition missing (404); opened replacement partition');
         // Rows that reached the deleted file went with it: all of them go to the new partition
         progress.written = 0;
         openPartition();
-        return flushBufferWithRetry(currentFileId, rows, 0, progress);
+        return flushBufferWithRetry(currentFileId, rows, 0, progress, currentSheetRows + 1);
       }
       throw appendErr;
     }
@@ -713,7 +813,7 @@ function processCloudIngestionBatch() {
         break;
       }
       if (storedStatus === 'PAUSED' || storedStatus === 'STOPPED' || storedStatus === 'COMPLETED') {
-        cleanupAllIngestionTriggers();
+        cleanupAllIngestionTriggers('STATUS_' + storedStatus);
         break;
       }
 
@@ -751,17 +851,7 @@ function processCloudIngestionBatch() {
         state.sliceChecked = true;
       }
 
-      // Fast-skip streams proven to have 0 events across the window in preflight census on historical day slices
-      if (state.plan && state.plan.zeroStreams && sliceEndMs <= targetEndMs - 15 * 60000) {
-        TARGET_EVENTS.forEach(ev => {
-          if (state.plan.zeroStreams[ev]) {
-            if (!eventStreams[ev]) eventStreams[ev] = { pageToken: null, completed: true, count: 0, dayRows: 0 };
-            else eventStreams[ev].completed = true;
-          }
-        });
-      }
-
-      // Check active event streams for current day slice
+      // Check active event streams for current day slice (all 7 TARGET_EVENTS are queried on active days — BP-12)
       const activeEvents = TARGET_EVENTS.filter(ev => !eventStreams[ev] || !eventStreams[ev].completed);
       if (activeEvents.length === 0) {
         // All events for this day slice completed: advance to the next day slice
@@ -807,8 +897,9 @@ function processCloudIngestionBatch() {
         } catch (apiErr) {
           work.requests++;
           work.requestMs += Date.now() - fetchStartMs;
+          const classified = ceraClassifyIngestionError_(apiErr);
           const apiErrMsg = (apiErr.message || String(apiErr)).toLowerCase();
-          if (stream.pageToken && (apiErrMsg.includes('pagetoken') || apiErrMsg.includes('400') || apiErrMsg.includes('invalid token'))) {
+          if (stream.pageToken && (classified.isInvalidToken || apiErrMsg.includes('pagetoken') || apiErrMsg.includes('400') || apiErrMsg.includes('invalid token'))) {
             console.warn(`[Admin SDK] Expired or invalid pageToken for ${evName}. Resuming the slice after the last event taken: ${apiErr.message}`);
             tickDiag.tokenFallbacks++;
             tickDiag.streamTokenFallbacks[evName] = (tickDiag.streamTokenFallbacks[evName] || 0) + 1;
@@ -820,9 +911,10 @@ function processCloudIngestionBatch() {
               action: 'EDGE_TIMESTAMP_RESUME',
               detail: ceraSanitizeDiagnosticText_(apiErr.message || String(apiErr))
             });
+            ceraAppendFlightIncident_('TOKEN_FALLBACK', evName + ' resumed via edgeMs');
             stream.pageToken = null;
             continue; // CRITICAL: Skip fall-through so stream is NOT erroneously marked completed!
-          } else if (ceraIsDailyQuotaError_(apiErrMsg) || ceraIsRateLimitError_(apiErrMsg) || ceraIsPermissionError_(apiErrMsg)) {
+          } else if (classified.isDailyQuota || classified.isRateLimit || classified.isPermission || ceraIsDailyQuotaError_(apiErrMsg) || ceraIsRateLimitError_(apiErrMsg) || ceraIsPermissionError_(apiErrMsg)) {
             // A daily quota or rate limit that outlasted the backoff ends the tick (QUOTA_PAUSED); a permission
             // error ends it as a failure, which stops the job after 10 ticks instead of retrying it forever
             throw apiErr;
@@ -917,33 +1009,6 @@ function processCloudIngestionBatch() {
     const runDurationMs = Date.now() - executionStartTime;
     totalRealTimeElapsedMs += runDurationMs;
 
-    const coveredMs = Math.max(0, currentCursorMs - windowStartMs);
-    const coverageRatio = totalLogSpanMs > 0 ? Math.min(1.0, coveredMs / totalLogSpanMs) : 1.0;
-    let timeSpanPct = jobComplete ? 100 : Math.min(99.9, Math.max(0.1, Math.round(coverageRatio * 1000) / 10));
-    const currentDay = Math.min(daysFilter, Math.max(1, Math.floor(coveredMs / 86400000) + 1));
-    const rate = totalRealTimeElapsedMs > 0 ? Math.round((totalLogsProcessed / (totalRealTimeElapsedMs / 1000)) * 10) / 10 : 0;
-    const remainingLogsEst = coverageRatio > 0.01 ? Math.max(0, Math.round((totalLogsProcessed / coverageRatio) - totalLogsProcessed)) : 0;
-    // Wall-clock ETA from how much of the window this tick covered: the job ends when the cursor reaches the
-    // end, one tick runs per minute, and the latest tick reflects the current data density (quiet weeks are
-    // skipped quickly, busy days are slow). Keeps the previous estimate when this tick did not move.
-    const advancedMs = currentCursorMs - cursorAtTickStartMs;
-    let etaSec = advancedMs > 0
-      ? Math.round(((targetEndMs - currentCursorMs) / advancedMs) * 60)
-      : Number(state.etaSec || 0);
-
-    // With a pre-flight plan, progress and ETA come from the work left (requests and rows on the remaining
-    // active days) at the cost measured over the last ticks, instead of from calendar coverage.
-    const tickEndMs = Date.now();
-    const workEstimate = ceraUpdateWorkEstimate_(state, work, executionStartTime, tickEndMs, currentCursorMs, targetEndMs, eventStreams, totalScanned);
-    let workPct = null;
-    if (workEstimate) {
-      state.expectedEvents = jobComplete && totalScanned > 0 ? totalScanned : workEstimate.expectedEvents;
-      if (!jobComplete) {
-        etaSec = workEstimate.etaSec;
-        workPct = workEstimate.pct;
-      }
-    }
-
     let displayCursorMs = currentCursorMs;
     if (!jobComplete && currentCursorMs > 0 && currentCursorMs < targetEndMs) {
       const sliceSpanMs = Math.min(86400000, targetEndMs - currentCursorMs);
@@ -963,10 +1028,56 @@ function processCloudIngestionBatch() {
         displayCursorMs = currentCursorMs + Math.floor(minCoveredFrac * sliceSpanMs);
       }
     }
+
+    const coveredMs = Math.max(0, currentCursorMs - windowStartMs);
+    const coverageRatio = totalLogSpanMs > 0 ? Math.min(1.0, coveredMs / totalLogSpanMs) : 1.0;
+    let timeSpanPct = jobComplete ? 100 : Math.min(99.9, Math.max(0.1, Math.round(coverageRatio * 1000) / 10));
+    const currentDay = Math.min(daysFilter, Math.max(1, Math.floor(coveredMs / 86400000) + 1));
+    const rate = totalRealTimeElapsedMs > 0 ? Math.round((totalLogsProcessed / (totalRealTimeElapsedMs / 1000)) * 10) / 10 : 0;
+    // Wall-clock ETA from how much of the window this tick covered: the job ends when the cursor reaches the
+    // end, one tick runs per minute, and the latest tick reflects the current data density (quiet weeks are
+    // skipped quickly, busy days are slow). Keeps the previous estimate when this tick did not move.
+    const advancedMs = currentCursorMs - cursorAtTickStartMs;
+    const displayAdvMs = Math.max(0, displayCursorMs - cursorAtTickStartMs);
+    const tickCycleSec = Math.max(60, Math.round(runDurationMs / 1000));
+    let etaSec = advancedMs > 0
+      ? Math.round(((targetEndMs - currentCursorMs) / advancedMs) * tickCycleSec)
+      : (displayAdvMs > 0
+        ? Math.round(((targetEndMs - displayCursorMs) / displayAdvMs) * Math.max(CERA_EXTRACTION_TRIGGER_MINUTES * 60, tickCycleSec))
+        : Number(state.etaSec || 0));
+
+    // With a pre-flight plan, progress and ETA come from the work left (requests and rows on the remaining
+    // active days) at the cost measured over the last ticks, instead of from calendar coverage.
+    const tickEndMs = Date.now();
+    const workEstimate = ceraUpdateWorkEstimate_(state, work, executionStartTime, tickEndMs, currentCursorMs, targetEndMs, eventStreams, totalScanned);
+    let workPct = null;
+    if (workEstimate) {
+      state.expectedEvents = jobComplete && totalScanned > 0 ? totalScanned : workEstimate.expectedEvents;
+      if (!jobComplete) {
+        etaSec = workEstimate.etaSec;
+        workPct = workEstimate.pct;
+      }
+    }
     const currentLogDateStr = displayCursorMs > 0 ? Utilities.formatDate(new Date(displayCursorMs), ceraTimeZone(), 'yyyy-MM-dd HH:mm') : state.startDateStr;
 
-    // Check completion
-    const finalStatus = jobComplete ? 'COMPLETED' : 'RUNNING';
+    // Zero-progress livelock circuit breaker (BP-07 / FI-D2): 4 consecutive ticks with 0 cursor/row/scan advancement
+    const prevProcessed = Number(state.processedCount || 0);
+    const prevScanned = Number(state.scannedCount || 0);
+    const madeRealProgress = (currentCursorMs > cursorAtTickStartMs) || (displayCursorMs > cursorAtTickStartMs) ||
+      (work.rows > 0) || (totalLogsProcessed > prevProcessed) || (totalScanned > prevScanned);
+    if (!jobComplete && !madeRealProgress) {
+      state.zeroProgressTicks = (Number(state.zeroProgressTicks) || 0) + 1;
+    } else {
+      state.zeroProgressTicks = 0;
+    }
+
+    // Check completion or zero-progress livelock
+    let finalStatus = jobComplete ? 'COMPLETED' : 'RUNNING';
+    let livelockTripped = false;
+    if (!jobComplete && state.zeroProgressTicks >= 4) {
+      finalStatus = 'FAILED';
+      livelockTripped = true;
+    }
 
     state.status = finalStatus;
     state.processedCount = totalLogsProcessed;
@@ -990,11 +1101,19 @@ function processCloudIngestionBatch() {
     state.partitions = partitions;
     state.lastUpdateMs = Date.now();
     state.consecutiveFailures = 0;
-    state.errorMessage = '';
-    state.errorKey = '';
+    if (livelockTripped) {
+      state.errorKey = 'mon.err.noProgressLivelock';
+      state.errorMessage = ceraT('mon.err.noProgressLivelock');
+      cleanupAllIngestionTriggers('NO_PROGRESS_LIVELOCK');
+    } else {
+      state.errorMessage = '';
+      state.errorKey = '';
+    }
+    delete state.quotaResumeAtMs;
 
     if (jobComplete && partitions.length > 0) {
       partitions[partitions.length - 1].status = 'COMPLETED';
+      ceraUpdatePartitionRows_(folderId, fileIndex, currentFileId, currentFileName, currentSheetRows, 'COMPLETED');
     }
 
     // Pause, early finalize, and reset do not wait for this tick's lock: read the session again right before writing it back.
@@ -1013,27 +1132,29 @@ function processCloudIngestionBatch() {
       if (partitions.length > 0) {
         partitions[partitions.length - 1].status = 'COMPLETED';
       }
-      cleanupAllIngestionTriggers();
+      cleanupAllIngestionTriggers('STOPPED_EARLY_FOR_ANALYSIS');
     } else if (storedStatus === 'PAUSED' || storedStatus === 'STOPPED') {
       state.status = storedStatus;
     } else if (jobComplete) {
-      cleanupAllIngestionTriggers(); // AUTO SELF-DESTRUCT!
+      cleanupAllIngestionTriggers('JOB_COMPLETED'); // AUTO SELF-DESTRUCT!
     }
 
     saveStateToStorage(state);
+    ceraFinalizeTickCtl_(state, executionStartTime, state.status, work.rows, work.requests, state.errorKey || '');
     safeUpdateDashboard(ss, state, partitions);
     tickDiag.cursorEndMs = currentCursorMs;
-    ceraRecordDiagTick_(state, work, tickDiag, state.status === 'FAILED' ? 'FAILED_STATE_OVERSIZE' : ((jobComplete || state.status === 'COMPLETED') ? 'COMPLETED' : 'OK'), state.errorMessage || '');
+    ceraRecordDiagTick_(state, work, tickDiag, state.status === 'FAILED' ? (livelockTripped ? 'FAILED_NO_PROGRESS_LIVELOCK' : 'FAILED_STATE_OVERSIZE') : ((jobComplete || state.status === 'COMPLETED') ? 'COMPLETED' : 'OK'), state.errorMessage || '');
 
   } catch (err) {
     console.error('Autonomous batch execution error: ' + err.stack);
     const rawErrMsg = err.message || String(err);
     const errMsgLower = rawErrMsg.toLowerCase();
+    const classifiedErr = ceraClassifyIngestionError_(err);
 
     // Check for Google Apps Script Daily Runtime Quota (6 Hours / Day for Workspace) across supported locales
-    const isDailyQuota = ceraIsDailyQuotaError_(rawErrMsg);
+    const isDailyQuota = classifiedErr.isDailyQuota || ceraIsDailyQuotaError_(rawErrMsg);
     // A Reports or Sheets API rate limit that outlasted the retries clears within a minute: wait like for the quota
-    const isRateLimit = !isDailyQuota && ceraIsRateLimitError_(errMsgLower);
+    const isRateLimit = !isDailyQuota && (classifiedErr.isRateLimit || ceraIsRateLimitError_(errMsgLower));
 
     // Rows read but not written are read again next tick, from just after the last row that reached a partition
     rewindToWrittenRows();
@@ -1069,20 +1190,23 @@ function processCloudIngestionBatch() {
         }
       }
       saveStateToStorage(state);
+      ceraFinalizeTickCtl_(state, executionStartTime, state.status, work.rows, work.requests, rawErrMsg);
       safeUpdateDashboard(ss, state, partitions);
       ceraRecordDiagTick_(state, work, tickDiag, storedStatus, rawErrMsg);
       return;
     }
 
     if (isDailyQuota || isRateLimit) {
-      // ⏳ Daily Apps Script Quota hit: Enter Quota Sleep without failure penalty
+      // ⏳ Daily Apps Script Quota or API Rate Limit hit: Enter Quota Sleep without failure penalty
       console.warn(`[Quota Sleep] ${isDailyQuota ? 'Google Apps Script daily runtime limit' : 'Google API rate limit'} reached: ${rawErrMsg}. Preserving state and trigger for auto-resume.`);
       state.status = 'QUOTA_PAUSED';
       // Shown in the dialog in the viewer's language; the raw reason stays in the logs
       state.errorMessage = '';
       state.errorKey = isDailyQuota ? 'mon.quotaDefault' : 'mon.err.rateLimit';
       state.consecutiveFailures = 0;
+      ceraAppendFlightIncident_(isDailyQuota ? 'DAILY_QUOTA_SLEEP' : 'RATE_LIMIT_PAUSE', rawErrMsg);
       saveStateToStorage(state);
+      ceraFinalizeTickCtl_(state, executionStartTime, state.status, work.rows, work.requests, state.errorKey);
       safeUpdateDashboard(ss, state, partitions);
       ceraRecordDiagTick_(state, work, tickDiag, isDailyQuota ? 'DAILY_QUOTA_SLEEP' : 'RATE_LIMIT_PAUSE', rawErrMsg);
     } else {
@@ -1090,19 +1214,22 @@ function processCloudIngestionBatch() {
       state.consecutiveFailures = failCount;
       state.errorMessage = rawErrMsg;
       state.errorKey = '';
+      ceraAppendFlightIncident_('TICK_ERROR', rawErrMsg);
 
       if (failCount < 10) {
-        // Self-healing: keep trigger alive for next scheduled minute tick (allow up to 9 transient strikes = 10 minutes)
+        // Self-healing: keep trigger alive for next scheduled tick (allow up to 9 transient strikes)
         console.warn(`Transient batch notice (Strike ${failCount}/10). Preserving trigger for next tick: ${rawErrMsg}`);
         state.status = 'RUNNING';
         saveStateToStorage(state);
+        ceraFinalizeTickCtl_(state, executionStartTime, state.status, work.rows, work.requests, rawErrMsg);
         safeUpdateDashboard(ss, state, partitions);
         ceraRecordDiagTick_(state, work, tickDiag, 'TRANSIENT_STRIKE_' + failCount, rawErrMsg);
       } else {
-        // 10 consecutive failures (10 minutes persistent cloud outage): Safely pause triggers and notify user
+        // 10 consecutive failures: Safely pause triggers and notify user
         state.status = 'FAILED';
-        cleanupAllIngestionTriggers();
+        cleanupAllIngestionTriggers('FAILED_MAX_STRIKES');
         saveStateToStorage(state);
+        ceraFinalizeTickCtl_(state, executionStartTime, state.status, work.rows, work.requests, rawErrMsg);
         safeUpdateDashboard(ss, state, partitions);
         ceraRecordDiagTick_(state, work, tickDiag, 'FAILED_MAX_STRIKES', rawErrMsg);
       }
@@ -1135,8 +1262,14 @@ function chromeWindowIsEmpty_(startIso, endIso) {
 // STREAM EDGE (resuming a stream without its pageToken)
 // ==============================================================================
 
-// IDs kept for the edge millisecond: enough for a burst of events sharing one millisecond, small enough for the state
-const CERA_EDGE_ID_CAP = 20;
+// IDs kept for the edge millisecond: enough for a burst of up to 50 events sharing one millisecond, compacted to fit in 9 KB
+const CERA_EDGE_ID_CAP = 50;
+
+function ceraCompactEdgeId_(id) {
+  const s = String(id || '');
+  if (!s) return '';
+  return s.length > 10 ? s.slice(-10) : s;
+}
 
 /**
  * Records an event taken from a stream. Pages come newest first, so the stream's edge is the oldest event taken in
@@ -1146,12 +1279,15 @@ const CERA_EDGE_ID_CAP = 20;
  */
 function ceraExtendEdge_(stream, ms, id) {
   if (isNaN(ms)) return;
+  const compact = ceraCompactEdgeId_(id);
   if (!ceraHasEdge_(stream) || ms < stream.edgeMs) {
     stream.edgeMs = ms;
-    stream.edgeIds = id ? [id] : [];
-  } else if (ms === stream.edgeMs && id) {
+    stream.edgeIds = compact ? [compact] : [];
+  } else if (ms === stream.edgeMs && compact) {
     stream.edgeIds = stream.edgeIds || [];
-    if (stream.edgeIds.length < CERA_EDGE_ID_CAP && stream.edgeIds.indexOf(id) === -1) stream.edgeIds.push(id);
+    if (stream.edgeIds.length < CERA_EDGE_ID_CAP && stream.edgeIds.indexOf(compact) === -1) {
+      stream.edgeIds.push(compact);
+    }
   }
 }
 
@@ -1164,7 +1300,11 @@ function ceraHasEdge_(stream) {
  */
 function ceraTakenFromStream_(stream, ms, id) {
   if (!ceraHasEdge_(stream) || isNaN(ms)) return false;
-  return ms > stream.edgeMs || (ms === stream.edgeMs && !!id && (stream.edgeIds || []).indexOf(id) !== -1);
+  if (ms > stream.edgeMs) return true;
+  if (ms !== stream.edgeMs || !id) return false;
+  const ids = stream.edgeIds || [];
+  const compact = ceraCompactEdgeId_(id);
+  return ids.indexOf(compact) !== -1 || ids.indexOf(String(id)) !== -1;
 }
 
 // ==============================================================================
@@ -1247,8 +1387,8 @@ function ceraUpdateWorkEstimate_(state, work, tickStartMs, tickEndMs, cursorMs, 
   // Wall time per tick includes the gap until the next trigger; the first tick has no previous one to measure from
   const workMs = tickEndMs - tickStartMs;
   const wallMs = state.lastTickEndMs
-    ? Math.min(180000, Math.max(tickEndMs - Number(state.lastTickEndMs), workMs))
-    : Math.max(workMs, workMs * 60000 / TIME_BUDGET_MS);
+    ? Math.min(360000, Math.max(tickEndMs - Number(state.lastTickEndMs), workMs))
+    : Math.max(workMs, workMs * 60000 / Math.max(30000, TIME_BUDGET_MS));
   state.lastTickEndMs = tickEndMs;
   state.requestsDone = (Number(state.requestsDone) || 0) + work.requests;
   state.recentTicks = (state.recentTicks || []).concat([{ r: work.requests, rm: work.requestMs, w: work.rows, wm: work.writeMs, wall: wallMs }]).slice(-3);
@@ -1258,13 +1398,13 @@ function ceraUpdateWorkEstimate_(state, work, tickStartMs, tickEndMs, cursorMs, 
 
   const sum = key => state.recentTicks.reduce((a, t) => a + (Number(t[key]) || 0), 0);
   const rawSecPerReq = sum('r') > 0 ? sum('rm') / sum('r') / 1000 : 0.5;
-  const secPerRequest = Math.min(4.0, Math.max(0.2, rawSecPerReq));
+  const secPerRequest = Math.min(120.0, Math.max(0.2, rawSecPerReq));
   const rawSecPerRow = sum('w') >= 500 ? sum('wm') / sum('w') / 1000 : LEGACY_SHEET_WRITE_SEC_PER_PAGE / 1000;
-  const secPerRow = Math.min(0.008, Math.max(0.0005, rawSecPerRow));
+  const secPerRow = Math.min(0.5, Math.max(0.0005, rawSecPerRow));
   const busyMs = sum('rm') + sum('wm');
-  const defaultDuty = 60000 / TIME_BUDGET_MS;
+  const defaultDuty = 60000 / Math.max(30000, TIME_BUDGET_MS);
   const rawWallPerBusy = busyMs >= 4000 ? sum('wall') / busyMs : defaultDuty;
-  const wallPerBusy = Math.min(2.0, Math.max(1.05, rawWallPerBusy));
+  const wallPerBusy = Math.min(8.0, Math.max(1.05, rawWallPerBusy));
 
   // Rows and requests left at a given scale of the plan's per-day rows
   const DAY_MS = 86400000;
@@ -1279,7 +1419,6 @@ function ceraUpdateWorkEstimate_(state, work, tickStartMs, tickEndMs, cursorMs, 
     const sliceEndMs = Math.min(targetEndMs, cursorMs + DAY_MS);
     if (state.sliceChecked || ceraPlanIsActive_(plan, cursorMs)) {
       TARGET_EVENTS.forEach(ev => {
-        if (plan.zeroStreams && plan.zeroStreams[ev] && sliceEndMs <= targetEndMs - 15 * 60000) return;
         const st = eventStreams[ev] || {};
         if (st.completed) return;
         const dayRows = Number(st.dayRows) || 0;
@@ -1306,9 +1445,7 @@ function ceraUpdateWorkEstimate_(state, work, tickStartMs, tickEndMs, cursorMs, 
     for (let dayMs = cursorMs + DAY_MS; dayMs < targetEndMs; dayMs += DAY_MS) {
       if (!ceraPlanIsActive_(plan, dayMs)) continue;
       const dayShare = Math.min(1, (targetEndMs - dayMs) / DAY_MS);
-      const dayEndMs = Math.min(targetEndMs, dayMs + DAY_MS);
       TARGET_EVENTS.forEach(ev => {
-        if (plan.zeroStreams && plan.zeroStreams[ev] && dayEndMs <= targetEndMs - 15 * 60000) return;
         const dayRows = rowsFor(ev, dayMs) * dayShare;
         rows += dayRows;
         requests += ceraPagesFor_(dayRows);
@@ -1354,9 +1491,7 @@ function ceraUpdateWorkEstimate_(state, work, tickStartMs, tickEndMs, cursorMs, 
   let finalEtaSec = rawEtaSec;
   if (prevEtaSec > 0 && state.recentTicks.length >= 2) {
     const predictedEtaSec = Math.max(0, prevEtaSec - Math.round(wallMs / 1000));
-    if (predictedEtaSec > 0 && !planIsOff && rawEtaSec > predictedEtaSec * 1.35) {
-      finalEtaSec = Math.round(0.35 * (predictedEtaSec * 1.35) + 0.65 * predictedEtaSec);
-    } else if (predictedEtaSec > 0) {
+    if (predictedEtaSec > 0) {
       finalEtaSec = Math.round(0.45 * rawEtaSec + 0.55 * predictedEtaSec);
     }
   }
@@ -1411,13 +1546,73 @@ var CERA_DAILY_QUOTA_PATTERNS = [
   'vượt quá thời gian thực thi tối đa'
 ];
 
-function ceraIsDailyQuotaError_(message) {
-  const m = String(message || '').toLowerCase();
-  if (!m) return false;
-  for (let i = 0; i < CERA_DAILY_QUOTA_PATTERNS.length; i++) {
-    if (m.includes(CERA_DAILY_QUOTA_PATTERNS[i].toLowerCase())) return true;
+/**
+ * Classifies an Admin SDK / Sheets / Apps Script error by HTTP status code and structured Google API reason tokens first,
+ * falling back to localized runtime quota pattern matching only for Apps Script runtime exceptions that carry no HTTP code.
+ */
+function ceraClassifyIngestionError_(err) {
+  let msg = '';
+  let httpCode = 0;
+  let apiReason = '';
+  if (err && typeof err === 'object') {
+    msg = String(err.message || err);
+    httpCode = Number((err.details && err.details.code) || err.code || err.statusCode || 0);
+    if (err.details && Array.isArray(err.details.errors) && err.details.errors[0]) {
+      apiReason = String(err.details.errors[0].reason || '');
+    }
+  } else {
+    msg = String(err || '');
   }
-  return false;
+  const m = msg.toLowerCase();
+  if (!httpCode) {
+    const codeMatch = /\b(400|401|403|404|408|429|500|502|503|504)\b/.exec(m);
+    if (codeMatch) httpCode = Number(codeMatch[1]);
+  }
+  const rLower = apiReason.toLowerCase();
+  const isDailyToken = rLower === 'dailylimitexceeded' || m.includes('dailylimitexceeded') || m.includes('daily limit exceeded');
+  let isDailyQuota = isDailyToken;
+  if (!isDailyQuota) {
+    for (let i = 0; i < CERA_DAILY_QUOTA_PATTERNS.length; i++) {
+      if (m.includes(CERA_DAILY_QUOTA_PATTERNS[i].toLowerCase())) {
+        isDailyQuota = true;
+        break;
+      }
+    }
+  }
+  const isRateToken = httpCode === 429 ||
+    rLower === 'ratelimitexceeded' || rLower === 'userratelimitexceeded' || rLower === 'quotaexceeded' || rLower === 'resource_exhausted' ||
+    m.includes('429') || m.includes('limitexceeded') || m.includes('limit exceeded') || m.includes('rate limit') ||
+    m.includes('user rate') || m.includes('quota') || m.includes('too many requests') || m.includes('resource_exhausted');
+  const isRateLimit = !isDailyQuota && isRateToken;
+  const isInvalidToken = (httpCode === 400 || m.includes('400')) && (m.includes('pagetoken') || m.includes('invalid token') || rLower === 'invalid');
+  const isPermission = !isDailyQuota && !isRateLimit && (
+    httpCode === 401 || httpCode === 403 ||
+    rLower === 'forbidden' || rLower === 'insufficientpermissions' || rLower === 'autherror' || rLower === 'permission_denied' || rLower === 'unauthenticated' ||
+    m.includes('401') || m.includes('403') || m.includes('permission') || m.includes('forbidden') || m.includes('not authorized') || m.includes('unauthorized')
+  );
+  const isNotFound = httpCode === 404 || rLower === 'notfound' || m.includes('404') || m.includes('not found');
+  let category = 'TRANSIENT';
+  if (isDailyQuota) category = 'API_DAILY_QUOTA';
+  else if (isRateLimit) category = 'RATE_LIMIT';
+  else if (isInvalidToken) category = 'TOKEN_INVALID';
+  else if (isPermission) category = 'AUTH';
+  else if (isNotFound) category = 'PARTITION_MISSING';
+  else if (httpCode === 400) category = 'BAD_REQUEST';
+  return {
+    category: category,
+    httpStatus: httpCode,
+    reason: apiReason || category,
+    retryable: category === 'TRANSIENT' || category === 'RATE_LIMIT',
+    isDailyQuota: isDailyQuota,
+    isRateLimit: isRateLimit,
+    isPermission: isPermission,
+    isInvalidToken: isInvalidToken,
+    isNotFound: isNotFound
+  };
+}
+
+function ceraIsDailyQuotaError_(message) {
+  return ceraClassifyIngestionError_(message).isDailyQuota;
 }
 
 /**
@@ -1425,19 +1620,18 @@ function ceraIsDailyQuotaError_(message) {
  * with time, so they are retried with backoff (and end a tick as QUOTA_PAUSED), never treated as a permission error.
  */
 function ceraIsRateLimitError_(message) {
-  const m = String(message || '').toLowerCase();
-  return m.includes('429') || m.includes('limitexceeded') || m.includes('limit exceeded') || m.includes('rate limit') ||
-    m.includes('user rate') || m.includes('quota') || m.includes('too many requests') || m.includes('resource_exhausted');
+  const c = ceraClassifyIngestionError_(message);
+  return c.isRateLimit || c.isDailyQuota;
 }
 
 /**
  * Permission errors (401, or a 403 that is not a rate limit): retrying cannot fix them.
  */
 function ceraIsPermissionError_(message) {
-  const m = String(message || '').toLowerCase();
-  return !ceraIsRateLimitError_(m) && (m.includes('401') || m.includes('403') || m.includes('permission') ||
-    m.includes('forbidden') || m.includes('not authorized') || m.includes('unauthorized'));
+  return ceraClassifyIngestionError_(message).isPermission;
 }
+
+const CERA_SAFE_REPORTS_FIELDS = 'nextPageToken,items(id(time,uniqueQualifier),actor(email),events(name,parameters))';
 
 /**
  * Fetch page from Google Admin SDK Reports API. Always passes startTime and endTime alongside pageToken so the
@@ -1448,7 +1642,8 @@ function fetchChromeLogPage(pageToken, startTimeIso, currentLogTimestampMs, even
     userKey: 'all',
     applicationName: 'chrome',
     maxResults: maxResults || 1000,
-    eventName: eventName || 'CONTENT_TRANSFER'
+    eventName: eventName || 'CONTENT_TRANSFER',
+    fields: CERA_SAFE_REPORTS_FIELDS
   };
 
   if (endTimeIso) {
@@ -1469,10 +1664,12 @@ function fetchChromeLogPage(pageToken, startTimeIso, currentLogTimestampMs, even
     try {
       return AdminReports.Activities.list('all', 'chrome', options);
     } catch (e) {
+      const classified = ceraClassifyIngestionError_(e);
       const errMsg = (e.message || String(e)).toLowerCase();
       // Checked first: a rate limit can come as a 403, and it clears with time
-      const isRateLimit = ceraIsRateLimitError_(errMsg);
-      const isFatal = !isRateLimit && (errMsg.includes('400') || errMsg.includes('pagetoken') || errMsg.includes('404') || errMsg.includes('403'));
+      const isRateLimit = classified.isRateLimit || ceraIsRateLimitError_(errMsg);
+      const isFatal = !isRateLimit && (classified.isPermission || classified.isInvalidToken || classified.isNotFound ||
+        errMsg.includes('400') || errMsg.includes('pagetoken') || errMsg.includes('404') || errMsg.includes('403'));
 
       if (attempt < maxAttempts && !isFatal) {
         const jitter = Math.floor(Math.random() * 800);
@@ -1490,12 +1687,14 @@ function fetchChromeLogPage(pageToken, startTimeIso, currentLogTimestampMs, even
 /**
  * Dynamic parameter extractor for Google Admin SDK Reports API ('chrome' application)
  * Handles 'chrome.' prefixes, nested multiMessageValue/messageValue, and multi-detectors
+ * Separates DETECTOR_ID from human-readable DETECTOR_NAME so detectorIds never pollute Detector Name (col 3).
  */
 function extractAdminSdkParameters(params) {
   const res = {
     eventReason: '',
     eventResult: '',
     detectors: [],
+    detectorIds: [],
     orgUnitName: '',
     profileUser: '',
     deviceUser: '',
@@ -1524,6 +1723,14 @@ function extractAdminSdkParameters(params) {
     });
   };
 
+  const addDetectorIds = (val) => {
+    if (!val) return;
+    const parts = String(val).split(',').map(s => s.trim()).filter(Boolean);
+    parts.forEach(d => {
+      if (!res.detectorIds.includes(d)) res.detectorIds.push(d);
+    });
+  };
+
   for (let i = 0; i < params.length; i++) {
     const p = params[i];
     if (!p || !p.name) continue;
@@ -1545,13 +1752,20 @@ function extractAdminSdkParameters(params) {
 
     // 1. Matched Detectors (supports single value, multiValue, or nested messageValue)
     if (cleanName.includes('MATCHED_DETECTORS') || cleanName.includes('DETECTOR') || cleanName === 'RULE_NAME') {
-      if (val) addDetectors(val);
+      const isIdField = cleanName === 'DETECTOR_ID' || cleanName === 'MATCHED_DETECTOR_IDS' || cleanName.endsWith('_DETECTOR_ID') || cleanName.endsWith('_ID');
+      if (val) {
+        if (isIdField) addDetectorIds(val);
+        else addDetectors(val);
+      }
       if (p.multiMessageValue && Array.isArray(p.multiMessageValue)) {
         p.multiMessageValue.forEach(msg => {
           if (msg && msg.parameter) {
             msg.parameter.forEach(subP => {
-              const subName = (subP.name || '').toUpperCase();
-              if ((subName.includes('DETECTOR') || subName.includes('NAME')) && subP.value) {
+              const subName = (subP.name || '').toUpperCase().replace(/^CHROME\./, '');
+              if (!subP.value) return;
+              if (subName === 'DETECTOR_ID' || subName === 'ID' || subName.endsWith('_ID')) {
+                addDetectorIds(subP.value);
+              } else if (subName.includes('DETECTOR') || subName.includes('NAME')) {
                 addDetectors(subP.value);
               }
             });
@@ -1560,8 +1774,11 @@ function extractAdminSdkParameters(params) {
       }
       if (p.messageValue && p.messageValue.parameter) {
         p.messageValue.parameter.forEach(subP => {
-          const subName = (subP.name || '').toUpperCase();
-          if ((subName.includes('DETECTOR') || subName.includes('NAME')) && subP.value) {
+          const subName = (subP.name || '').toUpperCase().replace(/^CHROME\./, '');
+          if (!subP.value) return;
+          if (subName === 'DETECTOR_ID' || subName === 'ID' || subName.endsWith('_ID')) {
+            addDetectorIds(subP.value);
+          } else if (subName.includes('DETECTOR') || subName.includes('NAME')) {
             addDetectors(subP.value);
           }
         });
@@ -1638,14 +1855,22 @@ function extractAdminSdkParameters(params) {
     }
   }
 
+  // Fallback to DETECTOR_ID only when human-readable DETECTOR_NAME is absent (F9)
+  if (res.detectors.length === 0 && res.detectorIds.length > 0) {
+    res.detectors = res.detectorIds.slice();
+  }
+
   return res;
 }
 
 /**
- * Parse Admin SDK activity event into a partition row (PARTITION_HEADERS)
+ * Parse Admin SDK activity event into a 19-column partition row (PARTITION_HEADERS)
  */
 function parseEventToRow(event, queryEventName) {
   const time = event.id ? event.id.time : '';
+  const eventId = (event.id && event.id.uniqueQualifier !== undefined && event.id.uniqueQualifier !== null)
+    ? String(event.id.uniqueQualifier)
+    : '';
   const actorEmail = (event.actor && event.actor.email) || '';
 
   let eventDisplayName = EVENT_DISPLAY_NAMES[queryEventName] || (event.events && event.events[0] && event.events[0].name) || 'Content transfer';
@@ -1723,7 +1948,8 @@ function parseEventToRow(event, queryEventName) {
     deviceName,
     clientType,
     // One switch per line: a switch value can hold commas, never a line break
-    switches.join('\n')
+    switches.join('\n'),
+    eventId
   ];
 }
 
@@ -1782,7 +2008,7 @@ function createTargetSheetFile(folderId, startStr, endStr, index) {
     }
   }
 
-  flushBufferWithRetry(fileId, [PARTITION_HEADERS.slice()]);
+  flushBufferWithRetry(fileId, [PARTITION_HEADERS.slice()], 0, null, 1);
 
   return { fileId: fileId, fileName: fileName };
 }
@@ -1794,7 +2020,7 @@ function createTargetSheetFile(folderId, startStr, endStr, index) {
  * progress.written (optional) counts the rows appended so far, in order, so a caller knows how far a split
  * batch got when a later half fails
  */
-function flushBufferWithRetry(fileId, dataRows, depth, progress) {
+function flushBufferWithRetry(fileId, dataRows, depth, progress, startRowOffset) {
   if (!dataRows || dataRows.length === 0) return 0;
   depth = depth || 0;
 
@@ -1815,19 +2041,32 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress) {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      Sheets.Spreadsheets.Values.append(
-        resource,
-        fileId,
-        'Sheet1!A1',
-        { valueInputOption: 'RAW' } // ⚡ RAW mode: skips formula & type parsing, 10x faster & zero timeout
-      );
+      if (startRowOffset >= 1 && typeof Sheets !== 'undefined' && Sheets.Spreadsheets && Sheets.Spreadsheets.Values && typeof Sheets.Spreadsheets.Values.update === 'function') {
+        const endRowOffset = startRowOffset + sanitizedRows.length - 1;
+        const endColLetter = String.fromCharCode(64 + PARTITION_HEADERS.length);
+        Sheets.Spreadsheets.Values.update(
+          resource,
+          fileId,
+          `Sheet1!A${startRowOffset}:${endColLetter}${endRowOffset}`,
+          { valueInputOption: 'RAW' }
+        );
+      } else {
+        Sheets.Spreadsheets.Values.append(
+          resource,
+          fileId,
+          'Sheet1!A1',
+          { valueInputOption: 'RAW' } // ⚡ RAW mode: skips formula & type parsing, 10x faster & zero timeout
+        );
+      }
       if (progress) progress.written += sanitizedRows.length;
       return sanitizedRows.length;
     } catch (e) {
+      const classified = ceraClassifyIngestionError_(e);
       const errMsg = (e.message || String(e)).toLowerCase();
       // Checked first: a rate limit or quota can come as a 403, and it clears with time
-      const isRateLimit = ceraIsRateLimitError_(errMsg);
-      const isFatal = !isRateLimit && (errMsg.includes('404') || errMsg.includes('not found') ||
+      const isRateLimit = classified.isRateLimit || ceraIsRateLimitError_(errMsg);
+      const isFatal = !isRateLimit && (classified.isNotFound || classified.isPermission ||
+                      errMsg.includes('404') || errMsg.includes('not found') ||
                       errMsg.includes('403') || errMsg.includes('permission') ||
                       errMsg.includes('disabled'));
 
@@ -1849,8 +2088,9 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress) {
         const mid = Math.floor(sanitizedRows.length / 2);
         const part1 = sanitizedRows.slice(0, mid);
         const part2 = sanitizedRows.slice(mid);
-        const written1 = flushBufferWithRetry(fileId, part1, depth + 1, progress);
-        const written2 = flushBufferWithRetry(fileId, part2, depth + 1, progress);
+        const nextOffset2 = startRowOffset >= 1 ? startRowOffset + part1.length : undefined;
+        const written1 = flushBufferWithRetry(fileId, part1, depth + 1, progress, startRowOffset);
+        const written2 = flushBufferWithRetry(fileId, part2, depth + 1, progress, nextOffset2);
         return written1 + written2;
       }
 
@@ -1868,8 +2108,9 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress) {
           const mid = Math.floor(sanitizedRows.length / 2);
           const part1 = sanitizedRows.slice(0, mid);
           const part2 = sanitizedRows.slice(mid);
-          const written1 = flushBufferWithRetry(fileId, part1, depth + 1, progress);
-          const written2 = flushBufferWithRetry(fileId, part2, depth + 1, progress);
+          const nextOffset2 = startRowOffset >= 1 ? startRowOffset + part1.length : undefined;
+          const written1 = flushBufferWithRetry(fileId, part1, depth + 1, progress, startRowOffset);
+          const written2 = flushBufferWithRetry(fileId, part2, depth + 1, progress, nextOffset2);
           return written1 + written2;
         }
         throw e;
@@ -1954,10 +2195,11 @@ function saveStateToStorage(state) {
  */
 function ceraOversizeSession_(state) {
   console.error('Ingestion state does not fit in a document property; stopping the job.');
-  cleanupAllIngestionTriggers();
+  cleanupAllIngestionTriggers('STATE_TOO_LARGE');
   state.status = 'FAILED';
   state.errorKey = 'mon.err.stateTooLarge';
   state.errorMessage = ceraT('mon.err.stateTooLarge');
+  ceraUpdateJobCtlStatus_(state, 'FAILED', 'STATE_TOO_LARGE');
   Object.keys(state.eventStreams || {}).forEach(ev => {
     if (state.eventStreams[ev]) state.eventStreams[ev].pageToken = null;
   });
@@ -1990,16 +2232,681 @@ function ceraUtf8Bytes_(text) {
 }
 
 /**
- * Retrieves progress checkpoint from DocumentProperties or ScriptCache
+ * Tri-state DocumentProperties read with 3-attempt transient retry (150ms, 350ms, 750ms).
+ * Returns { status: 'PRESENT' | 'MISSING' | 'UNREADABLE', value: string|null, error: Error|null }.
+ * Never confuses a transient PropertiesService read error with a missing session.
  */
-function getProgressUpdate() {
-  // 1. Authoritative: DocumentProperties (Shared across triggers & browser sessions)
+function ceraReadPropTriState_(props, key) {
+  const store = props || (typeof PropertiesService !== 'undefined' ? PropertiesService.getDocumentProperties() : null);
+  if (!store || typeof store.getProperty !== 'function') {
+    return { status: 'UNREADABLE', state: 'UNREADABLE', value: null, error: new Error('DocumentProperties store unavailable') };
+  }
+  const delays = [150, 350, 750];
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const val = store.getProperty(key);
+      if (val === null || val === undefined || val === '') {
+        return { status: 'MISSING', state: 'ABSENT', value: null, error: null };
+      }
+      return { status: 'PRESENT', state: 'PRESENT', value: String(val), error: null };
+    } catch (err) {
+      lastErr = err;
+      if (attempt < 3) {
+        try { Utilities.sleep(delays[attempt - 1]); } catch (_) {}
+      }
+    }
+  }
+  return { status: 'UNREADABLE', state: 'UNREADABLE', value: null, error: lastErr };
+}
+
+/**
+ * Loads `CERA_JOB_CTL` (~0.8 KB control & liveness record) from DocumentProperties.
+ */
+function ceraLoadJobCtl_() {
   try {
-    const saved = PropertiesService.getDocumentProperties().getProperty('SIERRA_SESSION');
-    if (saved) return JSON.parse(saved);
+    const res = ceraReadPropTriState_(PropertiesService.getDocumentProperties(), 'CERA_JOB_CTL');
+    if (res.status === 'PRESENT' && res.value) {
+      return JSON.parse(res.value);
+    }
+  } catch (e) {}
+  return null;
+}
+
+/**
+ * Saves `CERA_JOB_CTL` to DocumentProperties.
+ */
+function ceraSaveJobCtl_(ctl) {
+  if (!ctl) return false;
+  try {
+    ctl.rev = (Number(ctl.rev) || 0) + 1;
+    ctl.updatedMs = Date.now();
+    PropertiesService.getDocumentProperties().setProperty('CERA_JOB_CTL', JSON.stringify(ctl));
+    return true;
+  } catch (e) {
+    console.warn('ceraSaveJobCtl_ notice: ' + (e.message || e));
+    return false;
+  }
+}
+
+/**
+ * Initializes `CERA_JOB_CTL` when a new Direct Ingestion job is engaged.
+ */
+function ceraInitJobCtl_(state) {
+  if (!state) return null;
+  const nowMs = Date.now();
+  let ssId = '';
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (ss && typeof ss.getId === 'function') ssId = String(ss.getId() || '');
+  } catch (e) {}
+  const ctl = {
+    activityId: state.activityId || '',
+    spreadsheetId: ssId || state.hostSpreadsheetId || '',
+    folderId: state.folderId || '',
+    ownerEmail: state.userEmail || '',
+    status: state.status || 'RUNNING',
+    rev: 1,
+    createdMs: nowMs,
+    updatedMs: nowMs,
+    heartbeatMs: nowMs,
+    lastHeartbeatMs: nowMs,
+    lastProgressMs: nowMs,
+    leaseHolder: '',
+    leaseUntilMs: 0,
+    runStartMs: 0,
+    runEndMs: 0,
+    ticksExecuted: 0,
+    killedTicks: 0,
+    lockSkips: 0,
+    readStrikes: 0,
+    healCount: 0,
+    resumeCount: 0,
+    lastHealMs: 0,
+    quotaResumeAtMs: 0,
+    ledger24hMs: 0,
+    lastErrorCode: '',
+    lastErrorMsg: ''
+  };
+  ceraSaveJobCtl_(ctl);
+  return ctl;
+}
+
+/**
+ * Updates `CERA_JOB_CTL` status and optional reason/error code.
+ */
+function ceraUpdateJobCtlStatus_(state, status, reasonCode) {
+  try {
+    const nowMs = Date.now();
+    let ctl = ceraLoadJobCtl_();
+    if (!ctl && state) ctl = ceraInitJobCtl_(state);
+    if (!ctl) return;
+    if (status) ctl.status = status;
+    ctl.heartbeatMs = nowMs;
+    ctl.lastHeartbeatMs = nowMs;
+    if (reasonCode) ctl.lastReason = String(reasonCode);
+    if (state && state.quotaResumeAtIso) {
+      const qMs = Date.parse(state.quotaResumeAtIso);
+      if (Number.isFinite(qMs)) ctl.quotaResumeAtMs = qMs;
+    } else if (status === 'RUNNING' || status === 'COMPLETED') {
+      ctl.quotaResumeAtMs = 0;
+    }
+    ceraSaveJobCtl_(ctl);
+  } catch (e) {}
+}
+
+/**
+ * Acquires the tick execution lease in `CERA_JOB_CTL` and detects if the previous run was hard-killed by Apps Script's 6-minute wall limit.
+ */
+function ceraAcquireTickLease_(state, runId) {
+  const nowMs = Date.now();
+  let ctl = ceraLoadJobCtl_();
+  if (!ctl) ctl = ceraInitJobCtl_(state);
+  if (!ctl) return { acquired: true, killedPrevious: false };
+
+  // Foreign-owner guard: if another user's trigger fires on a session owned by a different user, do not interleave writes
+  let effEmail = '';
+  try {
+    effEmail = Session.getEffectiveUser().getEmail() || '';
+  } catch (e) {}
+  if (ctl.ownerEmail && effEmail && ctl.ownerEmail.toLowerCase() !== effEmail.toLowerCase()) {
+    ceraAppendFlightIncident_('FOREIGN_OWNER_SKIPPED', 'Tick skipped due to owner mismatch.');
+    return { acquired: false, reason: 'FOREIGN_OWNER', killedPrevious: false };
+  }
+
+  let killedPrevious = false;
+  if (ctl.runStartMs > 0 && ctl.runEndMs < ctl.runStartMs) {
+    if (ctl.leaseUntilMs > nowMs && ctl.leaseHolder && ctl.leaseHolder !== runId) {
+      return { acquired: false, reason: 'LEASE_ACTIVE', killedPrevious: false };
+    }
+    killedPrevious = true;
+    ctl.killedTicks = (Number(ctl.killedTicks) || 0) + 1;
+    ceraAppendFlightIncident_('TICK_KILLED', 'Previous tick exceeded runtime limit without clean finalize.');
+  }
+
+  ctl.leaseHolder = String(runId || 'tick');
+  ctl.leaseUntilMs = nowMs + CERA_EXTRACTION_LEASE_MS;
+  ctl.runStartMs = nowMs;
+  ctl.heartbeatMs = nowMs;
+  ctl.lastHeartbeatMs = nowMs;
+  ctl.status = (state && state.status) || ctl.status || 'RUNNING';
+  ceraSaveJobCtl_(ctl);
+  return { acquired: true, killedPrevious: killedPrevious };
+}
+
+/**
+ * Finalizes the tick execution lease in `CERA_JOB_CTL` and appends a compact tuple to `CERA_FR_HOT` / `CERA_FR_RING`.
+ */
+function ceraFinalizeTickCtl_(state, runId, status, rowsWritten, apiCalls, errorCode) {
+  try {
+    const nowMs = Date.now();
+    let ctl = ceraLoadJobCtl_();
+    if (!ctl && state) ctl = ceraInitJobCtl_(state);
+    if (!ctl) return;
+    const durMs = ctl.runStartMs > 0 ? Math.max(0, nowMs - ctl.runStartMs) : 0;
+    ctl.leaseHolder = '';
+    ctl.leaseUntilMs = 0;
+    ctl.runEndMs = nowMs;
+    ctl.heartbeatMs = nowMs;
+    ctl.lastHeartbeatMs = nowMs;
+    if (Number(rowsWritten) > 0 || status === 'COMPLETED') {
+      ctl.lastProgressMs = nowMs;
+    }
+    ctl.ticksExecuted = (Number(ctl.ticksExecuted) || 0) + 1;
+    ctl.ledger24hMs = Math.min(86400000, (Number(ctl.ledger24hMs) || 0) + durMs);
+    if (status) ctl.status = status;
+    const cleanErr = errorCode ? ceraScrubText_(String(errorCode), 100) : '';
+    if (cleanErr) {
+      ctl.lastErrorCode = cleanErr;
+      ctl.lastErrorMsg = ceraScrubText_((state && state.errorMessage) || cleanErr, 120);
+    } else if (status === 'RUNNING' || status === 'COMPLETED') {
+      ctl.lastErrorCode = '';
+      ctl.lastErrorMsg = '';
+    }
+    if (state && state.quotaResumeAtIso) {
+      const qMs = Date.parse(state.quotaResumeAtIso);
+      if (Number.isFinite(qMs)) ctl.quotaResumeAtMs = qMs;
+    } else if (status === 'RUNNING' || status === 'COMPLETED') {
+      ctl.quotaResumeAtMs = 0;
+    }
+    ceraSaveJobCtl_(ctl);
+
+    ceraAppendFlightHot_({
+      t: nowMs,
+      durMs: durMs,
+      rows: Number(rowsWritten) || 0,
+      api: Number(apiCalls) || 0,
+      part: (state && state.fileIndex) || 1,
+      pct: (state && state.timeSpanPct) || 0,
+      st: status || (state && state.status) || 'RUNNING',
+      err: cleanErr
+    });
+  } catch (e) {}
+}
+
+/**
+ * Records a skipped tick when LockService.tryLock(0) is busy or unavailable.
+ */
+function ceraRecordLockSkipped_() {
+  try {
+    ceraAppendBeat_({ t: Date.now(), kind: 'SKIP_LOCK' });
+    const ctl = ceraLoadJobCtl_();
+    if (ctl) {
+      ctl.lockSkips = (Number(ctl.lockSkips) || 0) + 1;
+      ceraSaveJobCtl_(ctl);
+    }
+  } catch (e) {}
+}
+
+/**
+ * Records a transient DocumentProperties read failure without wiping session state or deleting triggers.
+ */
+function ceraRecordTransientReadStrike_(err) {
+  try {
+    ceraAppendBeat_({ t: Date.now(), kind: 'READ_ERR', err: ceraScrubText_(err && err.message ? err.message : String(err || ''), 80) });
+    const ctl = ceraLoadJobCtl_();
+    if (ctl) {
+      ctl.readStrikes = (Number(ctl.readStrikes) || 0) + 1;
+      ceraSaveJobCtl_(ctl);
+    }
+  } catch (e) {}
+}
+
+/**
+ * Appends a heartbeat entry to `CERA_JOB_BEAT` (capped at 10 entries, < 800 bytes).
+ */
+function ceraAppendBeat_(beatObj) {
+  try {
+    const props = PropertiesService.getDocumentProperties();
+    let list = [];
+    try {
+      const raw = props.getProperty('CERA_JOB_BEAT');
+      if (raw) list = JSON.parse(raw);
+      if (!Array.isArray(list)) list = [];
+    } catch (_) { list = []; }
+    list.push(beatObj);
+    if (list.length > 10) list = list.slice(-10);
+    props.setProperty('CERA_JOB_BEAT', JSON.stringify(list));
+  } catch (e) {}
+}
+
+/**
+ * Appends a tick summary entry to `CERA_FR_HOT` and `CERA_FR_RING` (capped at 30 entries, < 4.5 KB).
+ */
+function ceraAppendFlightHot_(entryObj) {
+  try {
+    const props = PropertiesService.getDocumentProperties();
+    let list = [];
+    try {
+      const raw = props.getProperty('CERA_FR_HOT') || props.getProperty('CERA_FR_RING');
+      if (raw) list = JSON.parse(raw);
+      if (!Array.isArray(list)) list = [];
+    } catch (_) { list = []; }
+    list.push(entryObj);
+    if (list.length > 30) list = list.slice(-30);
+    const serialized = JSON.stringify(list);
+    props.setProperty('CERA_FR_HOT', serialized);
+    props.setProperty('CERA_FR_RING', serialized);
+  } catch (e) {}
+}
+
+/**
+ * Appends a structured incident to `CERA_FR_INC` (first 5 pinned + last 20 entries, < 3.5 KB).
+ */
+function ceraAppendFlightIncident_(code, detail) {
+  try {
+    const props = PropertiesService.getDocumentProperties();
+    let list = [];
+    try {
+      const raw = props.getProperty('CERA_FR_INC');
+      if (raw) list = JSON.parse(raw);
+      if (!Array.isArray(list)) list = [];
+    } catch (_) { list = []; }
+    list.push({
+      t: new Date().toISOString(),
+      code: String(code || 'INCIDENT'),
+      detail: ceraScrubText_(detail || '', 120)
+    });
+    if (list.length > 25) {
+      list = list.slice(0, 5).concat(list.slice(-20));
+    }
+    props.setProperty('CERA_FR_INC', JSON.stringify(list));
+  } catch (e) {}
+}
+
+/**
+ * Loads the durable partition registry (`CERA_PART_REG`) for the given job folderId.
+ */
+function ceraGetPartitionRegistry_(folderId) {
+  try {
+    const raw = PropertiesService.getDocumentProperties().getProperty('CERA_PART_REG');
+    if (raw) {
+      const reg = JSON.parse(raw);
+      if (reg && (!folderId || !reg.folderId || reg.folderId === folderId) && Array.isArray(reg.partitions)) {
+        return reg;
+      }
+    }
+  } catch (e) {}
+  return { folderId: folderId || '', partitions: [] };
+}
+
+/**
+ * Registers a partition in `CERA_PART_REG` BEFORE rows are written to it (register-before-write).
+ * Supports both 6-arg `(folderId, fileIndex, fileId, fileName, status, rows)` and 4-arg `(fileId, fileName, fileIndex, rows)`.
+ */
+function ceraRegisterPartition_(folderId, fileIndex, fileId, fileName, status, rows) {
+  try {
+    let fldId = folderId;
+    let idx = fileIndex;
+    let fId = fileId;
+    let fName = fileName;
+    let st = status;
+    let r = rows;
+    if (arguments.length === 4 && typeof fileId === 'number') {
+      fId = folderId;
+      fName = fileIndex;
+      idx = fileId;
+      r = fileName;
+      fldId = '';
+      st = 'IN_PROGRESS';
+    }
+    const reg = ceraGetPartitionRegistry_(fldId);
+    if (fldId) reg.folderId = fldId;
+    const partIdx = Number(idx) || 1;
+    let entry = reg.partitions.find(p => Number(p.index) === partIdx || (fId && p.fileId === fId));
+    if (!entry) {
+      entry = { index: partIdx, fileId: fId || '', fileName: fName || '', rows: Number(r) || 0, status: st || 'IN_PROGRESS' };
+      reg.partitions.push(entry);
+    } else {
+      if (fId) entry.fileId = fId;
+      if (fName) entry.fileName = fName;
+      if (r !== undefined) entry.rows = Number(r) || 0;
+      if (st) entry.status = st;
+    }
+    if (reg.partitions.length > 60) reg.partitions = reg.partitions.slice(-60);
+    PropertiesService.getDocumentProperties().setProperty('CERA_PART_REG', JSON.stringify(reg));
+  } catch (e) {}
+}
+
+/**
+ * Updates the committed row count and status of a partition in `CERA_PART_REG`.
+ * Supports both 6-arg `(folderId, fileIndex, fileId, fileName, rows, status)` and 3-arg `(fileId, rows, status)`.
+ */
+function ceraUpdatePartitionRows_(folderId, fileIndex, fileId, fileName, rows, status) {
+  if (arguments.length === 3 && typeof fileIndex === 'number') {
+    const fId = folderId;
+    const r = fileIndex;
+    const st = fileId || 'IN_PROGRESS';
+    try {
+      const reg = ceraGetPartitionRegistry_('');
+      const entry = reg.partitions.find(p => p.fileId === fId) || reg.partitions[reg.partitions.length - 1];
+      if (entry) {
+        entry.rows = Number(r) || 0;
+        entry.status = st;
+        PropertiesService.getDocumentProperties().setProperty('CERA_PART_REG', JSON.stringify(reg));
+        return;
+      }
+    } catch (e) {}
+  }
+  ceraRegisterPartition_(folderId, fileIndex, fileId, fileName, status || 'IN_PROGRESS', rows);
+}
+
+/**
+ * Computes job liveness and health signals from `SIERRA_SESSION` and `CERA_JOB_CTL`.
+ */
+function ceraComputeJobHealth_(state, ctl) {
+  const nowMs = Date.now();
+  const status = (state && state.status) ? String(state.status) : ((ctl && ctl.status) ? String(ctl.status) : 'IDLE');
+  if (!state || status === 'IDLE') {
+    return {
+      healthState: 'IDLE',
+      isStalled: false,
+      heartbeatAgeSec: null,
+      lastHeartbeatIso: '',
+      ownerMatch: true,
+      triggerCount: 0,
+      quotaResumeAtIso: '',
+      healthChecks: []
+    };
+  }
+
+  let ssId = '';
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (ss && typeof ss.getId === 'function') ssId = String(ss.getId() || '');
   } catch (e) {}
 
-  // 2. Fallback: ScriptCache
+  const boundSsId = (ctl && ctl.spreadsheetId) || state.hostSpreadsheetId || '';
+  if (boundSsId && ssId && boundSsId !== ssId) {
+    return {
+      healthState: 'FOREIGN',
+      isStalled: false,
+      heartbeatAgeSec: null,
+      lastHeartbeatIso: '',
+      ownerMatch: false,
+      triggerCount: 0,
+      quotaResumeAtIso: '',
+      healthChecks: [{ id: 'binding', status: 'WARN', code: 'FOREIGN_COPY' }]
+    };
+  }
+
+  let currentEmail = '';
+  try {
+    currentEmail = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail() || '';
+  } catch (e) {}
+  const ownerEmail = (ctl && ctl.ownerEmail) || state.userEmail || '';
+  const ownerMatch = !ownerEmail || !currentEmail || ownerEmail.toLowerCase() === currentEmail.toLowerCase();
+
+  let triggerCount = -1;
+  try {
+    if (typeof ScriptApp !== 'undefined' && typeof ScriptApp.getProjectTriggers === 'function') {
+      const triggers = ScriptApp.getProjectTriggers() || [];
+      triggerCount = triggers.filter(t => t && typeof t.getHandlerFunction === 'function' && t.getHandlerFunction() === 'processCloudIngestionBatch').length;
+    }
+  } catch (e) {
+    triggerCount = -1;
+  }
+
+  const ctlHbMs = Number((ctl && (ctl.heartbeatMs !== undefined ? ctl.heartbeatMs : ctl.lastHeartbeatMs)) || 0);
+  const lastHbMs = ctlHbMs > 0
+    ? ctlHbMs
+    : Math.max(Number(state.lastUpdateMs || 0), Number((ctl && ctl.createdMs) || 0));
+  const heartbeatAgeSec = lastHbMs > 0 ? Math.max(0, Math.round((nowMs - lastHbMs) / 1000)) : null;
+  const lastHeartbeatIso = lastHbMs > 0 ? new Date(lastHbMs).toISOString() : '';
+  const stallSec = Math.round(CERA_EXTRACTION_STALL_MS / 1000);
+  const staleSec = Math.round(CERA_EXTRACTION_STALE_MS / 1000);
+  const quotaResumeAtIso = state.quotaResumeAtIso || ((ctl && ctl.quotaResumeAtMs > nowMs) ? new Date(ctl.quotaResumeAtMs).toISOString() : '');
+
+  let healthState = status;
+  let isStalled = false;
+  if (status === 'COMPLETED') {
+    healthState = 'COMPLETED';
+  } else if (status === 'QUOTA_PAUSED' || (quotaResumeAtIso && Date.parse(quotaResumeAtIso) > nowMs)) {
+    healthState = 'WAITING_FOR_QUOTA';
+  } else if (status === 'PAUSED') {
+    healthState = 'PAUSED';
+  } else if (status === 'FAILED') {
+    healthState = 'FAILED';
+  } else if (status === 'RUNNING') {
+    const hbStalled = (heartbeatAgeSec !== null && heartbeatAgeSec >= stallSec);
+    const missingTriggerAfterGrace = (triggerCount === 0 && (heartbeatAgeSec === null || heartbeatAgeSec >= 60));
+    if (hbStalled || missingTriggerAfterGrace) {
+      isStalled = true;
+      healthState = ownerMatch ? 'STALLED' : 'NEEDS_OWNER';
+    } else if (state.consecutiveFailures > 0 || (ctl && ctl.lastErrorCode)) {
+      healthState = 'RETRYING';
+    } else if ((ctl && (ctl.ticksExecuted || 0) === 0) && (state.processedCount || 0) === 0 && (heartbeatAgeSec === null || heartbeatAgeSec < 300)) {
+      healthState = 'STARTING';
+    } else {
+      healthState = 'RUNNING';
+    }
+  }
+
+  const healthChecks = [
+    { id: 'trigger', status: triggerCount > 0 ? 'OK' : (triggerCount === 0 && status === 'RUNNING' ? 'ERR' : 'INFO'), detail: triggerCount >= 0 ? String(triggerCount) : 'NOT_VISIBLE' },
+    { id: 'heartbeat', status: isStalled ? 'ERR' : (heartbeatAgeSec !== null && heartbeatAgeSec >= staleSec ? 'WARN' : 'OK'), detail: heartbeatAgeSec !== null ? (heartbeatAgeSec + 's') : 'N/A' },
+    { id: 'owner', status: ownerMatch ? 'OK' : 'WARN', detail: ownerMatch ? 'OWNER' : 'NON_OWNER' }
+  ];
+
+  return {
+    healthState: healthState,
+    isStalled: isStalled,
+    heartbeatAgeSec: heartbeatAgeSec,
+    lastHeartbeatIso: lastHeartbeatIso,
+    ownerMatch: ownerMatch,
+    triggerCount: triggerCount >= 0 ? triggerCount : 0,
+    quotaResumeAtIso: quotaResumeAtIso,
+    healthChecks: healthChecks
+  };
+}
+
+/**
+ * Automatically repairs a missing or stale background ingestion trigger when the owner opens the workbook or Setup Dialog.
+ */
+function ceraMaybeAutoHealIngestionOnOpen_(source) {
+  try {
+    const docProps = PropertiesService.getDocumentProperties();
+    const readRes = ceraReadPropTriState_(docProps, 'SIERRA_SESSION');
+    if (readRes.status !== 'PRESENT' || !readRes.value) {
+      return { checked: true, healed: false, reason: readRes.status };
+    }
+    const state = JSON.parse(readRes.value);
+    if (!state || state.status !== 'RUNNING') {
+      return { checked: true, healed: false, reason: 'NOT_RUNNING', status: (state && state.status) || 'IDLE' };
+    }
+
+    const ctl = ceraLoadJobCtl_();
+    const health = ceraComputeJobHealth_(state, ctl);
+    if (health.healthState === 'FOREIGN') {
+      return { checked: true, healed: false, reason: 'FOREIGN_COPY', ownerMatch: false };
+    }
+    if (!health.ownerMatch) {
+      ceraAppendFlightIncident_('AUTO_HEAL_SKIPPED_NON_OWNER', 'Non-owner opened stalled job (' + (source || 'open') + ').');
+      return { checked: true, healed: false, reason: 'OWNER_MISMATCH', ownerMatch: false };
+    }
+
+    const healsSoFar = Number((ctl && (ctl.resumeCount !== undefined ? ctl.resumeCount : ctl.healCount)) || 0);
+    if (healsSoFar >= 5) {
+      return { checked: true, healed: false, reason: 'MAX_HEALS_REACHED', ownerMatch: true };
+    }
+
+    const staleSec = Math.round(CERA_EXTRACTION_STALE_MS / 1000);
+    const needsTriggerRepair = (health.triggerCount === 0) || (health.heartbeatAgeSec !== null && health.heartbeatAgeSec >= staleSec);
+    if (!needsTriggerRepair) {
+      return { checked: true, healed: false, reason: 'HEALTHY', ownerMatch: true };
+    }
+
+    const nowMs = Date.now();
+    const minHealGapMs = (typeof CeraConfig !== 'undefined' && CeraConfig.LIVENESS && CeraConfig.LIVENESS.REPAIR_MIN_INTERVAL_MS)
+      ? CeraConfig.LIVENESS.REPAIR_MIN_INTERVAL_MS
+      : 300000;
+    if (ctl && ctl.lastHealMs && (nowMs - ctl.lastHealMs) < minHealGapMs && health.triggerCount > 0) {
+      return { checked: true, healed: false, reason: 'RATE_LIMITED', ownerMatch: true };
+    }
+
+    registerCloudIngestionTrigger(CERA_EXTRACTION_TRIGGER_MINUTES);
+    state.lastUpdateMs = nowMs;
+    saveStateToStorage(state);
+    if (ctl) {
+      const nextHeals = healsSoFar + 1;
+      ctl.healCount = nextHeals;
+      ctl.resumeCount = nextHeals;
+      ctl.lastHealMs = nowMs;
+      ctl.heartbeatMs = nowMs;
+      ctl.lastHeartbeatMs = nowMs;
+      ceraSaveJobCtl_(ctl);
+    }
+    ceraAppendFlightIncident_('TRIGGER_REPAIRED_ON_OPEN', 'Re-armed background trigger via ' + (source || 'open') + '.');
+    ceraRecordDiagLifecycle_(state, 'RUNNING', 'TRIGGER_REPAIRED_ON_OPEN', 'Auto-repaired missing/stale background trigger via ' + (source || 'open') + '.');
+    return { checked: true, healed: true, reason: 'TRIGGER_REPAIRED_ON_OPEN', ownerMatch: true };
+  } catch (e) {
+    return { checked: false, healed: false, reason: 'ERROR', error: e.message || String(e) };
+  }
+}
+
+/**
+ * Builds a compact, 100% Zero-PII diagnostic incident summary packet (`cera.incident.v1`, <= 2 KB) from DocumentProperties.
+ * Works even when the job is stalled or Drive is unreachable.
+ */
+function ceraBuildIncidentPacket_(passedState) {
+  let state = passedState;
+  if (!state) {
+    try { state = getProgressUpdate(); } catch (e) { state = {}; }
+  }
+  state = state || {};
+  const ctl = ceraLoadJobCtl_() || {};
+  const health = ceraComputeJobHealth_(state, ctl);
+  let incidents = [];
+  let hotTicks = [];
+  try {
+    const props = PropertiesService.getDocumentProperties();
+    const rawInc = props.getProperty('CERA_FR_INC');
+    if (rawInc) incidents = JSON.parse(rawInc) || [];
+    const rawHot = props.getProperty('CERA_FR_RING') || props.getProperty('CERA_FR_HOT');
+    if (rawHot) hotTicks = JSON.parse(rawHot) || [];
+  } catch (e) {}
+
+  const ver = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.12';
+  const status = state.status || ctl.status || 'IDLE';
+  const errCode = ceraScrubText_(ctl.lastErrorCode || state.errorKey || 'NONE', 60);
+  const errMsg = ceraScrubText_(ctl.lastErrorMsg || state.errorMessage || '', 120);
+
+  const packetObj = {
+    schema: 'cera.incident.v1',
+    v: ver,
+    activityId: state.activityId || ctl.activityId || 'NONE',
+    status: status,
+    healthState: health.healthState,
+    isStalled: !!health.isStalled,
+    ownerMatch: !!health.ownerMatch,
+    triggers: health.triggerCount,
+    processedCount: Number(state.processedCount || 0),
+    scannedCount: Number(state.scannedCount || 0),
+    timeSpanPct: Number(Number(state.timeSpanPct || 0).toFixed(1)),
+    fileIndex: Number(state.fileIndex || 1),
+    heartbeatAgeSec: health.heartbeatAgeSec,
+    errorKey: errCode,
+    lastError: errMsg,
+    counters: {
+      ticks: Number(ctl.ticksExecuted || hotTicks.length || 0),
+      killed: Number(ctl.killedTicks || 0),
+      skips: Number(ctl.lockSkips || 0),
+      strikes: Number(ctl.readStrikes || 0),
+      heals: Number(ctl.resumeCount || ctl.healCount || 0)
+    },
+    ring: hotTicks.slice(-6).map(t => ({
+      t: t.t,
+      durMs: t.durMs,
+      rows: t.rows,
+      api: t.api,
+      part: t.part,
+      pct: t.pct,
+      st: t.st,
+      err: ceraScrubText_(t.err || '', 40)
+    })),
+    incidents: incidents.slice(-6).map(inc => ({
+      t: inc.t,
+      code: inc.code,
+      detail: ceraScrubText_(inc.detail || '', 80)
+    }))
+  };
+  let json = JSON.stringify(packetObj);
+  if (ceraUtf8Bytes_(json) > 2048) {
+    packetObj.ring = packetObj.ring.slice(-3);
+    packetObj.incidents = packetObj.incidents.slice(-3);
+    json = JSON.stringify(packetObj);
+  }
+  return json;
+}
+
+if (typeof globalThis !== 'undefined' && typeof globalThis.copyIngestionIncidentPacket !== 'function') {
+  globalThis.copyIngestionIncidentPacket = function() {
+    const json = ceraBuildIncidentPacket_();
+    return { success: true, json: json, incidentSummary: json };
+  };
+}
+
+/**
+ * Retrieves progress checkpoint from DocumentProperties or ScriptCache using tri-state reads.
+ */
+function getProgressUpdate() {
+  const readRes = ceraReadPropTriState_(
+    typeof PropertiesService !== 'undefined' ? PropertiesService.getDocumentProperties() : null,
+    'SIERRA_SESSION'
+  );
+  if (readRes.status === 'PRESENT' && readRes.value) {
+    try {
+      return JSON.parse(readRes.value);
+    } catch (parseErr) {
+      return {
+        status: 'TRANSIENT_READ_ERROR',
+        healthState: 'UNKNOWN',
+        processedCount: 0,
+        timeSpanPct: 0,
+        currentFileName: '',
+        folderId: '',
+        folderName: ''
+      };
+    }
+  }
+
+  if (readRes.status === 'UNREADABLE') {
+    try {
+      const cached = CacheService.getScriptCache().get('SIERRA_LIVE_PROGRESS');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return {
+      status: 'TRANSIENT_READ_ERROR',
+      healthState: 'UNKNOWN',
+      processedCount: 0,
+      timeSpanPct: 0,
+      currentFileName: '',
+      folderId: '',
+      folderName: ''
+    };
+  }
+
+  // Fallback: ScriptCache
   try {
     const cached = CacheService.getScriptCache().get('SIERRA_LIVE_PROGRESS');
     if (cached) return JSON.parse(cached);
@@ -2018,17 +2925,32 @@ function getProgressUpdate() {
 /**
  * Status of the stored session as other executions left it (pause and reset do not wait for the worker's lock).
  * 'GONE' when the job was reset or replaced by a new one, '' when the session cannot be read.
+ * Also consults `CERA_JOB_CTL` so a transient null read on `SIERRA_SESSION` while `CERA_JOB_CTL` says RUNNING
+ * never tricks an in-flight tick into treating the job as 'GONE' (FI-A3), and an explicit pause/finalize/discard
+ * recorded in `CERA_JOB_CTL` is respected even if `SIERRA_SESSION` was unreadable (FI-A4..A5).
  */
 function ceraStoredJobStatus_(activityId) {
-  let raw = null;
-  try {
-    raw = PropertiesService.getDocumentProperties().getProperty('SIERRA_SESSION');
-  } catch (e) {
-    return '';
+  const ctl = ceraLoadJobCtl_();
+  const ctlMatches = ctl && (!activityId || !ctl.activityId || ctl.activityId === activityId);
+  if (ctlMatches) {
+    if (ctl.status === 'IDLE' || ctl.status === 'DISCARDED') return 'GONE';
+    if (ctl.status === 'PAUSED' || ctl.status === 'STOPPED' || ctl.status === 'COMPLETED') return String(ctl.status);
+  } else if (ctl && activityId && ctl.activityId && ctl.activityId !== activityId) {
+    return 'GONE';
   }
-  if (!raw) return 'GONE';
+
+  const readRes = ceraReadPropTriState_(
+    typeof PropertiesService !== 'undefined' ? PropertiesService.getDocumentProperties() : null,
+    'SIERRA_SESSION'
+  );
+  if (readRes.status === 'UNREADABLE') return '';
+  if (readRes.status === 'MISSING' || !readRes.value) {
+    // FI-A3: if SIERRA_SESSION returned null transiently while CERA_JOB_CTL confirms this job is RUNNING, do not treat as GONE
+    if (ctlMatches && ctl.status === 'RUNNING') return '';
+    return 'GONE';
+  }
   try {
-    const stored = JSON.parse(raw);
+    const stored = JSON.parse(readRes.value);
     if (!stored || stored.status === 'IDLE' || (activityId && stored.activityId && stored.activityId !== activityId)) return 'GONE';
     return String(stored.status || '');
   } catch (e) {
@@ -2037,10 +2959,36 @@ function ceraStoredJobStatus_(activityId) {
 }
 
 /**
- * Detects existing session state for modal consumption (Bulletproof sync with Ingestion Monitor)
+ * Detects existing session state for modal consumption (Bulletproof sync with Ingestion Monitor & Liveness Engine)
  */
 function detectExistingSession() {
   let state = getProgressUpdate();
+  if (state && state.status === 'TRANSIENT_READ_ERROR') {
+    const ctl = ceraLoadJobCtl_();
+    if (ctl && ctl.status && ctl.status !== 'IDLE') {
+      return {
+        hasExisting: true,
+        status: ctl.status,
+        healthState: 'UNKNOWN',
+        storageDegraded: true,
+        isCompleted: ctl.status === 'COMPLETED',
+        isStalled: false,
+        folderId: ctl.folderId || '',
+        totalLogsProcessed: 0,
+        timeSpanPct: ctl.status === 'COMPLETED' ? 100 : 0
+      };
+    }
+    return {
+      hasExisting: true,
+      status: 'TRANSIENT_READ_ERROR',
+      healthState: 'UNKNOWN',
+      storageDegraded: true,
+      isCompleted: false,
+      isStalled: false,
+      totalLogsProcessed: 0,
+      timeSpanPct: 0
+    };
+  }
 
   // Bulletproof sync: Cross-check with '⚡ Ingestion Monitor' dashboard sheet
   try {
@@ -2104,23 +3052,11 @@ function detectExistingSession() {
           }
         }
       } else {
-        // TAB DELETED BY USER:
-        // If the '⚡ Ingestion Monitor' sheet tab was deleted from the spreadsheet,
-        // treat this as an explicit reset signal: wipe SIERRA_SESSION, cleanup background triggers, and start from 0.
+        // Views never destroy state (BP-02 / F13a): if '⚡ Ingestion Monitor' was deleted while a job exists, recreate it
         if (state && state.status && state.status !== 'IDLE') {
-          Logger.log("'⚡ Ingestion Monitor' sheet tab was deleted. Automatically wiping SIERRA_SESSION to start from 0...");
-          try {
-            cleanupAllIngestionTriggers();
-            PropertiesService.getDocumentProperties().deleteProperty('SIERRA_SESSION');
-            PropertiesService.getDocumentProperties().deleteProperty('CERA_ANALYSIS_EXECUTED');
-            CacheService.getScriptCache().remove('SIERRA_LIVE_PROGRESS');
-            CacheService.getUserCache().remove('SIERRA_LIVE_PROGRESS');
-            const lock = LockService.getScriptLock();
-            try { lock.releaseLock(); } catch (lErr) {}
-          } catch (delErr) {
-            console.warn('Session wipe notice: ' + delErr.message);
-          }
-          state = null;
+          Logger.log("'⚡ Ingestion Monitor' sheet tab was missing during detectExistingSession. Recreating monitor sheet...");
+          ceraAppendFlightIncident_('MONITOR_RECREATED', 'Recreated missing Ingestion Monitor sheet tab on session check.');
+          safeUpdateDashboard(ss, state, state.partitions || []);
         }
       }
     }
@@ -2130,10 +3066,22 @@ function detectExistingSession() {
 
   if (state && (state.folderId || (state.status === 'COMPLETED')) && state.status && state.status !== 'IDLE') {
     const diagMeta = ceraGetDiagLogMeta_(state.folderId);
+    const ctl = ceraLoadJobCtl_();
+    const health = ceraComputeJobHealth_(state, ctl);
+    const incidentSummary = ceraBuildIncidentPacket_(state);
     return {
       hasExisting: true,
       status: state.status,
+      healthState: health.healthState,
       isCompleted: (state.status === 'COMPLETED'),
+      isStalled: health.isStalled,
+      heartbeatAgeSec: health.heartbeatAgeSec,
+      lastHeartbeatIso: health.lastHeartbeatIso,
+      ownerMatch: health.ownerMatch,
+      triggerCount: health.triggerCount,
+      quotaResumeAtIso: health.quotaResumeAtIso,
+      incidentSummary: incidentSummary,
+      healthChecks: health.healthChecks,
       totalLogsProcessed: state.processedCount || 0,
       timeSpanPct: state.status === 'COMPLETED' ? 100 : (state.timeSpanPct || 0),
       currentDay: state.currentDay || 1,
@@ -2147,7 +3095,7 @@ function detectExistingSession() {
       logFileId: (diagMeta && diagMeta.logFileId) || '',
       fileIndex: state.fileIndex || 1,
       rate: state.processingRate || state.rate || 0,
-      etaSec: state.status === 'COMPLETED' ? 0 : (state.etaSec || 0),
+      etaSec: (state.status === 'COMPLETED' || health.isStalled || health.healthState === 'WAITING_FOR_QUOTA') ? 0 : (state.etaSec || 0),
       expectedEvents: state.expectedEvents || 0,
       errorMessage: state.errorMessage || '',
       errorKey: state.errorKey || '',
@@ -2155,7 +3103,7 @@ function detectExistingSession() {
       eventStreams: state.eventStreams || null
     };
   }
-  return { hasExisting: false, status: 'IDLE' };
+  return { hasExisting: false, status: 'IDLE', healthState: 'IDLE', isStalled: false };
 }
 
 // ==============================================================================
@@ -2223,34 +3171,102 @@ function ceraGetDiagLogMeta_(folderId, allowListFallback) {
   return null;
 }
 
+const CERA_SCRUB_REASON_ALLOWLIST = {
+  PERMISSION_DENIED: true,
+  UNAUTHENTICATED: true,
+  RESOURCE_EXHAUSTED: true,
+  UNAVAILABLE: true,
+  DEADLINE_EXCEEDED: true,
+  INVALID_ARGUMENT: true,
+  NOT_FOUND: true,
+  INTERNAL: true,
+  insufficientPermissions: true,
+  rateLimitExceeded: true,
+  userRateLimitExceeded: true,
+  dailyLimitExceeded: true,
+  quotaExceeded: true,
+  backendError: true,
+  notFound: true,
+  badRequest: true,
+  authError: true,
+  forbidden: true,
+  invalid: true
+};
+
+/**
+ * 9-class Zero-PII & Zero-Identifier Scrubber (`ceraScrubText_`, Q8-C / d2 §3.4).
+ * Strips emails, URLs of any scheme, hostnames across all alphabetic TLDs (2..24 chars),
+ * IPv4/IPv6 addresses, pageTokens & customer IDs (`C0...`), quoted literals (double, single,
+ * smart, CJK), OU paths (`/Segment/Segment`), and long opaque IDs/hex/digit runs.
+ */
+function ceraScrubText_(text, maxLen) {
+  if (!text) return '';
+  let s = String(text);
+  // 1. Emails
+  s = s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[REDACTED_EMAIL]');
+  // 2. URLs with any scheme
+  s = s.replace(/\b[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s"'<>)]+/gi, '[REDACTED_URL]');
+  // 3. IPv4 and IPv6 addresses
+  s = s.replace(/\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g, '[REDACTED_IP]');
+  s = s.replace(/\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}\b/g, '[REDACTED_IP]');
+  // 4. Page-token-like strings and Google Workspace customer IDs (C0xxxxxxx)
+  s = s.replace(/\bA:[0-9A-Za-z_:-]{6,}\b/g, '[REDACTED_TOKEN]');
+  s = s.replace(/\b[0-9A-Za-z_-]+:[0-9A-Za-z_-]+:chrome:[0-9A-Za-z_:-]+\b/gi, '[REDACTED_TOKEN]');
+  s = s.replace(/\bC0[0-9a-zA-Z]{6,}\b/g, '[REDACTED_ID]');
+  // 5. Quoted literals ("...", '...', “...”, ‘...’, 「...」), preserving standard Sheet1/Raw Data ranges and API reason tokens
+  const isAllowedLiteral = inner => {
+    if (/^(Sheet1|Raw Data)(![A-Z0-9:]+)?$/i.test(inner)) return true;
+    if (/^(Write requests|Read requests|urlfetch)$/i.test(inner)) return true;
+    return !!CERA_SCRUB_REASON_ALLOWLIST[inner];
+  };
+  s = s.replace(/"([^"]{1,200})"/g, (m, inner) => (isAllowedLiteral(inner) ? m : '"[REDACTED]"'));
+  s = s.replace(/“([^”]{1,200})”/g, (m, inner) => (isAllowedLiteral(inner) ? m : '"[REDACTED]"'));
+  s = s.replace(/‘([^’]{1,200})’/g, (m, inner) => (isAllowedLiteral(inner) ? m : '"[REDACTED]"'));
+  s = s.replace(/「([^」]{1,200})」/g, (m, inner) => (isAllowedLiteral(inner) ? m : '"[REDACTED]"'));
+  s = s.replace(/(?:^|[\s(:=])'([^']{1,200})'(?=$|[\s),.;:!])/g, (m, inner) => {
+    if (isAllowedLiteral(inner)) return m;
+    return m.replace("'" + inner + "'", '"[REDACTED]"');
+  });
+  // 6. Host names (2+ labels with any 2..24 char alphabetic TLD, excluding standard Google API service identifiers)
+  s = s.replace(/\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,24}\b/g, m => {
+    const lower = m.toLowerCase();
+    if (
+      lower === 'googleapis.com' ||
+      lower === 'google.com' ||
+      lower === 'script.google.com' ||
+      lower === 'cera-diagnostic-log.txt' ||
+      lower.indexOf('sheets.spreadsheets') === 0 ||
+      lower.indexOf('reports.activities') === 0 ||
+      lower.indexOf('drive.files') === 0 ||
+      lower.indexOf('script.container') === 0
+    ) {
+      return m;
+    }
+    return '[REDACTED_DOMAIN]';
+  });
+  // 7. OU-like paths (/Segment/Segment)
+  s = s.replace(/(^|[\s(])(\/[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)+)/g, '$1[REDACTED_PATH]');
+  // 8. Digit runs >= 10 chars (trigger IDs, uniqueQualifiers) and opaque Drive/Sheet IDs >= 20 chars containing digits/hyphens/underscores
+  s = s.replace(/\b\d{10,}\b/g, '[REDACTED_ID]');
+  s = s.replace(/\b(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{20,}\b/g, m => {
+    if (m.indexOf('REDACTED_') === 0 || m.indexOf('CERA_') === 0) return m;
+    return '[REDACTED_ID]';
+  });
+  const limit = Number(maxLen) > 0 ? Number(maxLen) : 320;
+  if (s.length > limit) s = s.slice(0, Math.max(1, limit - 3)) + '...';
+  return s;
+}
+
 /**
  * Redacts emails, URLs, domains, file names, and long identifiers from any diagnostic or error message string
  * to guarantee 100% Zero-PII & Zero-Sensitive-Data in `cera-diagnostic-log.txt`.
  */
 function ceraSanitizeDiagnosticText_(text) {
-  if (!text) return '';
-  let s = String(text);
-  // Redact email addresses
-  s = s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[REDACTED_EMAIL]');
-  // Redact http/https/chrome/file URLs
-  s = s.replace(/\b(?:https?|chrome|chrome-extension|file|ftp):\/\/[^\s"'<>)]+/gi, '[REDACTED_URL]');
-  // Redact quoted strings (could hold file names, tab titles, or user strings) other than standard Sheet1/Raw Data ranges
-  s = s.replace(/"([^"]{1,200})"/g, (m, inner) => {
-    if (/^(Sheet1|Raw Data)(![A-Z0-9:]+)?$/i.test(inner)) return m;
-    return '"[REDACTED]"';
-  });
-  // Redact domain-like tokens (excluding standard Google API/Apps Script service tokens)
-  s = s.replace(/\b([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|org|net|edu|gov|mil|io|co|ai|app|dev|id|sg|ph|my|th|vn|jp|kr|cn|uk|de|fr|au|in|br|ca|info|biz|me|tv|xyz)\b/gi, m => {
-    const lower = m.toLowerCase();
-    if (lower === 'googleapis.com' || lower === 'google.com' || lower === 'script.google.com') return m;
-    return '[REDACTED_DOMAIN]';
-  });
-  if (s.length > 320) s = s.slice(0, 317) + '...';
-  return s;
+  return ceraScrubText_(text, 320);
 }
 
 /**
- * Increments non-empty field presence counters for an extracted Chrome event row (18-column schema).
+ * Increments non-empty field presence counters for an extracted Chrome event row (19-column schema).
  * Tracks only integer counts — never stores cell values.
  */
 function ceraRecordDiagRowSchema_(schemaMap, evName, row) {
@@ -2268,7 +3284,8 @@ function ceraRecordDiagRowSchema_(schemaMap, evName, row) {
       hasOrgUnit: 0,
       hasDeviceName: 0,
       hasClientType: 0,
-      hasCmdSwitches: 0
+      hasCmdSwitches: 0,
+      hasEventId: 0
     };
   }
   const st = schemaMap[evName];
@@ -2284,6 +3301,7 @@ function ceraRecordDiagRowSchema_(schemaMap, evName, row) {
   if (row[15]) st.hasDeviceName++;
   if (row[16]) st.hasClientType++;
   if (row[17]) st.hasCmdSwitches++;
+  if (row[18]) st.hasEventId++;
 }
 
 /**

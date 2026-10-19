@@ -51,7 +51,7 @@ const PREFLIGHT_GATE_MAX_WALL_HOURS = 2.0;
 
 const REPORTS_CHROME_URL = 'https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome';
 const PREFLIGHT_PROBE_FIELDS = 'nextPageToken,items(id(time))';
-const PREFLIGHT_TRIMMED_FIELDS = 'nextPageToken,items(id(time,uniqueQualifier),actor(email),events(name,parameters(name,value,intValue,boolValue,multiValue)))';
+const PREFLIGHT_TRIMMED_FIELDS = 'nextPageToken,items(id(time,uniqueQualifier),actor(email),events(name,parameters(name,value,intValue,boolValue,multiValue,messageValue,multiMessageValue)))';
 
 /**
  * Entry point called from the setup dialog before engageCloudIngestion.
@@ -68,6 +68,8 @@ function runIngestionPreflight(dateRangeDays) {
     estimate: null,
     warnings: [],
     recommendManual: false,
+    routingBand: 'AUTO_START',
+    recommendedDays: days,
     messageKey: '',
     messageParams: null,
     summaryParams: null
@@ -76,6 +78,7 @@ function runIngestionPreflight(dateRangeDays) {
   result.access = _preflightCheckReportsAccess_(token);
   if (!result.access.ok) {
     result.recommendManual = true;
+    result.routingBand = 'NOT_SUPPORTED';
     result.messageKey = result.access.reasonKey;
     result.messageParams = { detail: result.access.detail };
     console.warn('[Preflight] Reports API access unavailable: ' + result.access.detail);
@@ -85,6 +88,8 @@ function runIngestionPreflight(dateRangeDays) {
   result.activity = _preflightActiveWeeks_(token, days);
   result.probe = _preflightProbe_(token, days, startedMs, result.activity);
   result.estimate = _preflightEstimate_(result.probe, days, result.activity);
+  result.routingBand = result.estimate.routingBand;
+  result.recommendedDays = result.estimate.recommendedDays;
   _preflightSavePlan_(result);
   _preflightAddWarnings_(result);
   result.summaryParams = _preflightSummaryParams_(result);
@@ -97,6 +102,8 @@ function runIngestionPreflight(dateRangeDays) {
     activeWeeks: result.activity.weeks.filter(Boolean).length + '/' + result.activity.weeks.length,
     measured: result.estimate.measured,
     totalEvents: result.estimate.totalEvents,
+    routingBand: result.routingBand,
+    recommendedDays: result.recommendedDays,
     legacy: result.estimate.legacy,
     rollup: result.estimate.rollup,
     warnings: result.warnings,
@@ -586,6 +593,8 @@ function _preflightEstimate_(probe, days, activity) {
 
   const sum = key => perEvent.reduce((a, e) => a + e[key], 0);
   const totalEvents = sum('total');
+  const totalLo = sum('lo');
+  const totalHi = sum('hi');
   const m = probe.measured;
 
   // Current engine: one quiet-week check per week, then day slices per event on active weeks,
@@ -604,6 +613,10 @@ function _preflightEstimate_(probe, days, activity) {
   const legacyRuntimeSec = legacyRequests * ((effectivePageMs / 1000) + LEGACY_PACING_SEC_PER_PAGE) +
     (totalEvents / 1000) * LEGACY_SHEET_WRITE_SEC_PER_PAGE +
     partitions * 3.5;
+  const loRatio = totalEvents > 0 ? Math.max(0.5, totalLo / totalEvents) : 1;
+  const hiRatio = totalEvents > 0 ? Math.max(1.0, totalHi / totalEvents) : 1;
+  const legacyRuntimeLoSec = legacyRuntimeSec * loRatio;
+  const legacyRuntimeHiSec = legacyRuntimeSec * hiRatio * 1.15;
 
   // Rollup engine: hour slices per event, parallel fetchAll capped by the filter-query limit
   const rollupRequests = perEvent.reduce((a, e) => a + days * 24 * Math.max(1, Math.ceil(e.total / days / 24 / 1000)), 0);
@@ -613,18 +626,59 @@ function _preflightEstimate_(probe, days, activity) {
 
   const round1 = x => Math.round(x * 10) / 10;
   const isExact = perEvent.every(e => !e.capped);
+  const wallHours = round1(legacyRuntimeSec / LEGACY_TICK_DUTY / 3600);
+  const wallHoursLo = round1(legacyRuntimeLoSec / LEGACY_TICK_DUTY / 3600);
+  const wallHoursHi = round1(legacyRuntimeHiSec / LEGACY_TICK_DUTY / 3600);
+  const calendarDays = round1(legacyRuntimeSec / TRIGGER_RUNTIME_SEC_PER_DAY);
+  const calendarDaysLo = round1(legacyRuntimeLoSec / TRIGGER_RUNTIME_SEC_PER_DAY);
+  const calendarDaysHi = round1(legacyRuntimeHiSec / TRIGGER_RUNTIME_SEC_PER_DAY);
+
+  let routingBand = 'AUTO_START';
+  if (!(totalEvents > 0)) {
+    routingBand = 'NO_EVENTS';
+  } else if (totalEvents <= PREFLIGHT_GATE_MAX_EVENTS && wallHours <= PREFLIGHT_GATE_MAX_WALL_HOURS) {
+    routingBand = 'AUTO_START';
+  } else if (wallHours <= 6.0 && totalEvents <= 350000) {
+    routingBand = 'SAME_DAY';
+  } else if (calendarDays <= 3.0 && totalEvents <= 750000) {
+    routingBand = 'MULTI_DAY';
+  } else {
+    routingBand = 'NOT_SUPPORTED';
+  }
+
+  let recommendedDays = days;
+  if (routingBand !== 'AUTO_START' && totalEvents > 0 && days > 1) {
+    const candidates = [30, 14, 7, 3, 2, 1].filter(d => d < days);
+    const evPerDay = totalEvents / Math.max(1, activity ? activity.activeDays || days : days);
+    const hrsPerDay = wallHours / Math.max(1, activity ? activity.activeDays || days : days);
+    recommendedDays = 1;
+    for (let i = 0; i < candidates.length; i++) {
+      const cand = candidates[i];
+      if (evPerDay * cand <= PREFLIGHT_GATE_MAX_EVENTS && hrsPerDay * cand <= PREFLIGHT_GATE_MAX_WALL_HOURS) {
+        recommendedDays = cand;
+        break;
+      }
+    }
+  }
+
   return {
     perEvent: perEvent,
     totalEvents: totalEvents,
-    totalLo: sum('lo'),
-    totalHi: sum('hi'),
+    totalLo: totalLo,
+    totalHi: totalHi,
     isExact: isExact,
+    routingBand: routingBand,
+    recommendedDays: recommendedDays,
     measured: m,
     legacy: {
       requests: legacyRequests,
       runtimeHours: round1(legacyRuntimeSec / 3600),
-      calendarDays: round1(legacyRuntimeSec / TRIGGER_RUNTIME_SEC_PER_DAY),
-      wallHours: round1(legacyRuntimeSec / LEGACY_TICK_DUTY / 3600),
+      calendarDays: calendarDays,
+      calendarDaysLo: calendarDaysLo,
+      calendarDaysHi: calendarDaysHi,
+      wallHours: wallHours,
+      wallHoursLo: wallHoursLo,
+      wallHoursHi: wallHoursHi,
       wallMinutes: Math.ceil(legacyRuntimeSec / LEGACY_TICK_DUTY / 60),
       etaSec: totalEvents > 0 ? Math.max(60, Math.round(legacyRuntimeSec / LEGACY_TICK_DUTY)) : 0,
       partitions: partitions,
@@ -646,6 +700,7 @@ function _preflightRequiresConfirmation_(result) {
   if (!result || result.recommendManual) return true;
   const est = result.estimate;
   if (!est || !(Number(est.totalEvents) > 0)) return true;
+  if (est.routingBand && est.routingBand !== 'AUTO_START') return true;
   const leg = est.legacy || {};
   if (Number(est.totalEvents) > PREFLIGHT_GATE_MAX_EVENTS) return true;
   if (Number(leg.wallHours) > PREFLIGHT_GATE_MAX_WALL_HOURS) return true;
@@ -675,6 +730,8 @@ function _preflightSavePlan_(result) {
       expectedEvents: Number(est.totalEvents) || 0,
       etaSec: Number(leg.etaSec) || Math.max(60, (Number(leg.wallMinutes) || 1) * 60),
       isExact: Boolean(est.isExact),
+      routingBand: est.routingBand || 'AUTO_START',
+      recommendedDays: Number(est.recommendedDays) || result.days,
       zeroStreams: zeroStreams,
       perDay: {}
     };
@@ -686,6 +743,8 @@ function _preflightSavePlan_(result) {
       savedMs: plan.savedMs,
       days: result.days,
       status: est.isExact ? 'EXACT' : 'ESTIMATED',
+      routingBand: est.routingBand || 'AUTO_START',
+      recommendedDays: Number(est.recommendedDays) || result.days,
       expectedEvents: Number(est.totalEvents) || 0,
       estimatedEvents: Number(est.totalEvents) || 0,
       estimatedLo: Number(est.totalLo) || 0,
@@ -744,6 +803,10 @@ function _preflightSummaryParams_(result) {
     hi: est.totalHi,
     total: est.totalEvents,
     days: result.days,
+    routingBand: est.routingBand || 'AUTO_START',
+    recommendedDays: est.recommendedDays || result.days,
+    wallHoursLo: est.legacy.wallHoursLo,
+    wallHoursHi: est.legacy.wallHoursHi,
     durationKey: 'pf.duration.' + d.unit,
     durationN: d.n
   };
