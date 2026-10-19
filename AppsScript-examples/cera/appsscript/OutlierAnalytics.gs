@@ -319,11 +319,16 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
   });
 
   // 1. Card 1: Destination Funneling (Single-Destination Heavy Uploader by OU)
+  const notReportedOu = T('report.ou.notReported');
+  const preferRealOu = list => {
+    const real = list.filter(a => a.ou !== notReportedOu);
+    return real.length ? real : list;
+  };
   const MIN_FUNNEL_BYTES = 50 * 1024 * 1024;
   const heavyActors = actors.filter(a => a.totalBytes >= MIN_FUNNEL_BYTES);
   const funnelBase = heavyActors.length ? heavyActors : actors;
   const focusedPool = funnelBase.filter(a => a.topShare >= 0.50);
-  const funnelPool = focusedPool.length ? focusedPool : funnelBase;
+  const funnelPool = preferRealOu(focusedPool.length ? focusedPool : funnelBase);
   let bestFunnel = null;
   funnelPool.forEach(a => {
     if (!bestFunnel) { bestFunnel = a; return; }
@@ -377,7 +382,7 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
   // 2. Card 2: Multi-Portal Dispersion (Multi-Destination Heavy Uploader by OU)
   const heavyMulti = actors.filter(a => a.domainCount >= 2 && a.totalBytes >= MIN_FUNNEL_BYTES);
   const allMulti = actors.filter(a => a.domainCount >= 2);
-  const scatterPool = heavyMulti.length ? heavyMulti : (allMulti.length ? allMulti : (heavyActors.length ? heavyActors : actors));
+  const scatterPool = preferRealOu(heavyMulti.length ? heavyMulti : (allMulti.length ? allMulti : (heavyActors.length ? heavyActors : actors)));
   let bestScatter = null;
   scatterPool.forEach(a => {
     if (!bestScatter) { bestScatter = a; return; }
@@ -486,16 +491,24 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
     skewNarrative = T('deck.skew.none', { min: CERA_SKEW_RULE.minPeople, size: skewSize });
   }
 
+  const hasFunnel = !!bestFunnel || (isValid(m.topFunnelOU) && funnelHHI > 0);
+  const funnelTitle = hasFunnel ? T('deck.s3.funnelTitle', { ou: funnelOU }) : T('deck.s3.funnelTitleNone');
+  const scatterTitle = scatterCount >= 2
+    ? T('deck.s3.scatterTitle', { ou: scatterOU })
+    : (scatterCount === 1 ? T('deck.s3.scatterTitleSingle', { ou: scatterOU }) : T('deck.s3.scatterTitleNone'));
+
   return {
-    hasFunnel: !!bestFunnel || (isValid(m.topFunnelOU) && funnelHHI > 0),
+    hasFunnel: hasFunnel,
     funnelOU: funnelOU,
     funnelDomain: funnelDomain,
     funnelHHI: funnelHHI,
     funnelHHIStr: Math.round(funnelHHI * 100) + '%',
+    funnelTitle: funnelTitle,
     funnelNarrative: funnelNarrative,
     hasScatter: !!bestScatter || (isValid(m.topScatterOU) && scatterCount > 0),
     scatterOU: scatterOU,
     scatterCount: scatterCount,
+    scatterTitle: scatterTitle,
     scatterNarrative: scatterNarrative,
     hasSkew: hasSkew,
     skewOU: skewOU,

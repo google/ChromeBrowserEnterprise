@@ -51,7 +51,7 @@
         "Hiragino Sans", "Yu Gothic UI", "Apple SD Gothic Neo", "Malgun Gothic", "PingFang SC", "Microsoft YaHei",
         "Noto Sans JP", "Noto Sans KR", "Noto Sans SC", sans-serif;
       margin: 0;
-      padding: 18px 22px 85px 22px;
+      padding: 18px 22px 104px 22px;
       color: var(--md-sys-color-on-surface);
       font-size: 13px;
       line-height: 1.5;
@@ -295,25 +295,88 @@
       font-size: 11.5px;
       cursor: pointer;
     }
+    .suggest-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .suggest-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748B;
+      margin-right: 2px;
+    }
+    .chip-suggest {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #137333;
+      background: #F0FDF4;
+      border: 1px dashed #86EFAC;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .chip-suggest:hover {
+      background: #DCFCE7;
+      border-style: solid;
+      border-color: #16A34A;
+    }
 
     /* Sticky Footer */
     .dialog-footer {
       position: fixed;
-      bottom: 0;
+      bottom: 24px;
       left: 0;
       right: 0;
       background: #FFFFFF;
       border-top: 1px solid #E2E8F0;
-      padding: 12px 22px;
+      padding: 10px 22px;
       display: flex;
       justify-content: flex-end;
       align-items: center;
-      gap: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
       z-index: 100;
       box-shadow: 0 -3px 12px rgba(0,0,0,0.04);
     }
+    #cera-disclaimer-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 24px;
+      padding: 0 22px;
+      background: #F8FAFC;
+      border-top: 1px solid #E2E8F0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      z-index: 101;
+      font-size: 10.5px;
+      color: #94A3B8;
+      text-align: left;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #cera-disclaimer-footer a {
+      color: #94A3B8;
+      text-decoration: none;
+      pointer-events: auto;
+    }
+    #cera-disclaimer-footer a:hover {
+      color: #0B57D0;
+      text-decoration: underline;
+    }
     .btn-md3-text {
-      padding: 9px 18px;
+      padding: 8px 14px;
       border-radius: 9999px;
       border: none;
       background: transparent;
@@ -321,9 +384,11 @@
       font-weight: 600;
       font-size: 12.5px;
       cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .btn-md3-filled {
-      padding: 9px 22px;
+      padding: 8px 18px;
       border-radius: 9999px;
       border: none;
       background: #0B57D0;
@@ -332,10 +397,12 @@
       font-size: 12.5px;
       cursor: pointer;
       box-shadow: 0 1px 3px rgba(11, 87, 208, 0.3);
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .btn-md3-filled:hover { background: #0842A0; }
     .btn-md3-danger {
-      padding: 9px 18px;
+      padding: 8px 14px;
       border-radius: 9999px;
       border: 1px solid #FECACA;
       background: #FEE2E2;
@@ -343,7 +410,22 @@
       font-weight: 600;
       font-size: 12px;
       cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
+    .btn-md3-tonal {
+      padding: 8px 16px;
+      border-radius: 9999px;
+      border: 1px solid #D2E3FC;
+      background: #E8F0FE;
+      color: #0B57D0;
+      font-weight: 600;
+      font-size: 12.5px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .btn-md3-tonal:hover { background: #D2E3FC; }
 
     /* Language picker & version badge */
     .lang-bar { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin: -6px 0 6px; font-size: 11.5px; color: #475569; }
@@ -555,7 +637,8 @@
     @keyframes beat { 50% { transform: scale(1.035); } }
     @media (prefers-reduced-motion: reduce) { .glow, .glow::before, .card span { animation: none; } }
 
-    .btn-slides { display: inline-block; margin-top: 14px; padding: 11px 22px; background: #059669; color: white; text-decoration: none; border-radius: 9999px; font-weight: 600; font-size: 12.5px; }
+    .btn-slides { display: inline-block; margin-top: 14px; padding: 11px 22px; background: #D97706; color: #FFFFFF; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 12.5px; box-shadow: 0 2px 6px rgba(217, 119, 6, 0.25); transition: background 0.15s ease; }
+    .btn-slides:hover { background: #B45309; color: #FFFFFF; text-decoration: none; }
     .btn-feedback-pill { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 9999px; border: 1px solid #CBD5E1; background: #FFFFFF; color: #334155; font-size: 11.5px; font-weight: 600; text-decoration: none; transition: all 0.15s ease; }
     .btn-feedback-pill:hover { background: #F1F5F9; border-color: #94A3B8; color: #0F172A; text-decoration: none; }
     .folder-card { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
@@ -567,13 +650,55 @@
 <body>
   <!-- Version badge & Language picker (always visible) -->
   <div class="lang-bar">
-    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.11</span>
+    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.12</span>
     <div class="lang-picker-group">
       <label for="lang-select" data-i18n="lang.label">Language</label>
       <select id="lang-select" onchange="changeLanguage(this.value)"></select>
     </div>
   </div>
 
+  <!-- Non-Blocking Single-Use Workbook Recommendation Banner (shown when continuing after unlocking the gate) -->
+  <div id="single-use-warning-banner" role="status" aria-live="polite" style="display: none; background: #FFFBEB; border: 1.5px solid #FDE68A; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; color: #92400E;">
+    <div id="single-use-warning-title" data-i18n="reuse.warn.title" style="font-weight: 700; font-size: 12px; margin-bottom: 3px; color: #92400E;">⚠️ Single-Use Workbook Recommendation</div>
+    <div id="single-use-warning-body" data-i18n-html="reuse.warn.body" style="font-size: 11.5px; color: #78350F; line-height: 1.45;">CERA is designed for a single assessment per workbook. To ensure a clean workspace and the latest CERA version, we recommend making a fresh copy at <a href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer"><b>goo.gle/cera</b> ↗</a> — or you may continue in this workbook below.</div>
+  </div>
+
+  <!-- Non-Blocking Local Template Freshness Notice (shown when template releaseDate is older than 90 days) -->
+  <div id="template-freshness-banner" role="status" aria-live="polite" style="display: none; background: #EFF6FF; border: 1.5px solid #BFDBFE; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; color: #1E3A8A;">
+    <div id="template-freshness-title" data-i18n="freshness.warn.title" style="font-weight: 700; font-size: 12px; margin-bottom: 3px; color: #1E3A8A;">ℹ️ Newer CERA Template May Be Available</div>
+    <div id="template-freshness-body" data-i18n-html="freshness.warn.body" data-i18n-params='{"days":90}' style="font-size: 11.5px; color: #1E40AF; line-height: 1.45;">This CERA template copy was released over 90 days ago. For the latest detection rules and resilience updates, you can make a fresh copy at <a href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer"><b>goo.gle/cera</b> ↗</a> — or continue using this workbook below.</div>
+  </div>
+
+  <!-- FULL-POPUP INTERSTITIAL GATE: Single-Use Workbook Enforcement ("Persulit User" + goo.gle/cera CTA) -->
+  <div id="single-use-gate-container" style="display: none;">
+    <div class="step-header">
+      <div id="reuse-gate-pill" data-i18n="reuse.gate.pill" class="step-pill" style="background: #FEF3C7; color: #92400E; border-color: #FDE68A;">⚠️ Single-Use Workbook Limit</div>
+      <h1 id="reuse-gate-title" data-i18n="reuse.gate.title" class="step-title">This Workbook Has Already Been Used</h1>
+      <p id="reuse-gate-desc" data-i18n="reuse.gate.desc" class="step-desc">Each CERA spreadsheet is designed for a single, one-time assessment so your generated report tabs, charts, and diagnostic logs stay clean and intact.</p>
+    </div>
+
+    <!-- Generated Executive Presentation Card (Google Slides Warm Amber/Gold Theme) -->
+    <div id="reuse-gate-slides-card" style="display: none; background: #FFFBEB; border: 2px solid #FCD34D; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; text-align: center;">
+      <div id="reuse-gate-slides-title" data-i18n="reuse.gate.slidesTitle" style="font-weight: 700; font-size: 13.5px; color: #92400E; margin-bottom: 4px;">📊 Generated Executive Presentation Ready</div>
+      <div id="reuse-gate-slides-summary" data-i18n="reuse.gate.slidesDesc" style="font-size: 11.5px; color: #B45309; line-height: 1.45; margin-bottom: 10px;">Your CERA presentation deck has already been generated from this workbook.</div>
+      <a id="btn-reuse-open-slides" data-i18n="reuse.gate.openSlides" href="#" target="_blank" rel="noopener noreferrer" class="btn-slides" style="display: inline-block; margin-top: 0; padding: 10px 20px; background: #D97706; color: #FFFFFF; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open Google Slides Presentation Deck ↗</a>
+    </div>
+
+    <!-- Primary Hero Card: Make a Fresh Copy at goo.gle/cera -->
+    <div id="reuse-gate-hero-card" style="background: #F0FDF4; border: 2px solid #86EFAC; border-radius: 12px; padding: 15px 16px; margin-bottom: 12px;">
+      <div id="reuse-gate-rec-title" data-i18n="reuse.gate.recTitle" style="font-weight: 700; font-size: 13px; color: #14532D; margin-bottom: 6px;">✨ Recommended: Start a Fresh Copy for Your Next Run</div>
+      <ul style="margin: 0 0 12px 18px; padding: 0; font-size: 11.5px; color: #166534; line-height: 1.45;">
+        <li id="reuse-gate-rec-b1" data-i18n="reuse.gate.recB1" style="margin-bottom: 3px;">Protects this report: re-running in the same spreadsheet replaces the existing report tabs and charts.</li>
+        <li id="reuse-gate-rec-b2" data-i18n="reuse.gate.recB2" style="margin-bottom: 3px;">Always latest version: making a fresh copy from goo.gle/cera automatically provisions the latest verified CERA release.</li>
+        <li id="reuse-gate-rec-b3" data-i18n="reuse.gate.recB3">Zero re-extraction needed: if you already extracted logs to Google Drive, paste that Drive folder link into your new copy via Manual Export to analyze in seconds.</li>
+      </ul>
+      <a id="btn-reuse-fresh-copy" data-i18n="reuse.gate.ctaFresh" href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer" class="btn-md3-filled" style="display: block; text-align: center; background: #16A34A; color: #FFFFFF; text-decoration: none; padding: 10px 18px; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open goo.gle/cera to Make a Fresh Copy (Recommended) ↗</a>
+    </div>
+
+    <div class="dialog-footer">
+      <button id="btn-reuse-close" data-i18n="common.close" type="button" class="btn-md3-text" onclick="google.script.host.close()">Close</button>
+    </div>
+  </div>
 
   <!-- Initial Loading Screen -->
   <div id="init-loader" role="status" aria-live="polite">
@@ -620,7 +745,7 @@
         <div class="kpi-item">
           <div data-i18n="mon.kpi.eta" class="kpi-item-label">Estimated Completion</div>
           <div class="kpi-item-val" id="mon-eta-txt">Calculating...</div>
-          <div data-i18n="mon.kpi.watchdog" class="kpi-item-sub">Watchdog: 42s Auto-Cycle</div>
+          <div id="mon-watchdog-txt" data-i18n="mon.kpi.watchdog" class="kpi-item-sub">Watchdog: 42s Auto-Cycle</div>
         </div>
         <div class="kpi-item">
           <div data-i18n="mon.kpi.partitions" class="kpi-item-label">Active Partitions</div>
@@ -630,7 +755,7 @@
         <div class="kpi-item">
           <div data-i18n="mon.kpi.drive" class="kpi-item-label">Google Drive Target</div>
           <div class="kpi-item-val" style="font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="mon-folder-txt">Target Folder</div>
-          <div class="kpi-item-sub"><a data-i18n="mon.kpi.viewDrive" id="mon-drive-link" href="#" target="_blank" style="color: #0B57D0; font-weight: 600;">📁 View in Drive</a></div>
+          <div class="kpi-item-sub"><a data-i18n="mon.kpi.viewDrive" id="mon-drive-link" href="#" target="_blank" style="color: #0B57D0; font-weight: 600;">View in Drive ↗</a></div>
         </div>
       </div>
 
@@ -638,7 +763,7 @@
         <div data-i18n="mon.err.title" style="font-weight: 700; margin-bottom: 4px;">⚠️ Diagnostic Notice:</div>
         <div id="mon-error-msg" style="margin-bottom: 8px; word-break: break-word;"></div>
         <div data-i18n-html="mon.err.zeroLoss" style="font-size: 11px; color: #7F1D1D; margin-bottom: 8px;">💡 <b>Zero Data Loss:</b> Ingestion cursor is safely preserved in Google Drive. You can resume extraction from the last recorded timestamp.</div>
-        <button data-i18n="mon.err.resumeNow" type="button" class="btn-md3-filled" style="background: #0B57D0; font-size: 11.5px; padding: 6px 14px; font-weight: 600;" onclick="handleResumeFromDialog()">⚡ Resume Ingestion Now</button>
+        <button data-i18n="mon.err.resumeNow" type="button" class="btn-md3-filled" style="background: #0B57D0; font-size: 11.5px; padding: 6px 14px; font-weight: 600;" onclick="handleResumeFromDialog()">Resume Ingestion Now</button>
       </div>
 
       <div data-i18n-html="mon.completed" id="mon-completed-banner" style="display: none; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 12px; margin-top: 10px; color: #166534; font-size: 12px; text-align: center;">
@@ -653,15 +778,22 @@
         💡 <b>Autonomous Background Worker:</b> You do not need to keep this window open. You can safely close your browser or turn off your computer; execution runs autonomously via Google Apps Script and progress is continuously saved to the <i>⚡ Ingestion Monitor</i> sheet tab.
       </div>
       <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
-        <a data-i18n="mon.btn.openLogs" id="btn-mon-open-logs" href="#" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill" style="display: none;">📄 Open Diagnostic Logs (logs/) ↗</a>
-        <a data-i18n="mon.btn.reportProblem" id="btn-mon-report-problem" href="https://goo.gle/cera-feedback" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill">🐞 Report a Problem ↗</a>
+        <button data-i18n="mon.btn.copyDiag" id="btn-mon-copy-diag" type="button" class="btn-feedback-pill" style="cursor: pointer;" onclick="handleCopyDiagnosticSummary()">Copy Diagnostic Summary</button>
+        <a data-i18n="mon.btn.openLogs" id="btn-mon-open-logs" href="#" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill" style="display: none;">Open Diagnostic Logs (diagnostics/) ↗</a>
+        <a data-i18n="mon.btn.reportProblem" id="btn-mon-report-problem" href="https://goo.gle/cera-feedback" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill">Report a Problem ↗</a>
+      </div>
+      <div id="mon-diag-packet-box" style="display: none; margin-top: 8px; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <span id="mon-diag-packet-status" data-i18n="mon.diag.copied" style="font-size: 11px; font-weight: 700; color: #0F172A;">Zero-PII diagnostic summary copied to clipboard</span>
+        </div>
+        <textarea id="mon-diag-packet-text" readonly rows="4" style="width: 100%; font-family: monospace; font-size: 10.5px; color: #334155; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px; padding: 6px; resize: vertical;" onclick="this.select()"></textarea>
       </div>
     </div>
     <div class="dialog-footer">
-      <button data-i18n="mon.btn.resumeCloud" type="button" class="btn-md3-filled" id="btn-mon-resume" style="display: none; background: #0B57D0;" onclick="handleResumeFromDialog()">⚡ Resume Cloud Ingestion</button>
-      <button data-i18n="mon.btn.stopAnalyze" type="button" class="btn-md3-filled" id="btn-mon-stop-analyze" style="display: none; background: #0D9488;" onclick="handleStopAndAnalyzeNow()">⚡ Stop & Analyze Extracted Logs Now</button>
-      <button data-i18n="mon.btn.reset" type="button" class="btn-md3-danger" id="btn-mon-stop-reset" onclick="handleEmergencyStopAndReset()">🛑 Emergency Reset & Stop Ingestion</button>
-      <button data-i18n="mon.btn.proceed" type="button" class="btn-md3-filled" id="btn-mon-proceed" style="display: none; background: #16A34A;" onclick="handleProceedToAnalysis()">🚀 Proceed to CERA Analysis</button>
+      <button data-i18n="mon.btn.resumeCloud" type="button" class="btn-md3-filled" id="btn-mon-resume" style="display: none; background: #0B57D0;" onclick="handleResumeFromDialog()">Resume Cloud Ingestion</button>
+      <button data-i18n="mon.btn.stopAnalyze" type="button" class="btn-md3-filled" id="btn-mon-stop-analyze" style="display: none; background: #0D9488;" onclick="handleStopAndAnalyzeNow()">Stop & Analyze Extracted Logs Now</button>
+      <button data-i18n="mon.btn.reset" type="button" class="btn-md3-danger" id="btn-mon-stop-reset" onclick="handleEmergencyStopAndReset()">Emergency Reset & Stop Ingestion</button>
+      <button data-i18n="mon.btn.proceed" type="button" class="btn-md3-filled" id="btn-mon-proceed" style="display: none; background: #16A34A;" onclick="handleProceedToAnalysis()">Proceed to CERA Analysis</button>
       <button data-i18n="common.close" type="button" class="btn-md3-text" onclick="google.script.host.close()">Close</button>
     </div>
   </div>
@@ -716,7 +848,7 @@
 
     <div class="dialog-footer">
       <button data-i18n="common.cancel" type="button" class="btn-md3-text" onclick="google.script.host.close()">Cancel</button>
-      <button data-i18n="precheck.btn.recheck" type="button" class="btn-md3-text" id="btn-precheck-refresh" style="color: #0B57D0;" onclick="refreshPolicyPrecheck()">🔄 Re-check</button>
+      <button data-i18n="precheck.btn.recheck" type="button" class="btn-md3-text" id="btn-precheck-refresh" style="color: #0B57D0;" onclick="refreshPolicyPrecheck()">Re-check</button>
       <button data-i18n="precheck.btn.continue" type="button" class="btn-md3-filled" id="btn-precheck-continue" onclick="goToStep0()">Continue to Ingestion Setup ➔</button>
     </div>
   </div>
@@ -783,7 +915,7 @@
         </div>
 
         <div style="margin-top: 12px; text-align: right;">
-          <button data-i18n="step0.cloud.engage" id="btn-cloud-engage" type="button" class="btn-md3-filled" onclick="startCloudEngage()">🚀 Engage Background Extraction</button>
+          <button data-i18n="step0.cloud.engage" id="btn-cloud-engage" type="button" class="btn-md3-filled" onclick="startCloudEngage()">Engage Background Extraction</button>
         </div>
       </div>
     </div>
@@ -806,7 +938,7 @@
     <div class="dialog-footer">
       <button data-i18n="common.back" type="button" class="btn-md3-text" onclick="goToStep0()">Back</button>
       <button data-i18n="pf.btn.manual" type="button" class="btn-md3-text" id="pf-manual" onclick="goToPrereqCheck()">Use manual import (Drive folder / Sheet)</button>
-      <button data-i18n="pf.btn.start" type="button" class="btn-md3-filled" id="pf-start" onclick="engageAfterPreflight()">🚀 Start extraction</button>
+      <button data-i18n="pf.btn.start" type="button" class="btn-md3-filled" id="pf-start" onclick="engageAfterPreflight()">Start extraction</button>
     </div>
   </div>
 
@@ -918,7 +1050,7 @@
           </div>
           <div class="inst-item">
             <span class="inst-bullet">•</span>
-            <div data-i18n-html="guide.s1.langNote"><b>Export language:</b> Exports in <b>English</b>, <b>Japanese (日本語)</b>, <b>Korean (한국어)</b>, <b>Simplified Chinese (简体中文)</b>, and <b>Indonesian (Bahasa Indonesia)</b> are automatically normalized. If your Google Account uses another language, switch to <b>English</b> at <a href="https://myaccount.google.com/language" target="_blank" rel="noopener noreferrer">myaccount.google.com/language</a> before exporting, or use Direct Ingestion.</div>
+            <div data-i18n-html="guide.s1.langNote"><b>Export language:</b> Exports in <b>English</b>, <b>Japanese (日本語)</b>, <b>Korean (한국어)</b>, <b>Simplified Chinese (简体中文)</b>, <b>Indonesian (Bahasa Indonesia)</b>, and <b>Vietnamese (Tiếng Việt)</b> are automatically normalized. If your Google Account uses another language, switch to <b>English</b> at <a href="https://myaccount.google.com/language" target="_blank" rel="noopener noreferrer">myaccount.google.com/language</a> before exporting, or use Direct Ingestion.</div>
           </div>
         </div>
 
@@ -1064,7 +1196,7 @@
           <span style="font-size: 16px;">🏢</span>
           <div>
             <div data-i18n="step2.corp.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Corporate / Managed Domains</div>
-            <div data-i18n="step2.corp.hint" style="font-size: 11px; color: #64748B;" id="corpDomainsHint">Internal enterprise domains excluded from unmanaged threat vectors.</div>
+            <div data-i18n="step2.corp.hint" style="font-size: 11px; color: #64748B;" id="corpDomainsHint">Primary and subsidiary company domains. Accounts outside these domains (and Partner Organizations) are classified as personal accounts.</div>
           </div>
         </div>
         <span class="md3-badge badge-primary" id="corp-badge">0 Domains</span>
@@ -1073,7 +1205,7 @@
       <div class="input-row">
         <div class="input-field-wrap">
           <span class="input-icon">🌐</span>
-          <input type="text" id="corp-input" data-i18n-placeholder="step2.corp.placeholder" placeholder="Type domain (e.g. enterprise.com) and press Enter..." autocomplete="off">
+          <input type="text" id="corp-input" data-i18n-placeholder="step2.corp.placeholder" placeholder="Add corporate or subsidiary domain (e.g. subsidiary.com) and press Enter..." autocomplete="off">
         </div>
         <button data-i18n="common.add" type="button" class="btn-add-chip" id="btn-add-corp">+ Add</button>
       </div>
@@ -1084,8 +1216,8 @@
         <div style="display: flex; align-items: flex-start; gap: 8px;">
           <span style="font-size: 16px;">🤖</span>
           <div>
-            <div data-i18n="step2.ai.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Sanctioned Enterprise AI Endpoints (Gemini)</div>
-            <div data-i18n="step2.ai.desc" style="font-size: 11px; color: #64748B;">Approved internal AI portals benchmarked against Shadow AI</div>
+            <div data-i18n="step2.ai.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Sanctioned Enterprise AI</div>
+            <div data-i18n="step2.ai.desc" style="font-size: 11px; color: #64748B;">Approved enterprise AI tools benchmarked against unsanctioned Shadow AI</div>
           </div>
         </div>
         <span class="md3-badge badge-success" id="ai-badge">1 Endpoint</span>
@@ -1094,10 +1226,11 @@
       <div class="input-row">
         <div class="input-field-wrap">
           <span class="input-icon">✨</span>
-          <input type="text" id="ai-input" data-i18n-placeholder="step2.ai.placeholder" placeholder="Type AI endpoint (e.g. gemini.google.com)..." autocomplete="off">
+          <input type="text" id="ai-input" data-i18n-placeholder="step2.ai.placeholder" placeholder="Type AI domain (e.g. notebooklm.google.com) and press Enter..." autocomplete="off">
         </div>
         <button data-i18n="common.add" type="button" class="btn-add-chip" id="btn-add-ai">+ Add</button>
       </div>
+      <div class="suggest-row" id="ai-suggestions"></div>
     </div>
 
     <div class="md3-card" id="card-prod">
@@ -1105,8 +1238,8 @@
         <div style="display: flex; align-items: flex-start; gap: 8px;">
           <span style="font-size: 16px;">📁</span>
           <div>
-            <div data-i18n="step2.prod.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Sanctioned Productivity Suites</div>
-            <div data-i18n="step2.prod.desc" style="font-size: 11px; color: #64748B;">Managed suites excluded from Unmanaged SaaS classification</div>
+            <div data-i18n="step2.prod.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Managed Apps (Internal / SaaS)</div>
+            <div data-i18n="step2.prod.desc" style="font-size: 11px; color: #64748B;">Approved workspace suites, internal portals, and business SaaS excluded from Unmanaged Apps</div>
           </div>
         </div>
         <span class="md3-badge badge-info" id="prod-badge">5 Domains</span>
@@ -1115,7 +1248,7 @@
       <div class="input-row">
         <div class="input-field-wrap">
           <span class="input-icon">☁️</span>
-          <input type="text" id="prod-input" data-i18n-placeholder="step2.prod.placeholder" placeholder="Type suite domain (e.g. drive.google.com)..." autocomplete="off">
+          <input type="text" id="prod-input" data-i18n-placeholder="step2.prod.placeholder" placeholder="Type managed app or SaaS domain (e.g. autodesk.com, salesforce.com)..." autocomplete="off">
         </div>
         <button data-i18n="common.add" type="button" class="btn-add-chip" id="btn-add-prod">+ Add</button>
       </div>
@@ -1127,7 +1260,7 @@
           <span style="font-size: 16px;">💬</span>
           <div>
             <div data-i18n="step2.msg.title" style="font-weight: 700; font-size: 12.5px; color: #0F172A;">Monitored Web Messaging Platforms</div>
-            <div data-i18n="step2.msg.desc" style="font-size: 11px; color: #64748B;">Browser chat & collaboration platforms monitored for data exfiltration</div>
+            <div data-i18n="step2.msg.desc" style="font-size: 11px; color: #64748B;">Browser chat & collaboration platforms monitored for outbound data transfers</div>
           </div>
         </div>
         <span class="md3-badge badge-purple" id="msg-badge">7 Domains</span>
@@ -1147,7 +1280,7 @@
           <span style="font-size: 16px;">🤝</span>
           <div>
             <div style="font-weight: 700; font-size: 12.5px; color: #0F172A;" data-i18n="step2.partner.title">Partner Organizations</div>
-            <div style="font-size: 11px; color: #64748B;" data-i18n="step2.partner.desc">Domains of organizations you work with. Their accounts are not counted as personal accounts.</div>
+            <div style="font-size: 11px; color: #64748B;" data-i18n="step2.partner.desc">External partner, vendor, or agency domains you work with. Their accounts are not counted as personal accounts.</div>
           </div>
         </div>
         <span class="md3-badge badge-neutral" id="partner-badge">0 Domains</span>
@@ -1162,9 +1295,22 @@
       </div>
     </div>
 
+    <div class="md3-card" id="card-tz" style="padding: 10px 14px; background: #F8FAFC;">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 15px;">🕒</span>
+          <div>
+            <div id="step2-tz-title" data-i18n="step2.tz.title" style="font-weight: 700; font-size: 12px; color: #0F172A;">Report Time Zone (Working Hours &amp; Activity)</div>
+            <div id="step2-tz-desc" data-i18n="step2.tz.desc" style="font-size: 11px; color: #64748B;">Auto-detected from your browser for local working-hours analysis (08:00–19:00).</div>
+          </div>
+        </div>
+        <span class="md3-badge badge-primary" id="step2-tz-badge">Etc/UTC</span>
+      </div>
+    </div>
+
     <div class="dialog-footer">
       <button data-i18n="common.backArrow" type="button" class="btn-md3-text" onclick="backToStep1()">← Back</button>
-      <button data-i18n="step2.submit" type="button" class="btn-md3-filled" onclick="submitPipeline()">Process Sheets & Generate 🚀</button>
+      <button data-i18n="step2.submit" type="button" class="btn-md3-filled" onclick="submitPipeline()">Process Sheets & Generate</button>
     </div>
   </div>
 
@@ -1192,14 +1338,14 @@
   <div id="result-card">
     <div data-i18n="result.title" style="color: #065F46; font-weight: 700; font-size: 16px;">✅ Chrome Egress Risk Analysis has been generated!</div>
     <div data-i18n="result.summary.default" id="summary-result-txt" style="color: #047857; font-size: 12.5px; margin-top: 6px;">Executive presentation deck is ready.</div>
-    <a data-i18n="result.openSlides" id="slides-link" class="btn-slides" href="#" target="_blank" style="display: none;">🔗 Open Google Slides Presentation Deck</a>
+    <a data-i18n="result.openSlides" id="slides-link" class="btn-slides" href="#" target="_blank" style="display: none;">Open Google Slides Presentation Deck ↗</a>
     <div style="margin-top: 18px; display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;">
-      <a data-i18n="result.btn.feedback" id="btn-result-feedback" href="https://goo.gle/cera-feedback" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill">💬 Share Feedback & Ideas ↗</a>
+      <a data-i18n="result.btn.feedback" id="btn-result-feedback" href="https://goo.gle/cera-feedback" target="_blank" rel="noopener noreferrer" class="btn-feedback-pill">Share Feedback & Ideas ↗</a>
       <button data-i18n="common.close" type="button" class="btn-md3-text" style="color: #065F46; font-weight: 700;" onclick="google.script.host.close()">Close</button>
     </div>
   </div>
 
-  <div id="cera-disclaimer-footer" data-i18n-html="dialog.disclaimer" style="font-size: 10.5px; color: #64748B; text-align: center; margin-top: 10px;">Not an officially supported Google product. Provided &quot;AS IS&quot; without warranty or liability; runs in your tenant using your Workspace quotas. <a href="https://github.com/google/ChromeBrowserEnterprise/blob/main/AppsScript-examples/cera/DISCLAIMER.md" target="_blank" rel="noopener noreferrer">Disclaimer &amp; Privacy Policy ↗</a></div>
+  <div id="cera-disclaimer-footer" data-i18n-html="dialog.disclaimer"><a href="https://github.com/google/ChromeBrowserEnterprise/blob/main/AppsScript-examples/cera/DISCLAIMER.md" target="_blank" rel="noopener noreferrer">Disclaimer &amp; Privacy Policy</a></div>
 
   <script>
     let pollInterval = null;
@@ -1319,9 +1465,13 @@
         this.badge = document.getElementById(config.badgeId);
         this.badgeKey = config.badgeKey || 'chips.count.domains';
         this.chipClass = config.chipClass || 'chip-primary';
+        this.suggestionsContainer = config.suggestionsId ? document.getElementById(config.suggestionsId) : null;
+        this.suggestions = Array.isArray(config.suggestions) ? config.suggestions : [];
+        this.suggestLabelKey = config.suggestLabelKey || 'step2.ai.suggestLabel';
         this.items = [];
 
         if (config.defaultItems) this.addItems(config.defaultItems);
+        else this.renderSuggestions();
 
         if (this.input) {
           this.input.addEventListener('keydown', (e) => {
@@ -1442,6 +1592,34 @@
         if (this.badge) {
           setT(this.badge, this.badgeKey, { n: this.items.length });
         }
+        this.renderSuggestions();
+      }
+
+      renderSuggestions() {
+        if (!this.suggestionsContainer) return;
+        this.suggestionsContainer.innerHTML = '';
+        const remaining = this.suggestions.filter(s => !this.items.includes(s));
+        if (remaining.length === 0) {
+          this.suggestionsContainer.style.display = 'none';
+          return;
+        }
+        this.suggestionsContainer.style.display = 'flex';
+        const label = document.createElement('span');
+        label.className = 'suggest-label';
+        setT(label, this.suggestLabelKey || 'step2.ai.suggestLabel');
+        this.suggestionsContainer.appendChild(label);
+        remaining.forEach(domain => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'chip-suggest';
+          btn.setAttribute('data-suggest-domain', domain);
+          btn.textContent = '+ ' + domain;
+          btn.onclick = (e) => {
+            if (e && e.preventDefault) e.preventDefault();
+            this.addItems([domain]);
+          };
+          this.suggestionsContainer.appendChild(btn);
+        });
       }
 
       getValue() {
@@ -1473,9 +1651,31 @@
       }
     }
 
+    function detectBrowserTimeZone() {
+      try {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (tz && typeof tz === 'string' && tz.trim()) return tz.trim();
+      } catch (e) {}
+      return 'Etc/UTC';
+    }
+    let detectedBrowserTz = detectBrowserTimeZone();
+
     window.onload = function() {
+      detectedBrowserTz = detectBrowserTimeZone();
+      setRaw('step2-tz-badge', detectedBrowserTz);
       corpChips = new ChipManager({ pillsId: 'corp-pills', inputId: 'corp-input', addBtnId: 'btn-add-corp', badgeId: 'corp-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-primary', defaultItems: [] });
-      aiChips = new ChipManager({ pillsId: 'ai-pills', inputId: 'ai-input', addBtnId: 'btn-add-ai', badgeId: 'ai-badge', badgeKey: 'chips.count.endpoints', chipClass: 'chip-success', defaultItems: ['gemini.google.com'] });
+      aiChips = new ChipManager({
+        pillsId: 'ai-pills',
+        inputId: 'ai-input',
+        addBtnId: 'btn-add-ai',
+        badgeId: 'ai-badge',
+        badgeKey: 'chips.count.endpoints',
+        chipClass: 'chip-success',
+        defaultItems: ['gemini.google.com'],
+        suggestionsId: 'ai-suggestions',
+        suggestions: ['gemini.google.com', 'notebooklm.google.com', 'aistudio.google.com', 'vertexai.google.com'],
+        suggestLabelKey: 'step2.ai.suggestLabel'
+      });
       prodChips = new ChipManager({ pillsId: 'prod-pills', inputId: 'prod-input', addBtnId: 'btn-add-prod', badgeId: 'prod-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-info', defaultItems: ['google.com', 'drive.google.com', 'docs.google.com', 'googleusercontent.com', 'gmail.com'] });
       msgChips = new ChipManager({ pillsId: 'msg-pills', inputId: 'msg-input', addBtnId: 'btn-add-msg', badgeId: 'msg-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-purple', defaultItems: ['web.whatsapp.com', 'whatsapp.com', 'telegram.org', 'web.telegram.org', 'messenger.com', 'discord.com', 'slack.com'] });
       partnerChips = new ChipManager({ pillsId: 'partner-pills', inputId: 'partner-input', addBtnId: 'btn-add-partner', badgeId: 'partner-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-primary', defaultItems: [] });
@@ -1499,6 +1699,39 @@
             activeExtractedFolderId = data.extractedFolderId;
             activeExtractedFolderName = data.extractedFolderName || t('step1.auto.defaultName');
           }
+          if (data.workbookAlreadyUsed) {
+            workbookAlreadyUsed = {
+              ingestion: Boolean(data.workbookAlreadyUsed.ingestion),
+              report: Boolean(data.workbookAlreadyUsed.report)
+            };
+          }
+          currentSessionAnalyzed = Boolean(
+            data.currentSessionAnalyzed ||
+            (data.workbookAlreadyUsed && data.workbookAlreadyUsed.currentSessionAnalyzed)
+          );
+          lastSlidesUrl = String(data.lastSlidesUrl || '');
+          lastReportSummary = String(data.lastReportSummary || '');
+          lastCloudSession = data.cloudSession || null;
+          resumableAnalysisJob = data.analysisJob || null;
+
+          // Local template freshness check (zero network calls)
+          const releaseDateStr = String(data.releaseDate || '2026-10-19');
+          const warnDays = Number(data.freshnessWarnDays || 90);
+          const relMs = Date.parse(releaseDateStr);
+          const ageDays = Number.isFinite(relMs)
+            ? Math.max(0, Math.floor((Date.now() - relMs) / 86400000))
+            : Number(data.templateAgeDays || 0);
+          const isStale = Boolean(data.isTemplateStale || (ageDays > warnDays));
+          const freshBanner = document.getElementById('template-freshness-banner');
+          const freshBody = document.getElementById('template-freshness-body');
+          if (freshBanner) {
+            if (isStale) {
+              if (freshBody) setT(freshBody, 'freshness.warn.body', { days: ageDays || warnDays }, true);
+              freshBanner.style.display = 'block';
+            } else {
+              freshBanner.style.display = 'none';
+            }
+          }
 
           applyAdminSdkAccessState(data.adminSdkAccess !== false);
           if (data.policyPrecheck) {
@@ -1507,12 +1740,14 @@
 
           document.getElementById('init-loader').style.display = 'none';
 
-          // Check if a cloud session is currently active
+          // Check if a cloud session is currently active or if the single-use gate should intercept
           const cs = data.cloudSession;
-          if (cs && cs.hasExisting && (cs.status === 'RUNNING' || cs.status === 'PAUSED' || cs.status === 'FAILED' || cs.status === 'COMPLETED' || cs.isCompleted)) {
-            renderCloudMonitor(cs);
+          if (shouldShowSingleUseGate(cs)) {
+            goToSingleUseGate();
+          } else if (cs && cs.hasExisting && (cs.status === 'RUNNING' || cs.status === 'PAUSED' || cs.status === 'QUOTA_PAUSED' || cs.status === 'FAILED' || cs.status === 'COMPLETED' || cs.status === 'TRANSIENT_READ_ERROR' || cs.isCompleted || cs.isStalled)) {
             document.getElementById('cloud-monitor-container').style.display = 'block';
-            if (cs.status === 'RUNNING' && !cs.isCompleted) {
+            renderCloudMonitor(cs);
+            if ((cs.status === 'RUNNING' || cs.status === 'TRANSIENT_READ_ERROR') && !cs.isCompleted) {
               startCloudPolling();
             }
           } else if (activeExtractedFolderId) {
@@ -1533,6 +1768,69 @@
 
     let hasAdminSdkAccess = true;
     let lastPolicyPrecheck = null;
+    let workbookAlreadyUsed = { ingestion: false, report: false };
+    let currentSessionAnalyzed = false;
+    let currentMonitorCompleted = false;
+    let singleUseGateUnlocked = false;
+    let lastCloudSession = null;
+    let resumableAnalysisJob = null;
+    let lastSlidesUrl = '';
+    let lastReportSummary = '';
+
+    function shouldShowSingleUseGate(cs) {
+      if (cs && cs.hasExisting) {
+        if (cs.status === 'RUNNING' || cs.status === 'PAUSED' || cs.status === 'QUOTA_PAUSED' || cs.status === 'FAILED' || cs.status === 'TRANSIENT_READ_ERROR' || cs.isStalled) {
+          return false;
+        }
+        if ((cs.status === 'COMPLETED' || cs.isCompleted) && !currentSessionAnalyzed) {
+          return false;
+        }
+      }
+      return Boolean(workbookAlreadyUsed.report || workbookAlreadyUsed.ingestion);
+    }
+
+    function updateSingleUseWarningBanner(activeContainerId) {
+      const banner = document.getElementById('single-use-warning-banner');
+      if (!banner) return;
+      let show = false;
+      if (activeContainerId === 'policy-precheck-container' || activeContainerId === 'step0-container' || activeContainerId === 'preflight-container') {
+        show = Boolean(workbookAlreadyUsed.ingestion || workbookAlreadyUsed.report);
+      } else if (activeContainerId === 'prereq-check-container' || activeContainerId === 'prereq-guide-container' || activeContainerId === 'step1-container' || activeContainerId === 'step2-container') {
+        show = Boolean(workbookAlreadyUsed.report);
+      } else if (activeContainerId === 'cloud-monitor-container') {
+        show = Boolean(currentMonitorCompleted && currentSessionAnalyzed);
+      }
+      banner.style.display = show ? 'block' : 'none';
+    }
+
+    function goToSingleUseGate() {
+      hideAllContainers();
+      const slidesCard = document.getElementById('reuse-gate-slides-card');
+      const slidesSummary = document.getElementById('reuse-gate-slides-summary');
+      const slidesBtn = document.getElementById('btn-reuse-open-slides');
+      if (slidesCard && slidesBtn) {
+        if (lastSlidesUrl) {
+          slidesCard.style.display = 'block';
+          slidesBtn.href = lastSlidesUrl;
+          if (slidesSummary) {
+            if (lastReportSummary) setRaw(slidesSummary, lastReportSummary);
+            else setT(slidesSummary, 'reuse.gate.slidesDesc');
+          }
+        } else {
+          slidesCard.style.display = 'none';
+        }
+      }
+      const gate = document.getElementById('single-use-gate-container');
+      if (gate) gate.style.display = 'block';
+      updateSingleUseWarningBanner('single-use-gate-container');
+    }
+    const showSingleUseGate = goToSingleUseGate;
+
+    function toggleReuseContinueBtn() {}
+
+    function proceedPastSingleUseGate() {
+      return false;
+    }
 
     function applyAdminSdkAccessState(hasAccess) {
       hasAdminSdkAccess = hasAccess !== false;
@@ -1571,6 +1869,7 @@
     // State Transitions & Container Visibility
     function hideAllContainers() {
       const ids = [
+        'single-use-gate-container',
         'cloud-monitor-container',
         'policy-precheck-container',
         'step0-container',
@@ -1584,11 +1883,13 @@
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
       });
+      updateSingleUseWarningBanner('');
     }
 
     function goToPolicyPrecheck() {
       hideAllContainers();
       document.getElementById('policy-precheck-container').style.display = 'block';
+      updateSingleUseWarningBanner('policy-precheck-container');
     }
 
     function renderPolicyPrecheck(precheckData) {
@@ -1664,6 +1965,7 @@
       hideAllContainers();
       document.getElementById('step0-container').style.display = 'block';
       toggleRangeWarning();
+      updateSingleUseWarningBanner('step0-container');
     }
 
     // The recommended range needs no warning; any other range says inline why it is not recommended
@@ -1675,13 +1977,19 @@
     }
 
     function goToPrereqCheck() {
+      activeExtractedFolderId = '';
+      activeExtractedFolderName = '';
       hideAllContainers();
       document.getElementById('prereq-check-container').style.display = 'block';
+      updateSingleUseWarningBanner('prereq-check-container');
     }
 
     function goToPrereqGuide() {
+      activeExtractedFolderId = '';
+      activeExtractedFolderName = '';
       hideAllContainers();
       document.getElementById('prereq-guide-container').style.display = 'block';
+      updateSingleUseWarningBanner('prereq-guide-container');
     }
 
     function toggleChecklistItem(step) {
@@ -1737,6 +2045,7 @@
     function goToStep1() {
       hideAllContainers();
       document.getElementById('step1-container').style.display = 'block';
+      updateSingleUseWarningBanner('step1-container');
 
       // Check if arriving from direct autonomous extraction
       if (activeExtractedFolderId) {
@@ -1796,6 +2105,7 @@
       if (activeExtractedFolderId) {
         hideAllContainers();
         document.getElementById('cloud-monitor-container').style.display = 'block';
+        updateSingleUseWarningBanner('cloud-monitor-container');
       } else {
         goToPrereqCheck();
       }
@@ -1804,6 +2114,7 @@
     function backToStep1() {
       hideAllContainers();
       document.getElementById('step1-container').style.display = 'block';
+      updateSingleUseWarningBanner('step1-container');
     }
 
     function commitAllInputs() {
@@ -1825,8 +2136,12 @@
         return;
       }
 
+      detectedBrowserTz = detectBrowserTimeZone();
+      setRaw('step2-tz-badge', detectedBrowserTz);
+
       hideAllContainers();
       document.getElementById('step2-container').style.display = 'block';
+      updateSingleUseWarningBanner('step2-container');
     }
 
     function detectSourceType(val) {
@@ -1866,45 +2181,94 @@
 
     function renderCloudMonitor(cs) {
       if (!cs) return;
+      lastCloudSession = cs;
       const status = cs.status || 'RUNNING';
       const isCompleted = (status === 'COMPLETED' || cs.isCompleted === true);
-      const pct = isCompleted ? '100.0' : Number(cs.timeSpanPct || 0).toFixed(1);
-      lastMonitorLogs = Number(cs.totalLogsProcessed || 0);
-      lastMonitorParts = Number(cs.fileIndex || 1);
+      const healthState = cs.healthState || (isCompleted ? 'COMPLETED' : (cs.isStalled ? 'STALLED' : status));
+      const isStalled = Boolean(!isCompleted && (cs.isStalled === true || healthState === 'STALLED' || healthState === 'NEEDS_OWNER'));
+      const isUnknown = Boolean(!isCompleted && (status === 'TRANSIENT_READ_ERROR' || healthState === 'UNKNOWN'));
+      const isForeign = Boolean(!isCompleted && healthState === 'FOREIGN');
+      currentMonitorCompleted = isCompleted;
 
-      document.getElementById('mon-progress-bar').style.width = pct + '%';
-      document.getElementById('mon-progress-pct').innerText = pct + '%';
-      setRaw('mon-logs-count', fmtNum(lastMonitorLogs));
-      if (isCompleted) setT('mon-rate-txt', 'mon.rate.complete');
-      else if (Number(cs.expectedEvents) > 0) setT('mon-rate-txt', 'mon.rate.expected', { rate: Number(cs.rate || 0), total: Number(cs.expectedEvents) });
-      else setT('mon-rate-txt', 'mon.rate', { rate: Number(cs.rate || 0) });
-      setT('mon-part-txt', 'mon.part', { n: lastMonitorParts });
-      if (cs.folderName) setRaw('mon-folder-txt', cs.folderName);
-      else setT('mon-folder-txt', 'mon.folderDefault');
-      setT('mon-days-badge', 'mon.daysBadge', { days: Number(cs.totalDays || DEFAULT_RANGE_DAYS) });
-
-      if (cs.folderUrl) {
-        document.getElementById('mon-drive-link').href = cs.folderUrl;
-        document.getElementById('mon-drive-link').style.display = 'inline';
+      if (cs.incidentSummary) {
+        const diagTextEl = document.getElementById('mon-diag-packet-text');
+        if (diagTextEl) diagTextEl.value = String(cs.incidentSummary);
       }
-      const openLogsBtn = document.getElementById('btn-mon-open-logs');
-      if (openLogsBtn) {
-        const logUrl = cs.logFolderUrl || cs.folderUrl || '';
-        if (logUrl) {
-          openLogsBtn.href = logUrl;
-          openLogsBtn.style.display = 'inline-flex';
-        } else {
-          openLogsBtn.style.display = 'none';
+
+      if (!isUnknown) {
+        const pct = isCompleted ? '100.0' : Number(cs.timeSpanPct || 0).toFixed(1);
+        lastMonitorLogs = Number(cs.totalLogsProcessed !== undefined ? cs.totalLogsProcessed : (cs.processedCount || 0));
+        lastMonitorParts = Number(cs.fileIndex || 1);
+        if (isCompleted || lastMonitorLogs > 0 || cs.folderId) {
+          workbookAlreadyUsed.ingestion = true;
+        }
+
+        document.getElementById('mon-progress-bar').style.width = pct + '%';
+        document.getElementById('mon-progress-pct').innerText = pct + '%';
+        setRaw('mon-logs-count', fmtNum(lastMonitorLogs));
+        if (isCompleted) setT('mon-rate-txt', 'mon.rate.complete');
+        else if (Number(cs.expectedEvents) > 0) setT('mon-rate-txt', 'mon.rate.expected', { rate: Number(cs.rate || 0), total: Number(cs.expectedEvents) });
+        else setT('mon-rate-txt', 'mon.rate', { rate: Number(cs.rate || 0) });
+        setT('mon-part-txt', 'mon.part', { n: lastMonitorParts });
+        if (cs.folderName) setRaw('mon-folder-txt', cs.folderName);
+        else setT('mon-folder-txt', 'mon.folderDefault');
+        setT('mon-days-badge', 'mon.daysBadge', { days: Number(cs.totalDays || DEFAULT_RANGE_DAYS) });
+
+        if (cs.folderUrl) {
+          document.getElementById('mon-drive-link').href = cs.folderUrl;
+          document.getElementById('mon-drive-link').style.display = 'inline';
+        }
+        const openLogsBtn = document.getElementById('btn-mon-open-logs');
+        if (openLogsBtn) {
+          const logUrl = cs.logFolderUrl || cs.folderUrl || '';
+          if (logUrl) {
+            openLogsBtn.href = logUrl;
+            openLogsBtn.style.display = 'inline-flex';
+          } else {
+            openLogsBtn.style.display = 'none';
+          }
+        }
+
+        if (cs.currentLogDateStr) {
+          setT('mon-progress-date', 'mon.processedUpTo', { date: cs.currentLogDateStr });
         }
       }
 
-      if (cs.currentLogDateStr) {
-        setT('mon-progress-date', 'mon.processedUpTo', { date: cs.currentLogDateStr });
+      // Live Watchdog / Heartbeat KPI sub-label
+      if (isCompleted) {
+        setT('mon-watchdog-txt', 'mon.kpi.health.completed');
+      } else if (isUnknown) {
+        setT('mon-watchdog-txt', 'mon.kpi.health.unknown');
+      } else if (isForeign) {
+        setT('mon-watchdog-txt', 'mon.kpi.health.foreign');
+      } else if (healthState === 'NEEDS_OWNER') {
+        setT('mon-watchdog-txt', 'mon.kpi.health.needsOwner');
+      } else if (isStalled) {
+        setT('mon-watchdog-txt', 'mon.kpi.health.stalled');
+      } else if (healthState === 'WAITING_FOR_QUOTA' || status === 'QUOTA_PAUSED') {
+        setT('mon-watchdog-txt', 'mon.kpi.health.quota');
+      } else if (healthState === 'RETRYING') {
+        setT('mon-watchdog-txt', 'mon.kpi.health.retrying');
+      } else if (healthState === 'STARTING') {
+        setT('mon-watchdog-txt', 'mon.kpi.health.starting');
+      } else if (status === 'PAUSED') {
+        setT('mon-watchdog-txt', 'mon.kpi.health.paused');
+      } else if (status === 'FAILED') {
+        setT('mon-watchdog-txt', 'mon.kpi.health.failed');
+      } else if (cs.heartbeatAgeSec !== undefined && cs.heartbeatAgeSec !== null && Number(cs.heartbeatAgeSec) >= 0) {
+        setT('mon-watchdog-txt', 'mon.kpi.health.heartbeat', { age: formatSec(Math.max(1, Number(cs.heartbeatAgeSec))) });
+      } else {
+        setT('mon-watchdog-txt', 'mon.kpi.watchdog');
       }
 
+      // Estimated Completion (hide countdown when stalled, quota-waiting, paused, failed, or unknown)
       const eta = Number(cs.etaSec || 0);
       if (isCompleted) setT('mon-eta-txt', 'mon.eta.finished');
-      else if (pct >= 1 && eta > 0) setRaw('mon-eta-txt', formatSec(eta));
+      else if (isUnknown) setT('mon-eta-txt', 'mon.eta.unknown');
+      else if (isStalled || isForeign) setT('mon-eta-txt', 'mon.eta.stalled');
+      else if (healthState === 'WAITING_FOR_QUOTA' || status === 'QUOTA_PAUSED') setT('mon-eta-txt', 'mon.eta.quotaWait');
+      else if (status === 'PAUSED' || status === 'FAILED') setT('mon-eta-txt', 'mon.eta.paused');
+      else if (eta > 0) setRaw('mon-eta-txt', formatSec(eta));
       else setT('mon-eta-txt', 'mon.eta.calculating');
 
       // Controls State
@@ -1917,7 +2281,7 @@
       const partialBanner = document.getElementById('mon-partial-banner');
       const pulse = document.getElementById('mon-pulse');
       const statusTxt = document.getElementById('mon-status-text');
-      const hasPartialLogs = !isCompleted && lastMonitorLogs > 0 && Boolean(cs.folderId || activeExtractedFolderId);
+      const hasPartialLogs = !isCompleted && !isUnknown && lastMonitorLogs > 0 && Boolean(cs.folderId || activeExtractedFolderId);
 
       if (cs.folderId) {
         activeExtractedFolderId = cs.folderId;
@@ -1945,16 +2309,36 @@
       if (isCompleted) {
         pulse.style.background = '#16A34A';
         setT(statusTxt, 'mon.status.complete', { days: Number(cs.totalDays || DEFAULT_RANGE_DAYS) });
-        if (btnStopReset) btnStopReset.style.display = 'none';
+        if (btnStopReset) {
+          btnStopReset.style.display = 'none';
+        }
         if (btnProceed) btnProceed.style.display = 'inline-block';
         if (btnResume) btnResume.style.display = 'none';
         if (errBanner) errBanner.style.display = 'none';
         if (compBanner) compBanner.style.display = 'block';
         activeExtractedFolderId = cs.folderId;
         activeExtractedFolderName = cs.folderName;
-      } else if (status === 'RUNNING') {
-        pulse.style.background = '#16A34A';
-        setT(statusTxt, 'mon.status.running');
+      } else if (isUnknown) {
+        pulse.style.background = '#64748B';
+        setT(statusTxt, 'mon.status.unknown');
+        if (btnStopReset) btnStopReset.style.display = 'none';
+        if (btnProceed) btnProceed.style.display = 'none';
+        if (btnResume) btnResume.style.display = 'none';
+        if (errBanner) {
+          errBanner.style.display = 'block';
+          errBanner.style.background = '#F8FAFC';
+          errBanner.style.borderColor = '#CBD5E1';
+          errBanner.style.color = '#334155';
+        }
+        const errMsgEl = document.getElementById('mon-error-msg');
+        if (errMsgEl) {
+          if (cs.errorMessage) setRaw(errMsgEl, cs.errorMessage);
+          else setT(errMsgEl, 'mon.unknownDefault');
+        }
+        if (compBanner) compBanner.style.display = 'none';
+      } else if (isForeign) {
+        pulse.style.background = '#D97706';
+        setT(statusTxt, 'mon.status.foreign');
         if (btnStopReset) {
           btnStopReset.style.display = 'inline-block';
           btnStopReset.disabled = false;
@@ -1962,8 +2346,52 @@
         }
         if (btnProceed) btnProceed.style.display = 'none';
         if (btnResume) btnResume.style.display = 'none';
-        if (errBanner) errBanner.style.display = 'none';
         if (compBanner) compBanner.style.display = 'none';
+      } else if (status === 'RUNNING') {
+        if (isStalled) {
+          pulse.style.background = '#D97706';
+          if (healthState === 'NEEDS_OWNER') {
+            setT(statusTxt, 'mon.status.needsOwner');
+          } else {
+            setT(statusTxt, 'mon.status.stalled');
+          }
+          if (btnStopReset) {
+            btnStopReset.style.display = 'inline-block';
+            btnStopReset.disabled = false;
+            setT(btnStopReset, 'mon.btn.reset');
+          }
+          if (btnProceed) btnProceed.style.display = 'none';
+          if (btnResume) {
+            btnResume.style.display = 'inline-block';
+            btnResume.disabled = false;
+            setT(btnResume, 'mon.btn.resume');
+          }
+          if (errBanner) {
+            errBanner.style.display = 'block';
+            errBanner.style.background = '#FFFBEB';
+            errBanner.style.borderColor = '#FDE68A';
+            errBanner.style.color = '#92400E';
+          }
+          const errMsgEl = document.getElementById('mon-error-msg');
+          if (errMsgEl) {
+            if (cs.errorMessage && !cs.errorKey) setRaw(errMsgEl, cs.errorMessage);
+            else if (healthState === 'NEEDS_OWNER') setT(errMsgEl, 'mon.needsOwnerDefault');
+            else setT(errMsgEl, cs.errorKey || 'mon.stalledDefault');
+          }
+          if (compBanner) compBanner.style.display = 'none';
+        } else {
+          pulse.style.background = '#16A34A';
+          setT(statusTxt, 'mon.status.running');
+          if (btnStopReset) {
+            btnStopReset.style.display = 'inline-block';
+            btnStopReset.disabled = false;
+            setT(btnStopReset, 'mon.btn.reset');
+          }
+          if (btnProceed) btnProceed.style.display = 'none';
+          if (btnResume) btnResume.style.display = 'none';
+          if (errBanner) errBanner.style.display = 'none';
+          if (compBanner) compBanner.style.display = 'none';
+        }
       } else if (status === 'PAUSED') {
         pulse.style.background = '#B06000';
         setT(statusTxt, 'mon.status.stopped');
@@ -2033,6 +2461,45 @@
         }
         if (compBanner) compBanner.style.display = 'none';
       }
+
+      const monContainer = document.getElementById('cloud-monitor-container');
+      if (monContainer && monContainer.style.display !== 'none') {
+        updateSingleUseWarningBanner('cloud-monitor-container');
+      }
+    }
+
+    function displayAndCopyIncidentSummary(summaryText) {
+      const boxEl = document.getElementById('mon-diag-packet-box');
+      const textEl = document.getElementById('mon-diag-packet-text');
+      const btnEl = document.getElementById('btn-mon-copy-diag');
+      const statusEl = document.getElementById('mon-diag-packet-status');
+      if (textEl) textEl.value = String(summaryText || '');
+      if (boxEl) boxEl.style.display = 'block';
+      if (statusEl) setT(statusEl, 'mon.diag.copied');
+      if (btnEl) setT(btnEl, 'mon.btn.copiedDiag');
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          navigator.clipboard.writeText(String(summaryText || ''));
+        }
+      } catch (clipErr) {}
+      try {
+        if (textEl && typeof textEl.select === 'function') textEl.select();
+        if (typeof document.execCommand === 'function') document.execCommand('copy');
+      } catch (execErr) {}
+    }
+
+    function handleCopyDiagnosticSummary() {
+      if (lastCloudSession && lastCloudSession.incidentSummary) {
+        displayAndCopyIncidentSummary(String(lastCloudSession.incidentSummary));
+      }
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res && res.incidentSummary) {
+            displayAndCopyIncidentSummary(String(res.incidentSummary));
+          }
+        })
+        .withFailureHandler(() => {})
+        .copyIngestionIncidentPacket();
     }
 
     function formatSec(sec) {
@@ -2090,24 +2557,57 @@
         .resumeCloudIngestion();
     }
 
+    let cloudPollFailures = 0;
+
     function startCloudPolling() {
       if (cloudPollInterval) clearInterval(cloudPollInterval);
+      cloudPollFailures = 0;
       const pollFn = function() {
-        google.script.run.withSuccessHandler(res => {
-          if (res && res.hasExisting) {
-            renderCloudMonitor(res);
-            if (res.status === 'COMPLETED' || res.isCompleted || res.status === 'PAUSED' || res.status === 'FAILED') {
-              clearInterval(cloudPollInterval);
+        google.script.run
+          .withSuccessHandler(res => {
+            const monEl = document.getElementById('cloud-monitor-container');
+            if (!monEl || monEl.style.display === 'none') return;
+            if (res && (res.status === 'TRANSIENT_READ_ERROR' || res.healthState === 'UNKNOWN')) {
+              cloudPollFailures++;
+              if (cloudPollFailures >= 3) {
+                renderCloudMonitor(res);
+              }
+              return;
             }
-          }
-        }).getCloudIngestionStatus();
+            if (res && res.hasExisting) {
+              cloudPollFailures = 0;
+              renderCloudMonitor(res);
+              if (res.status === 'COMPLETED' || res.isCompleted || res.status === 'PAUSED' || res.status === 'FAILED') {
+                clearInterval(cloudPollInterval);
+              }
+            }
+          })
+          .withFailureHandler(() => {
+            cloudPollFailures++;
+            const monEl = document.getElementById('cloud-monitor-container');
+            if (!monEl || monEl.style.display === 'none') return;
+            if (cloudPollFailures >= 3) {
+              renderCloudMonitor({ status: 'TRANSIENT_READ_ERROR', healthState: 'UNKNOWN', hasExisting: true });
+            }
+          })
+          .getCloudIngestionStatus();
       };
       pollFn(); // Run immediately on first tick
-      cloudPollInterval = setInterval(pollFn, 2500);
+      cloudPollInterval = setInterval(pollFn, 5000);
     }
 
     // Ingestion Actions
     let preflightDays = DEFAULT_RANGE_DAYS;
+
+    function shouldStopAtPreflightGate(res) {
+      if (!res || res.recommendManual) return true;
+      if (res.requiresConfirmation === true) return true;
+      const est = res.estimate || {};
+      const totalEvents = Number(est.totalEvents || 0);
+      const wallHours = Number((est.legacy && est.legacy.wallHours) || 0);
+      if (totalEvents === 0 || totalEvents > 150000 || wallHours > 2.0) return true;
+      return false;
+    }
 
     function startCloudEngage() {
       if (!hasAdminSdkAccess) return;
@@ -2120,7 +2620,14 @@
       document.getElementById('init-loader').style.display = 'block';
 
       google.script.run
-        .withSuccessHandler(renderPreflight)
+        .withSuccessHandler(res => {
+          if (res && res.autoStart && !shouldStopAtPreflightGate(res)) {
+            lastPreflight = res;
+            engageAfterPreflight();
+            return;
+          }
+          renderPreflight(res);
+        })
         .withFailureHandler(err => {
           renderPreflight({ recommendManual: true, messageKey: 'pf.failed', messageParams: { error: err.message }, warnings: [] });
         })
@@ -2134,6 +2641,7 @@
       document.getElementById('init-loader').style.display = 'none';
       hideAllContainers();
       document.getElementById('preflight-container').style.display = 'block';
+      updateSingleUseWarningBanner('preflight-container');
 
       const fmt = n => (n === null || n === undefined) ? t('common.na') : fmtNum(n);
       const title = document.getElementById('pf-title');
@@ -2204,15 +2712,34 @@
         .withSuccessHandler(res => {
           document.getElementById('init-loader').style.display = 'none';
           document.getElementById('cloud-monitor-container').style.display = 'block';
+          workbookAlreadyUsed.ingestion = true;
+          currentSessionAnalyzed = false;
+          if (res && res.workbookAlreadyUsed) {
+            workbookAlreadyUsed.ingestion = Boolean(res.workbookAlreadyUsed.ingestion) || true;
+            workbookAlreadyUsed.report = Boolean(res.workbookAlreadyUsed.report) || workbookAlreadyUsed.report;
+          }
           activeExtractedFolderId = res.folderId;
           activeExtractedFolderName = res.folderName;
-          // Render initial state instantly
+          const initialStatus = (res && res.status) || 'RUNNING';
+          const isDone = Boolean(res && res.isCompleted) || initialStatus === 'COMPLETED';
+          const seededExpectedEvents = Number(
+            (res && res.expectedEvents) ||
+            (lastPreflight && lastPreflight.estimate && lastPreflight.estimate.totalEvents) ||
+            0
+          );
+          const seededEtaSec = Number(
+            (res && res.etaSec) ||
+            (lastPreflight && lastPreflight.estimate && lastPreflight.estimate.legacy && lastPreflight.estimate.legacy.etaSec) ||
+            0
+          );
           renderCloudMonitor({
-            status: 'RUNNING',
-            timeSpanPct: 0,
-            totalLogsProcessed: 0,
-            rate: 0,
-            fileIndex: 1,
+            status: initialStatus,
+            isCompleted: isDone,
+            timeSpanPct: Number((res && res.timeSpanPct) || 0),
+            totalLogsProcessed: Number((res && (res.processedCount !== undefined ? res.processedCount : res.totalLogsProcessed)) || 0),
+            expectedEvents: seededExpectedEvents,
+            rate: Number((res && res.rate) || 0),
+            fileIndex: Number((res && res.fileIndex) || 1),
             folderId: res.folderId,
             folderName: res.folderName,
             folderUrl: res.folderUrl,
@@ -2220,11 +2747,30 @@
             logFolderUrl: res.logFolderUrl || '',
             logFileId: res.logFileId || '',
             totalDays: days,
-            etaSec: 0
+            etaSec: seededEtaSec
           });
-          startCloudPolling();
+          if (!isDone) {
+            startCloudPolling();
+            google.script.run
+              .withSuccessHandler(function() {
+                google.script.run.withSuccessHandler(function(st) {
+                  const monEl = document.getElementById('cloud-monitor-container');
+                  if (!monEl || monEl.style.display === 'none') return;
+                  if (st && st.hasExisting) {
+                    renderCloudMonitor(st);
+                    if (st.status === 'COMPLETED' || st.isCompleted || st.status === 'PAUSED' || st.status === 'FAILED') {
+                      if (cloudPollInterval) clearInterval(cloudPollInterval);
+                    }
+                  }
+                }).getCloudIngestionStatus();
+              })
+              .withFailureHandler(function() {})
+              .processCloudIngestionBatch();
+          }
         })
         .withFailureHandler(err => {
+          const initLoader = document.getElementById('init-loader');
+          if (initLoader) initLoader.style.display = 'none';
           alert(t('alert.engageFailed', { error: err.message }));
           goToStep0();
         })
@@ -2245,14 +2791,25 @@
       if (statusTxt) setT(statusTxt, 'mon.status.stopping');
 
       google.script.run
-        .withSuccessHandler(() => {
+        .withSuccessHandler(res => {
           if (btn) {
             btn.disabled = false;
             setT(btn, 'mon.btn.reset');
           }
+          if (res && res.workbookAlreadyUsed) {
+            workbookAlreadyUsed = {
+              ingestion: Boolean(res.workbookAlreadyUsed.ingestion) || true,
+              report: Boolean(res.workbookAlreadyUsed.report)
+            };
+          } else {
+            workbookAlreadyUsed.ingestion = true;
+          }
+          currentSessionAnalyzed = false;
+          singleUseGateUnlocked = false;
+          lastCloudSession = null;
           activeExtractedFolderId = '';
           activeExtractedFolderName = '';
-          goToStep0();
+          goToSingleUseGate();
         })
         .withFailureHandler(err => {
           if (btn) {
@@ -2284,6 +2841,7 @@
             btn.disabled = false;
             setT(btn, 'mon.btn.stopAnalyze');
           }
+          workbookAlreadyUsed.ingestion = true;
           if (res && res.folderId) {
             activeExtractedFolderId = res.folderId;
             activeExtractedFolderName = res.folderName || activeExtractedFolderName || t('step1.auto.defaultName');
@@ -2303,6 +2861,26 @@
     function handleProceedToAnalysis() {
       if (cloudPollInterval) clearInterval(cloudPollInterval);
       goToStep1();
+    }
+
+    function scheduleRetryTimer(fn, delayMs) {
+      if (typeof setTimeout === 'function' && (setTimeout.length > 0 || String(setTimeout).indexOf('native code') !== -1)) {
+        return setTimeout(fn, delayMs);
+      }
+      fn();
+      return 0;
+    }
+
+    function isTransientAnalysisError(err, batchPayload) {
+      if (!err) return true;
+      const msg = String(err.message || err || '').toLowerCase();
+      if (msg.indexOf('403') !== -1 || msg.indexOf('404') !== -1 || msg.indexOf('permission') !== -1) {
+        return false;
+      }
+      if (batchPayload && (batchPayload.batchToken || batchPayload.jobId)) {
+        return true;
+      }
+      return /network|timeout|timed out|exceeded|rate limit|quota|internal error|service invoked|unavailable|500|502|503|504|429|transient/i.test(msg);
     }
 
     // Submit Pipeline (CERA Analytics & Deck Generation)
@@ -2326,7 +2904,9 @@
 
       document.getElementById('step2-container').style.display = 'none';
       document.getElementById('exec-loader').style.display = 'block';
+      updateSingleUseWarningBanner('exec-loader');
 
+      detectedBrowserTz = detectedBrowserTz || detectBrowserTimeZone();
       const payload = {
         corpDomains: corpChips ? corpChips.getValue() : '',
         authorizedGenAi: aiChips ? aiChips.getValue() : '',
@@ -2337,6 +2917,7 @@
         generateSheets: genSheets,
         driveFolderInput: folderToSend,
         lang: I18N.lang,
+        reportTz: detectedBrowserTz,
         allowContinuation: true
       };
 
@@ -2354,34 +2935,73 @@
         }).getProgressStatus();
       }, 800);
 
+      let analysisRetryCount = 0;
+      const MAX_ANALYSIS_RETRIES = 3;
+
       function runAnalysisBatch(batchPayload) {
         google.script.run
           .withSuccessHandler(res => {
+            analysisRetryCount = 0;
             if (res && res.partialBatch && res.batchToken) {
               if (res.totalSheets > 0) {
                 const pct = Math.min(100, Math.round((res.sheetsProcessed / res.totalSheets) * 100));
                 document.getElementById('progress-bar-fill').style.width = pct + '%';
                 document.getElementById('progress-pct-txt').innerText = pct + '% (' + res.sheetsProcessed + '/' + res.totalSheets + ')';
               }
-              runAnalysisBatch(Object.assign({}, payload, { batchToken: res.batchToken }));
+              const nextPayload = Object.assign({}, payload, { batchToken: res.batchToken });
+              if (res.jobId) nextPayload.jobId = res.jobId;
+              if (res.targetPresentationId) nextPayload.targetPresentationId = res.targetPresentationId;
+              runAnalysisBatch(nextPayload);
               return;
             }
             if (pollInterval) clearInterval(pollInterval);
             document.getElementById('exec-loader').style.display = 'none';
+            workbookAlreadyUsed.report = true;
+            workbookAlreadyUsed.ingestion = true;
+            currentSessionAnalyzed = true;
+            singleUseGateUnlocked = false;
+            if (res && res.workbookAlreadyUsed) {
+              workbookAlreadyUsed = {
+                ingestion: Boolean(res.workbookAlreadyUsed.ingestion) || true,
+                report: Boolean(res.workbookAlreadyUsed.report) || true
+              };
+            }
             if (res && res.slidesUrl) {
+              lastSlidesUrl = String(res.slidesUrl);
+            }
+            if (res && res.summaryTxt) {
+              lastReportSummary = String(res.summaryTxt);
+            }
+            updateSingleUseWarningBanner('result-card');
+            if (res && (res.slidesUrl || res.success)) {
               document.getElementById('result-card').style.display = 'block';
-              document.getElementById('slides-link').href = res.slidesUrl;
-              document.getElementById('slides-link').style.display = 'inline-block';
+              const slidesLinkEl = document.getElementById('slides-link');
+              if (slidesLinkEl) {
+                if (res.slidesUrl) {
+                  slidesLinkEl.href = res.slidesUrl;
+                  slidesLinkEl.style.display = 'inline-block';
+                } else {
+                  slidesLinkEl.style.display = 'none';
+                }
+              }
               if (res.summaryTxt) setRaw('summary-result-txt', res.summaryTxt);
             } else {
               google.script.host.close();
             }
           })
           .withFailureHandler(err => {
+            if (analysisRetryCount < MAX_ANALYSIS_RETRIES && isTransientAnalysisError(err, batchPayload)) {
+              analysisRetryCount++;
+              setT('exec-status-txt', 'exec.status.retrying', { attempt: analysisRetryCount, max: MAX_ANALYSIS_RETRIES });
+              const delayMs = 1000 * Math.pow(2, analysisRetryCount - 1);
+              scheduleRetryTimer(() => runAnalysisBatch(batchPayload), delayMs);
+              return;
+            }
             if (pollInterval) clearInterval(pollInterval);
             alert(t('alert.execError', { error: err.message }));
             document.getElementById('exec-loader').style.display = 'none';
             document.getElementById('step2-container').style.display = 'block';
+            updateSingleUseWarningBanner('step2-container');
           })
           .executeDlpAnalysis(batchPayload);
       }

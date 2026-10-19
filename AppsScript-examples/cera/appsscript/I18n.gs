@@ -29,7 +29,8 @@ var CERA_LOCALES = [
   { code: 'id', label: 'Bahasa Indonesia', intl: 'id-ID' },
   { code: 'ja', label: '日本語', intl: 'ja-JP' },
   { code: 'ko', label: '한국어', intl: 'ko-KR' },
-  { code: 'zh-CN', label: '简体中文', intl: 'zh-CN' }
+  { code: 'zh-CN', label: '简体中文', intl: 'zh-CN' },
+  { code: 'vi', label: 'Tiếng Việt', intl: 'vi-VN' }
 ];
 var CERA_DEFAULT_LANG = 'en';
 var CERA_LANG_PROPERTY = 'CERA_LANG';
@@ -43,7 +44,7 @@ function ceraLocale_(lang) {
 }
 
 /**
- * Maps a Google locale ("id", "ja", "ko_KR", "zh_CN", "en_US") to a supported language, or '' when none fits.
+ * Maps a Google locale ("id", "ja", "ko_KR", "zh_CN", "vi_VN", "en_US") to a supported language, or '' when none fits.
  * Traditional Chinese (zh_TW, zh_HK) is not supported and does not fall back to Simplified.
  */
 function ceraLangFromLocale_(locale) {
@@ -53,7 +54,7 @@ function ceraLangFromLocale_(locale) {
   if (l.indexOf('zh') === 0) return '';
   if (l === 'in' || l.indexOf('id') === 0 || l.indexOf('in_') === 0) return 'id';
   const base = l.split('_')[0];
-  return ['en', 'ja', 'ko'].indexOf(base) !== -1 ? base : '';
+  return ['en', 'ja', 'ko', 'vi'].indexOf(base) !== -1 ? base : '';
 }
 
 /**

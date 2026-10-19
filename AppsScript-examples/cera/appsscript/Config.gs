@@ -19,22 +19,62 @@
  */
 
 var CeraConfig = {
-  VERSION: '2.0.11',
+  VERSION: '2.0.12',
   SUITE_NAME: 'Chrome Egress Risk Analysis (CERA)',
-  SHORT_NAME: 'CERA v2.0.11',
+  SHORT_NAME: 'CERA v2.0.12',
+  RELEASE_DATE: '2026-10-19',
+  FRESHNESS_WARN_DAYS: 90,
   FEEDBACK_URL: 'https://goo.gle/cera-feedback',
-  DIAG_LOG_FOLDER_NAME: 'logs',
+  DIAG_LOG_FOLDER_NAME: 'diagnostics',
   DIAG_LOG_FILE_NAME: 'cera-diagnostic-log.txt',
   DIAG_LOG_MAX_BYTES: 1000000,
   DEFAULT_TIMEZONE: 'Etc/UTC',
 
+  // Background extraction cadence, budgets, and lease thresholds (AdminSdkIngestion.gs)
+  EXTRACTION_TRIGGER_MINUTES: 5,
+  EXTRACTION_TICK_BUDGET_MS: 42000,
+  EXTRACTION_EXTENDED_TICK_BUDGET_MS: 250000,
+  EXTRACTION_FINALIZE_RESERVE_MS: 35000,
+  EXTRACTION_LEASE_MS: 390000,
+  EXTRACTION_STALE_MS: 600000,
+  EXTRACTION_STALL_MS: 900000,
+  PARTITION_MAX_ROWS: 50000,
+  PARTITION_COLS: 19,
+
   // Multi-batch analysis execution budgets (executeDlpAnalysis in IngestionPipeline.gs):
   // When running from the setup dialog (allowContinuation: true), each batch reads partitions up to
-  // ANALYSIS_BATCH_BUDGET_MS (3 minutes) and checkpoints to CacheService so the next google.script.run
-  // call continues seamlessly with a fresh 6-minute Apps Script limit. If reading the final partition took
-  // longer than ANALYSIS_RENDER_HANDOFF_MS, deck and workbook rendering run in a dedicated final call.
+  // ANALYSIS_BATCH_BUDGET_MS (3 minutes) and checkpoints to PropertiesService/CacheService so the next
+  // google.script.run call continues seamlessly with a fresh 6-minute Apps Script limit. If reading the
+  // final partition took longer than ANALYSIS_RENDER_HANDOFF_MS, deck and workbook rendering run in a
+  // dedicated final call.
   ANALYSIS_BATCH_BUDGET_MS: 180000,
   ANALYSIS_RENDER_HANDOFF_MS: 140000,
+  ANALYSIS_CHECKPOINT_PROP_KEY: 'CERA_ANALYSIS_JOB',
+  ACTION_ASSEMBLY_MAX_ENTRIES: 50000,
+
+  // Liveness & flight-recorder limits (AdminSdkIngestion.gs)
+  LIVENESS: {
+    CADENCE_MS: 300000,
+    LEASE_TTL_MS: 390000,
+    STARTING_GRACE_MS: 420000,
+    RETRY_WARN_MS: 600000,
+    STALL_THRESHOLD_MS: 900000,
+    ZERO_PROGRESS_TICKS_WARN: 2,
+    ZERO_PROGRESS_TICKS_STALL: 3,
+    READ_STRIKE_WARN: 2,
+    WRITE_STRIKE_LIMIT: 5,
+    FATAL_STRIKE_LIMIT: 3,
+    DAILY_TRIGGER_BUDGET_SOFT_MS: 4800000,
+    DAILY_TRIGGER_BUDGET_HARD_MS: 5100000,
+    MAX_AUTO_REPAIRS_PER_JOB: 6,
+    AUTO_REPAIR_COOLDOWN_MS: 600000,
+    HOT_RING_MAX_ENTRIES: 18,
+    HOT_RING_MAX_BYTES: 3500,
+    INC_RING_MAX_ENTRIES: 12,
+    INC_RING_MAX_BYTES: 3500,
+    BEAT_TAPE_MAX_CHARS: 240,
+    CTL_MAX_BYTES: 1200
+  },
 
   // Destination label for rows whose URL/host is empty, "null" or "undefined"
   UNKNOWN_DESTINATION: 'Unknown destination',

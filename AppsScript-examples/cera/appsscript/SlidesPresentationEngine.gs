@@ -159,6 +159,42 @@ var ExecutivePresentationEngine = {
     this.addLineBox(slide, this.t_(ctx, 'deck.header.scope', { domain: ctx['{{primaryDomain}}'] }), 470, 12, 214, 16, 'Roboto', 8, 'bold', '#64748B', 'right');
   },
 
+  /**
+   * A new deck, created through the Drive API inside the top-level CERA folder (ceraEnsureRootFolder_), as the
+   * ingestion partitions are: drive.file covers what CERA creates through the Drive API, so nothing is moved
+   * afterwards. Null when the deck cannot be created there; buildDeck then creates it in My Drive.
+   */
+  createInCeraFolder_(title) {
+    if (typeof ceraEnsureRootFolder_ !== 'function' || typeof Drive === 'undefined' || !Drive.Files) return null;
+    let fileId = '';
+    try {
+      const folderId = ceraEnsureRootFolder_(false);
+      if (!folderId) return null;
+      const file = Drive.Files.create(
+        { name: title, mimeType: 'application/vnd.google-apps.presentation', parents: [folderId] },
+        null,
+        { supportsAllDrives: true }
+      );
+      fileId = (file && file.id) || '';
+      if (!fileId) return null;
+      try {
+        return SlidesApp.openById(fileId);
+      } catch (openErr) {
+        // One retry after a short wait, like the partition setup after its creation
+        Utilities.sleep(1000);
+        return SlidesApp.openById(fileId);
+      }
+    } catch (e) {
+      // No new CERA folder is forced from here: one made after a failed write stays empty and becomes the cached folder.
+      // A deck created here but not opened is trashed, so the folder keeps no empty deck.
+      if (fileId) {
+        try { Drive.Files.update({ trashed: true }, fileId); } catch (trashErr) {}
+      }
+      console.warn('The deck could not be created in the CERA folder and is created in My Drive: ' + (e && e.message ? e.message : e));
+      return null;
+    }
+  },
+
   buildDeck(state, corpDomains, dateRangeString, outlierMetrics, currentSs, targetPresentationId) {
     this.currentSpreadsheet = currentSs || null;
     const p = this.getPalette();
@@ -171,7 +207,7 @@ var ExecutivePresentationEngine = {
       presentation = SlidesApp.openById(targetPresentationId);
       oldSlides = presentation.getSlides();
     } else {
-      presentation = SlidesApp.create(title);
+      presentation = this.createInCeraFolder_(title) || SlidesApp.create(title);
       oldSlides = presentation.getSlides();
     }
     const w = 720;
@@ -180,12 +216,16 @@ var ExecutivePresentationEngine = {
     // One outcome mode for the whole deck (ceraOutcomeMode): the cover note, every channel note and the
     // recommendations subtitle all read it, so a deck never mixes the enforced, audit and not-reported framings
     const mode = ceraOutcomeMode(state);
-    const ctx = this.buildRuntimeContext(state, primaryDomain, dateRangeString, outlierMetrics, corpDomains, mode);
+    const effectiveDays = this.resolveWindowDays_(state, outlierMetrics);
+    const effectiveOutlierMetrics = (outlierMetrics && effectiveDays > 0 && outlierMetrics.calendarDays !== effectiveDays)
+      ? Object.assign({}, outlierMetrics, { calendarDays: effectiveDays, rawCalendarDays: outlierMetrics.calendarDays })
+      : outlierMetrics;
+    const ctx = this.buildRuntimeContext(state, primaryDomain, dateRangeString, effectiveOutlierMetrics, corpDomains, mode);
     ctx.state = state;
-    ctx.outlierMetrics = outlierMetrics;
+    ctx.outlierMetrics = effectiveOutlierMetrics;
 
     // Story: headlines, vector gates and recommendations computed from the data (InsightEngine)
-    const insights = InsightEngine.build(state, outlierMetrics, {
+    const insights = InsightEngine.build(state, effectiveOutlierMetrics, {
       lang: (state && state.reportLang) || 'en',
       dateRange: dateRangeString,
       authorizedGenAi: (state && state.scope && state.scope.authorizedGenAi) || [],
@@ -195,10 +235,13 @@ var ExecutivePresentationEngine = {
     ctx._recByTopic = insights.recByTopic || {};
     const hl = insights.headlines;
     Object.keys(hl).forEach(k => { ctx['{{hl_' + k + '}}'] = hl[k]; });
+    if (!ctx['{{hl_s2note}}'] && ctx._partialCoverageNote) {
+      ctx['{{hl_s2note}}'] = ctx._partialCoverageNote;
+    }
     const gate = insights.tiers;
 
     // Slide 1: Executive Cover Briefing
-    this.buildSlide_slide_01(presentation, ctx, p, w, h, state, outlierMetrics);
+    this.buildSlide_slide_01(presentation, ctx, p, w, h, state, effectiveOutlierMetrics);
 
     // Slide 2: Enterprise Threat Matrix: Cross-Channel Benchmark
     this.buildSlide_slide_02(presentation, ctx, p, w, h, state, outlierMetrics);
@@ -379,10 +422,45 @@ var ExecutivePresentationEngine = {
     return result;
   },
 
+  resolveWindowDays_(state, outlierMetrics) {
+    const om = outlierMetrics || {};
+    const calDays = Number(om.calendarDays) || 0;
+    const covMeta = (state && state.coverageMeta) || {};
+    if (covMeta.stoppedEarly && Number(covMeta.actualSpanDays) > 0) {
+      return Math.max(1, Math.round(Number(covMeta.actualSpanDays)));
+    }
+    if (Number(covMeta.effectiveDays) > 0) {
+      return Math.max(1, Math.round(Number(covMeta.effectiveDays)));
+    }
+    if (!covMeta.stoppedEarly && Number(covMeta.windowDays) > 0 && (calDays === Number(covMeta.windowDays) + 1 || calDays === 0)) {
+      return Number(covMeta.windowDays);
+    }
+    const minMs = state && state.minDate instanceof Date ? state.minDate.getTime() : (state && state.minDate ? new Date(state.minDate).getTime() : NaN);
+    const maxMs = state && state.maxDate instanceof Date ? state.maxDate.getTime() : (state && state.maxDate ? new Date(state.maxDate).getTime() : NaN);
+    if (isFinite(minMs) && isFinite(maxMs) && maxMs >= minMs && calDays > 1) {
+      const spanDays = (maxMs - minMs) / 86400000;
+      if ([1, 7, 14, 30, 60, 90, 180].indexOf(calDays - 1) !== -1 && spanDays <= (calDays - 1) + 0.05) {
+        return calDays - 1;
+      }
+    }
+    return calDays;
+  },
+
+  resolveReportTz_(state) {
+    const covMeta = (state && state.coverageMeta) || {};
+    const tz = (state && state.reportTz) || covMeta.reportTz || (typeof ceraTimeZone === 'function' ? ceraTimeZone() : 'UTC');
+    return String(tz || 'UTC').trim();
+  },
+
   buildRuntimeContext(state, primaryDomain, dateRangeString, outlierMetrics, corpDomains, mode) {
     const self = this;
     const GB = 1024 ** 3;
-    const om = outlierMetrics || {};
+    const resolvedDays = self.resolveWindowDays_(state, outlierMetrics);
+    const om = (outlierMetrics && resolvedDays > 0 && outlierMetrics.calendarDays !== resolvedDays)
+      ? Object.assign({}, outlierMetrics, { calendarDays: resolvedDays, rawCalendarDays: outlierMetrics.calendarDays })
+      : (outlierMetrics || {});
+    const covMeta = (state && state.coverageMeta) || {};
+    const reportTz = self.resolveReportTz_(state);
     // Language of the deck, for the sentences that come from the message catalogs
     const lang = ceraNormalizeLang_((state && state.reportLang) || 'en');
     const NR = ceraT('deck.notRecorded', null, lang);
@@ -411,23 +489,48 @@ var ExecutivePresentationEngine = {
     // or unit total, so there is no print segment); entries without any outbound transfer are dropped. Pastes into a page are uploads to Chrome: the split ingestion records
     // (ceraRecordOutboundKind_) puts them with the pastes; without it they stay in the upload segment.
     const kindBytes = (e, kind, legacy) => (e.kinds ? Number(e.kinds[kind] && e.kinds[kind].bytes) || 0 : Number(e[legacy]) || 0);
-    const outboundRows = (map, limit, labelFn) => Object.keys(map || {}).map(k => {
-      const e = (map[k] && typeof map[k] === 'object') ? map[k] : {};
-      const bytes = Number(e.egressBytes) || 0;
-      return {
-        name: labelFn ? labelFn(e.name || k) : (e.name || k),
-        bytes: bytes, totalBytes: bytes, volumeGb: bytes / GB, count: Number(e.egressCount) || 0,
-        uploadGb: kindBytes(e, 'fileUpload', 'uploadBytes') / GB, downloadGb: kindBytes(e, 'paste', 'pasteBytes') / GB,
-        // Outbound transfers to this destination by policy outcome (ceraRecordDestinationOutcome_)
-        outcomes: e.egressOutcomes || null
-      };
-    }).filter(r => validName(r.name) && (r.bytes > 0 || r.count > 0))
-      .sort((a, b) => b.bytes - a.bytes || b.count - a.count || (a.name < b.name ? -1 : 1))
-      .slice(0, limit || 5);
+    const kindCount = (e, kind, legacy) => (e.kinds ? Number(e.kinds[kind] && e.kinds[kind].count) || 0 : Number(e[legacy]) || 0);
+    const outboundRows = (map, limit, labelFn) => {
+      const allRows = Object.keys(map || {}).map(k => {
+        const e = (map[k] && typeof map[k] === 'object') ? map[k] : {};
+        const bytes = Number(e.egressBytes) || 0;
+        const count = Number(e.egressCount) || 0;
+        return {
+          name: labelFn ? labelFn(e.name || k) : (e.name || k),
+          bytes: bytes, totalBytes: bytes, volumeGb: bytes / GB, count: count,
+          uploadGb: kindBytes(e, 'fileUpload', 'uploadBytes') / GB, downloadGb: kindBytes(e, 'paste', 'pasteBytes') / GB,
+          uploadCount: kindCount(e, 'fileUpload', 'uploadCount'), pasteCount: kindCount(e, 'paste', 'pasteCount'),
+          // Outbound transfers to this destination by policy outcome (ceraRecordDestinationOutcome_)
+          outcomes: e.egressOutcomes || null
+        };
+      }).filter(r => validName(r.name) && (r.bytes > 0 || r.count > 0))
+        .sort((a, b) => b.bytes - a.bytes || b.count - a.count || (a.name < b.name ? -1 : 1));
+      const byCountBasis = !allRows.some(r => r.bytes > 0);
+      const totalBasis = allRows.reduce((s, r) => s + (byCountBasis ? r.count : r.bytes), 0);
+      allRows.forEach(r => { r.sharePct = totalBasis > 0 ? Math.round(((byCountBasis ? r.count : r.bytes) / totalBasis) * 100) : 0; });
+      return allRows.slice(0, limit || 5);
+    };
 
-    const ouCount = Object.keys((state && state.globalOUs) || {}).length;
-    // Unit with the most outbound data (outbound transfers only, by bytes or by count when none had a size)
-    const topGlobalOU = outboundRows(state && state.globalOUs, 1);
+    const notRepOu = T('report.ou.notReported');
+    const isRealOu = name => validName(name) && name !== notRepOu && name !== 'OU not reported' && name !== 'Unassigned OU';
+    const radarForOus = (state && ((state.vectors && state.vectors.securityRadar && state.vectors.securityRadar.signals) || state.securityRadar)) || {};
+    const allSeenOus = {};
+    [
+      state && state.globalOUs,
+      state && state.printStats && state.printStats.ous,
+      state && state.sensitiveOnPage && state.sensitiveOnPage.ous,
+      radarForOus.passwordReuse && radarForOus.passwordReuse.ous,
+      radarForOus.malwareTransfer && radarForOus.malwareTransfer.ous,
+      radarForOus.unsafeSiteVisit && radarForOus.unsafeSiteVisit.ous
+    ].forEach(m => Object.keys(m || {}).forEach(k => {
+      const n = (m[k] && typeof m[k] === 'object' && m[k].name) ? m[k].name : k;
+      if (isRealOu(n)) allSeenOus[n] = true;
+    }));
+    const ouCount = Object.keys(allSeenOus).length;
+    // Unit with the most outbound data (preferring real named units over "OU not reported" when any real unit sent data out)
+    const allGlobalOUs = outboundRows(state && state.globalOUs, 100);
+    const realGlobalOUs = allGlobalOUs.filter(r => isRealOu(r.name));
+    const topGlobalOU = (realGlobalOUs.length ? realGlobalOUs : allGlobalOUs).slice(0, 1);
     const hasTopOU = topGlobalOU.length > 0;
     const topOUName = hasTopOU ? topGlobalOU[0].name : NR;
     const topOUVol = hasTopOU ? fmtB(topGlobalOU[0].bytes) : fmtB(0);
@@ -497,16 +600,23 @@ var ExecutivePresentationEngine = {
       return top;
     }
 
-    // Direction of the four channels' volume: what was sent out against what was downloaded through them. Downloads
-    // are retrieval and are never counted as data leaving.
+    // Outbound volume across the four channels: uploads and pastes leaving the browser.
     const outAllBytes = Number(state && state.egress && state.egress.bytes) || 0;
     const outAllCount = Number(state && state.egress && state.egress.count) || 0;
-    const downAllBytes = Number(state && state.globalActions && state.globalActions.download && state.globalActions.download.bytes) || 0;
     const outAllAmount = outAllBytes > 0 ? fmtB(outAllBytes) : T('deck.transfers', { n: outAllCount });
     let directionText;
-    if (outAllBytes <= 0 && outAllCount <= 0 && downAllBytes <= 0) directionText = T('deck.s4.directionNone');
-    else if (downAllBytes > 0) directionText = T('deck.s4.direction', { out: outAllAmount, down: fmtB(downAllBytes) });
+    if (outAllBytes <= 0 && outAllCount <= 0) directionText = T('deck.s4.directionNone');
     else directionText = T('deck.s4.directionOut', { out: outAllAmount });
+    const unscannedCount = Number((state && state.egress && state.egress.unscanned && state.egress.unscanned.count) || (state && state.unscanned && state.unscanned.count)) || 0;
+    const unscannedBytes = Number((state && state.egress && state.egress.unscanned && state.egress.unscanned.bytes) || (state && state.unscanned && state.unscanned.bytes)) || 0;
+    if (unscannedCount > 0) directionText += ' ' + T('deck.s4.unscannedNote', { n: unscannedCount, amount: fmtB(unscannedBytes) });
+    const onPageCount = Number(state && state.sensitiveOnPage && state.sensitiveOnPage.count) || 0;
+    const onPageUnmasked = Number(state && state.sensitiveOnPage && state.sensitiveOnPage.outcomes && state.sensitiveOnPage.outcomes.unmasked && state.sensitiveOnPage.outcomes.unmasked.count) || 0;
+    if (onPageCount > 0) {
+      directionText += ' ' + (enforced && onPageUnmasked > 0
+        ? T('deck.s4.onPageUnmaskedNote', { n: onPageCount, unmasked: onPageUnmasked })
+        : T('deck.s4.onPageNote', { n: onPageCount }));
+    }
 
     // Daily velocity series (state.outliers.dailyEgress): outbound transfers by bytes or, when none carried a size, by
     // count. All-direction volume is charted only when nothing left the browser, and is then never called a peak.
@@ -523,11 +633,13 @@ var ExecutivePresentationEngine = {
     const s3Cards = ceraSlide3Cards(state, om, egressVelocity, lang);
     const hasFunnel = s3Cards.hasFunnel;
     const funnelOU = s3Cards.funnelOU;
+    const funnelTitle = s3Cards.funnelTitle;
     const funnelDomain = s3Cards.funnelDomain;
     const funnelHHI = s3Cards.funnelHHI;
     const funnelHHIStr = s3Cards.funnelHHIStr;
     const funnelNarrative = s3Cards.funnelNarrative;
     const scatterOU = s3Cards.scatterOU;
+    const scatterTitle = s3Cards.scatterTitle;
     const scatterNarrative = s3Cards.scatterNarrative;
     const hasSkew = s3Cards.hasSkew;
     const skewOU = s3Cards.skewOU;
@@ -536,10 +648,35 @@ var ExecutivePresentationEngine = {
     const skewTitle = s3Cards.skewTitle;
     const skewNarrative = s3Cards.skewNarrative;
 
-    const outlierParts = [burstNarrative];
+    const workHours = (typeof CeraConfig !== 'undefined' && CeraConfig.WORK_HOURS) || { start: 8, end: 19 };
+    const workStartStr = (Number(workHours.start) < 10 ? '0' : '') + Number(workHours.start) + ':00';
+    const workEndStr = (Number(workHours.end) < 10 ? '0' : '') + Number(workHours.end) + ':00';
+    const workWindowStr = workStartStr + '–' + workEndStr;
+
+    const outlierParts = [];
+    const afterHoursCount = Number(state && state.egress && state.egress.afterHoursCount) || 0;
+    const afterHoursBytes = Number(state && state.egress && state.egress.afterHoursBytes) || 0;
+    if (afterHoursCount > 0 && outAllCount > 0) {
+      let ahNote = T('deck.s3.afterHoursNote', {
+        n: afterHoursCount,
+        pct: pctStr(afterHoursCount, outAllCount),
+        amount: outAllBytes > 0 ? fmtB(afterHoursBytes) : T('deck.transfers', { n: afterHoursCount }),
+        hours: workWindowStr,
+        start: workStartStr,
+        end: workEndStr,
+        tz: reportTz
+      });
+      ahNote = ahNote.replace(/08:00[–-]18:00/g, workWindowStr);
+      if (reportTz && ahNote.indexOf(reportTz) === -1) {
+        ahNote = ahNote.replace(workWindowStr, workWindowStr + ' (' + reportTz + ')');
+      }
+      outlierParts.push(ahNote);
+    }
     // An index of 0.75 or more: one destination received most of that person's outbound data
     if (hasFunnel && funnelHHI >= 0.75) outlierParts.push(T('deck.narr.funnel', { ou: funnelOU, dest: funnelDomain, hhi: funnelHHIStr }));
+    if (s3Cards.scatterCount >= 2) outlierParts.push(T('deck.s3.scatterNote', { ou: scatterOU, n: s3Cards.scatterCount }));
     if (hasSkew && skewRatio >= 0.8) outlierParts.push(T('deck.skew.assess', { pct: skewPct, ou: skewOU }));
+    if (!outlierParts.length) outlierParts.push(burstNarrative);
     const outlierNarrative = outlierParts.join(' ');
 
     // Security Signals Radar calculations
@@ -550,10 +687,15 @@ var ExecutivePresentationEngine = {
 
     // Findings on password reuse: the unit with the most events and, when corporate sites are among the destinations,
     // how many events were on them
-    const pwInternalCount = Object.keys(pwData.internalDomains || {}).reduce((t, d) => t + (Number(pwData.internalDomains[d]) || 0), 0);
+    const legacyPw = (state && state.securityRadar && state.securityRadar.passwordReuse) || {};
+    const pwInternalMap = (pwData.internalDomains && Object.keys(pwData.internalDomains).length) ? pwData.internalDomains : (legacyPw.internalDomains || {});
+    const pwExternalMap = (pwData.externalDomains && Object.keys(pwData.externalDomains).length) ? pwData.externalDomains : (legacyPw.externalDomains || {});
+    const pwInternalCount = Object.keys(pwInternalMap).reduce((t, d) => t + (Number(pwInternalMap[d]) || 0), 0);
+    const pwExternalCount = Object.keys(pwExternalMap).reduce((t, d) => t + (Number(pwExternalMap[d]) || 0), 0);
     const pwFindings = [];
     if (topPwOUs.length) pwFindings.push('• ' + T('deck.sig.pwUnit', { ou: topPwOUs[0].name, n: Number(topPwOUs[0].count) || 0, total: pwTotal }));
     if (pwInternalCount > 0) pwFindings.push('• ' + T('deck.sig.pwCorporate', { n: pwInternalCount, total: pwTotal }));
+    else if (pwExternalCount > 0) pwFindings.push('• ' + T('deck.sig.pwExternal', { n: pwExternalCount, total: pwTotal }));
     // Outcomes of the reuse events when the logs report them (warned, allowed)
     const pwResults = pwData.results || {};
     const pwKnown = { WARNED: 'warned', ALLOWED: 'allowed', DETECTED: 'detected', REPORTED: 'detected' };
@@ -564,6 +706,8 @@ var ExecutivePresentationEngine = {
     });
     const pwOutcome = ['warned', 'allowed', 'detected', 'other'].filter(c => pwCounts[c] > 0).map(c => T('deck.sig.pw.' + c, { n: pwCounts[c] }));
     if (pwTotal > 0 && pwOutcome.length) pwFindings.push('• ' + T('deck.sig.outcomes', { list: ceraJoinList(pwOutcome, lang) }));
+    const pwChangedCount = Number(state && state.passwordChanges && state.passwordChanges.count) || 0;
+    if (pwChangedCount > 0) pwFindings.push('• ' + T('deck.sig.pwChanged', { n: pwChangedCount }));
     const pwAdvText = pwTotal > 0 ? (pwFindings.join('\n') || '• ' + T('deck.sig.pwCount', { n: pwTotal })) : '• ' + T('deck.sig.pwNone');
 
     const malData = radar.malwareTransfer || {};
@@ -590,6 +734,11 @@ var ExecutivePresentationEngine = {
     const coverPeopleLog = ceraPeopleInLog(state);
     const unsafeSig = (state && state.vectors && state.vectors.securityRadar && state.vectors.securityRadar.signals && state.vectors.securityRadar.signals.unsafeSiteVisit) || {};
     const unsafeTotal = Number(unsafeSig.total) || Number(state && state.securityRadar && state.securityRadar.unsafeSiteVisit && state.securityRadar.unsafeSiteVisit.total) || 0;
+    const launchTotal = Number(state && state.browserLaunches && state.browserLaunches.launches) || 0;
+    const nonTransferActions = pwTotal + malTotal + unsafeTotal + launchTotal + onPageCount + pwChangedCount;
+    const effectiveCoverActions = (coverActions !== null && coverActions > 0)
+      ? coverActions
+      : (nonTransferActions > 0 ? nonTransferActions : (coverActions !== null ? coverRows : null));
 
     // Printing Analysis calculations
     const ps = (state && state.printStats) || {};
@@ -645,6 +794,12 @@ var ExecutivePresentationEngine = {
         primaryText = T('deck.v.primaryOutcome', { dest: top.name, amount: amountOf(top.bytes, top.count), n: top.count, list: ceraOutcomeListText(top.outcomes, null, lang) });
       } else if (top && byCount) primaryText = T('deck.v.primaryCount', { dest: top.name, n: top.count });
       else if (top) primaryText = T('deck.v.primary', { dest: top.name, amount: fmtB(top.bytes), n: top.count });
+      if (dests.length >= 2 && (byCount ? count : bytes) > 0) {
+        const top3Sum = dests.slice(0, 3).reduce((s, d) => s + (byCount ? d.count : d.bytes), 0);
+        primaryText += ' ' + T('deck.v.primaryTop3', { m: Math.min(3, dests.length), pct: pctStr(top3Sum, byCount ? count : bytes) });
+      }
+      const vUnscannedCount = Number((out.unscanned && out.unscanned.count) || (!out.unscanned && vec.unscanned && vec.unscanned.count)) || 0;
+      const vUnscannedBytes = Number((out.unscanned && out.unscanned.bytes) || (!out.unscanned && vec.unscanned && vec.unscanned.bytes)) || 0;
       // What left and what was stopped of this channel's outbound transfers (enforced logs only)
       const oc = ceraOutcomeFacts(out);
       let volumeTitle = T('deck.v.cardVolume', { amount: amountOf(bytes, count) });
@@ -659,6 +814,7 @@ var ExecutivePresentationEngine = {
         key: key, vec: vec, count: count, bytes: bytes, byCount: byCount, people: people, sensitive: sensitive,
         amount: amountOf(bytes, count), amountOf: amountOf, dests: dests, top: top, ous: ous, out: oc,
         formats: ceraOutboundFormats(vec, lang, 5), mix: mix, peak: peak,
+        detList: detList, detExact: od.exact, unscannedCount: vUnscannedCount, unscannedBytes: vUnscannedBytes,
         volumeTitle: volumeTitle,
         transfersText: T('deck.v.cardTransfers', { n: count, people: P(people) }) + (mix ? ' ' + T('deck.v.cardMix', { mix: mix }) : '') +
           (enforced && count > 0 ? ' ' + T('deck.v.cardOutcomes', { list: ceraOutcomeListText(oc.outcomes, null, lang) }) : ''),
@@ -673,12 +829,12 @@ var ExecutivePresentationEngine = {
         concText: ceraConcentrationText(vc, null, lang) + (ous.length ? ' ' + T('deck.conc.unit', { ou: ous[0].name }) : '')
       };
     };
-    // URL categories of the outbound transfers in the four vectors (per-action category maps; downloads excluded)
+    // URL categories of the outbound transfers in the four vectors (uploads and pastes only; downloads and prints excluded)
     const outboundCategories = (() => {
       const cats = {};
       ['personal', 'shadowAi', 'unmanaged', 'messaging'].forEach(k => {
         const acts = (state && state.vectors && state.vectors[k] && state.vectors[k].actions) || {};
-        ['upload', 'paste', 'print'].forEach(a => {
+        ['upload', 'paste'].forEach(a => {
           const m = (acts[a] && acts[a].cats) || {};
           Object.keys(m).forEach(c => {
             const e = m[c] || {};
@@ -689,8 +845,12 @@ var ExecutivePresentationEngine = {
           });
         });
       });
-      return Object.keys(cats).map(k => cats[k]).filter(c => validName(c.name) && c.count > 0)
-        .sort((a, b) => b.count - a.count || b.bytes - a.bytes || (a.name < b.name ? -1 : 1));
+      const catList = Object.keys(cats).map(k => cats[k]).filter(c => validName(c.name) && (c.bytes > 0 || c.count > 0))
+        .sort((a, b) => b.bytes - a.bytes || b.count - a.count || (a.name < b.name ? -1 : 1));
+      const catByCount = !catList.some(c => c.bytes > 0);
+      const catTotal = catList.reduce((s, c) => s + (catByCount ? c.count : c.bytes), 0);
+      catList.forEach(c => { c.sharePct = catTotal > 0 ? Math.round(((catByCount ? c.count : c.bytes) / catTotal) * 100) : 0; });
+      return catList;
     })();
     const vecName = id => T('deck.vector.' + id);
     const vectorsDeck = {};
@@ -740,8 +900,9 @@ var ExecutivePresentationEngine = {
       const vd = vectorsDeck[k];
       const f1 = vd.formats[0];
       vd.formatText = f1
-        ? T('deck.v.formatPrimary', { type: f1.name, amount: vd.amountOf(f1.bytes, f1.count), pct: vd.byCount ? pctStr(f1.count, vd.count) : pctStr(f1.bytes, vd.bytes) })
-        : T('deck.v.formatNone');
+        ? T('deck.v.formatPrimary', { type: f1.name, amount: vd.amountOf(f1.bytes, f1.count), pct: vd.byCount ? pctStr(f1.count, vd.count) : pctStr(f1.bytes, vd.bytes) }) +
+          (vd.unscannedCount > 0 ? ' ' + T('deck.v.formatUnscanned', { n: vd.unscannedCount, amount: fmtB(vd.unscannedBytes) }) : '')
+        : (vd.unscannedCount > 0 ? T('deck.v.formatUnscanned', { n: vd.unscannedCount, amount: fmtB(vd.unscannedBytes) }) : T('deck.v.formatNone'));
       vd.unitsTitle = vd.ous.length ? T('deck.v.unitsTitle', { ou: vd.topOu }) : T('deck.v.unitsTitleNone');
       vd.unitsText = vd.ous.length ? T('deck.v.unitsText', { list: vd.ouList }) : T('deck.v.unitsNone');
       // Destinations of an unmanaged-app channel: how many (ceraOutboundDestinations, the count of the channel's
@@ -892,12 +1053,42 @@ var ExecutivePresentationEngine = {
     // Roadmap items: only name real entities
     const withTarget = (txt, name) => (validName(name) && name !== NR) ? `${txt} (${name})` : txt;
 
+    const globalMixText = ceraActionMixText(ceraSentMix({ egress: state && state.egress }, false), lang);
+    const globalDetList = ceraDetectorListText(state && state.egress && state.egress.detectorNames, true, lang, 3);
+    const threatMatrixBase = hasDominant
+      ? T('deck.s2.ranking', { list: vList.map(v => T('deck.s2.rankItem', { vector: vecName(v.id), amount: fmtB(v.bytes), pct: pctStr(v.bytes, rankTotal) })).join(', ') })
+      : T('deck.s2.rankingNone');
+    const threatMatrixNarrative = hasDominant
+      ? [
+        threatMatrixBase,
+        globalMixText ? T('deck.v.cardMix', { mix: globalMixText }) : '',
+        globalDetList ? T('deck.v.cardDetectors', { list: globalDetList }) : ''
+      ].filter(Boolean).join(' ')
+      : threatMatrixBase;
+
+    const periodExtra = [];
+    if (covMeta.stoppedEarly && Number(covMeta.actualSpanDays) > 0 && Number(covMeta.windowDays) > 0) {
+      const actualSpanStr = Number(covMeta.actualSpanDays).toFixed(1).replace(/\.0$/, '');
+      periodExtra.push(ceraT('pf.days', { n: actualSpanStr + '/' + covMeta.windowDays }, lang));
+    } else if ((covMeta.isPartial || covMeta.partial) && Number(covMeta.sheetsRead || covMeta.partitionsRead) > 0 &&
+        Number(covMeta.sheetsTotal || covMeta.partitionsTotal) > Number(covMeta.sheetsRead || covMeta.partitionsRead)) {
+      periodExtra.push(Number(covMeta.sheetsRead || covMeta.partitionsRead) + '/' + Number(covMeta.sheetsTotal || covMeta.partitionsTotal));
+    }
+    const partRead = Number(covMeta.sheetsRead || covMeta.partitionsRead) || 0;
+    const partTotal = Number(covMeta.sheetsTotal || covMeta.partitionsTotal) || 0;
+    const partialCoverageNote = ((covMeta.isPartial || covMeta.stoppedEarly || (partRead > 0 && partTotal > partRead)) && partRead > 0 && partTotal > partRead)
+      ? ceraT('result.partial', { read: partRead, total: partTotal }, lang)
+      : '';
+
     return {
       '{{primaryDomain}}': domainLabel,
       '{{dateRange}}': validName(dateRangeString) ? dateRangeString : NR,
-      '{{coverCount}}': ceraFormatNumber(coverActions !== null ? coverActions : coverRows, lang),
-      '{{coverCountLabel}}': T(coverActions !== null ? 'deck.cover.actions' : 'deck.cover.rows'),
-      '{{coverCountDef}}': coverActions !== null ? T('deck.cover.actionsDef', { n: coverRows }) : T('deck.cover.rowsDef'),
+      _reportTz: reportTz,
+      _periodSuffix: periodExtra.join(' • '),
+      _partialCoverageNote: partialCoverageNote,
+      '{{coverCount}}': ceraFormatNumber(effectiveCoverActions !== null ? effectiveCoverActions : coverRows, lang),
+      '{{coverCountLabel}}': T(effectiveCoverActions !== null ? 'deck.cover.actions' : 'deck.cover.rows'),
+      '{{coverCountDef}}': effectiveCoverActions !== null ? T('deck.cover.actionsDef', { n: coverRows }) : T('deck.cover.rowsDef'),
       '{{coverPeople}}': ceraFormatNumber(coverPeopleOut, lang),
       '{{coverPeopleLabel}}': T('deck.cover.people'),
       '{{coverPeopleDef}}': T(coverPeopleLog.exact ? 'deck.cover.peopleDef' : 'deck.cover.peopleDefMin', { n: Math.max(coverPeopleLog.n, coverPeopleOut) }),
@@ -923,19 +1114,19 @@ var ExecutivePresentationEngine = {
       '{{userConcText}}': conc.text,
       '{{burstNarrative}}': burstNarrative,
       // Daily, weekly or monthly bars (buildVelocitySeries), of outbound volume or of all transfers
-      '{{velocityTitle}}': T('deck.s3.velocity.' + (velocity.granularity || 'day') + (velocityIsEgress ? 'Outbound' : 'Transfer')),
+      '{{velocityTitle}}': T('deck.s3.velocity.' + (velocity.granularity || 'day') + (velocityIsEgress ? 'Outbound' : 'Transfer')) + (reportTz ? ' (' + reportTz + ')' : ''),
       '{{funnelOU}}': funnelOU,
+      '{{funnelTitle}}': funnelTitle,
       '{{funnelNarrative}}': funnelNarrative,
       '{{scatterOU}}': scatterOU,
+      '{{scatterTitle}}': scatterTitle,
       '{{scatterNarrative}}': scatterNarrative,
       '{{skewOU}}': skewOU,
       '{{skewTitle}}': skewTitle,
       '{{skewNarrative}}': skewNarrative,
       '{{outlierNarrative}}': outlierNarrative,
       '{{directionText}}': directionText,
-      '{{threatMatrixNarrative}}': hasDominant
-        ? T('deck.s2.ranking', { list: vList.map(v => T('deck.s2.rankItem', { vector: vecName(v.id), amount: fmtB(v.bytes), pct: pctStr(v.bytes, rankTotal) })).join(', ') })
-        : T('deck.s2.rankingNone'),
+      '{{threatMatrixNarrative}}': threatMatrixNarrative,
       '{{pwTotal}}': ceraFormatNumber(pwTotal, lang),
       _pwTotal: pwTotal,
       '{{pwUsers}}': Object.keys(pwData.users || {}).length.toLocaleString(),
@@ -972,19 +1163,19 @@ var ExecutivePresentationEngine = {
       '{{sub1Vol}}': fmtB(vSub1.bytes || 0),
       '{{sub1Events}}': (vSub1.count || 0).toLocaleString(),
       '{{sub1Users}}': (vSub1.users || 0).toLocaleString(),
-      '{{sub1Count}}': T('deck.transfers', { n: vSub1.count || 0 }) + '\n' + P(vSub1.users || 0),
+      '{{sub1Count}}': T('deck.transfers', { n: vSub1.count || 0 }) + '\n' + P(vSub1.users || 0) + ((vSub1.bytes > 0 && rankTotal > 0) ? ' • ' + pctStr(vSub1.bytes || 0, rankTotal) : ''),
       '{{sub1Desc}}': channelLine(vSub1.id),
       '{{sub2Name}}': vSub2.id ? vecName(vSub2.id) : NR,
       '{{sub2Vol}}': fmtB(vSub2.bytes || 0),
       '{{sub2Events}}': (vSub2.count || 0).toLocaleString(),
       '{{sub2Users}}': (vSub2.users || 0).toLocaleString(),
-      '{{sub2Count}}': T('deck.transfers', { n: vSub2.count || 0 }) + '\n' + P(vSub2.users || 0),
+      '{{sub2Count}}': T('deck.transfers', { n: vSub2.count || 0 }) + '\n' + P(vSub2.users || 0) + ((vSub2.bytes > 0 && rankTotal > 0) ? ' • ' + pctStr(vSub2.bytes || 0, rankTotal) : ''),
       '{{sub2Desc}}': channelLine(vSub2.id),
       '{{sub3Name}}': vSub3.id ? vecName(vSub3.id) : NR,
       '{{sub3Vol}}': fmtB(vSub3.bytes || 0),
       '{{sub3Events}}': (vSub3.count || 0).toLocaleString(),
       '{{sub3Users}}': (vSub3.users || 0).toLocaleString(),
-      '{{sub3Count}}': T('deck.transfers', { n: vSub3.count || 0 }) + '\n' + P(vSub3.users || 0),
+      '{{sub3Count}}': T('deck.transfers', { n: vSub3.count || 0 }) + '\n' + P(vSub3.users || 0) + ((vSub3.bytes > 0 && rankTotal > 0) ? ' • ' + pctStr(vSub3.bytes || 0, rankTotal) : ''),
       '{{sub3Desc}}': channelLine(vSub3.id),
       '{{printOpsText}}': T('deck.print.sites', { n: Object.keys(ps.originDomains || {}).filter(validName).length }),
       '{{printDetectorsText}}': [(printSens.sensitiveCount || 0) > 0 ? (printDetList ? T('deck.print.detectors', { list: printDetList }) : '') : T('deck.print.detectorsNone'),
@@ -992,7 +1183,7 @@ var ExecutivePresentationEngine = {
         .filter(Boolean).join(' '),
       // Vector slides (overview and deep-dive): ctx._vectors[key] from vectorDeck
       '{{aiBenchmarkInsight}}': aiBenchmarkInsight,
-      '{{shadowTypeList}}': vShadowAiTypes.length ? vShadowAiTypes.slice(0, 2).map(t => `• ${t.name} (${vectorsDeck.shadowAi.amountOf(t.bytes, t.count)})`).join('\n') : T('deck.v.formatNone'),
+      '{{shadowTypeList}}': vShadowAiTypes.length ? vShadowAiTypes.slice(0, 4).map(t => `• ${t.name} (${vectorsDeck.shadowAi.amountOf(t.bytes, t.count)}${t.sharePct > 0 ? ', ' + t.sharePct + '%' : ''})`).join('\n') : T('deck.v.formatNone'),
       '{{shadowOUList}}': vectorsDeck.shadowAi.ous.length ? vectorsDeck.shadowAi.ous.map((o, i) => `${i + 1}. ${o.name} (${vectorsDeck.shadowAi.amountOf(o.bytes, o.count)})`).join('\n') : NR,
 
       // Vector 05 Dedicated (Slide 13)
@@ -1071,7 +1262,12 @@ var ExecutivePresentationEngine = {
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
       this.addTextBox(slide, txt, 52, 202, 181, 32, 'Outfit', 13, 'bold', '#2563eb', 'left');
     }
-    this.addLineBox(slide, this.t_(ctx, 'deck.cover.periodLabel'), 269, 186, 181, 16, 'Roboto', 7, 'bold', '#64748B', 'left');
+    {
+      const periodHeader = this.t_(ctx, 'deck.cover.periodLabel') +
+        (ctx._reportTz ? ' (' + ctx._reportTz + ')' : '') +
+        (ctx._periodSuffix ? ' • ' + ctx._periodSuffix : '');
+      this.addLineBox(slide, periodHeader, 269, 186, 410, 16, 'Roboto', 7, 'bold', '#64748B', 'left');
+    }
     this.addLineBox(slide, ctx['{{dateRange}}'], 269, 202, 220, 32, 'Outfit', 12, 'bold', '#0F172A', 'left');
     this.addCard(slide, 40, 258, 151, 76, '#FFFFFF', '#E2E8F0', 4, 0.5); // KPI Card 1
     {
@@ -1289,7 +1485,7 @@ var ExecutivePresentationEngine = {
     {
       let txt = '{{velocityTitle}}';
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
-      this.addLineBox(slide, txt, 48, 82, 296, 16, 'Outfit', 10, 'bold', '#D97706', 'left');
+      this.addLineBox(slide, txt, 48, 82, 296, 16, 'Outfit', this.fitFont(txt, 296, 10, 7.5), 'bold', '#D97706', 'left');
     }
     // Vector Chart: Velocity Line Chart (Daily Velocity Timeline)
     if (typeof VectorChartEngine !== 'undefined') {
@@ -1308,7 +1504,7 @@ var ExecutivePresentationEngine = {
     }
     this.addCard(slide, 368, 75, 316, 82, '#FFFFFF', '#FECDD3', 4); // Funneling Card
     {
-      let txt = this.t_(ctx, 'deck.s3.funnelTitle', { ou: ctx['{{funnelOU}}'] });
+      let txt = '{{funnelTitle}}';
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
       this.addLineBox(slide, txt, 382, 81, 292, 18, 'Outfit', 9, 'bold', '#DC2626', 'left');
     }
@@ -1319,7 +1515,7 @@ var ExecutivePresentationEngine = {
     }
     this.addCard(slide, 368, 166, 316, 82, '#FFFFFF', '#FDE68A', 4); // Dispersion Card
     {
-      let txt = this.t_(ctx, 'deck.s3.scatterTitle', { ou: ctx['{{scatterOU}}'] });
+      let txt = '{{scatterTitle}}';
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
       this.addLineBox(slide, txt, 382, 172, 292, 18, 'Outfit', 9, 'bold', '#D97706', 'left');
     }
@@ -1383,7 +1579,7 @@ var ExecutivePresentationEngine = {
     }
     this.addLineBox(slide, ceraT('deck.s4.categoriesTitle', null, ctx._lang), 380, 80, 292, 16, 'Outfit', 9.5, 'bold', '#7C3AED', 'left');
     this.addLineBox(slide, ceraT('deck.s4.categoriesSub', null, ctx._lang), 380, 94, 292, 14, 'Roboto', 7, 'normal', '#64748B', 'left');
-    // Vector Categories Table: URL categories of the outbound transfers (uploads, pastes, prints) in the four vectors
+    // Vector Categories Table: URL categories of the outbound transfers (uploads, pastes) in the four vectors
     {
       const topCats = ctx._outboundCategories || [];
       if (!topCats.length) {
@@ -1403,7 +1599,8 @@ var ExecutivePresentationEngine = {
           : (typeof VectorChartEngine !== 'undefined' ? VectorChartEngine.cleanLabel(c.name, 30) : c.name);
         this.addLineBox(slide, cDisplayName, 376 + 22, rowY + 1.5, 165, 16, 'Outfit', 7, 'bold', p.textDark, 'left');
         const cVolStr = this.fmtBytes(c.bytes || 0);
-        this.addLineBox(slide, `${ctx._countTransfers(c.count || 0)} • ${cVolStr}`, 376 + 185 - 30, rowY + 1.5, 300 - 189 + 30, 16, 'Outfit', 6.8, 'bold', isTop ? p.purple : p.textBody, 'right');
+        const cShareStr = (typeof c.sharePct === 'number' && c.sharePct > 0) ? ` (${c.sharePct}%)` : '';
+        this.addLineBox(slide, `${ctx._countTransfers(c.count || 0)} • ${cVolStr}${cShareStr}`, 376 + 185 - 30, rowY + 1.5, 300 - 189 + 30, 16, 'Outfit', 6.8, 'bold', isTop ? p.purple : p.textBody, 'right');
       });
     }
     this.addCard(slide, 36, 350, 648, 42, '#F0F9FF', '#BAE6FD', 4, 0.5); // Bottom Callout Card
@@ -1438,8 +1635,9 @@ var ExecutivePresentationEngine = {
     if (!recs.length) return;
     this.addCard(slide, 36, 350, 648, 42, bg, border, 4, 0.5);
     const txt = recs.map(r => ceraT('deck.v.recommended', { rec: r }, ctx._lang)).join('\n');
-    // Up to three lines fit the card at 7.5 pt; four (the browser launch policies) at 6.5 pt
-    this.addTextBox(slide, txt, 48, 356, 624, 30, 'Roboto', recs.length > 3 ? 6.5 : 7.5, 'normal', '#334155', 'left');
+    // Up to two lines fit the card at 7.5 pt; three or four lines at 6.5 pt; scale down further when long multi-bullet translations exceed 340 chars
+    const recFontSize = (recs.length >= 3 || txt.length > 340) ? (txt.length > 460 ? 5.5 : 6.0) : (recs.length === 2 || txt.length > 220 ? 6.8 : 7.5);
+    this.addTextBox(slide, txt, 48, 355, 624, 34, 'Roboto', recFontSize, 'normal', '#334155', 'left');
   },
 
   /** Background image with its tint, or a plain fill when the image cannot be loaded. */
@@ -1516,7 +1714,7 @@ var ExecutivePresentationEngine = {
     this.addHeader_(slide, ctx, 'deck.header.vectorDeep', { name: this.t_(ctx, 'report.sheet.' + key).toUpperCase() }, st.color);
     const hl = ctx['{{hl_' + key + 'Deep}}'] || '';
     this.addTextBox(slide, hl, 36, 26, 648, 26, 'Outfit', this.fitFont(hl, 648, 15, 10), 'bold', '#0F172A', 'left');
-    this.addLineBox(slide, ctx['{{hl_' + key + 'Sub}}'], 36, 50, 648, 16, 'Roboto', 8.5, 'normal', '#64748B', 'left');
+    this.addLineBox(slide, ctx['{{hl_' + key + 'DeepSub}}'] || ctx['{{hl_' + key + 'Sub}}'], 36, 50, 648, 16, 'Roboto', 8.5, 'normal', '#64748B', 'left');
     const sep = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, 36, 66, 648, 1);
     sep.getFill().setSolidFill('#E2E8F0');
     sep.getBorder().setTransparent();
@@ -1525,7 +1723,7 @@ var ExecutivePresentationEngine = {
     if (typeof VectorChartEngine !== 'undefined') {
       const light = st.chartColor + 'Light';
       const border = st.chartColor + 'Border';
-      const items = vd.byCount ? (vd.formats || []).map(f => ({ name: f.name, count: f.count })) : (vd.formats || []);
+      const items = vd.byCount ? (vd.formats || []).map(f => ({ name: f.name, count: f.count, sharePct: f.sharePct })) : (vd.formats || []);
       VectorChartEngine.renderRankedHorizontalBars(slide, items, 44, 102, 304, 172, Object.assign(
         { palette: p, barColor: p[st.chartColor], barLight: p[light], barBorder: p[border], lang: ctx._lang },
         vd.byCount ? { countLabel: ctx._countTransfers } : { valueSuffix: ' GB' }));
@@ -1552,7 +1750,9 @@ var ExecutivePresentationEngine = {
       text = vd.destsText;
     } else {
       title = T('deck.v.mixTitle');
-      text = vd.mix ? T('deck.v.mixCard', { mix: vd.mix }) : vd.primaryText;
+      text = (vd.mix ? T('deck.v.mixCard', { mix: vd.mix }) : vd.primaryText) +
+        (vd.detList ? ' ' + T(vd.detExact ? 'deck.v.cardDetectors' : 'deck.v.cardDetectorsSome', { list: vd.detList }) : '') +
+        (vd.unscannedCount > 0 ? ' ' + T('deck.v.formatUnscanned', { n: vd.unscannedCount, amount: this.fmtBytes(vd.unscannedBytes) }) : '');
     }
     this.addLineBox(slide, title, 382, 263, 292, 18, 'Outfit', 9, 'bold', '#D97706', 'left');
     this.addTextBox(slide, text, 382, 281, 292, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
@@ -1573,7 +1773,7 @@ var ExecutivePresentationEngine = {
       this.addTextBox(slide, txt, 36, 26, 648, 26, 'Outfit', this.fitFont(txt, 648, 15, 10), 'bold', '#0F172A', 'left');
     }
     {
-      let txt = '{{hl_shadowAiSub}}';
+      let txt = ctx['{{hl_shadowAiDeepSub}}'] || '{{hl_shadowAiSub}}';
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
       this.addLineBox(slide, txt, 36, 50, 648, 16, 'Roboto', 8.5, 'normal', '#64748B', 'left');
     }
@@ -1635,9 +1835,13 @@ var ExecutivePresentationEngine = {
 
     // Pillar 3: Platforms & Velocity Spikes (Amber)
     this.addCard(slide, 476, 233, 208, 108, '#FFFFFF', '#FDE68A', 4);
-    // Busiest outbound day of the vector under the deck's peak rule (ceraVectorPeak)
+    // Busiest outbound day of the vector under the deck's peak rule (ceraVectorPeak) plus top unsanctioned tools
     this.addLineBox(slide, ctx._vectors.shadowAi.peakTitle, 488, 239, 190, 18, 'Outfit', 9, 'bold', '#D97706', 'left');
-    this.addTextBox(slide, ctx._vectors.shadowAi.peakText, 488, 258, 190, 78, 'Roboto', 7.2, 'normal', '#334155', 'left');
+    const aiDests = (ctx._vectors && ctx._vectors.shadowAi && ctx._vectors.shadowAi.dests) || [];
+    const aiTopTools = aiDests.length
+      ? ceraT('deck.ai.topTools', { list: aiDests.slice(0, 3).map(d => `${d.name} (${ctx._vectors.shadowAi.amountOf(d.bytes, d.count)})`).join(', ') }, ctx._lang) + '\n'
+      : '';
+    this.addTextBox(slide, aiTopTools + ctx._vectors.shadowAi.peakText, 488, 258, 190, 78, 'Roboto', 7.2, 'normal', '#334155', 'left');
 
     this.addRecommendation_(slide, ctx, ['shadowAi'], '#FAF5FF', '#DDD6FE');
   },
@@ -1744,7 +1948,7 @@ var ExecutivePresentationEngine = {
       this.addTextBox(slide, txt, 382, 281, 292, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
 
-    this.addRecommendation_(slide, ctx, ['certs', 'safeBrowsing'], '#FFF1F2', '#FECDD3');
+    this.addRecommendation_(slide, ctx, ['certs', 'safeBrowsing', 'onPage'], '#FFF1F2', '#FECDD3');
     this.addLaunchNote_(slide, ctx, 'signals');
   },
 
@@ -1843,13 +2047,14 @@ var ExecutivePresentationEngine = {
     {
       let txt = '{{pwAdvText}}';
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
-      this.addTextBox(slide, txt, 56, 266, 280, 29, 'Roboto', 6.8, 'normal', '#0F172A', 'left');
-    }
-    {
+      const pwFont = txt.length > 140 ? 6.0 : 6.8;
+      const pwRecY = txt.length > 140 ? 302 : 296;
+      const pwRecH = txt.length > 140 ? 28 : 32;
+      this.addTextBox(slide, txt, 56, 265, 280, pwRecY - 266, 'Roboto', pwFont, 'normal', '#0F172A', 'left');
       // The action the recommendations slide lists for password reuse, or nothing
       const rec = (ctx._recByTopic.password || [])[0];
-      let txt = rec ? '• ' + ceraT('deck.v.recommended', { rec: rec }, ctx._lang) : '';
-      this.addTextBox(slide, txt, 56, 296, 280, 32, 'Roboto', 6.8, 'normal', '#0F172A', 'left');
+      let recTxt = rec ? '• ' + ceraT('deck.v.recommended', { rec: rec }, ctx._lang) : '';
+      this.addTextBox(slide, recTxt, 56, pwRecY, 280, pwRecH, 'Roboto', pwFont, 'normal', '#0F172A', 'left');
     }
     {
       let txt = this.t_(ctx, 'deck.sig.malTitle');
@@ -1923,13 +2128,14 @@ var ExecutivePresentationEngine = {
     {
       let txt = '{{malAdvText}}';
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
-      this.addTextBox(slide, txt, 387, 266, 280, 29, 'Roboto', 6.8, 'normal', '#0F172A', 'left');
-    }
-    {
+      const malFont = txt.length > 140 ? 6.0 : 6.8;
+      const malRecY = txt.length > 140 ? 302 : 296;
+      const malRecH = txt.length > 140 ? 28 : 32;
+      this.addTextBox(slide, txt, 387, 265, 280, malRecY - 266, 'Roboto', malFont, 'normal', '#0F172A', 'left');
       // The action the recommendations slide lists for potentially malicious files, or nothing
       const rec = (ctx._recByTopic.malware || [])[0];
-      let txt = rec ? '• ' + ceraT('deck.v.recommended', { rec: rec }, ctx._lang) : '';
-      this.addTextBox(slide, txt, 387, 296, 280, 32, 'Roboto', 6.8, 'normal', '#0F172A', 'left');
+      let recTxt = rec ? '• ' + ceraT('deck.v.recommended', { rec: rec }, ctx._lang) : '';
+      this.addTextBox(slide, recTxt, 387, malRecY, 280, malRecH, 'Roboto', malFont, 'normal', '#0F172A', 'left');
     }
     this.addLaunchNote_(slide, ctx, 'signals2');
   },

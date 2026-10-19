@@ -76,13 +76,130 @@ var CERA_FILE_FAMILY_EXTENSIONS = {
 function ceraActionAssembly_(state, emit, emitRadar) {
   if (!state._actionAssembly) {
     Object.defineProperty(state, '_actionAssembly', {
-      value: { keys: new Map(), pendingRows: 0, peakPending: 0, at: null, sinceSweep: 0, sweepEvery: 1000, emit: emit,
-        radar: new Map(), emitRadar: emitRadar },
+      value: {
+        keys: new Map(),
+        pendingRows: 0,
+        peakPending: 0,
+        at: null,
+        minT: Infinity,
+        maxT: -Infinity,
+        droppedOver25h: false,
+        jumpedUpOver1h: false,
+        census: null,
+        sinceSweep: 0,
+        sweepEvery: 1000,
+        emit: emit,
+        radar: new Map(),
+        emitRadar: emitRadar
+      },
       enumerable: false,
       writable: true
     });
   }
   return state._actionAssembly;
+}
+
+/**
+ * Merges overlapping [minT, maxT] intervals into sorted disjoint intervals for O(1) completeness checks.
+ */
+function ceraMergeIntervals_(intervals) {
+  if (!Array.isArray(intervals) || !intervals.length) return [];
+  const valid = intervals
+    .filter(iv => iv && typeof iv[0] === 'number' && typeof iv[1] === 'number' && !isNaN(iv[0]) && !isNaN(iv[1]))
+    .map(iv => (iv[0] <= iv[1] ? [iv[0], iv[1]] : [iv[1], iv[0]]))
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (!valid.length) return [];
+  const merged = [valid[0]];
+  for (let i = 1; i < valid.length; i++) {
+    const last = merged[merged.length - 1];
+    if (valid[i][0] <= last[1] + 1) {
+      if (valid[i][1] > last[1]) last[1] = valid[i][1];
+    } else {
+      merged.push(valid[i]);
+    }
+  }
+  return merged;
+}
+
+/**
+ * True when [a, b] intersects any interval in sorted disjoint intervals.
+ */
+function ceraIntersectsInterval_(a, b, intervals) {
+  if (!Array.isArray(intervals) || !intervals.length) return false;
+  for (let i = 0; i < intervals.length; i++) {
+    const iv = intervals[i];
+    if (iv[1] < a) continue;
+    if (iv[0] > b) return false;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Builds a lightweight stream-run time census across partition rows so ceraSweepActions_ only finalizes a segment
+ * once no unread run overlaps [seg.start - W_MS, seg.end + W_MS].
+ */
+function ceraBuildPartitionCensus_(partitions, dateOrder) {
+  const runs = [];
+  const list = Array.isArray(partitions) ? partitions : [];
+  for (let p = 0; p < list.length; p++) {
+    const rows = list[p];
+    if (!Array.isArray(rows) || rows.length <= 1) continue;
+    const col = typeof resolveColumnIndices === 'function' ? resolveColumnIndices(rows[0]) : { date: 0 };
+    const dateIdx = col && col.date !== undefined ? col.date : 0;
+    if (dateIdx === -1) continue;
+    let runMin = Infinity;
+    let runMax = -Infinity;
+    let prevT = null;
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || !r[dateIdx]) continue;
+      const t = typeof parseTimestampToMs_ === 'function'
+        ? parseTimestampToMs_(r[dateIdx], dateOrder)
+        : new Date(r[dateIdx]).getTime();
+      if (isNaN(t)) continue;
+      if (prevT !== null && Math.abs(t - prevT) > 3600000 && runMin <= runMax) {
+        runs.push({ partitionIndex: p, minT: runMin, maxT: runMax });
+        runMin = Infinity;
+        runMax = -Infinity;
+      }
+      if (t < runMin) runMin = t;
+      if (t > runMax) runMax = t;
+      prevT = t;
+    }
+    if (runMin <= runMax) {
+      runs.push({ partitionIndex: p, minT: runMin, maxT: runMax });
+    }
+  }
+  return {
+    runs: runs,
+    completedPartitions: 0,
+    unread: ceraMergeIntervals_(runs.map(r => [r.minT, r.maxT]))
+  };
+}
+
+/**
+ * Attaches or updates the partition census on state._actionAssembly.
+ */
+function ceraSetActionCensus_(state, census) {
+  if (!state || !state._actionAssembly) return;
+  state._actionAssembly.census = census || null;
+}
+
+/**
+ * Marks all census runs up to completedPartitions (exclusive) as read and sweeps newly completed action segments.
+ */
+function ceraAdvanceActionCensus_(state, completedPartitions) {
+  const asm = state && state._actionAssembly;
+  if (!asm || !asm.census || !Array.isArray(asm.census.runs)) return;
+  asm.census.completedPartitions = completedPartitions;
+  const remaining = [];
+  for (let i = 0; i < asm.census.runs.length; i++) {
+    const r = asm.census.runs[i];
+    if (r.partitionIndex >= completedPartitions) remaining.push([r.minT, r.maxT]);
+  }
+  asm.census.unread = ceraMergeIntervals_(remaining);
+  ceraSweepActions_(state, false);
 }
 
 /**
@@ -211,12 +328,18 @@ function ceraReasonGiven_(reason) {
 }
 
 /**
- * Records the time of the row being read: pending rows more than CeraConfig.ACTION_HOLD_MS away from it are finalized
- * at the next sweep.
+ * Records the time of the row being read and updates stream monotonicity watermarks.
  */
 function ceraActionClock_(state, ms) {
   const asm = state._actionAssembly;
-  if (asm && typeof ms === 'number' && !isNaN(ms)) asm.at = ms;
+  if (!asm || typeof ms !== 'number' || isNaN(ms)) return;
+  if (asm.at !== null) {
+    if (ms > asm.at + 3600000) asm.jumpedUpOver1h = true;
+    if (asm.maxT > -Infinity && asm.maxT - ms > 25 * 3600000) asm.droppedOver25h = true;
+  }
+  asm.at = ms;
+  if (ms < asm.minT) asm.minT = ms;
+  if (ms > asm.maxT) asm.maxT = ms;
 }
 
 /**
@@ -229,7 +352,7 @@ function ceraAddActionRow_(state, rec) {
     ceraFinalizeActionRows_(state, asm, [rec]);
     return;
   }
-  asm.at = rec.t;
+  ceraActionClock_(state, rec.t);
   const trigger = String(rec.triggerType || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
   const sized = rec.direction === 'upload' || rec.direction === 'paste';
   const key = rec.userIdent + '|' + trigger + '|' + rec.rawUrl + (sized ? '|' + rec.sizeBytes : '');
@@ -266,28 +389,79 @@ function ceraFlushActions_(state) {
 }
 
 /**
- * Finalizes the waiting rows no row still to come can join. Per key, a segment is a run of rows with no gap over
- * CeraConfig.ACTION_WINDOW_MS (no action spans two segments); a segment is final when it lies more than
- * CeraConfig.ACTION_HOLD_MS from the row being read, or when every row was read (flush). With more than
- * CeraConfig.ACTION_PENDING_MAX rows still waiting, the segments furthest in time from the row being read are
- * finalized first, down to 90% of the cap.
+ * Finalizes the waiting rows no row still to come can join (Q5-C completeness rule).
+ * - When a partition census is present (asm.census), a segment is complete iff [seg.start - W_MS, seg.end + W_MS]
+ *   does not intersect any unread stream run.
+ * - Without a pre-pass census:
+ *   - In monotonic descending Export Order (!asm.jumpedUpOver1h), segments with seg.start > at + hold (or > at + W_MS
+ *     when pendingRows > cap) are finalized.
+ *   - In chronological day-slice Writer Order (!asm.droppedOver25h), segments from completed earlier day slices
+ *     (seg.end < asm.maxT - (25h + W_MS)) are finalized without evicting active in-slice rows.
+ *   - Distance-based cap eviction runs only when an explicit small cap (< 50,000) or capOverride is requested, or
+ *     above the 300,000-row emergency V8 heap ceiling.
  */
 function ceraSweepActions_(state, flush, capOverride) {
   const asm = state._actionAssembly;
+  if (!asm) return;
   const hold = CeraConfig.ACTION_HOLD_MS || 2 * 86400000;
+  const W_MS = (CeraConfig.OUTCOME_BYPASS_WINDOW_MS || 600000) + (CeraConfig.ACTION_WINDOW_MS || 10000) + 60000;
+  const DAY_SLICE_HOLD_MS = 25 * 3600000 + W_MS;
   const cap = capOverride !== undefined ? capOverride : (CeraConfig.ACTION_PENDING_MAX || 50000);
+  const explicitSmallCap = capOverride !== undefined || (CeraConfig.ACTION_PENDING_MAX && CeraConfig.ACTION_PENDING_MAX < 50000);
+  const emergencyCeiling = 300000;
   const at = asm.at;
   asm.sinceSweep = 0;
-  asm.keys.forEach((entry, key) => {
-    if (!flush && entry.minT >= at - hold && entry.maxT <= at + hold) return;
-    const keep = [];
-    ceraActionSegments_(entry.rows).forEach(seg => {
-      if (flush || seg.end < at - hold || seg.start > at + hold) ceraFinalizeActionRows_(state, asm, seg.rows);
-      else keep.push(seg);
+
+  if (flush) {
+    asm.keys.forEach((entry, key) => {
+      ceraActionSegments_(entry.rows).forEach(seg => ceraFinalizeActionRows_(state, asm, seg.rows));
+      ceraKeepActionSegments_(asm, key, []);
     });
-    ceraKeepActionSegments_(asm, key, keep);
-  });
-  if (flush || asm.pendingRows <= cap) return;
+    return;
+  }
+
+  if (asm.census && Array.isArray(asm.census.unread)) {
+    const unread = asm.census.unread;
+    asm.keys.forEach((entry, key) => {
+      if (ceraIntersectsInterval_(entry.minT - W_MS, entry.maxT + W_MS, unread) && entry.rows.length === 1) return;
+      const keep = [];
+      ceraActionSegments_(entry.rows).forEach(seg => {
+        if (!ceraIntersectsInterval_(seg.start - W_MS, seg.end + W_MS, unread)) {
+          ceraFinalizeActionRows_(state, asm, seg.rows);
+        } else {
+          keep.push(seg);
+        }
+      });
+      ceraKeepActionSegments_(asm, key, keep);
+    });
+  } else if (!asm.jumpedUpOver1h && at !== null) {
+    // Monotonic descending stream (Admin Console export order)
+    const horizon = asm.pendingRows > cap ? W_MS : hold;
+    asm.keys.forEach((entry, key) => {
+      if (entry.maxT <= at + horizon) return;
+      const keep = [];
+      ceraActionSegments_(entry.rows).forEach(seg => {
+        if (seg.start > at + horizon) ceraFinalizeActionRows_(state, asm, seg.rows);
+        else keep.push(seg);
+      });
+      ceraKeepActionSegments_(asm, key, keep);
+    });
+  } else if (!asm.droppedOver25h && asm.maxT > -Infinity) {
+    // Cloud partition writer order (chronological 24h day slices, multi-stream within each day slice)
+    const cutoff = asm.maxT - DAY_SLICE_HOLD_MS;
+    asm.keys.forEach((entry, key) => {
+      if (entry.minT >= cutoff) return;
+      const keep = [];
+      ceraActionSegments_(entry.rows).forEach(seg => {
+        if (seg.end < cutoff) ceraFinalizeActionRows_(state, asm, seg.rows);
+        else keep.push(seg);
+      });
+      ceraKeepActionSegments_(asm, key, keep);
+    });
+  }
+
+  const effectiveCap = explicitSmallCap ? cap : emergencyCeiling;
+  if (asm.pendingRows <= effectiveCap) return;
 
   const byKey = new Map();
   const all = [];
@@ -297,7 +471,7 @@ function ceraSweepActions_(state, flush, capOverride) {
     list.forEach(x => all.push(x));
   });
   all.sort((a, b) => b.dist - a.dist || a.seg.start - b.seg.start || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-  const target = capOverride !== undefined ? cap : Math.floor(cap * 0.9);
+  const target = capOverride !== undefined ? cap : Math.floor(effectiveCap * 0.9);
   let left = asm.pendingRows;
   const touched = new Set();
   for (let i = 0; i < all.length && left > target; i++) {
@@ -433,7 +607,7 @@ function ceraRowJoinsAction_(action, r) {
  * executable, extension or other. The extension of the Content Name decides first (CERA_FILE_FAMILY_EXTENSIONS);
  * without a known one the MIME type does. A paste or a printed page (text/plain, text/html) is text.
  */
-function ceraFileFamily_(contentName, mime) {
+function ceraFileFamily_(contentName, mime, outboundKind) {
   const name = String(contentName || '').trim().toLowerCase();
   const dot = name.lastIndexOf('.');
   if (dot > 0 && dot < name.length - 1) {
@@ -444,7 +618,7 @@ function ceraFileFamily_(contentName, mime) {
     }
   }
   const m = String(mime || '').trim().toLowerCase().split(';')[0];
-  if (!m) return 'other';
+  if (!m) return outboundKind === 'paste' ? 'text' : 'other';
   if (m === 'application/pdf') return 'pdf';
   if (/x-chrome-extension|x-xpinstall/.test(m)) return 'extension';
   if (/spreadsheet|excel|^text\/csv$|^application\/csv$|tab-separated-values/.test(m)) return 'spreadsheet';

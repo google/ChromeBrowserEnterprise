@@ -154,8 +154,7 @@ var NativeSheetsChartEngine = {
         .setOption('isStacked', true)
         .setOption('series', {
           0: { type: 'bars', targetAxisIndex: 0, color: '#DC2626' }, // Upload GB
-          1: { type: 'bars', targetAxisIndex: 0, color: '#059669' }, // Download GB
-          2: { type: 'line', targetAxisIndex: 1, color: '#2563EB', lineWidth: 3, pointSize: 5 } // Total Events
+          1: { type: 'line', targetAxisIndex: 1, color: '#2563EB', lineWidth: 3, pointSize: 5 } // Total Events
         })
         .setOption('vAxes', {
           0: { title: NativeSheetsChartEngine.axisTitle_('volumeGb', lang), textStyle: { fontSize: 9 } },
