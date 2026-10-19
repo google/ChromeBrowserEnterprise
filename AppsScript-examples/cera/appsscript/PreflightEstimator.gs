@@ -62,6 +62,7 @@ function runIngestionPreflight(dateRangeDays) {
   const days = ceraRangeDays_(dateRangeDays);
   const token = ScriptApp.getOAuthToken();
   const result = {
+    success: true,
     days: days,
     access: null,
     probe: null,
@@ -77,6 +78,7 @@ function runIngestionPreflight(dateRangeDays) {
 
   result.access = _preflightCheckReportsAccess_(token);
   if (!result.access.ok) {
+    result.success = false;
     result.recommendManual = true;
     result.routingBand = 'NOT_SUPPORTED';
     result.messageKey = result.access.reasonKey;
@@ -148,6 +150,15 @@ function _preflightQuery_(params) {
 
 function _preflightReportsUrl_(params) {
   return REPORTS_CHROME_URL + '?' + _preflightQuery_(params);
+}
+
+function _preflightEventParams_(evName, extra) {
+  const params = Object.assign({ eventName: evName }, extra || {});
+  if (!params.pageToken && typeof CERA_EGRESS_FILTERED_EVENTS !== 'undefined' &&
+      CERA_EGRESS_FILTERED_EVENTS.indexOf(evName) !== -1) {
+    params.filters = CERA_REPORTS_EGRESS_FILTER;
+  }
+  return params;
 }
 
 // ==============================================================================
@@ -315,10 +326,13 @@ function _preflightProbe_(token, days, startedMs, activity) {
 
     const reqs = active.map(s => {
       const w = windows[s.window];
-      const params = { eventName: s.event, maxResults: 1000, fields: PREFLIGHT_PROBE_FIELDS };
-      if (s.pageToken) params.pageToken = s.pageToken;
-      params.startTime = w.startIso;
-      params.endTime = w.endIso;
+      const params = _preflightEventParams_(s.event, {
+        maxResults: 1000,
+        fields: PREFLIGHT_PROBE_FIELDS,
+        pageToken: s.pageToken || undefined,
+        startTime: w.startIso,
+        endTime: w.endIso
+      });
       return _preflightRequest_(_preflightReportsUrl_(params), token);
     });
     const t0 = Date.now();
@@ -371,9 +385,9 @@ function _preflightProbe_(token, days, startedMs, activity) {
     const spanStartIso = new Date(activity.firstActiveMs).toISOString();
     const spanEndIso = new Date(activity.endMs).toISOString();
     const tStage1 = Date.now();
-    const responses = UrlFetchApp.fetchAll(TARGET_EVENTS.map(ev => _preflightRequest_(_preflightReportsUrl_({
-      eventName: ev, maxResults: 1000, fields: PREFLIGHT_PROBE_FIELDS, startTime: spanStartIso, endTime: spanEndIso
-    }), token)));
+    const responses = UrlFetchApp.fetchAll(TARGET_EVENTS.map(ev => _preflightRequest_(_preflightReportsUrl_(
+      _preflightEventParams_(ev, { maxResults: 1000, fields: PREFLIGHT_PROBE_FIELDS, startTime: spanStartIso, endTime: spanEndIso })
+    ), token)));
     fetchMs += Date.now() - tStage1;
     requests += responses.length;
     responses.forEach((resp, i) => {
@@ -425,9 +439,9 @@ function _preflightProbe_(token, days, startedMs, activity) {
         for (let b = 0; b < dayTasks.length; b += PREFLIGHT_FETCHALL_BATCH) {
           const chunk = dayTasks.slice(b, b + PREFLIGHT_FETCHALL_BATCH);
           const tBatch = Date.now();
-          const resps = UrlFetchApp.fetchAll(chunk.map(tk => _preflightRequest_(_preflightReportsUrl_({
-            eventName: tk.ev, maxResults: 1000, fields: PREFLIGHT_PROBE_FIELDS, startTime: tk.slice.startIso, endTime: tk.slice.endIso
-          }), token)));
+          const resps = UrlFetchApp.fetchAll(chunk.map(tk => _preflightRequest_(_preflightReportsUrl_(
+            _preflightEventParams_(tk.ev, { maxResults: 1000, fields: PREFLIGHT_PROBE_FIELDS, startTime: tk.slice.startIso, endTime: tk.slice.endIso })
+          ), token)));
           fetchMs += Date.now() - tBatch;
           requests += resps.length;
           resps.forEach((r, idx) => dayResults.push({ task: chunk[idx], res: _preflightParse_(r) }));
@@ -491,7 +505,7 @@ function _preflightProbe_(token, days, startedMs, activity) {
  * and to show how much partial response saves.
  */
 function _preflightMeasurePayload_(token, w) {
-  const base = { eventName: 'CONTENT_TRANSFER', maxResults: 1000, startTime: w.startIso, endTime: w.endIso };
+  const base = _preflightEventParams_('CONTENT_TRANSFER', { maxResults: 1000, startTime: w.startIso, endTime: w.endIso });
   const timeOne = fields => {
     const params = Object.assign({}, base);
     if (fields) params.fields = fields;

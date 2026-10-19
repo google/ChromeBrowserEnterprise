@@ -824,9 +824,8 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
   const outcomeNote = ceraOutcomeMode(stateOrDomains) === 'enforced' && reportNum_(v.egress && v.egress.count) > 0
     ? ' ' + ceraT('report.vector.outcomes', { left: formatBytes(vecOut.left.bytes), stopped: formatBytes(vecOut.stopped.bytes), list: ceraOutcomeListText(vecOut.outcomes, null, lang) }, lang)
     : '';
-  // The vector's actions by type: file uploads, pastes into a page and prints as the deck names them, then downloads
+  // The vector's actions by type: file uploads and pastes into a page as the deck names them
   const splitParts = ceraActionMix(v, stateOrDomains).map(x => ceraT(x.key, { n: x.n }, lang));
-  if (actionCount('download') > 0) splitParts.push(ceraT('deck.act.download', { n: actionCount('download') }, lang));
   const actionSplit = splitParts.length ? ' ' + ceraT('report.vector.actionSplit', { list: ceraJoinList(splitParts, lang) }, lang) : '';
   const vectorSummary = T('report.vec.profile', { n: totalEvents, amount: formatBytes(totalBytes), people: T('report.vec.actors', { n: userCount }), ou: topOUName, dest: topDomainName }) +
     dlpNote + actionSplit + outcomeNote;
@@ -844,7 +843,7 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
   // 4. Rows 8-22: Visual Chart Area (Combo Chart on Left, Bar Chart on Right)
   // Data tables start at row 24 to back the charts
   const timelineHeaderRow = 24;
-  sheet.getRange(timelineHeaderRow, 2, 1, 7).merge()
+  sheet.getRange(timelineHeaderRow, 2, 1, 5).merge()
     .setValue(T('report.vec.timelineTitle'))
     .setBackground('#0F172A').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left');
 
@@ -854,9 +853,9 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
     .setBackground('#0F172A').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left');
 
   // Column Headers for Timeline Table (Row 25)
-  // Columns B to E are specifically ordered to feed the COMBO chart: Date, Upload GB, Download GB, Total Events. A
-  // print job is in no vector (it sends nothing to the site of the page), so the vector has no print columns.
-  const timelineColHeaders = ['date', 'uploadGb', 'downloadGb', 'totalEvents', 'totalGb', 'uploadEvents', 'downloadEvents']
+  // Columns B to D are specifically ordered to feed the COMBO chart: Date, Upload GB, Total Events. A
+  // print job is in no vector (it sends nothing to the site of the page), so the vector has no print or download columns.
+  const timelineColHeaders = ['date', 'uploadGb', 'totalEvents', 'totalGb', 'uploadEvents']
     .map(c => T('report.col.' + c));
   sheet.getRange(timelineHeaderRow + 1, 2, 1, timelineColHeaders.length).setValues([timelineColHeaders])
     .setBackground('#F1F5F9').setFontColor('#334155').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center');
@@ -871,24 +870,22 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
     timelineRows.push([
       item.displayDate || item.date,
       item.uploadGb,
-      item.downloadGb,
       item.totalEvents,
       item.totalGb,
-      item.uploadCount,
-      item.downloadCount
+      item.uploadCount
     ]);
   });
 
   const timelineRowCount = Math.max(1, timelineRows.length);
   if (timelineRows.length > 0) {
     sheet.getRange(timelineHeaderRow + 2, 2, timelineRows.length, timelineColHeaders.length).setValues(timelineRows).setFontSize(8);
-    sheet.getRange(timelineHeaderRow + 2, 3, timelineRows.length, 2).setNumberFormat('#,##0.00'); // Upload, Download GB
-    sheet.getRange(timelineHeaderRow + 2, 5, timelineRows.length, 1).setNumberFormat('#,##0');    // Total Events
-    sheet.getRange(timelineHeaderRow + 2, 6, timelineRows.length, 1).setNumberFormat('#,##0.00'); // Total GB
-    sheet.getRange(timelineHeaderRow + 2, 7, timelineRows.length, 2).setNumberFormat('#,##0');    // Action Counts
+    sheet.getRange(timelineHeaderRow + 2, 3, timelineRows.length, 1).setNumberFormat('#,##0.00'); // Upload GB
+    sheet.getRange(timelineHeaderRow + 2, 4, timelineRows.length, 1).setNumberFormat('#,##0');    // Total Events
+    sheet.getRange(timelineHeaderRow + 2, 5, timelineRows.length, 1).setNumberFormat('#,##0.00'); // Total GB
+    sheet.getRange(timelineHeaderRow + 2, 6, timelineRows.length, 1).setNumberFormat('#,##0');    // Upload Events
     sheet.getRange(timelineHeaderRow + 2, 2, timelineRows.length, timelineColHeaders.length).setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
   } else {
-    sheet.getRange(timelineHeaderRow + 2, 2, 1, timelineColHeaders.length).setValues([[T('report.status.noTimeline'), 0, 0, 0, 0, 0, 0]]).setFontSize(8);
+    sheet.getRange(timelineHeaderRow + 2, 2, 1, timelineColHeaders.length).setValues([[T('report.status.noTimeline'), 0, 0, 0, 0]]).setFontSize(8);
   }
 
   // Populate Top MIME Types Data Rows (Cols L to O), each format by its name in the report language
@@ -909,9 +906,9 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
 
   // 5. Build Native Google Sheets Charts (Rows 8 to 22)
   if (typeof NativeSheetsChartEngine !== 'undefined') {
-    // Left Chart: Combo Chart (Stacked Directional Volume Bars + Events Velocity Line)
-    // Range includes row 25 headers (Date, Upload, Download, Total Events) + data rows
-    const comboRange = sheet.getRange(timelineHeaderRow + 1, 2, timelineRowCount + 1, 4);
+    // Left Chart: Combo Chart (Upload Volume Bars + Events Velocity Line)
+    // Range includes row 25 headers (Date, Upload, Total Events) + data rows
+    const comboRange = sheet.getRange(timelineHeaderRow + 1, 2, timelineRowCount + 1, 3);
     NativeSheetsChartEngine.buildTimelineComboChart(sheet, comboRange, 8, 2, 600, 280, T('report.vec.chartTimeline', { name: vName.toUpperCase() }), lang);
 
     // Right Chart: Top File Formats Bar Chart (Cols M & N: File Format, Volume GB). Only the real rows are
@@ -927,30 +924,30 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
   let nextRow = timelineHeaderRow + 2 + Math.max(timelineRowCount, mimeRowCount) + 2;
 
   // Left Section Header: TOP 10 USER ACTORS
-  sheet.getRange(nextRow, 2, 1, 8).merge()
+  sheet.getRange(nextRow, 2, 1, 7).merge()
     .setValue(T('report.vec.actorsTitle'))
     .setBackground('#0F172A').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left');
 
   // Right Section Header: TOP 3 VELOCITY SPIKES
-  sheet.getRange(nextRow, 12, 1, 9).merge()
+  sheet.getRange(nextRow, 12, 1, 6).merge()
     .setValue(ceraT('report.vector.spikesTitle', null, lang))
     .setBackground('#0F172A').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left');
 
   // Subheaders
-  sheet.getRange(nextRow + 1, 2, 1, 8).merge()
+  sheet.getRange(nextRow + 1, 2, 1, 7).merge()
     .setValue(T('report.vec.actorsSub'))
     .setFontStyle('italic').setFontColor('#64748B').setFontSize(8);
 
-  sheet.getRange(nextRow + 1, 12, 1, 9).merge()
+  sheet.getRange(nextRow + 1, 12, 1, 6).merge()
     .setValue(ceraT('report.vector.spikesSub', null, lang))
     .setFontStyle('italic').setFontColor('#64748B').setFontSize(8);
 
   // Table Headers
-  const actorHeaders = ['rank', 'user', 'ou', 'uploadGb', 'downloadGb', 'totalGb', 'uploadEvents', 'totalEvents'].map(c => T('report.col.' + c));
+  const actorHeaders = ['rank', 'user', 'ou', 'uploadGb', 'totalGb', 'uploadEvents', 'totalEvents'].map(c => T('report.col.' + c));
   sheet.getRange(nextRow + 2, 2, 1, actorHeaders.length).setValues([actorHeaders])
     .setBackground('#F1F5F9').setFontColor('#334155').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center');
 
-  const spikeHeaders = ['rank', 'spikeDate', 'volumeGb', 'events', 'multiple', 'dominantAction', 'directionSplit'].map(c => T('report.col.' + c));
+  const spikeHeaders = ['rank', 'spikeDate', 'volumeGb', 'events', 'multiple', 'dominantAction'].map(c => T('report.col.' + c));
   sheet.getRange(nextRow + 2, 12, 1, spikeHeaders.length).setValues([spikeHeaders])
     .setBackground('#F1F5F9').setFontColor('#334155').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center');
 
@@ -964,18 +961,17 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
         sanitizeCellText_(act.user),
         sanitizeCellText_(act.ou),
         act.uploadGb,
-        act.downloadGb,
         act.totalGb,
         act.uploadCount,
         act.totalEvents
       ]);
     } else {
-      actorRows.push([a + 1, '-', '-', 0, 0, 0, 0, 0]);
+      actorRows.push([a + 1, '-', '-', 0, 0, 0, 0]);
     }
   }
   sheet.getRange(nextRow + 3, 2, 10, actorHeaders.length).setValues(actorRows).setFontSize(8);
-  sheet.getRange(nextRow + 3, 5, 10, 3).setNumberFormat('#,##0.00'); // Upload, Download, Total GB
-  sheet.getRange(nextRow + 3, 8, 10, 2).setNumberFormat('#,##0');    // Upload, Total Events
+  sheet.getRange(nextRow + 3, 5, 10, 2).setNumberFormat('#,##0.00'); // Upload, Total GB
+  sheet.getRange(nextRow + 3, 7, 10, 2).setNumberFormat('#,##0');    // Upload, Total Events
   sheet.getRange(nextRow + 3, 2, 10, actorHeaders.length).setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
 
   // Populate Top 3 Spikes Rows
@@ -989,11 +985,10 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
         sp.totalGb,
         sp.totalEvents,
         `${reportNum_(sp.burstMultiple || 1).toFixed(1)}x`,
-        sanitizeCellText_(sp.dominantDirection),
-        `${reportGbText_(sp.uploadGb)} / ${reportGbText_(sp.downloadGb)}`
+        sanitizeCellText_(sp.dominantDirection)
       ]);
     } else {
-      spikeRows.push([s + 1, '-', 0, 0, '1.0x', '-', '-']);
+      spikeRows.push([s + 1, '-', 0, 0, '1.0x', '-']);
     }
   }
   sheet.getRange(nextRow + 3, 12, 3, spikeHeaders.length).setValues(spikeRows).setFontSize(8);
@@ -1001,12 +996,11 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
   sheet.getRange(nextRow + 3, 15, 3, 1).setNumberFormat('#,##0');    // Events
   sheet.getRange(nextRow + 3, 12, 3, spikeHeaders.length).setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
 
-  // 7. Section 3: Detailed Action Forensic Drilldowns (Uploads, Downloads; print jobs are in no vector)
+  // 7. Section 3: Detailed Action Forensic Drilldowns (Uploads; print jobs and downloads are in no vector)
   let drilldownRow = nextRow + 15;
   drilldownRow = writeActionSectionFromAgg(sheet, ceraT('report.vector.uploads', null, lang), actions.upload, drilldownRow, '#DC2626', unspecifiedTabDomains, lang);
-  drilldownRow = writeActionSectionFromAgg(sheet, ceraT('report.vector.downloads', null, lang), actions.download, drilldownRow, '#059669', unspecifiedTabDomains, lang);
 
-  // 8. Section 4: Top 5 Actors Daily Timeline Breakdown (Upload / Download)
+  // 8. Section 4: Top 5 Actors Daily Timeline Breakdown (Upload)
   drilldownRow = renderTop5ActorsTimelineSection(sheet, v, vectorAnalytics, drilldownRow + 2, lang);
 
   // Proportional Column Widths. Every column from B to T holds table data
@@ -1476,7 +1470,7 @@ function renderTop5ActorsTimelineSection(sheet, v, vectorAnalytics, startRow, la
 
   currentRow += 3;
 
-  const colHeaders = ['date', 'uploadGb', 'downloadGb', 'totalEvents', 'totalGb', 'uploadEvents', 'downloadEvents', 'outlierStatus']
+  const colHeaders = ['date', 'uploadGb', 'totalEvents', 'totalGb', 'uploadEvents', 'outlierStatus']
     .map(c => T('report.col.' + c));
 
   top5.forEach((act, idx) => {
@@ -1490,7 +1484,7 @@ function renderTop5ActorsTimelineSection(sheet, v, vectorAnalytics, startRow, la
       .setValue(subTitle)
       .setBackground('#F1F5F9').setFontColor('#1E293B').setFontWeight('bold').setFontSize(9).setHorizontalAlignment('left');
 
-    // Table Headers (Cols 2 to 9)
+    // Table Headers (Cols 2 to 7)
     sheet.getRange(currentRow + 1, 2, 1, colHeaders.length).setValues([colHeaders])
       .setBackground('#E2E8F0').setFontColor('#334155').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center');
 
@@ -1505,11 +1499,9 @@ function renderTop5ActorsTimelineSection(sheet, v, vectorAnalytics, startRow, la
       dayRows.push([
         d.displayDate || d.date,
         d.uploadGb,
-        d.downloadGb,
         d.totalEvents,
         d.totalGb,
         d.uploadCount,
-        d.downloadCount,
         status
       ]);
     });
@@ -1517,22 +1509,22 @@ function renderTop5ActorsTimelineSection(sheet, v, vectorAnalytics, startRow, la
     if (dayRows.length > 0) {
       const range = sheet.getRange(currentRow + 2, 2, dayRows.length, colHeaders.length);
       range.setValues(dayRows).setFontSize(8);
-      sheet.getRange(currentRow + 2, 3, dayRows.length, 2).setNumberFormat('#,##0.00'); // Upload, Download GB
-      sheet.getRange(currentRow + 2, 5, dayRows.length, 1).setNumberFormat('#,##0');    // Total Events
-      sheet.getRange(currentRow + 2, 6, dayRows.length, 1).setNumberFormat('#,##0.00'); // Total GB
-      sheet.getRange(currentRow + 2, 7, dayRows.length, 2).setNumberFormat('#,##0');    // Action Counts
+      sheet.getRange(currentRow + 2, 3, dayRows.length, 1).setNumberFormat('#,##0.00'); // Upload GB
+      sheet.getRange(currentRow + 2, 4, dayRows.length, 1).setNumberFormat('#,##0');    // Total Events
+      sheet.getRange(currentRow + 2, 5, dayRows.length, 1).setNumberFormat('#,##0.00'); // Total GB
+      sheet.getRange(currentRow + 2, 6, dayRows.length, 1).setNumberFormat('#,##0');    // Upload Events
       range.setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
 
       // Render native combo timeline chart for the actor starting at Column N (Col 14)
       if (typeof NativeSheetsChartEngine !== 'undefined') {
-        const actorComboRange = sheet.getRange(currentRow + 1, 2, dayRows.length + 1, 4);
+        const actorComboRange = sheet.getRange(currentRow + 1, 2, dayRows.length + 1, 3);
         const chartTitle = T('report.vec.actorChart', { rank: act.rank, user: act.user });
         NativeSheetsChartEngine.buildTimelineComboChart(sheet, actorComboRange, currentRow + 1, 14, 560, 270, chartTitle, lang);
       }
 
       currentRow += Math.max(dayRows.length + 3, 18);
     } else {
-      sheet.getRange(currentRow + 2, 2, 1, colHeaders.length).setValues([[T('report.status.noActivityLogs'), 0, 0, 0, 0, 0, 0, '-']]).setFontSize(8);
+      sheet.getRange(currentRow + 2, 2, 1, colHeaders.length).setValues([[T('report.status.noActivityLogs'), 0, 0, 0, 0, '-']]).setFontSize(8);
       currentRow += 4;
     }
   });

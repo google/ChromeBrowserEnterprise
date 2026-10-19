@@ -600,15 +600,12 @@ var ExecutivePresentationEngine = {
       return top;
     }
 
-    // Direction of the four channels' volume: what was sent out against what was downloaded through them. Downloads
-    // are retrieval and are never counted as data leaving.
+    // Outbound volume across the four channels: uploads and pastes leaving the browser.
     const outAllBytes = Number(state && state.egress && state.egress.bytes) || 0;
     const outAllCount = Number(state && state.egress && state.egress.count) || 0;
-    const downAllBytes = Number(state && state.globalActions && state.globalActions.download && state.globalActions.download.bytes) || 0;
     const outAllAmount = outAllBytes > 0 ? fmtB(outAllBytes) : T('deck.transfers', { n: outAllCount });
     let directionText;
-    if (outAllBytes <= 0 && outAllCount <= 0 && downAllBytes <= 0) directionText = T('deck.s4.directionNone');
-    else if (downAllBytes > 0) directionText = T('deck.s4.direction', { out: outAllAmount, down: fmtB(downAllBytes) });
+    if (outAllBytes <= 0 && outAllCount <= 0) directionText = T('deck.s4.directionNone');
     else directionText = T('deck.s4.directionOut', { out: outAllAmount });
     const unscannedCount = Number((state && state.egress && state.egress.unscanned && state.egress.unscanned.count) || (state && state.unscanned && state.unscanned.count)) || 0;
     const unscannedBytes = Number((state && state.egress && state.egress.unscanned && state.egress.unscanned.bytes) || (state && state.unscanned && state.unscanned.bytes)) || 0;

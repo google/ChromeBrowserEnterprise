@@ -943,6 +943,8 @@ function processCloudIngestionBatch() {
         const pageIds = [];
         const pageTimes = [];
         let reachedSliceStart = false;
+        let skippedEdgeMs = NaN;
+        let skippedEdgeId = '';
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           const itemMs = item && item.id ? Date.parse(item.id.time) : NaN;
@@ -953,6 +955,13 @@ function processCloudIngestionBatch() {
           }
           if (resumeAtEdge && ceraTakenFromStream_(stream, itemMs, itemId)) continue;
           const parsedRow = parseEventToRow(item, evName);
+          if (ceraIsNonEgressTransferRow_(evName, parsedRow)) {
+            if (!isNaN(itemMs)) {
+              skippedEdgeMs = itemMs;
+              skippedEdgeId = itemId;
+            }
+            continue;
+          }
           ceraRecordDiagRowSchema_(tickDiag.streamSchema, evName, parsedRow);
           pageRows.push(parsedRow);
           pageIds.push(itemId);
@@ -965,6 +974,9 @@ function processCloudIngestionBatch() {
           ceraExtendEdge_(stream, pageTimes[r], pageIds[r]);
           buffer.push(pageRows[r]);
           bufferIds.push(pageIds[r]);
+        }
+        if (!isNaN(skippedEdgeMs) && stream.pageToken) {
+          ceraExtendEdge_(stream, skippedEdgeMs, skippedEdgeId);
         }
 
         const taken = pageRows.length;
@@ -1632,19 +1644,38 @@ function ceraIsPermissionError_(message) {
 }
 
 const CERA_SAFE_REPORTS_FIELDS = 'nextPageToken,items(id(time,uniqueQualifier),actor(email),events(name,parameters))';
+const CERA_EGRESS_FILTERED_EVENTS = ['CONTENT_TRANSFER', 'SENSITIVE_DATA_TRANSFER', 'CONTENT_UNSCANNED'];
+const CERA_REPORTS_EGRESS_FILTER = 'TRIGGER_TYPE!=FILE_DOWNLOAD';
+
+/**
+ * True when a transfer-stream row (CONTENT_TRANSFER, SENSITIVE_DATA_TRANSFER, CONTENT_UNSCANNED) represents
+ * a non-egress action (FILE_DOWNLOAD or CLIPBOARD_COPY). Never filters MALWARE_TRANSFER or security signals.
+ */
+function ceraIsNonEgressTransferRow_(queryEventName, parsedRow) {
+  if (!parsedRow || CERA_EGRESS_FILTERED_EVENTS.indexOf(String(queryEventName || '').toUpperCase()) === -1) {
+    return false;
+  }
+  const rawTrig = String(parsedRow[8] || parsedRow[9] || '').trim().toUpperCase().replace(/\s+/g, '_');
+  return rawTrig === 'FILE_DOWNLOAD' || rawTrig === 'CLIPBOARD_COPY';
+}
 
 /**
  * Fetch page from Google Admin SDK Reports API. Always passes startTime and endTime alongside pageToken so the
  * Reports API stays bounded to the requested slice window on page 2+.
  */
 function fetchChromeLogPage(pageToken, startTimeIso, currentLogTimestampMs, eventName, maxResults, endTimeIso) {
+  const evName = eventName || 'CONTENT_TRANSFER';
   const options = {
     userKey: 'all',
     applicationName: 'chrome',
     maxResults: maxResults || 1000,
-    eventName: eventName || 'CONTENT_TRANSFER',
+    eventName: evName,
     fields: CERA_SAFE_REPORTS_FIELDS
   };
+
+  if (!pageToken && CERA_EGRESS_FILTERED_EVENTS.indexOf(evName) !== -1) {
+    options.filters = CERA_REPORTS_EGRESS_FILTER;
+  }
 
   if (endTimeIso) {
     options.endTime = endTimeIso;
@@ -1666,8 +1697,13 @@ function fetchChromeLogPage(pageToken, startTimeIso, currentLogTimestampMs, even
     } catch (e) {
       const classified = ceraClassifyIngestionError_(e);
       const errMsg = (e.message || String(e)).toLowerCase();
-      if (options.fields && !options.pageToken && (classified.httpStatus === 400 || errMsg.includes('invalid field') || errMsg.includes('field'))) {
-        delete options.fields;
+      if ((options.fields || options.filters) && !options.pageToken &&
+          (classified.httpStatus === 400 || errMsg.includes('invalid') || errMsg.includes('field') || errMsg.includes('filter'))) {
+        if (options.filters && (errMsg.includes('filter') || errMsg.includes('parameter') || !errMsg.includes('field'))) {
+          delete options.filters;
+        } else {
+          delete options.fields;
+        }
         return AdminReports.Activities.list('all', 'chrome', options);
       }
       // Checked first: a rate limit can come as a 403, and it clears with time
