@@ -18,7 +18,7 @@ Before any script can run, the specific Google Cloud APIs must be enabled within
     * **[Chrome Management API](https://developers.google.com/chrome/management)**: For browser reporting, telemetry, and app management.
     * **[Chrome Policy API](https://developers.google.com/chrome/policy)**: For managing browser policies programmatically.
     * **[Admin SDK API](https://support.google.com/chrome/a/answer/9681204?ref_topic=9301744&hl=en)**: For managing Organizational Units (OUs) and Directory settings.
-    * **[Cloud Identity API](https://docs.cloud.google.com/identity/)**: For provisioning and managing identity resources.
+    * **[Cloud Identity API](https://docs.cloud.google.com/identity/docs/reference/rest)**: For provisioning and managing identity resources.
     * **[Access Context Manager API](https://docs.cloud.google.com/access-context-manager/docs/reference/rest)**: For setting attribute based access control to requests to Google Cloud services.
     * **[Cloud Resource Manager API](https://docs.cloud.google.com/resource-manager/docs)**: Creates, reads, and updates metadata for Google Cloud Platform resource containers.
     * **BeyondCorp API**: Security Gateway.
