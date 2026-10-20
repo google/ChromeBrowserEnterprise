@@ -33,7 +33,7 @@ Scopes define the level of access a script has. The tools in the `/Python` folde
 | **Chrome Management** | `https://www.googleapis.com/auth/chrome.management.appdetails.readonly`, `https://www.googleapis.com/auth/chrome.management.profiles`, `https://www.googleapis.com/auth/chrome.management.reports.readonly` | 
 | **Chrome Policy** | `https://www.googleapis.com/auth/chrome.management.policy`, `https://www.googleapis.com/auth/chrome.management.policy.readonly` | 
 | **Admin SDK** | `https://www.googleapis.com/auth/admin.directory.device.chromebrowsers`, `https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly`, `https://www.googleapis.com/auth/admin.directory.orgunit.readonly`, `https://www.googleapis.com/auth/admin.reports.audit.readonly` | 
-| **Cloud Identity API** | `https://www.googleapis.com/auth/cloud-identity.groups`, `https://cloudidentity.googleapis.com/v1/policies`, `https://cloudidentity.googleapis.com/v1beta1/policies`, ``, | 
+| **Cloud Identity API** | `https://www.googleapis.com/auth/cloud-identity.groups`, `https://cloudidentity.googleapis.com/v1/policies`, `https://cloudidentity.googleapis.com/v1beta1/policies` | 
 | **Access Context Manager API** | `https://accesscontextmanager.googleapis.com/v1` |
 | **BeyondCorp API** | `https://beyondcorp.googleapis.com/v1` |
 
