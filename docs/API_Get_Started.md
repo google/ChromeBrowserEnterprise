@@ -16,11 +16,12 @@ Before any script can run, the specific Google Cloud APIs must be enabled within
 3.  Navigate to **APIs & Services > Library**.
 4.  Search for and **Enable** the following APIs:
     * **[Chrome Management API](https://developers.google.com/chrome/management)**: For browser reporting, telemetry, and app management.
-    * **[Chrome Policy API](https://developers.google.com/chrome/polic)**: For managing browser policies programmatically.
+    * **[Chrome Policy API](https://developers.google.com/chrome/policy)**: For managing browser policies programmatically.
     * **[Admin SDK API](https://support.google.com/chrome/a/answer/9681204?ref_topic=9301744&hl=en)**: For managing Organizational Units (OUs) and Directory settings.
     * **[Cloud Identity API](https://docs.cloud.google.com/identity/)**: For provisioning and managing identity resources.
     * **[Access Context Manager API](https://docs.cloud.google.com/access-context-manager/docs/reference/rest)**: For setting attribute based access control to requests to Google Cloud services.
     * **[Cloud Resource Manager API](https://docs.cloud.google.com/resource-manager/docs)**: Creates, reads, and updates metadata for Google Cloud Platform resource containers.
+    * **BeyondCorp API**: Security Gateway.
 
 ---
 
@@ -33,7 +34,8 @@ Scopes define the level of access a script has. The tools in the `/Python` folde
 | **Chrome Policy** | `https://www.googleapis.com/auth/chrome.management.policy`, `https://www.googleapis.com/auth/chrome.management.policy.readonly` | 
 | **Admin SDK** | `https://www.googleapis.com/auth/admin.directory.device.chromebrowsers`, `https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly`, `https://www.googleapis.com/auth/admin.directory.orgunit.readonly`, `https://www.googleapis.com/auth/admin.reports.audit.readonly` | 
 | **Cloud Identity API** | `https://www.googleapis.com/auth/cloud-identity.groups`, `https://cloudidentity.googleapis.com/v1/policies`, `https://cloudidentity.googleapis.com/v1beta1/policies`, ``, | 
-| **Access Context Manager API** | `https://accesscontextmanager.googleapis.com/v1`,`https://beyondcorp.googleapis.com/v1` | 
+| **Access Context Manager API** | `https://accesscontextmanager.googleapis.com/v1` |
+| **BeyondCorp API** | `https://beyondcorp.googleapis.com/v1` |
 
 *Note: Always use the most restrictive scope possible (e.g., `.readonly`) if your script does not need to make changes.*
 
