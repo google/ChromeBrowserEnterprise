@@ -739,7 +739,7 @@ function ceraBuildCoverageMeta_(state, params, outlierMetrics, unreadableSheets,
   let windowDays = Number(params && (params.windowDays || params.rangeDays)) || sessionWindowDays || 0;
   if (!windowDays && hasSpan && rawCalDays > 1) {
     const candidate = rawCalDays - 1;
-    if ([1, 7, 14, 30, 60, 90, 180].indexOf(candidate) !== -1 && actualSpanDays > candidate - 0.5 && actualSpanDays <= candidate + 0.05) {
+    if ([7, 14, 30, 60, 90, 180].indexOf(candidate) !== -1 && actualSpanDays > candidate - 0.5 && actualSpanDays <= candidate + 0.05) {
       windowDays = candidate;
     }
   }

@@ -286,6 +286,8 @@ var InsightEngine = {
     } else {
       h.cover = T('deck.cover.hl', { bytes: A(f.outboundBytes, f.outboundCount, f.byCount), days: f.days, pct: pct(f.sensitiveOutbound, f.outboundCount) });
     }
+    if (f.days === 1 && h.cover) h.cover = h.cover.replace(/\bin 1 days\b/g, 'in 1 day');
+
     // The cover's note on outcomes: what was stopped (enforced), that nothing was (audit), or that the logs carry none
     if (f.mode === 'enforced') {
       h.coverNote = !hasOutbound ? '' : (out.stopped.count > 0

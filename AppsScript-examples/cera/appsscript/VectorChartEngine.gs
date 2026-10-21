@@ -471,7 +471,7 @@ var VectorChartEngine = {
 
     // Choose a display unit that keeps small tenants readable (B / KB / MB / GB)
     const maxBytes = Math.max(...rawBytes, 0);
-    const units = [['GB', 1024 ** 3], ['MB', 1024 ** 2], ['KB', 1024], ['B', 1]];
+    const units = [['TB', 1024 ** 4], ['GB', 1024 ** 3], ['MB', 1024 ** 2], ['KB', 1024], ['B', 1]];
     let unit = units[units.length - 1];
     for (let u = 0; u < units.length; u++) {
       if (maxBytes >= units[u][1]) { unit = units[u]; break; }

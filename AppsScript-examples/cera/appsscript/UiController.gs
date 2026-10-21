@@ -662,10 +662,19 @@ function discoverManualSourceDomains(sourceInput) {
         if (typeof ceraSortPartitionQueue_ === 'function') {
           files = ceraSortPartitionQueue_(files);
         }
-        for (let i = 0; i < files.length && sheetIds.length < 3; i++) {
+        let queue = [];
+        for (let i = 0; i < files.length; i++) {
           const fid = files[i] && files[i].id ? String(files[i].id) : '';
-          if (fid && fid !== currentSsId && !sheetIds.includes(fid)) {
-            sheetIds.push(fid);
+          if (fid && fid !== currentSsId && !queue.includes(fid)) {
+            queue.push(fid);
+          }
+        }
+        if (queue.length <= 8) {
+          for (let i = 0; i < queue.length; i++) sheetIds.push(queue[i]);
+        } else {
+          for (let i = 0; i < 8; i++) {
+            const idx = Math.floor(i * (queue.length - 1) / 7);
+            if (!sheetIds.includes(queue[idx])) sheetIds.push(queue[idx]);
           }
         }
       } catch (listErr) {}
@@ -679,7 +688,7 @@ function discoverManualSourceDomains(sourceInput) {
       ? CeraConfig.CONSUMER_EMAIL_DOMAINS
       : ['gmail.com', 'googlemail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com', 'live.com', 'msn.com', 'protonmail.com', 'proton.me', 'mail.com', 'zoho.com', 'yandex.com', 'gmx.com', 'me.com', 'mac.com'];
     const consumerSet = new Set(consumerList.map(d => String(d).toLowerCase().trim()));
-    const consumerPrefixRe = /^(yahoo|outlook|hotmail|live|msn|icloud|aol|proton|gmx|ymail)\./i;
+    const consumerPrefixRe = /^(yahoo|outlook|hotmail|live|msn|icloud|aol|proton|gmx|ymail)./i;
 
     const extractValidDomain = rawVal => {
       if (rawVal === null || rawVal === undefined || rawVal === '') return '';
@@ -695,12 +704,36 @@ function discoverManualSourceDomains(sourceInput) {
     const counts = {};
     const accountCounts = {};
     const corpStems = new Set();
+    const hasManagedOu = {};
 
-    for (let sIdx = 0; sIdx < sheetIds.length && sIdx < 3; sIdx++) {
+    function ceraColIndexToLetter_(idx) {
+      let temp, letter = '';
+      while (idx > 0) {
+        temp = (idx - 1) % 26;
+        letter = String.fromCharCode(temp + 65) + letter;
+        idx = (idx - temp - 1) / 26;
+      }
+      return letter;
+    }
+
+    const processOu = ouStr => {
+      if (!ouStr) return;
+      const parts = String(ouStr).split('/');
+      for (let p = 0; p < parts.length; p++) {
+        const segDom = extractValidDomain('u@' + parts[p].trim());
+        if (segDom) {
+          counts[segDom] = (counts[segDom] || 0) + 1;
+          hasManagedOu[segDom] = true;
+        }
+      }
+    };
+
+    for (let sIdx = 0; sIdx < sheetIds.length; sIdx++) {
       const sheetId = sheetIds[sIdx];
       let rows = [];
+      let grid = null;
       try {
-        const grid = typeof ceraGetSourceSheetGridInfo_ === 'function' ? ceraGetSourceSheetGridInfo_(sheetId) : null;
+        grid = typeof ceraGetSourceSheetGridInfo_ === 'function' ? ceraGetSourceSheetGridInfo_(sheetId) : null;
         const maxRow = grid && Number(grid.rowCount) > 0 ? Math.min(201, Math.max(2, Number(grid.rowCount))) : 201;
         const range = (grid && grid.escapedTitle && grid.lastCol)
           ? (grid.escapedTitle + '!A1:' + grid.lastCol + maxRow)
@@ -745,15 +778,68 @@ function discoverManualSourceDomains(sourceInput) {
           }
         }
         if (col.ou !== -1 && row[col.ou]) {
-          const ouStr = String(row[col.ou] || '').trim().toLowerCase();
-          const ouMatch = ouStr.match(/\b([a-z0-9-]+\.(?:com|org|net|edu|gov|io|co|id|jp|kr|cn|vn|sg|my|th|ph)(?:\.[a-z]{2,3})?)\b/i);
-          if (ouMatch && ouMatch[1]) {
-            const ouDom = ouMatch[1].toLowerCase();
-            if (!consumerSet.has(ouDom) && !consumerPrefixRe.test(ouDom)) {
-              accountCounts[ouDom] = (accountCounts[ouDom] || 0) + 1;
+          processOu(row[col.ou]);
+        }
+      }
+
+      if (typeof Sheets !== 'undefined' && Sheets.Spreadsheets && Sheets.Spreadsheets.Values && typeof Sheets.Spreadsheets.Values.batchGet === 'function' && grid && grid.rowCount > 201) {
+        try {
+          const puCol = col.profileUser !== -1 ? col.profileUser : col.userAlt;
+          const ouCol = col.ou;
+          const acCol = col.account;
+          if (puCol !== -1 || ouCol !== -1 || acCol !== -1) {
+            const ranges = [];
+            const r1 = 202;
+            let r2 = Math.min(sheetIds.length === 1 ? 100001 : 5001, grid.rowCount);
+            const title = grid.escapedTitle + '!';
+            if (puCol !== -1) ranges.push(title + ceraColIndexToLetter_(puCol + 1) + r1 + ':' + ceraColIndexToLetter_(puCol + 1) + r2);
+            if (ouCol !== -1) ranges.push(title + ceraColIndexToLetter_(ouCol + 1) + r1 + ':' + ceraColIndexToLetter_(ouCol + 1) + r2);
+            if (acCol !== -1) ranges.push(title + ceraColIndexToLetter_(acCol + 1) + r1 + ':' + ceraColIndexToLetter_(acCol + 1) + r2);
+            
+            if (sheetIds.length > 1 && grid.rowCount > 25000) {
+               const midR1 = 25001;
+               const midR2 = Math.min(30000, grid.rowCount);
+               if (puCol !== -1) ranges.push(title + ceraColIndexToLetter_(puCol + 1) + midR1 + ':' + ceraColIndexToLetter_(puCol + 1) + midR2);
+               if (ouCol !== -1) ranges.push(title + ceraColIndexToLetter_(ouCol + 1) + midR1 + ':' + ceraColIndexToLetter_(ouCol + 1) + midR2);
+               if (acCol !== -1) ranges.push(title + ceraColIndexToLetter_(acCol + 1) + midR1 + ':' + ceraColIndexToLetter_(acCol + 1) + midR2);
+            }
+            
+            const batchResp = Sheets.Spreadsheets.Values.batchGet(sheetId, { ranges: ranges });
+            if (batchResp && Array.isArray(batchResp.valueRanges)) {
+              for (let v = 0; v < batchResp.valueRanges.length; v++) {
+                const vr = batchResp.valueRanges[v];
+                if (!vr || !vr.values || !vr.range) continue;
+                const puColLetter = puCol !== -1 ? ceraColIndexToLetter_(puCol + 1) : '';
+                const ouColLetter = ouCol !== -1 ? ceraColIndexToLetter_(ouCol + 1) : '';
+                const acColLetter = acCol !== -1 ? ceraColIndexToLetter_(acCol + 1) : '';
+                const isPuCol = puCol !== -1 && (vr.range.includes('!' + puColLetter) || vr.range.includes(puColLetter + ':'));
+                const isOuCol = ouCol !== -1 && (vr.range.includes('!' + ouColLetter) || vr.range.includes(ouColLetter + ':'));
+                const isAcCol = acCol !== -1 && (vr.range.includes('!' + acColLetter) || vr.range.includes(acColLetter + ':'));
+                for (let k = 0; k < vr.values.length; k++) {
+                  const cellVal = vr.values[k][0];
+                  if (!cellVal) continue;
+                  if (isPuCol) {
+                    const puDom = extractValidDomain(cellVal);
+                    if (puDom) {
+                      counts[puDom] = (counts[puDom] || 0) + 1;
+                      const stem = puDom.split('.')[0];
+                      if (stem && stem.length >= 3) corpStems.add(stem);
+                    }
+                  }
+                  if (isOuCol) {
+                    processOu(cellVal);
+                  }
+                  if (isAcCol) {
+                    const accDom = extractValidDomain(cellVal);
+                    if (accDom) {
+                      accountCounts[accDom] = (accountCounts[accDom] || 0) + 1;
+                    }
+                  }
+                }
+              }
             }
           }
-        }
+        } catch (bErr) {}
       }
     }
 
@@ -768,7 +854,7 @@ function discoverManualSourceDomains(sourceInput) {
     const domains = Object.keys(counts)
       .filter(d => counts[d] > 0)
       .sort((a, b) => (counts[b] - counts[a]) || (a < b ? -1 : (a > b ? 1 : 0)))
-      .slice(0, 12);
+      .slice(0, 50);
 
     return {
       domains: domains,

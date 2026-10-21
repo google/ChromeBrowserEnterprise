@@ -128,7 +128,11 @@ const CERA_DETECTOR_ACRONYMS = new Set([
   'nie', 'nif', 'curp', 'rfc', 'hkid', 'tfn', 'abn', 'ird', 'ip', 'mac',
   'url', 'uri', 'uuid', 'guid', 'jwt', 'api', 'aws', 'gcp', 'ssh', 'pgp',
   'rsa', 'pem', 'id', 'dob', 'hipaa', 'pci', 'gdpr', 'cvv', 'cvc', 'pin',
-  'ktp', 'npwp'
+  'ktp', 'npwp', 'fda', 'icd', 'icd9', 'icd10', 'imei', 'imsi', 'iccid',
+  'meid', 'bsn', 'cni', 'micr', 'aba', 'dea', 'npi', 'nhs', 'nino', 'utr',
+  'ein', 'itin', 'atin', 'ptin', 'pesel', 'regon', 'nip', 'rrn', 'brn',
+  'bvn', 'vin', 'nir', 'siren', 'siret', 'insee', 'iva', 'sepa', 'cusip',
+  'isin', 'sedol', 'figi', 'lei', 'duns', 'phi', 'pii'
 ]);
 
 /**
@@ -145,6 +149,8 @@ function isInternalHost(host) {
   if (h === 'localhost' || h === 'local' || raw.indexOf('local file') === 0) return true;
   if (/^(10|127)\.\d+\.\d+\.\d+$/.test(h) || /^192\.168\.\d+\.\d+$/.test(h) || /^169\.254\.\d+\.\d+$/.test(h)) return true;
   if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(h)) return true;
+  if (/^100\.(6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\.\d+\.\d+$/.test(h)) return true;
+  if (/^198\.1[89]\.\d+\.\d+$/.test(h)) return true;
   if (/\.(local|internal|lan|corp|intranet|pvt|localdomain|home\.arpa)$/.test(h)) return true;
   if (/\.int$/.test(h) && !matchDomainList(h, CERA_PUBLIC_INT_DOMAINS)) return true;
   if (/^chrome(-untrusted)?:/.test(h)) return true;
@@ -960,6 +966,10 @@ function formatBytes(bytes) {
   const num = Number(bytes);
   if (isNaN(num)) return '0.00 MB';
 
+  const tb = num / (1024 * 1024 * 1024 * 1024);
+  if (tb >= 1.0) {
+    return tb.toFixed(2) + ' TB';
+  }
   const gb = num / (1024 * 1024 * 1024);
   if (gb >= 1.0) {
     return gb.toFixed(2) + ' GB';

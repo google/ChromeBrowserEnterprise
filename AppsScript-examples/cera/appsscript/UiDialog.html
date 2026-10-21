@@ -2183,26 +2183,47 @@
       updateSingleUseWarningBanner('step2-container');
 
       if (!activeExtractedFolderId && folderInput && corpChips) {
+        const suggContainer = document.getElementById('corp-suggestions');
+        const btnGenerate = document.getElementById('btn-generate');
+        if (suggContainer) {
+          suggContainer.innerHTML = '<div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#64748B;"><span class="spinner" style="width:14px; height:14px; border-width:2px;"></span> Discovering tenant domains...</div>';
+          suggContainer.style.display = 'flex';
+        }
+        if (btnGenerate) btnGenerate.disabled = true;
+
         google.script.run
           .withSuccessHandler(function(res) {
+            if (btnGenerate) btnGenerate.disabled = false;
             if (res && Array.isArray(res.domains) && res.domains.length > 0 && corpChips) {
               const discovered = res.domains.map(d => String(d || '').toLowerCase().trim()).filter(Boolean);
               if (discovered.length > 0) {
                 const currentItems = Array.isArray(corpChips.items) ? corpChips.items : [];
                 const onlyRunnerNoOverlap = currentItems.length > 0 &&
-                  runnerDirectoryDomains.length > 0 &&
+                  typeof runnerDirectoryDomains !== 'undefined' && runnerDirectoryDomains.length > 0 &&
                   currentItems.every(d => runnerDirectoryDomains.includes(d)) &&
                   !currentItems.some(d => discovered.includes(d));
+                
                 if (currentItems.length === 0 || onlyRunnerNoOverlap) {
-                  corpChips.items = [discovered[0]];
-                  corpChips.render();
-                  syncRegisteredDomainsToProd();
+                  corpChips.items = [];
+                } else {
+                  corpChips.items = currentItems;
                 }
+
+                discovered.forEach(d => {
+                  if (!corpChips.items.includes(d)) corpChips.items.push(d);
+                });
+                corpChips.render();
+                if (typeof syncRegisteredDomainsToProd === 'function') syncRegisteredDomainsToProd();
                 corpChips.setSuggestions(discovered);
               }
+            } else if (suggContainer) {
+              suggContainer.style.display = 'none';
             }
           })
-          .withFailureHandler(function() {})
+          .withFailureHandler(function() {
+            if (btnGenerate) btnGenerate.disabled = false;
+            if (suggContainer) suggContainer.style.display = 'none';
+          })
           .discoverManualSourceDomains(folderInput);
       }
     }
