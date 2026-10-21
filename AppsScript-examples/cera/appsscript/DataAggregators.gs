@@ -874,3 +874,74 @@ function recordSensitiveOnPage(state, host, detectorText, ou, userIdent, dayKey,
     sp.detectors[d] = (sp.detectors[d] || 0) + 1;
   });
 }
+
+/**
+ * Prunes per-actor daily timeline maps for tail actors outside the top-N rankings so multi-month
+ * (90-180 day) runs keep V8 heap usage and checkpoint JSON size strictly bounded.
+ * computeTop5ActorTimelines only reads .timeline for the Top 5 actors per vector, and ceraSlide3Cards
+ * only reads .days for top funnel/scatter candidates.
+ */
+function ceraPruneStateForScale_(state, opts) {
+  if (!state) return;
+  const keepTopActors = (opts && opts.keepTopActors) || 50;
+  const vectorKeys = ['personal', 'shadowAi', 'unmanaged', 'messaging', 'securityRadar'];
+  for (let vIdx = 0; vIdx < vectorKeys.length; vIdx++) {
+    const vk = vectorKeys[vIdx];
+    const v = state.vectors && state.vectors[vk];
+    if (!v || !v.actors) continue;
+    const keys = Object.keys(v.actors);
+    if (keys.length <= keepTopActors) continue;
+    const isRadar = vk === 'securityRadar';
+    keys.sort((ka, kb) => {
+      const a = v.actors[ka] || {};
+      const b = v.actors[kb] || {};
+      if (isRadar) {
+        return (b.total || b.totalEvents || 0) - (a.total || a.totalEvents || 0);
+      }
+      return (b.totalBytes || 0) - (a.totalBytes || 0) || (b.totalEvents || 0) - (a.totalEvents || 0);
+    });
+    for (let i = keepTopActors; i < keys.length; i++) {
+      const act = v.actors[keys[i]];
+      if (act && act.timeline) {
+        const dCount = Object.keys(act.timeline).length;
+        if (dCount > 0) act._activeDays = Math.max(act._activeDays || 0, dCount);
+        delete act.timeline;
+      }
+    }
+  }
+
+  const endpoints = state.outliers && state.outliers.actorEndpoints;
+  if (endpoints) {
+    const epKeys = Object.keys(endpoints);
+    if (epKeys.length > 100) {
+      const keepSet = new Set();
+      const byVol = epKeys.slice().sort((ka, kb) => {
+        const a = endpoints[ka] || {};
+        const b = endpoints[kb] || {};
+        return (b.totalBytes || 0) - (a.totalBytes || 0) || (b.totalCount || 0) - (a.totalCount || 0);
+      });
+      for (let i = 0; i < Math.min(100, byVol.length); i++) keepSet.add(byVol[i]);
+
+      const byScatter = epKeys.slice().sort((ka, kb) => {
+        const a = endpoints[ka] || {};
+        const b = endpoints[kb] || {};
+        const da = Object.keys(a.domains || {}).length;
+        const db = Object.keys(b.domains || {}).length;
+        return db - da || (b.totalBytes || 0) - (a.totalBytes || 0);
+      });
+      for (let i = 0; i < Math.min(100, byScatter.length); i++) keepSet.add(byScatter[i]);
+
+      for (let i = 0; i < epKeys.length; i++) {
+        const u = epKeys[i];
+        if (keepSet.has(u)) continue;
+        const act = endpoints[u];
+        if (act && act.days) {
+          const dCount = Object.keys(act.days).length;
+          if (dCount > 0) act._activeDays = Math.max(act._activeDays || 0, dCount);
+          delete act.days;
+        }
+      }
+    }
+  }
+}
+

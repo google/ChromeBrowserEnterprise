@@ -83,6 +83,7 @@ function ceraActionAssembly_(state, emit, emitRadar) {
         at: null,
         minT: Infinity,
         maxT: -Infinity,
+        sheetMaxT: -Infinity,
         droppedOver25h: false,
         jumpedUpOver1h: false,
         census: null,
@@ -90,6 +91,7 @@ function ceraActionAssembly_(state, emit, emitRadar) {
         sweepEvery: 1000,
         emit: emit,
         radar: new Map(),
+        radarPendingRows: 0,
         emitRadar: emitRadar
       },
       enumerable: false,
@@ -215,6 +217,10 @@ function ceraAddRadarRow_(state, signal, row) {
   let list = asm.radar.get(key);
   if (!list) asm.radar.set(key, list = []);
   list.push(Object.assign({ signal: signal }, row));
+  asm.radarPendingRows = (asm.radarPendingRows || 0) + 1;
+  if (asm.radarPendingRows > 20000) {
+    ceraSweepRadarRows_(state, false);
+  }
 }
 
 // Sort order of radar rows with the same time: these fields decide, in this order, so pairing is deterministic
@@ -224,6 +230,83 @@ var CERA_RADAR_EVENT_RESULTS = ['WARNED', 'BLOCKED', 'BYPASSED'];
 // Signals whose rows are folded into the event they belong to: Safe Browsing visits and flagged downloads. A password
 // reuse row is an event of its own (a bypass still joins its warning).
 var CERA_RADAR_FOLDED_SIGNALS = ['unsafe', 'malware'];
+
+/**
+ * Folds, sorts, and emits a list of [key, rows] Security Radar entries in chronological order.
+ */
+function ceraEmitRadarKeys_(asm, keyEntries) {
+  if (!asm || !keyEntries || !keyEntries.length) return;
+  const pairMs = CeraConfig.OUTCOME_BYPASS_WINDOW_MS || 600000;
+  const events = [];
+  keyEntries.forEach(entry => {
+    const key = entry[0];
+    const rows = entry[1];
+    rows.sort(ceraCompareRadarRows_);
+    let current = null;
+    ceraFoldRadarRows_(rows).forEach(group => {
+      const bypass = group.find(r => r.result === 'BYPASSED' && r.t !== null);
+      const shown = group.some(r => r.result === 'WARNED' || r.result === 'BLOCKED');
+      if (current && bypass && !shown && current.warnAt !== null && bypass.t - current.warnAt <= pairMs) {
+        group.forEach(r => current.rows.push(r));
+        return;
+      }
+      const warning = group.find(r => r.t !== null && (r.result === 'WARNED' || r.result === 'BYPASSED'));
+      current = { signal: group[0].signal, key: key, t: group[0].t, rows: group, warnAt: warning ? warning.t : null };
+      events.push(current);
+    });
+  });
+  events.sort((a, b) => ((a.t === null ? Infinity : a.t) - (b.t === null ? Infinity : b.t)) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  const order = CeraConfig.OUTCOME_PRECEDENCE;
+  const rank = r => order.indexOf(ceraOutcomeClass_(r.result));
+  events.forEach(ev => {
+    ev.rows.sort(ceraCompareRadarRows_);
+    ev.result = ev.rows.reduce((best, r) => (rank(r) < rank(best) ? r : best)).result;
+    ev.reason = (ev.rows.find(r => r.reasonGiven) || ev.rows[0]).reason;
+    if (asm.emitRadar) asm.emitRadar(ev);
+  });
+}
+
+/**
+ * Sweeps completed Security Radar keys when pending radar rows exceed 20,000 or at non-overlapping sheet boundaries.
+ */
+function ceraSweepRadarRows_(state, flush, nextFileRange) {
+  if (flush) {
+    ceraFlushRadarRows_(state);
+    return;
+  }
+  const asm = state && state._actionAssembly;
+  if (!asm || !asm.radar || !asm.radar.size) return;
+  const hasNextRange = !!(nextFileRange && isFinite(nextFileRange.minT) && isFinite(nextFileRange.maxT) && !nextFileRange.overlapsAny);
+  const overCap = (asm.radarPendingRows || 0) > 20000 && asm.at !== null;
+  if (!hasNextRange && !overCap) return;
+
+  const pairMs = (CeraConfig.OUTCOME_BYPASS_WINDOW_MS || 600000) * 2;
+  const ready = [];
+  asm.radar.forEach((rows, key) => {
+    let kMin = Infinity;
+    let kMax = -Infinity;
+    for (let i = 0; i < rows.length; i++) {
+      const t = rows[i].t;
+      if (t !== null && typeof t === 'number' && !isNaN(t)) {
+        if (t < kMin) kMin = t;
+        if (t > kMax) kMax = t;
+      }
+    }
+    if (!isFinite(kMin)) return;
+    const evict = hasNextRange
+      ? (kMax + pairMs < nextFileRange.minT || kMin - pairMs > nextFileRange.maxT)
+      : (overCap && (kMax < asm.at - pairMs || kMin > asm.at + pairMs));
+    if (evict) {
+      ready.push([key, rows]);
+    }
+  });
+  if (!ready.length) return;
+  ready.forEach(entry => {
+    asm.radar.delete(entry[0]);
+    asm.radarPendingRows = Math.max(0, (asm.radarPendingRows || 0) - entry[1].length);
+  });
+  ceraEmitRadarKeys_(asm, ready);
+}
 
 /**
  * Pairs the Security Radar rows of each key (signal | user | URL) into events and hands each event to the aggregation
@@ -241,33 +324,10 @@ var CERA_RADAR_FOLDED_SIGNALS = ['unsafe', 'malware'];
 function ceraFlushRadarRows_(state) {
   const asm = state._actionAssembly;
   if (!asm || !asm.radar || !asm.radar.size) return;
-  const pairMs = CeraConfig.OUTCOME_BYPASS_WINDOW_MS || 600000;
-  const events = [];
-  asm.radar.forEach((rows, key) => {
-    rows.sort(ceraCompareRadarRows_);
-    let current = null;
-    ceraFoldRadarRows_(rows).forEach(group => {
-      const bypass = group.find(r => r.result === 'BYPASSED' && r.t !== null);
-      const shown = group.some(r => r.result === 'WARNED' || r.result === 'BLOCKED');
-      if (current && bypass && !shown && current.warnAt !== null && bypass.t - current.warnAt <= pairMs) {
-        group.forEach(r => current.rows.push(r));
-        return;
-      }
-      const warning = group.find(r => r.t !== null && (r.result === 'WARNED' || r.result === 'BYPASSED'));
-      current = { signal: group[0].signal, key: key, t: group[0].t, rows: group, warnAt: warning ? warning.t : null };
-      events.push(current);
-    });
-  });
+  const entries = Array.from(asm.radar.entries());
   asm.radar = new Map();
-  events.sort((a, b) => ((a.t === null ? Infinity : a.t) - (b.t === null ? Infinity : b.t)) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-  const order = CeraConfig.OUTCOME_PRECEDENCE;
-  const rank = r => order.indexOf(ceraOutcomeClass_(r.result));
-  events.forEach(ev => {
-    ev.rows.sort(ceraCompareRadarRows_);
-    ev.result = ev.rows.reduce((best, r) => (rank(r) < rank(best) ? r : best)).result;
-    ev.reason = (ev.rows.find(r => r.reasonGiven) || ev.rows[0]).reason;
-    if (asm.emitRadar) asm.emitRadar(ev);
-  });
+  asm.radarPendingRows = 0;
+  ceraEmitRadarKeys_(asm, entries);
 }
 
 /**
@@ -333,13 +393,60 @@ function ceraReasonGiven_(reason) {
 function ceraActionClock_(state, ms) {
   const asm = state._actionAssembly;
   if (!asm || typeof ms !== 'number' || isNaN(ms)) return;
+  if (typeof asm.sheetMaxT !== 'number') asm.sheetMaxT = asm.maxT;
   if (asm.at !== null) {
     if (ms > asm.at + 3600000) asm.jumpedUpOver1h = true;
-    if (asm.maxT > -Infinity && asm.maxT - ms > 25 * 3600000) asm.droppedOver25h = true;
+    if (asm.sheetMaxT > -Infinity && asm.sheetMaxT - ms > 25 * 3600000) asm.droppedOver25h = true;
   }
   asm.at = ms;
   if (ms < asm.minT) asm.minT = ms;
   if (ms > asm.maxT) asm.maxT = ms;
+  if (ms > asm.sheetMaxT) asm.sheetMaxT = ms;
+}
+
+/**
+ * Notifies the action assembler that a new source sheet is starting (rowCursor === 0).
+ * Sweeps completed segments from the finished sheet, evicts segments disjoint from a non-overlapping
+ * sheet range, and resets per-sheet clock monotonicity so multi-sheet manual exports continue sweeping.
+ */
+function ceraNotifySheetStart_(state, fileRange) {
+  const asm = state && state._actionAssembly;
+  if (!asm) return;
+  const W_MS = (CeraConfig.OUTCOME_BYPASS_WINDOW_MS || 600000) + (CeraConfig.ACTION_WINDOW_MS || 10000) + 60000;
+  if (asm.keys && asm.keys.size > 0) {
+    ceraSweepActions_(state, false);
+    if (!asm.census) {
+      const nonOverlapping = !fileRange || !fileRange.overlapsAny;
+      const hasNextRange = !!(fileRange && isFinite(fileRange.minT) && isFinite(fileRange.maxT) && !fileRange.overlapsAny);
+      if ((nonOverlapping && !asm.jumpedUpOver1h && asm.at !== null) || hasNextRange) {
+        const at = asm.at;
+        asm.keys.forEach((entry, key) => {
+          const keep = [];
+          ceraActionSegments_(entry.rows).forEach(seg => {
+            const doneByPrevSheet = nonOverlapping && !asm.jumpedUpOver1h && at !== null && seg.start > at + W_MS;
+            const doneByNextRange = hasNextRange && (seg.end + W_MS < fileRange.minT || seg.start - W_MS > fileRange.maxT);
+            if (doneByPrevSheet || doneByNextRange) {
+              ceraFinalizeActionRows_(state, asm, seg.rows);
+            } else {
+              keep.push(seg);
+            }
+          });
+          ceraKeepActionSegments_(asm, key, keep);
+        });
+      }
+    }
+  }
+  ceraSweepRadarRows_(state, false, fileRange);
+  if (typeof ceraPruneStateForScale_ === 'function') {
+    ceraPruneStateForScale_(state, { keepTopActors: 50 });
+  }
+  const keepScrambledFlags = !!(asm.jumpedUpOver1h && asm.droppedOver25h && fileRange && fileRange.overlapsAny);
+  asm.at = null;
+  asm.sheetMaxT = -Infinity;
+  if (!keepScrambledFlags) {
+    asm.jumpedUpOver1h = false;
+    asm.droppedOver25h = false;
+  }
 }
 
 /**
@@ -397,8 +504,7 @@ function ceraFlushActions_(state) {
  *     when pendingRows > cap) are finalized.
  *   - In chronological day-slice Writer Order (!asm.droppedOver25h), segments from completed earlier day slices
  *     (seg.end < asm.maxT - (25h + W_MS)) are finalized without evicting active in-slice rows.
- *   - Distance-based cap eviction runs only when an explicit small cap (< 50,000) or capOverride is requested, or
- *     above the 300,000-row emergency V8 heap ceiling.
+ *   - Distance-based cap eviction runs when pendingRows exceeds CeraConfig.ACTION_PENDING_MAX (50,000) or capOverride.
  */
 function ceraSweepActions_(state, flush, capOverride) {
   const asm = state._actionAssembly;
@@ -408,7 +514,7 @@ function ceraSweepActions_(state, flush, capOverride) {
   const DAY_SLICE_HOLD_MS = 25 * 3600000 + W_MS;
   const cap = capOverride !== undefined ? capOverride : (CeraConfig.ACTION_PENDING_MAX || 50000);
   const explicitSmallCap = capOverride !== undefined || (CeraConfig.ACTION_PENDING_MAX && CeraConfig.ACTION_PENDING_MAX < 50000);
-  const emergencyCeiling = 300000;
+  const emergencyCeiling = CeraConfig.ACTION_PENDING_MAX || cap;
   const at = asm.at;
   asm.sinceSweep = 0;
 
@@ -562,6 +668,9 @@ function ceraFinalizeActionRows_(state, asm, rows) {
   if (rows.length === 1) {
     state.coverage.actions = (state.coverage.actions || 0) + 1;
     asm.emit(ceraMergeActionRows_(rows));
+    if ((state.coverage.actions % 25000) === 0 && typeof ceraPruneStateForScale_ === 'function') {
+      ceraPruneStateForScale_(state, { keepTopActors: 50 });
+    }
     return;
   }
   const clusters = [];
@@ -583,6 +692,9 @@ function ceraFinalizeActionRows_(state, asm, rows) {
     state.coverage.actions = (state.coverage.actions || 0) + 1;
     state.coverage.rowsMerged = (state.coverage.rowsMerged || 0) + c.rows.length - 1;
     asm.emit(ceraMergeActionRows_(c.rows));
+    if ((state.coverage.actions % 25000) === 0 && typeof ceraPruneStateForScale_ === 'function') {
+      ceraPruneStateForScale_(state, { keepTopActors: 50 });
+    }
   });
 }
 
