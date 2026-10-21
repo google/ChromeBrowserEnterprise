@@ -19,9 +19,9 @@
  */
 
 var CeraConfig = {
-  VERSION: '2.0.12',
+  VERSION: '2.0.13',
   SUITE_NAME: 'Chrome Egress Risk Analysis (CERA)',
-  SHORT_NAME: 'CERA v2.0.12',
+  SHORT_NAME: 'CERA v2.0.13',
   RELEASE_DATE: '2026-10-19',
   FRESHNESS_WARN_DAYS: 90,
   FEEDBACK_URL: 'https://goo.gle/cera-feedback',
@@ -40,6 +40,7 @@ var CeraConfig = {
   EXTRACTION_STALL_MS: 900000,
   PARTITION_MAX_ROWS: 50000,
   PARTITION_COLS: 19,
+  SHEET_READ_CHUNK_ROWS: 25000,
 
   // Multi-batch analysis execution budgets (executeDlpAnalysis in IngestionPipeline.gs):
   // When running from the setup dialog (allowContinuation: true), each batch reads partitions up to

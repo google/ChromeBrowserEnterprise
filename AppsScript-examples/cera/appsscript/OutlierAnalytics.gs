@@ -808,7 +808,7 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang) {
   let vectorDates = Object.keys(vector.timeline || {}).sort();
   if (vectorDates.length === 0) {
     const dSet = new Set();
-    actorList.forEach(a => {
+    top5.forEach(a => {
       Object.keys(a.timeline || {}).forEach(d => dSet.add(d));
     });
     vectorDates = Array.from(dSet).sort();
@@ -949,7 +949,7 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang) {
       }
     });
 
-    const activeDays = Math.max(1, Object.keys(actTimeline).length);
+    const activeDays = Math.max(1, Object.keys(actTimeline).length || act._activeDays || 0);
     const totalMetric = isSecurity ? (act.totalEvents || act.total || sumEvts) : ((act.totalBytes || 0) / (1024 ** 3));
     const avgDailyMetric = totalMetric / activeDays;
     const burstMultiple = avgDailyMetric > 0 ? (maxMetric / avgDailyMetric) : 1.0;

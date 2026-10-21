@@ -650,7 +650,7 @@
 <body>
   <!-- Version badge & Language picker (always visible) -->
   <div class="lang-bar">
-    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.12</span>
+    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.13</span>
     <div class="lang-picker-group">
       <label for="lang-select" data-i18n="lang.label">Language</label>
       <select id="lang-select" onchange="changeLanguage(this.value)"></select>
@@ -2944,13 +2944,22 @@
             analysisRetryCount = 0;
             if (res && res.partialBatch && res.batchToken) {
               if (res.totalSheets > 0) {
-                const pct = Math.min(100, Math.round((res.sheetsProcessed / res.totalSheets) * 100));
+                const doneCount = (res.phase === 'render' || res.phase === 'render_slides')
+                  ? res.totalSheets
+                  : Number(res.sheetsProcessed || 0);
+                const pct = Math.min(100, Math.round((doneCount / res.totalSheets) * 100));
                 document.getElementById('progress-bar-fill').style.width = pct + '%';
-                document.getElementById('progress-pct-txt').innerText = pct + '% (' + res.sheetsProcessed + '/' + res.totalSheets + ')';
+                document.getElementById('progress-pct-txt').innerText = pct + '% (' + doneCount + '/' + res.totalSheets + ')';
+              }
+              if (res.phase === 'render_slides') {
+                setT('exec-status-txt', 'prog.deck');
+              } else if (res.phase === 'render') {
+                setT('exec-status-txt', 'prog.dashboard');
               }
               const nextPayload = Object.assign({}, payload, { batchToken: res.batchToken });
               if (res.jobId) nextPayload.jobId = res.jobId;
               if (res.targetPresentationId) nextPayload.targetPresentationId = res.targetPresentationId;
+              if (res.phase) nextPayload.phase = res.phase;
               runAnalysisBatch(nextPayload);
               return;
             }

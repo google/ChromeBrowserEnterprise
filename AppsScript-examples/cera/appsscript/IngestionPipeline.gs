@@ -37,14 +37,20 @@ function ceraAnalysisJobPropKey_() {
     : 'CERA_ANALYSIS_JOB';
 }
 
+function ceraCreateDedupeStore_() {
+  return {
+    eventIds: new Set(),
+    rowHashes: new Map(),
+    fileRanges: {},
+    _sheetOcc: new Map(),
+    _sheetOccFileIdx: -1
+  };
+}
+
 function ceraDedupeStore_(state) {
   if (!state._dedupeStore) {
     Object.defineProperty(state, '_dedupeStore', {
-      value: {
-        eventIds: new Set(),
-        rowHashes: new Map(),
-        fileRanges: {}
-      },
+      value: ceraCreateDedupeStore_(),
       enumerable: false,
       writable: true
     });
@@ -52,16 +58,58 @@ function ceraDedupeStore_(state) {
   return state._dedupeStore;
 }
 
+function ceraSerializeDedupeStore_(dedupeStore, keepSheetOcc) {
+  if (!dedupeStore) return null;
+  return {
+    eventIds: Array.from(dedupeStore.eventIds || []).slice(-100000),
+    rowHashes: Array.from((dedupeStore.rowHashes || new Map()).entries()).slice(-50000),
+    fileRanges: dedupeStore.fileRanges || {},
+    _sheetOcc: keepSheetOcc && dedupeStore._sheetOcc ? Array.from(dedupeStore._sheetOcc.entries()).slice(-50000) : [],
+    _sheetOccFileIdx: keepSheetOcc && typeof dedupeStore._sheetOccFileIdx === 'number' ? dedupeStore._sheetOccFileIdx : -1
+  };
+}
+
+function ceraRestoreDedupeStore_(state, rawDedupe) {
+  if (!rawDedupe || !state) return null;
+  const store = ceraDedupeStore_(state);
+  store.eventIds = new Set(rawDedupe.eventIds || []);
+  store.rowHashes = new Map(rawDedupe.rowHashes || []);
+  store.fileRanges = rawDedupe.fileRanges || {};
+  store._sheetOcc = new Map(rawDedupe._sheetOcc || []);
+  store._sheetOccFileIdx = typeof rawDedupe._sheetOccFileIdx === 'number' ? rawDedupe._sheetOccFileIdx : -1;
+  return store;
+}
+
+function ceraCompactStateForRender_(state) {
+  if (!state) return;
+  if (typeof ceraPruneStateForScale_ === 'function') {
+    ceraPruneStateForScale_(state, { keepTopActors: 50 });
+  }
+  state._dedupeStore = null;
+  state._actionAssembly = null;
+  state._launchRows = null;
+  state._destCache = null;
+  state._domainScopeCache = null;
+  state._accountClassCache = null;
+  state._ouLabels = null;
+}
+
 function ceraSaveAnalysisBatch_(token, checkpoint) {
   const cache = ceraAnalysisBatchCache_();
   const state = checkpoint.state;
-  if (state && state._actionAssembly && typeof ceraSweepActions_ === 'function') {
+  const phase = checkpoint.phase || 'ingest';
+  const isRenderPhase = phase === 'render' || phase === 'render_slides';
+  if (state && typeof ceraPruneStateForScale_ === 'function') {
+    ceraPruneStateForScale_(state, { keepTopActors: 50 });
+  }
+  if (!isRenderPhase && state && state._actionAssembly && typeof ceraSweepActions_ === 'function') {
     // Q5-C: Sweep only provably complete action segments; never force-evict active day-slice rows down to 2,000
     ceraSweepActions_(state, false);
   }
-  const asm = state && state._actionAssembly;
-  const launchStore = state && state._launchRows;
-  const dedupeStore = state && state._dedupeStore;
+  const asm = !isRenderPhase && state ? state._actionAssembly : null;
+  const launchStore = !isRenderPhase && state ? state._launchRows : null;
+  const dedupeStore = (!isRenderPhase && checkpoint.dedupeStore !== null && state) ? state._dedupeStore : null;
+  const sheetsCount = checkpoint.sheetsProcessedCount !== undefined ? checkpoint.sheetsProcessedCount : (checkpoint.sheetsProcessed || 0);
   const payload = JSON.stringify({
     jobId: token,
     batchToken: token,
@@ -69,25 +117,23 @@ function ceraSaveAnalysisBatch_(token, checkpoint) {
     hostSpreadsheetId: checkpoint.hostSpreadsheetId || '',
     folderId: checkpoint.folderId || '',
     targetPresentationId: checkpoint.targetPresentationId || '',
+    phase: phase,
     queue: checkpoint.queue,
     nextIndex: checkpoint.nextIndex,
     rowCursor: checkpoint.rowCursor || 0,
-    sheetsProcessedCount: checkpoint.sheetsProcessedCount,
+    sheetsProcessedCount: sheetsCount,
     unreadableSheets: checkpoint.unreadableSheets || [],
     errors: checkpoint.errors || [],
     state: state,
     hourSlots: (state && state._hourSlots) ? Object.keys(state._hourSlots).map(Number) : [],
     dateOrder: (state && state._dateOrder) || 'MDY',
-    dedupe: dedupeStore ? {
-      eventIds: Array.from(dedupeStore.eventIds).slice(-100000),
-      rowHashes: Array.from(dedupeStore.rowHashes.entries()).slice(-50000),
-      fileRanges: dedupeStore.fileRanges || {}
-    } : null,
+    dedupe: dedupeStore ? ceraSerializeDedupeStore_(dedupeStore, (checkpoint.rowCursor || 0) > 0) : null,
     asm: asm ? {
       keys: Array.from(asm.keys.entries()),
       pendingRows: asm.pendingRows,
       peakPending: asm.peakPending,
       at: asm.at,
+      sheetMaxT: (typeof asm.sheetMaxT === 'number' && isFinite(asm.sheetMaxT)) ? asm.sheetMaxT : null,
       minT: isFinite(asm.minT) ? asm.minT : null,
       maxT: isFinite(asm.maxT) ? asm.maxT : null,
       droppedOver25h: !!asm.droppedOver25h,
@@ -95,6 +141,7 @@ function ceraSaveAnalysisBatch_(token, checkpoint) {
       census: asm.census || null,
       sinceSweep: asm.sinceSweep,
       sweepEvery: asm.sweepEvery,
+      radarPendingRows: asm.radarPendingRows || 0,
       radar: Array.from(asm.radar.entries())
     } : null,
     launches: launchStore && launchStore.events ? {
@@ -166,9 +213,9 @@ function ceraSaveAnalysisBatch_(token, checkpoint) {
           generation: checkpoint.generation || 1,
           nextIndex: checkpoint.nextIndex || 0,
           rowCursor: checkpoint.rowCursor || 0,
-          sheetsProcessed: checkpoint.sheetsProcessedCount || 0,
+          sheetsProcessed: sheetsCount,
           totalSheets: Array.isArray(checkpoint.queue) ? checkpoint.queue.length : 0,
-          phase: checkpoint.phase || 'ingest',
+          phase: phase,
           targetPresentationId: checkpoint.targetPresentationId || '',
           updatedAt: Date.now()
         }));
@@ -267,10 +314,7 @@ function ceraLoadAnalysisBatch_(token, scope) {
       Object.defineProperty(state, '_dateOrder', { value: saved.dateOrder, enumerable: false, writable: true });
     }
     if (saved.dedupe) {
-      const store = ceraDedupeStore_(state);
-      store.eventIds = new Set(saved.dedupe.eventIds || []);
-      store.rowHashes = new Map(saved.dedupe.rowHashes || []);
-      store.fileRanges = saved.dedupe.fileRanges || {};
+      ceraRestoreDedupeStore_(state, saved.dedupe);
     }
     if (saved.asm) {
       const asm = ceraActionAssembly_(state, action => ceraAggregateAction_(action, scope, state), event => ceraAggregateRadarEvent_(event, state));
@@ -278,6 +322,7 @@ function ceraLoadAnalysisBatch_(token, scope) {
       asm.pendingRows = saved.asm.pendingRows || 0;
       asm.peakPending = saved.asm.peakPending || 0;
       asm.at = saved.asm.at;
+      asm.sheetMaxT = (typeof saved.asm.sheetMaxT === 'number' && !isNaN(saved.asm.sheetMaxT)) ? saved.asm.sheetMaxT : -Infinity;
       asm.minT = (typeof saved.asm.minT === 'number' && !isNaN(saved.asm.minT)) ? saved.asm.minT : Infinity;
       asm.maxT = (typeof saved.asm.maxT === 'number' && !isNaN(saved.asm.maxT)) ? saved.asm.maxT : -Infinity;
       asm.droppedOver25h = !!saved.asm.droppedOver25h;
@@ -285,6 +330,7 @@ function ceraLoadAnalysisBatch_(token, scope) {
       asm.census = saved.asm.census || null;
       asm.sinceSweep = saved.asm.sinceSweep || 0;
       asm.sweepEvery = saved.asm.sweepEvery || 1000;
+      asm.radarPendingRows = saved.asm.radarPendingRows || 0;
       asm.radar = new Map(saved.asm.radar || []);
     }
     if (saved.launches && saved.launches.events) {
@@ -393,10 +439,77 @@ function ceraIsOutOfScopeChromeEvent_(rawVal) {
 }
 
 /**
+ * Computes a compact 64-bit fingerprint (16 hex chars) from two independent 32-bit hashes across all cells
+ * of a row without allocating intermediate row.map(...).join(...) strings.
+ */
+function ceraHashRow64_(row) {
+  let h1 = 0x811c9dc5;
+  let h2 = 0xdeadbeef;
+  const len = row ? row.length : 0;
+  for (let i = 0; i < len; i++) {
+    if (i > 0) {
+      h1 = Math.imul(h1 ^ 1, 0x01000193);
+      h2 = Math.imul(h2 ^ 1, 0x5bd1e995);
+    }
+    const v = row[i];
+    if (v === null || v === undefined || v === '') continue;
+    const s = typeof v === 'string' ? v.trim() : String(v).trim();
+    for (let j = 0; j < s.length; j++) {
+      const c = s.charCodeAt(j);
+      h1 = Math.imul(h1 ^ c, 0x01000193);
+      h2 = Math.imul(h2 ^ c, 0x5bd1e995);
+    }
+  }
+  return (h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * True when fileRanges[fileIdx] overlaps the [minT, maxT] time span of any other indexed file.
+ */
+function ceraFileOverlapsAny_(fileRanges, fileIdx) {
+  if (!fileRanges) return false;
+  const r1 = fileRanges[fileIdx];
+  if (!r1) return false;
+  const keys = Object.keys(fileRanges);
+  if (keys.length <= 1) return false;
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    if (String(k) === String(fileIdx)) continue;
+    const r2 = fileRanges[k];
+    if (!r2) continue;
+    if (!(isFinite(r1.minT) && isFinite(r1.maxT) && isFinite(r2.minT) && isFinite(r2.maxT))) return true;
+    if (r1.minT <= r2.maxT && r2.minT <= r1.maxT) return true;
+  }
+  return false;
+}
+
+/**
+ * Annotates every entry in fileRanges with overlapsAny and overlapsPrev.
+ */
+function ceraIndexFileRanges_(fileRanges) {
+  if (!fileRanges) return fileRanges;
+  const keys = Object.keys(fileRanges);
+  for (let i = 0; i < keys.length; i++) {
+    const idx = keys[i];
+    const r = fileRanges[idx];
+    if (!r) continue;
+    r.overlapsAny = ceraFileOverlapsAny_(fileRanges, idx);
+    const prev = fileRanges[Number(idx) - 1];
+    r.overlapsPrev = Boolean(prev && (
+      !(isFinite(r.minT) && isFinite(r.maxT) && isFinite(prev.minT) && isFinite(prev.maxT)) ||
+      (r.minT <= prev.maxT && prev.minT <= r.maxT)
+    ));
+  }
+  return fileRanges;
+}
+
+/**
  * True when a source sheet row is a duplicate of a previously read row:
- * 1. When Event ID (col.eventId) is present: deduplicates by (Timestamp, Event, Event ID) across all sheets.
- * 2. When Event ID is absent: deduplicates exact full-row matches intra-file for CERA partitions and cross-file
- *    whenever two files have overlapping time ranges.
+ * 1. When Event ID (col.eventId) is present: deduplicates by (Timestamp, Event, Event ID) across all sheets
+ *    (bounded at 150,000 keys with FIFO eviction).
+ * 2. When Event ID is absent: computes a compact 64-bit fingerprint (ceraHashRow64_), preserves intra-sheet
+ *    duplicate occurrences on manual exports via occurrence-suffixed keys (baseHash#occ), and deduplicates
+ *    intra-file for CERA partitions and cross-file whenever two files have overlapping time ranges.
  */
 function ceraShouldDedupeRow_(row, col, fileIdx, isCeraPartition, store) {
   if (!store || !row) return false;
@@ -407,18 +520,38 @@ function ceraShouldDedupeRow_(row, col, fileIdx, isCeraPartition, store) {
       const evStr = (col.event !== -1 && row[col.event] !== null && row[col.event] !== undefined) ? String(row[col.event]).trim() : '';
       const idKey = tsStr + '|' + evStr + '|' + String(rawId).trim();
       if (store.eventIds.has(idKey)) return true;
+      if (store.eventIds.size >= 150000) {
+        const oldestId = store.eventIds.keys().next().value;
+        if (oldestId !== undefined) store.eventIds.delete(oldestId);
+      }
       store.eventIds.add(idKey);
       return false;
     }
   }
-  const rowKey = row.map(c => (c === null || c === undefined ? '' : String(c).trim())).join('\u0001');
+  const baseHash = ceraHashRow64_(row);
+  let rowKey;
+  if (!isCeraPartition) {
+    if (!store._sheetOcc || store._sheetOccFileIdx !== fileIdx) {
+      store._sheetOcc = new Map();
+      store._sheetOccFileIdx = fileIdx;
+    }
+    const occ = (store._sheetOcc.get(baseHash) || 0) + 1;
+    store._sheetOcc.set(baseHash, occ);
+    rowKey = occ === 1 ? baseHash : (baseHash + '#' + occ);
+  } else {
+    rowKey = baseHash;
+  }
   const firstFile = store.rowHashes.get(rowKey);
   if (firstFile === undefined) {
-    if (store.rowHashes.size < 250000) store.rowHashes.set(rowKey, fileIdx);
+    if (store.rowHashes.size >= 150000) {
+      const oldestHash = store.rowHashes.keys().next().value;
+      if (oldestHash !== undefined) store.rowHashes.delete(oldestHash);
+    }
+    store.rowHashes.set(rowKey, fileIdx);
     return false;
   }
   if (firstFile === fileIdx) {
-    return !!isCeraPartition;
+    return Boolean(isCeraPartition);
   }
   const r1 = store.fileRanges && store.fileRanges[firstFile];
   const r2 = store.fileRanges && store.fileRanges[fileIdx];
@@ -427,16 +560,39 @@ function ceraShouldDedupeRow_(row, col, fileIdx, isCeraPartition, store) {
 }
 
 /**
+ * Reads an explicit A1 range from a source spreadsheet via Sheets API v4 with up to 3 retry attempts.
+ */
+function ceraReadSheetRangeWithRetry_(spreadsheetId, a1Range) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const resp = Sheets.Spreadsheets.Values.get(spreadsheetId, a1Range);
+      return (resp && Array.isArray(resp.values)) ? resp.values : [];
+    } catch (err) {
+      lastErr = err;
+      if (attempt < 3) {
+        try { Utilities.sleep(300 * attempt); } catch (sErr) {}
+      }
+    }
+  }
+  if (lastErr) throw lastErr;
+  return [];
+}
+
+/**
  * Reads a source spreadsheet with up to 3 retry attempts on transient errors. Uses the Sheets API v4 fast path
  * first, falling back to SpreadsheetApp.openById.
  */
-function ceraReadSourceSheetWithRetry_(item) {
+function ceraReadSourceSheetWithRetry_(item, preloadedGridInfo) {
   let lastErr = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     let data = null;
     try {
       if (typeof Sheets !== 'undefined' && Sheets.Spreadsheets && Sheets.Spreadsheets.Values) {
-        let resp = Sheets.Spreadsheets.Values.get(item.id, ceraSourceSheetRange_(item.id));
+        const range = (attempt === 1 && preloadedGridInfo && preloadedGridInfo.fullRange)
+          ? preloadedGridInfo.fullRange
+          : ceraSourceSheetRange_(item.id);
+        let resp = Sheets.Spreadsheets.Values.get(item.id, range);
         if (resp && resp.values && resp.values.length > 1) {
           data = resp.values;
         }
@@ -761,6 +917,8 @@ function executeDlpAnalysis(params) {
     const BATCH_BUDGET_MS = Number(params.maxBatchRuntimeMs) > 0 ? Number(params.maxBatchRuntimeMs) : (CeraConfig.ANALYSIS_BATCH_BUDGET_MS || 180000);
     const RENDER_HANDOFF_MS = Number(params.maxRenderStartMs) > 0 ? Number(params.maxRenderStartMs) : (CeraConfig.ANALYSIS_RENDER_HANDOFF_MS || 140000);
     const MAX_ROWS_PER_BATCH_SLICE = Number(params.maxRowsPerSlice) > 0 ? Number(params.maxRowsPerSlice) : 0;
+    const CHUNK_ROWS = Number(CeraConfig.SHEET_READ_CHUNK_ROWS) > 0 ? Number(CeraConfig.SHEET_READ_CHUNK_ROWS) : 25000;
+    const resumedPhase = (resumed && resumed.phase) ? String(resumed.phase) : 'ingest';
 
     // Coverage of this run (see createInitialState for field definitions)
     const coverage = state.coverage;
@@ -817,120 +975,328 @@ function executeDlpAnalysis(params) {
       updateProgress(ceraT('prog.reading', null, lang), item.name, q + 1, totalSheets, errors);
 
       try {
-        let data = ceraReadSourceSheetWithRetry_(item);
+        const gridInfo = ceraGetSourceSheetGridInfo_(item.id);
+        const useChunkedRead = Boolean(gridInfo && gridInfo.lastCol && gridInfo.rowCount > CHUNK_ROWS);
 
-        if (data && data.length > 1) {
-          const col = resolveColumnIndices(data[0]);
+        if (useChunkedRead) {
+          const headerRows = ceraReadSheetRangeWithRetry_(item.id, gridInfo.escapedTitle + '!A1:' + gridInfo.lastCol + '1');
+          const headerRow = headerRows && headerRows[0];
+          if (!headerRow || !headerRow.length) {
+            errors.push(`Skipped "${item.name}": Sheet is empty.`);
+            rowCursor = 0;
+            continue;
+          }
+          const col = resolveColumnIndices(headerRow);
           if (!ceraHasRequiredColumns_(col)) {
-            errors.push(ceraUnrecognizedSheetMessage_(item.name, data[0], lang));
-            data = null;
+            errors.push(ceraUnrecognizedSheetMessage_(item.name, headerRow, lang));
             rowCursor = 0;
             continue;
           }
-          const covCheck = ceraCheckEnumCoverage_(data, col);
-          if ((covCheck.eventTotal > 0 && covCheck.eventRatio < 0.99) || (covCheck.triggerTotal > 0 && covCheck.triggerRatio < 0.99)) {
-            const minRatio = covCheck.eventTotal > 0 && covCheck.triggerTotal > 0
-              ? Math.min(covCheck.eventRatio, covCheck.triggerRatio)
-              : (covCheck.eventTotal > 0 ? covCheck.eventRatio : covCheck.triggerRatio);
-            errors.push(ceraT('err.unrecognizedEnumValues', {
-              files: '"' + item.name + '"',
-              pct: (minRatio * 100).toFixed(1) + '%',
-              samples: covCheck.unrecognizedSamples.slice(0, 5).join(', ')
-            }, lang));
-            data = null;
-            rowCursor = 0;
-            continue;
-          }
-
-          // Detect column-level slash-date order (DMY vs MDY) and file time span once per sheet
           const isCeraPartition = /_part_?\d+/i.test(item.name || '') ||
             /^Chrome[_\s]+(Egress[_\s]+Telemetry|SecurityLogs)/i.test(item.name || '') ||
             /\bpartition\b/i.test(item.name || '') ||
             (col.eventId !== undefined && col.eventId !== -1);
-          if (col.date !== -1) {
-            const tsSamples = [];
-            const sampleStep = Math.max(1, Math.floor((data.length - 1) / 200));
-            for (let sIdx = 1; sIdx < data.length; sIdx += sampleStep) {
-              if (data[sIdx] && data[sIdx][col.date]) tsSamples.push(data[sIdx][col.date]);
+
+          const effectiveChunkSize = MAX_ROWS_PER_BATCH_SLICE > 0 ? Math.min(CHUNK_ROWS, MAX_ROWS_PER_BATCH_SLICE) : CHUNK_ROWS;
+          const initialStartRow = rowCursor > 1 ? rowCursor : 2;
+          let curStartRow = initialStartRow;
+          let sheetHadData = curStartRow > 2;
+          let enumFailed = false;
+
+          while (curStartRow <= gridInfo.rowCount) {
+            if (allowContinuation && curStartRow > initialStartRow && (Date.now() - pipelineStartTime >= BATCH_BUDGET_MS)) {
+              rowCursor = curStartRow;
+              const token = batchToken || Utilities.getUuid();
+              ceraSaveAnalysisBatch_(token, {
+                generation: activeGeneration,
+                hostSpreadsheetId: currentSsId,
+                folderId: targetId,
+                targetPresentationId: targetPresentationId,
+                phase: 'ingest',
+                queue: queue,
+                nextIndex: q,
+                rowCursor: rowCursor,
+                sheetsProcessedCount: sheetsProcessedCount,
+                unreadableSheets: unreadableSheets,
+                errors: errors,
+                state: state
+              });
+              return {
+                success: true,
+                partialBatch: true,
+                jobId: token,
+                batchToken: token,
+                generation: activeGeneration,
+                nextIndex: q,
+                rowCursor: rowCursor,
+                sheetsProcessed: sheetsProcessedCount,
+                totalSheets: totalSheets,
+                targetPresentationId: targetPresentationId,
+                phase: 'ingest'
+              };
             }
-            const detectedOrder = typeof ceraDetectDateOrder_ === 'function'
-              ? ceraDetectDateOrder_(tsSamples, params.dateOrder || 'MDY')
-              : 'MDY';
-            if (!Object.prototype.hasOwnProperty.call(state, '_dateOrder')) {
-              Object.defineProperty(state, '_dateOrder', { value: detectedOrder, enumerable: false, writable: true });
-            } else {
-              state._dateOrder = detectedOrder;
+
+            const sliceEndRow = Math.min(gridInfo.rowCount, curStartRow + effectiveChunkSize - 1);
+            const sliceRange = gridInfo.escapedTitle + '!A' + curStartRow + ':' + gridInfo.lastCol + sliceEndRow;
+            let chunkData = ceraReadSheetRangeWithRetry_(item.id, sliceRange);
+            if (!chunkData || chunkData.length === 0) {
+              break;
             }
-            let fMin = Infinity;
-            let fMax = -Infinity;
-            for (let sIdx = 1; sIdx < data.length; sIdx += sampleStep) {
-              const rawTs = data[sIdx] && data[sIdx][col.date];
-              if (!rawTs) continue;
-              const tMs = typeof parseTimestampToMs_ === 'function' ? parseTimestampToMs_(rawTs, detectedOrder) : new Date(rawTs).getTime();
-              if (!isNaN(tMs)) {
-                if (tMs < fMin) fMin = tMs;
-                if (tMs > fMax) fMax = tMs;
+
+            if (curStartRow === 2) {
+              const covSample = [headerRow].concat(chunkData.slice(0, 2000));
+              const covCheck = ceraCheckEnumCoverage_(covSample, col);
+              if ((covCheck.eventTotal > 0 && covCheck.eventRatio < 0.99) || (covCheck.triggerTotal > 0 && covCheck.triggerRatio < 0.99)) {
+                const minRatio = covCheck.eventTotal > 0 && covCheck.triggerTotal > 0
+                  ? Math.min(covCheck.eventRatio, covCheck.triggerRatio)
+                  : (covCheck.eventTotal > 0 ? covCheck.eventRatio : covCheck.triggerRatio);
+                errors.push(ceraT('err.unrecognizedEnumValues', {
+                  files: '"' + item.name + '"',
+                  pct: (minRatio * 100).toFixed(1) + '%',
+                  samples: covCheck.unrecognizedSamples.slice(0, 5).join(', ')
+                }, lang));
+                chunkData = null;
+                rowCursor = 0;
+                enumFailed = true;
+                break;
+              }
+
+              if (col.date !== -1) {
+                const tsSamples = [];
+                const sampleStep = Math.max(1, Math.floor(chunkData.length / 200));
+                for (let sIdx = 0; sIdx < chunkData.length; sIdx += sampleStep) {
+                  if (chunkData[sIdx] && chunkData[sIdx][col.date]) tsSamples.push(chunkData[sIdx][col.date]);
+                }
+                if (sliceEndRow < gridInfo.rowCount) {
+                  try {
+                    const tailStart = Math.max(sliceEndRow + 1, gridInfo.rowCount - 50);
+                    const tailRows = ceraReadSheetRangeWithRetry_(item.id, gridInfo.escapedTitle + '!A' + tailStart + ':' + gridInfo.lastCol + gridInfo.rowCount);
+                    if (tailRows && tailRows.length) {
+                      for (let tIdx = 0; tIdx < tailRows.length; tIdx++) {
+                        if (tailRows[tIdx] && tailRows[tIdx][col.date]) tsSamples.push(tailRows[tIdx][col.date]);
+                      }
+                    }
+                  } catch (tErr) {}
+                }
+                const detectedOrder = typeof ceraDetectDateOrder_ === 'function'
+                  ? ceraDetectDateOrder_(tsSamples, params.dateOrder || 'MDY')
+                  : 'MDY';
+                if (!Object.prototype.hasOwnProperty.call(state, '_dateOrder')) {
+                  Object.defineProperty(state, '_dateOrder', { value: detectedOrder, enumerable: false, writable: true });
+                } else {
+                  state._dateOrder = detectedOrder;
+                }
+                let fMin = Infinity;
+                let fMax = -Infinity;
+                for (let sIdx = 0; sIdx < tsSamples.length; sIdx++) {
+                  const rawTs = tsSamples[sIdx];
+                  if (!rawTs) continue;
+                  const tMs = typeof parseTimestampToMs_ === 'function' ? parseTimestampToMs_(rawTs, detectedOrder) : new Date(rawTs).getTime();
+                  if (!isNaN(tMs)) {
+                    if (tMs < fMin) fMin = tMs;
+                    if (tMs > fMax) fMax = tMs;
+                  }
+                }
+                dedupeStore.fileRanges[q] = { minT: fMin, maxT: fMax, isPartition: isCeraPartition };
+              } else {
+                dedupeStore.fileRanges[q] = { minT: Infinity, maxT: -Infinity, isPartition: isCeraPartition };
+              }
+              ceraIndexFileRanges_(dedupeStore.fileRanges);
+              dedupeStore._sheetOcc = new Map();
+              dedupeStore._sheetOccFileIdx = q;
+              if (typeof ceraNotifySheetStart_ === 'function') {
+                ceraNotifySheetStart_(state, dedupeStore.fileRanges[q]);
               }
             }
-            dedupeStore.fileRanges[q] = { minT: fMin, maxT: fMax, isPartition: isCeraPartition };
-          } else {
-            dedupeStore.fileRanges[q] = { minT: Infinity, maxT: -Infinity, isPartition: isCeraPartition };
-          }
 
-          const startRow = rowCursor > 1 ? rowCursor : 1;
-          const endRow = MAX_ROWS_PER_BATCH_SLICE > 0 ? Math.min(data.length, startRow + MAX_ROWS_PER_BATCH_SLICE) : data.length;
-          for (let i = startRow; i < endRow; i++) {
-            const row = data[i];
-            if (!_isBlankRow_(row) && ceraShouldDedupeRow_(row, col, q, isCeraPartition, dedupeStore)) {
-              coverage.rowsDeduped = (coverage.rowsDeduped || 0) + 1;
-              coverage.rowsDuplicatesDropped = (coverage.rowsDuplicatesDropped || 0) + 1;
-              continue;
+            sheetHadData = true;
+            const fileRangeQ = dedupeStore.fileRanges[q];
+            for (let i = 0; i < chunkData.length; i++) {
+              const row = chunkData[i];
+              if (!_isBlankRow_(row) && ceraShouldDedupeRow_(row, col, q, isCeraPartition, dedupeStore)) {
+                coverage.rowsDeduped = (coverage.rowsDeduped || 0) + 1;
+                coverage.rowsDuplicatesDropped = (coverage.rowsDuplicatesDropped || 0) + 1;
+                continue;
+              }
+              coverage.rowsRead++;
+              processRowStream(row, col, corpDomains, authorizedGenAi, sanctionedProd, webMessaging, state);
+              if (fileRangeQ && state._lastTsMs !== undefined && !isNaN(state._lastTsMs)) {
+                if (state._lastTsMs < fileRangeQ.minT) fileRangeQ.minT = state._lastTsMs;
+                if (state._lastTsMs > fileRangeQ.maxT) fileRangeQ.maxT = state._lastTsMs;
+              }
             }
-            coverage.rowsRead++;
-            processRowStream(row, col, corpDomains, authorizedGenAi, sanctionedProd, webMessaging, state);
+            const readLen = chunkData.length;
+            chunkData = null;
+            curStartRow = sliceEndRow + 1;
+            if (readLen < (sliceEndRow - (curStartRow - effectiveChunkSize) + 1) && curStartRow > gridInfo.rowCount) {
+              break;
+            }
+            if (MAX_ROWS_PER_BATCH_SLICE > 0 && curStartRow <= gridInfo.rowCount && allowContinuation) {
+              rowCursor = curStartRow;
+              const token = batchToken || Utilities.getUuid();
+              ceraSaveAnalysisBatch_(token, {
+                generation: activeGeneration,
+                hostSpreadsheetId: currentSsId,
+                folderId: targetId,
+                targetPresentationId: targetPresentationId,
+                phase: 'ingest',
+                queue: queue,
+                nextIndex: q,
+                rowCursor: rowCursor,
+                sheetsProcessedCount: sheetsProcessedCount,
+                unreadableSheets: unreadableSheets,
+                errors: errors,
+                state: state
+              });
+              return {
+                success: true,
+                partialBatch: true,
+                jobId: token,
+                batchToken: token,
+                generation: activeGeneration,
+                nextIndex: q,
+                rowCursor: rowCursor,
+                sheetsProcessed: sheetsProcessedCount,
+                totalSheets: totalSheets,
+                targetPresentationId: targetPresentationId,
+                phase: 'ingest'
+              };
+            }
           }
 
-          if (endRow < data.length && allowContinuation) {
-            rowCursor = endRow;
-            data = null;
-            const token = batchToken || Utilities.getUuid();
-            ceraSaveAnalysisBatch_(token, {
-              generation: activeGeneration,
-              hostSpreadsheetId: currentSsId,
-              folderId: targetId,
-              targetPresentationId: targetPresentationId,
-              phase: 'ingest',
-              queue: queue,
-              nextIndex: q,
-              rowCursor: rowCursor,
-              sheetsProcessedCount: sheetsProcessedCount,
-              unreadableSheets: unreadableSheets,
-              errors: errors,
-              state: state
-            });
-            return {
-              success: true,
-              partialBatch: true,
-              jobId: token,
-              batchToken: token,
-              generation: activeGeneration,
-              nextIndex: q,
-              rowCursor: rowCursor,
-              sheetsProcessed: sheetsProcessedCount,
-              totalSheets: totalSheets,
-              targetPresentationId: targetPresentationId,
-              phase: 'ingest'
-            };
+          if (enumFailed) continue;
+          if (!sheetHadData) {
+            errors.push(`Skipped "${item.name}": Sheet is empty.`);
+            rowCursor = 0;
+            continue;
           }
-
+          ceraIndexFileRanges_(dedupeStore.fileRanges);
           rowCursor = 0;
           sheetsProcessedCount++;
-          // V8 Heap Memory Management: Free 2D array immediately
-          data = null;
         } else {
-          errors.push(`Skipped "${item.name}": Sheet is empty.`);
-          rowCursor = 0;
-          data = null;
+          let data = ceraReadSourceSheetWithRetry_(item, gridInfo);
+
+          if (data && data.length > 1) {
+            const col = resolveColumnIndices(data[0]);
+            if (!ceraHasRequiredColumns_(col)) {
+              errors.push(ceraUnrecognizedSheetMessage_(item.name, data[0], lang));
+              data = null;
+              rowCursor = 0;
+              continue;
+            }
+            const covCheck = ceraCheckEnumCoverage_(data, col);
+            if ((covCheck.eventTotal > 0 && covCheck.eventRatio < 0.99) || (covCheck.triggerTotal > 0 && covCheck.triggerRatio < 0.99)) {
+              const minRatio = covCheck.eventTotal > 0 && covCheck.triggerTotal > 0
+                ? Math.min(covCheck.eventRatio, covCheck.triggerRatio)
+                : (covCheck.eventTotal > 0 ? covCheck.eventRatio : covCheck.triggerRatio);
+              errors.push(ceraT('err.unrecognizedEnumValues', {
+                files: '"' + item.name + '"',
+                pct: (minRatio * 100).toFixed(1) + '%',
+                samples: covCheck.unrecognizedSamples.slice(0, 5).join(', ')
+              }, lang));
+              data = null;
+              rowCursor = 0;
+              continue;
+            }
+
+            // Detect column-level slash-date order (DMY vs MDY) and file time span once per sheet
+            const isCeraPartition = /_part_?\d+/i.test(item.name || '') ||
+              /^Chrome[_\s]+(Egress[_\s]+Telemetry|SecurityLogs)/i.test(item.name || '') ||
+              /\bpartition\b/i.test(item.name || '') ||
+              (col.eventId !== undefined && col.eventId !== -1);
+            if (col.date !== -1) {
+              const tsSamples = [];
+              const sampleStep = Math.max(1, Math.floor((data.length - 1) / 200));
+              for (let sIdx = 1; sIdx < data.length; sIdx += sampleStep) {
+                if (data[sIdx] && data[sIdx][col.date]) tsSamples.push(data[sIdx][col.date]);
+              }
+              const detectedOrder = typeof ceraDetectDateOrder_ === 'function'
+                ? ceraDetectDateOrder_(tsSamples, params.dateOrder || 'MDY')
+                : 'MDY';
+              if (!Object.prototype.hasOwnProperty.call(state, '_dateOrder')) {
+                Object.defineProperty(state, '_dateOrder', { value: detectedOrder, enumerable: false, writable: true });
+              } else {
+                state._dateOrder = detectedOrder;
+              }
+              let fMin = Infinity;
+              let fMax = -Infinity;
+              for (let sIdx = 1; sIdx < data.length; sIdx += sampleStep) {
+                const rawTs = data[sIdx] && data[sIdx][col.date];
+                if (!rawTs) continue;
+                const tMs = typeof parseTimestampToMs_ === 'function' ? parseTimestampToMs_(rawTs, detectedOrder) : new Date(rawTs).getTime();
+                if (!isNaN(tMs)) {
+                  if (tMs < fMin) fMin = tMs;
+                  if (tMs > fMax) fMax = tMs;
+                }
+              }
+              dedupeStore.fileRanges[q] = { minT: fMin, maxT: fMax, isPartition: isCeraPartition };
+            } else {
+              dedupeStore.fileRanges[q] = { minT: Infinity, maxT: -Infinity, isPartition: isCeraPartition };
+            }
+            ceraIndexFileRanges_(dedupeStore.fileRanges);
+
+            const startRow = rowCursor > 1 ? rowCursor : 1;
+            if (startRow === 1) {
+              dedupeStore._sheetOcc = new Map();
+              dedupeStore._sheetOccFileIdx = q;
+              if (typeof ceraNotifySheetStart_ === 'function') {
+                ceraNotifySheetStart_(state, dedupeStore.fileRanges[q]);
+              }
+            }
+            const endRow = MAX_ROWS_PER_BATCH_SLICE > 0 ? Math.min(data.length, startRow + MAX_ROWS_PER_BATCH_SLICE) : data.length;
+            for (let i = startRow; i < endRow; i++) {
+              const row = data[i];
+              if (!_isBlankRow_(row) && ceraShouldDedupeRow_(row, col, q, isCeraPartition, dedupeStore)) {
+                coverage.rowsDeduped = (coverage.rowsDeduped || 0) + 1;
+                coverage.rowsDuplicatesDropped = (coverage.rowsDuplicatesDropped || 0) + 1;
+                continue;
+              }
+              coverage.rowsRead++;
+              processRowStream(row, col, corpDomains, authorizedGenAi, sanctionedProd, webMessaging, state);
+            }
+
+            if (endRow < data.length && allowContinuation) {
+              rowCursor = endRow;
+              data = null;
+              const token = batchToken || Utilities.getUuid();
+              ceraSaveAnalysisBatch_(token, {
+                generation: activeGeneration,
+                hostSpreadsheetId: currentSsId,
+                folderId: targetId,
+                targetPresentationId: targetPresentationId,
+                phase: 'ingest',
+                queue: queue,
+                nextIndex: q,
+                rowCursor: rowCursor,
+                sheetsProcessedCount: sheetsProcessedCount,
+                unreadableSheets: unreadableSheets,
+                errors: errors,
+                state: state
+              });
+              return {
+                success: true,
+                partialBatch: true,
+                jobId: token,
+                batchToken: token,
+                generation: activeGeneration,
+                nextIndex: q,
+                rowCursor: rowCursor,
+                sheetsProcessed: sheetsProcessedCount,
+                totalSheets: totalSheets,
+                targetPresentationId: targetPresentationId,
+                phase: 'ingest'
+              };
+            }
+
+            rowCursor = 0;
+            sheetsProcessedCount++;
+            // V8 Heap Memory Management: Free 2D array immediately
+            data = null;
+          } else {
+            errors.push(`Skipped "${item.name}": Sheet is empty.`);
+            rowCursor = 0;
+            data = null;
+          }
         }
       } catch (err) {
         rowCursor = 0;
@@ -949,6 +1315,7 @@ function executeDlpAnalysis(params) {
 
     // User actions still waiting for rows are complete once every partition was read
     ceraFlushActions_(state);
+    ceraCompactStateForRender_(state);
     coverage.sheetsRead = sheetsProcessedCount;
 
     if (sheetsProcessedCount === 0) {
@@ -974,7 +1341,8 @@ function executeDlpAnalysis(params) {
         sheetsProcessedCount: sheetsProcessedCount,
         unreadableSheets: unreadableSheets,
         errors: errors,
-        state: state
+        state: state,
+        dedupeStore: null
       });
       updateProgress(ceraT('prog.finalizing', { done: sheetsProcessedCount, total: totalSheets }, lang), '', totalSheets, totalSheets, errors);
       return {
@@ -1002,7 +1370,7 @@ function executeDlpAnalysis(params) {
       dateRangeString = `${formatDisplayDate(state.firstDayKey || state.minDate, true, lang)} – ${formatDisplayDate(state.lastDayKey || state.maxDate, true, lang)}`;
     }
 
-    if (params.generateSheets) {
+    if (resumedPhase !== 'render_slides' && params.generateSheets) {
       updateProgress(ceraT('prog.dashboard', null, lang), '', totalSheets, totalSheets, errors);
       renderExecutiveOverview(currentSs, state, outlierMetrics);
       renderPolicyOutcomesSheet(currentSs, state);
@@ -1012,6 +1380,41 @@ function executeDlpAnalysis(params) {
         } else {
           renderVectorSheetWithCharts(currentSs, state.vectors[key], state);
         }
+      }
+
+      if (allowContinuation && params.generateSlides !== false &&
+          (Date.now() - pipelineStartTime >= RENDER_HANDOFF_MS || (coverage.rowsRead || 0) >= 50000)) {
+        try { SpreadsheetApp.flush(); } catch (fErr) {}
+        const token = batchToken || Utilities.getUuid();
+        ceraSaveAnalysisBatch_(token, {
+          generation: activeGeneration,
+          hostSpreadsheetId: currentSsId,
+          folderId: targetId,
+          targetPresentationId: targetPresentationId,
+          phase: 'render_slides',
+          queue: queue,
+          nextIndex: totalSheets,
+          rowCursor: 0,
+          sheetsProcessedCount: sheetsProcessedCount,
+          unreadableSheets: unreadableSheets,
+          errors: errors,
+          state: state,
+          dedupeStore: null
+        });
+        updateProgress(ceraT('prog.deck', null, lang), '', totalSheets, totalSheets, errors);
+        return {
+          success: true,
+          partialBatch: true,
+          jobId: token,
+          batchToken: token,
+          generation: activeGeneration,
+          nextIndex: totalSheets,
+          rowCursor: 0,
+          sheetsProcessed: sheetsProcessedCount,
+          totalSheets: totalSheets,
+          targetPresentationId: targetPresentationId,
+          phase: 'render_slides'
+        };
       }
     }
 
@@ -1296,19 +1699,48 @@ function ceraFolderSheets_(folderId) {
 }
 
 /**
+ * Reads grid dimensions and escaped title of a source spreadsheet's first visible sheet via Sheets API v4.
+ */
+function ceraGetSourceSheetGridInfo_(spreadsheetId) {
+  try {
+    if (typeof Sheets !== 'undefined' && Sheets.Spreadsheets && typeof Sheets.Spreadsheets.get === 'function') {
+      const meta = Sheets.Spreadsheets.get(spreadsheetId, {
+        fields: 'sheets(properties(title,hidden,gridProperties(rowCount,columnCount)))'
+      });
+      const sheet = ((meta && meta.sheets) || []).map(s => (s && s.properties) || {}).find(p => !p.hidden && p.gridProperties);
+      if (sheet) {
+        const columns = Number(sheet.gridProperties.columnCount) || 0;
+        const rows = Number(sheet.gridProperties.rowCount) || 0;
+        if (!columns) return null;
+        let last = '';
+        for (let n = columns; n > 0; n = Math.floor((n - 1) / 26)) {
+          last = String.fromCharCode(65 + ((n - 1) % 26)) + last;
+        }
+        const escapedTitle = "'" + String(sheet.title).replace(/'/g, "''") + "'";
+        return {
+          title: String(sheet.title),
+          escapedTitle: escapedTitle,
+          rowCount: rows,
+          columnCount: columns,
+          lastCol: last,
+          fullRange: escapedTitle + '!A1:' + last
+        };
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+/**
  * A1 range of every column of a source spreadsheet's first visible sheet: 'Sheet title'!A1:<last column of its grid>.
  * A fixed range does not fit every source: one ending at column O cuts off the last columns of a console export, and the
  * Sheets API rejects a range wider than the sheet's grid. Throws when the sheet cannot be read; the caller then reads
  * it with SpreadsheetApp.
  */
 function ceraSourceSheetRange_(spreadsheetId) {
-  const meta = Sheets.Spreadsheets.get(spreadsheetId, { fields: 'sheets(properties(title,hidden,gridProperties(columnCount)))' });
-  const sheet = ((meta && meta.sheets) || []).map(s => (s && s.properties) || {}).find(p => !p.hidden && p.gridProperties);
-  const columns = sheet ? Number(sheet.gridProperties.columnCount) || 0 : 0;
-  if (!columns) throw new Error('No sheet to read');
-  let last = '';
-  for (let n = columns; n > 0; n = Math.floor((n - 1) / 26)) last = String.fromCharCode(65 + ((n - 1) % 26)) + last;
-  return "'" + String(sheet.title).replace(/'/g, "''") + "'!A1:" + last;
+  const info = ceraGetSourceSheetGridInfo_(spreadsheetId);
+  if (!info || !info.fullRange) throw new Error('No sheet to read');
+  return info.fullRange;
 }
 
 /**
