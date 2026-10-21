@@ -876,14 +876,62 @@ function recordSensitiveOnPage(state, host, detectorText, ou, userIdent, dayKey,
 }
 
 /**
+ * True when an Organizational Unit value is missing or represents an unreported/unassigned placeholder.
+ */
+function ceraIsUnreportedOu_(ou) {
+  if (!ou) return true;
+  const s = String(ou).trim();
+  if (!s || s === 'Unassigned OU' || s === 'OU not reported') return true;
+  if (typeof ceraT === 'function') {
+    try {
+      if (s === ceraT('report.ou.notReported', null, 'en')) return true;
+    } catch (e) {}
+  }
+  return false;
+}
+
+/**
+ * Accumulates active day counts on an actor before pruning its daily map, deduplicating a boundary day
+ * that already appeared in the previous prune pass.
+ */
+function ceraAccumulatePrunedDays_(act, dayMap) {
+  if (!act || !dayMap || typeof dayMap !== 'object') return;
+  const keys = Object.keys(dayMap).sort();
+  if (!keys.length) return;
+  let added = keys.length;
+  if (act._lastPrunedDay && keys.indexOf(act._lastPrunedDay) !== -1) {
+    added = Math.max(0, added - 1);
+  }
+  act._activeDays = (Number(act._activeDays) || 0) + added;
+  act._lastPrunedDay = keys[keys.length - 1];
+}
+
+/**
+ * Returns total distinct active days for an actor across pruned passes (_activeDays) and any live map (mapProp).
+ */
+function ceraActorActiveDays_(act, mapProp) {
+  if (!act) return 0;
+  const liveMap = act[mapProp];
+  const liveKeys = (liveMap && typeof liveMap === 'object') ? Object.keys(liveMap) : [];
+  const pruned = Number(act._activeDays) || 0;
+  if (!pruned) return liveKeys.length;
+  if (!liveKeys.length) return pruned;
+  const overlap = (act._lastPrunedDay && liveKeys.indexOf(act._lastPrunedDay) !== -1) ? 1 : 0;
+  return pruned + liveKeys.length - overlap;
+}
+
+/**
  * Prunes per-actor daily timeline maps for tail actors outside the top-N rankings so multi-month
  * (90-180 day) runs keep V8 heap usage and checkpoint JSON size strictly bounded.
  * computeTop5ActorTimelines only reads .timeline for the Top 5 actors per vector, and ceraSlide3Cards
- * only reads .days for top funnel/scatter candidates.
+ * only reads .days for top funnel/scatter candidates (including preferRealOu named-OU candidates).
  */
 function ceraPruneStateForScale_(state, opts) {
   if (!state) return;
   const keepTopActors = (opts && opts.keepTopActors) || 50;
+  const keepNamedOuActors = (opts && opts.keepNamedOuActors !== undefined)
+    ? opts.keepNamedOuActors
+    : Math.min(25, Math.max(1, Math.floor(keepTopActors / 2)));
   const vectorKeys = ['personal', 'shadowAi', 'unmanaged', 'messaging', 'securityRadar'];
   for (let vIdx = 0; vIdx < vectorKeys.length; vIdx++) {
     const vk = vectorKeys[vIdx];
@@ -900,11 +948,15 @@ function ceraPruneStateForScale_(state, opts) {
       }
       return (b.totalBytes || 0) - (a.totalBytes || 0) || (b.totalEvents || 0) - (a.totalEvents || 0);
     });
-    for (let i = keepTopActors; i < keys.length; i++) {
+    let namedOuSeen = 0;
+    for (let i = 0; i < keys.length; i++) {
       const act = v.actors[keys[i]];
-      if (act && act.timeline) {
-        const dCount = Object.keys(act.timeline).length;
-        if (dCount > 0) act._activeDays = Math.max(act._activeDays || 0, dCount);
+      if (!act) continue;
+      const hasNamedOu = !ceraIsUnreportedOu_(act.ou);
+      if (hasNamedOu) namedOuSeen++;
+      if (i < keepTopActors || (hasNamedOu && namedOuSeen <= keepNamedOuActors)) continue;
+      if (act.timeline) {
+        ceraAccumulatePrunedDays_(act, act.timeline);
         delete act.timeline;
       }
     }
@@ -912,15 +964,28 @@ function ceraPruneStateForScale_(state, opts) {
 
   const endpoints = state.outliers && state.outliers.actorEndpoints;
   if (endpoints) {
+    const keepTopOutlierActors = (opts && opts.keepTopOutlierActors) || 100;
+    const keepNamedOutlierActors = (opts && opts.keepNamedOutlierActors !== undefined)
+      ? opts.keepNamedOutlierActors
+      : Math.min(50, Math.max(1, Math.floor(keepTopOutlierActors / 2)));
     const epKeys = Object.keys(endpoints);
-    if (epKeys.length > 100) {
+    if (epKeys.length > keepTopOutlierActors) {
       const keepSet = new Set();
       const byVol = epKeys.slice().sort((ka, kb) => {
         const a = endpoints[ka] || {};
         const b = endpoints[kb] || {};
         return (b.totalBytes || 0) - (a.totalBytes || 0) || (b.totalCount || 0) - (a.totalCount || 0);
       });
-      for (let i = 0; i < Math.min(100, byVol.length); i++) keepSet.add(byVol[i]);
+      let namedVolSeen = 0;
+      for (let i = 0; i < byVol.length; i++) {
+        const u = byVol[i];
+        const act = endpoints[u] || {};
+        const hasNamedOu = !ceraIsUnreportedOu_(act.ou);
+        if (hasNamedOu) namedVolSeen++;
+        if (i < keepTopOutlierActors || (hasNamedOu && namedVolSeen <= keepNamedOutlierActors)) {
+          keepSet.add(u);
+        }
+      }
 
       const byScatter = epKeys.slice().sort((ka, kb) => {
         const a = endpoints[ka] || {};
@@ -929,19 +994,28 @@ function ceraPruneStateForScale_(state, opts) {
         const db = Object.keys(b.domains || {}).length;
         return db - da || (b.totalBytes || 0) - (a.totalBytes || 0);
       });
-      for (let i = 0; i < Math.min(100, byScatter.length); i++) keepSet.add(byScatter[i]);
+      let namedScatterSeen = 0;
+      for (let i = 0; i < byScatter.length; i++) {
+        const u = byScatter[i];
+        const act = endpoints[u] || {};
+        const hasNamedOu = !ceraIsUnreportedOu_(act.ou);
+        if (hasNamedOu) namedScatterSeen++;
+        if (i < keepTopOutlierActors || (hasNamedOu && namedScatterSeen <= keepNamedOutlierActors)) {
+          keepSet.add(u);
+        }
+      }
 
       for (let i = 0; i < epKeys.length; i++) {
         const u = epKeys[i];
         if (keepSet.has(u)) continue;
         const act = endpoints[u];
         if (act && act.days) {
-          const dCount = Object.keys(act.days).length;
-          if (dCount > 0) act._activeDays = Math.max(act._activeDays || 0, dCount);
+          ceraAccumulatePrunedDays_(act, act.days);
           delete act.days;
         }
       }
     }
   }
 }
+
 

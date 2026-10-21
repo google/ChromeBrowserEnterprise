@@ -386,7 +386,14 @@ var InsightEngine = {
     else if (f.unsafeBlocked > 0) h.signals = T('deck.signals.hlBlocked', sb);
     else h.signals = T('deck.signals.hlDetected', sb);
     h.signals2 = (f.pwTotal + f.malTotal) > 0
-      ? T('deck.signals2.hl', { pw: f.pwTotal, pwPeople: P(f.pwUsers), mal: f.malTotal, malPeople: P(f.malUsers) })
+      ? T('deck.signals2.hl', {
+          pw: f.pwTotal,
+          pwEvents: T('deck.signals2.pwEvents', { n: f.pwTotal }),
+          pwPeople: P(f.pwUsers),
+          mal: f.malTotal,
+          malDownloads: T('deck.signals2.malDownloads', { n: f.malTotal }),
+          malPeople: P(f.malUsers)
+        })
       : T('deck.signals2.hlNone');
     h.signalsSub = T('deck.signals.sub');
     h.signals2Sub = T('deck.signals2.sub');

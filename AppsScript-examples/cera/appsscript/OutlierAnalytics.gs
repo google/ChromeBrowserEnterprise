@@ -308,11 +308,14 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
     const peakBytes = dayRec ? (Number(dayRec.bytes) || 0) : 0;
     const peakCount = dayRec ? (Number(dayRec.count) || 0) : 0;
     const peakVal = byCount ? peakCount : peakBytes;
+    const actorActiveDays = typeof ceraActorActiveDays_ === 'function'
+      ? ceraActorActiveDays_(a, 'days')
+      : (Object.keys(a.days || {}).length || Number(a._activeDays) || 0);
 
     actors.push({
       user: u, ou: ou, byCount: byCount,
       totalBytes: totalBytes, totalCount: totalCount, totalVal: totalVal,
-      domainCount: domKeys.length, hhi: hhi,
+      domainCount: domKeys.length, hhi: hhi, activeDays: actorActiveDays,
       topDom: topDom, topDomBytes: topDomBytes, topDomCount: topDomCount, topDomVal: topDomVal, topShare: topShare,
       peakBytes: peakBytes, peakCount: peakCount, peakVal: peakVal
     });
@@ -321,7 +324,7 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
   // 1. Card 1: Destination Funneling (Single-Destination Heavy Uploader by OU)
   const notReportedOu = T('report.ou.notReported');
   const preferRealOu = list => {
-    const real = list.filter(a => a.ou !== notReportedOu);
+    const real = list.filter(a => a.ou !== notReportedOu && (typeof ceraIsUnreportedOu_ !== 'function' || !ceraIsUnreportedOu_(a.ou)));
     return real.length ? real : list;
   };
   const MIN_FUNNEL_BYTES = 50 * 1024 * 1024;
@@ -949,7 +952,9 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang) {
       }
     });
 
-    const activeDays = Math.max(1, Object.keys(actTimeline).length || act._activeDays || 0);
+    const activeDays = Math.max(1, typeof ceraActorActiveDays_ === 'function'
+      ? ceraActorActiveDays_(act, 'timeline')
+      : (Object.keys(actTimeline).length || act._activeDays || 0));
     const totalMetric = isSecurity ? (act.totalEvents || act.total || sumEvts) : ((act.totalBytes || 0) / (1024 ** 3));
     const avgDailyMetric = totalMetric / activeDays;
     const burstMultiple = avgDailyMetric > 0 ? (maxMetric / avgDailyMetric) : 1.0;

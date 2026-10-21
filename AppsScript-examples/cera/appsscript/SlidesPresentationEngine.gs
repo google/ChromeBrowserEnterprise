@@ -846,7 +846,7 @@ var ExecutivePresentationEngine = {
         });
       });
       const catList = Object.keys(cats).map(k => cats[k]).filter(c => validName(c.name) && (c.bytes > 0 || c.count > 0))
-        .sort((a, b) => b.bytes - a.bytes || b.count - a.count || (a.name < b.name ? -1 : 1));
+        .sort((a, b) => b.count - a.count || b.bytes - a.bytes || (a.name < b.name ? -1 : 1));
       const catByCount = !catList.some(c => c.bytes > 0);
       const catTotal = catList.reduce((s, c) => s + (catByCount ? c.count : c.bytes), 0);
       catList.forEach(c => { c.sharePct = catTotal > 0 ? Math.round(((catByCount ? c.count : c.bytes) / catTotal) * 100) : 0; });
@@ -1596,7 +1596,7 @@ var ExecutivePresentationEngine = {
         this.addTextBox(slide, String(idx + 1), 376 - 1, rowY + 1, 24, 16, 'Roboto', 6.5, 'bold', isTop ? '#FFFFFF' : p.textMuted, 'center');
         // A category CERA named (internal apps, unspecified) in the report language; one of the log shortened
         const cDisplayName = ceraOwnCategory(c.name) ? ceraCategoryLabel(c.name, ctx._lang)
-          : (typeof VectorChartEngine !== 'undefined' ? VectorChartEngine.cleanLabel(c.name, 30) : c.name);
+          : (typeof VectorChartEngine !== 'undefined' ? VectorChartEngine.cleanLabel(c.name, 36) : c.name);
         this.addLineBox(slide, cDisplayName, 376 + 22, rowY + 1.5, 165, 16, 'Outfit', 7, 'bold', p.textDark, 'left');
         const cVolStr = this.fmtBytes(c.bytes || 0);
         const cShareStr = (typeof c.sharePct === 'number' && c.sharePct > 0) ? ` (${c.sharePct}%)` : '';

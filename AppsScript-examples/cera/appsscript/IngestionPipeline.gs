@@ -43,7 +43,8 @@ function ceraCreateDedupeStore_() {
     rowHashes: new Map(),
     fileRanges: {},
     _sheetOcc: new Map(),
-    _sheetOccFileIdx: -1
+    _sheetOccFileIdx: -1,
+    totalSheets: 0
   };
 }
 
@@ -65,7 +66,8 @@ function ceraSerializeDedupeStore_(dedupeStore, keepSheetOcc) {
     rowHashes: Array.from((dedupeStore.rowHashes || new Map()).entries()).slice(-50000),
     fileRanges: dedupeStore.fileRanges || {},
     _sheetOcc: keepSheetOcc && dedupeStore._sheetOcc ? Array.from(dedupeStore._sheetOcc.entries()).slice(-50000) : [],
-    _sheetOccFileIdx: keepSheetOcc && typeof dedupeStore._sheetOccFileIdx === 'number' ? dedupeStore._sheetOccFileIdx : -1
+    _sheetOccFileIdx: keepSheetOcc && typeof dedupeStore._sheetOccFileIdx === 'number' ? dedupeStore._sheetOccFileIdx : -1,
+    totalSheets: Number(dedupeStore.totalSheets) || 0
   };
 }
 
@@ -77,6 +79,7 @@ function ceraRestoreDedupeStore_(state, rawDedupe) {
   store.fileRanges = rawDedupe.fileRanges || {};
   store._sheetOcc = new Map(rawDedupe._sheetOcc || []);
   store._sheetOccFileIdx = typeof rawDedupe._sheetOccFileIdx === 'number' ? rawDedupe._sheetOccFileIdx : -1;
+  store.totalSheets = Number(rawDedupe.totalSheets) || 0;
   return store;
 }
 
@@ -382,6 +385,17 @@ function ceraClearAnalysisBatch_(token) {
         if (rawJob) {
           const parsed = JSON.parse(rawJob);
           if (!token || parsed.batchToken === token) {
+            if (parsed && parsed.checkpointFileId) {
+              try {
+                if (typeof Drive !== 'undefined' && Drive.Files) {
+                  if (typeof Drive.Files.update === 'function') {
+                    Drive.Files.update({ trashed: true }, parsed.checkpointFileId, null, { supportsAllDrives: true });
+                  } else if (typeof Drive.Files.remove === 'function') {
+                    Drive.Files.remove(parsed.checkpointFileId);
+                  }
+                }
+              } catch (driveCleanErr) {}
+            }
             docProps.deleteProperty(ceraAnalysisJobPropKey_());
           }
         }
@@ -440,17 +454,32 @@ function ceraIsOutOfScopeChromeEvent_(rawVal) {
 
 /**
  * Computes a compact 64-bit fingerprint (16 hex chars) from two independent 32-bit hashes across all cells
- * of a row without allocating intermediate row.map(...).join(...) strings.
+ * of a row (optionally skipping skipCol) without allocating intermediate row.map(...).join(...) strings.
  */
-function ceraHashRow64_(row) {
+function ceraHashRow64_(row, skipCol) {
   let h1 = 0x811c9dc5;
   let h2 = 0xdeadbeef;
-  const len = row ? row.length : 0;
-  for (let i = 0; i < len; i++) {
-    if (i > 0) {
+  const rawLen = row ? row.length : 0;
+  let end = rawLen - 1;
+  while (end >= 0) {
+    if (end === skipCol) {
+      end--;
+      continue;
+    }
+    const v = row[end];
+    if (v !== null && v !== undefined && v !== '' && (typeof v === 'string' ? v.trim() : String(v).trim()) !== '') {
+      break;
+    }
+    end--;
+  }
+  let first = true;
+  for (let i = 0; i <= end; i++) {
+    if (i === skipCol) continue;
+    if (!first) {
       h1 = Math.imul(h1 ^ 1, 0x01000193);
       h2 = Math.imul(h2 ^ 1, 0x5bd1e995);
     }
+    first = false;
     const v = row[i];
     if (v === null || v === undefined || v === '') continue;
     const s = typeof v === 'string' ? v.trim() : String(v).trim();
@@ -504,12 +533,34 @@ function ceraIndexFileRanges_(fileRanges) {
 }
 
 /**
- * True when a source sheet row is a duplicate of a previously read row:
- * 1. When Event ID (col.eventId) is present: deduplicates by (Timestamp, Event, Event ID) across all sheets
+ * Prunes rowHashes entries from earlier partition sheets whose time ranges are strictly disjoint from curFileIdx,
+ * keeping store.rowHashes compact across 70+ chronological partition sheets while preserving 100% of overlapping boundary hashes.
+ */
+function ceraPruneDisjointRowHashes_(store, curFileIdx) {
+  if (!store || !store.rowHashes || !store.fileRanges || !(curFileIdx > 0)) return;
+  const rCur = store.fileRanges[curFileIdx];
+  if (!rCur || !rCur.isPartition || !(isFinite(rCur.minT) && isFinite(rCur.maxT))) return;
+  for (const entry of store.rowHashes.entries()) {
+    const k = entry[0];
+    const fIdx = entry[1];
+    if (fIdx < curFileIdx) {
+      const rPrev = store.fileRanges[fIdx];
+      if (rPrev && rPrev.isPartition && isFinite(rPrev.minT) && isFinite(rPrev.maxT) &&
+          !(rPrev.minT <= rCur.maxT && rCur.minT <= rPrev.maxT)) {
+        store.rowHashes.delete(k);
+      }
+    }
+  }
+}
+
+/**
+ * Universal 4-scenario row deduplication:
+ * 1. When Event ID (col.eventId) is present and non-empty: deduplicates by (Timestamp, Event, Event ID) across all sheets
  *    (bounded at 150,000 keys with FIFO eviction).
- * 2. When Event ID is absent: computes a compact 64-bit fingerprint (ceraHashRow64_), preserves intra-sheet
- *    duplicate occurrences on manual exports via occurrence-suffixed keys (baseHash#occ), and deduplicates
- *    intra-file for CERA partitions and cross-file whenever two files have overlapping time ranges.
+ * 2. When Event ID is absent:
+ *    - Single-sheet runs (store.totalSheets === 1) return false immediately (0 bytes RAM).
+ *    - Multi-sheet runs compute per-sheet occurrence keys (baseHash#occ via store._sheetOcc) so intra-sheet
+ *      sub-second identical rows without Event ID are never dropped, while cross-sheet overlapping rows are deduped.
  */
 function ceraShouldDedupeRow_(row, col, fileIdx, isCeraPartition, store) {
   if (!store || !row) return false;
@@ -525,25 +576,38 @@ function ceraShouldDedupeRow_(row, col, fileIdx, isCeraPartition, store) {
         if (oldestId !== undefined) store.eventIds.delete(oldestId);
       }
       store.eventIds.add(idKey);
+      if (store.totalSheets !== 1) {
+        const baseHash = ceraHashRow64_(row, col.eventId);
+        if (!store._sheetOcc || store._sheetOccFileIdx !== fileIdx) {
+          store._sheetOcc = new Map();
+          store._sheetOccFileIdx = fileIdx;
+        }
+        const occ = (store._sheetOcc.get(baseHash) || 0) + 1;
+        store._sheetOcc.set(baseHash, occ);
+        const rowKey = occ === 1 ? baseHash : (baseHash + '#' + occ);
+        if (!store.rowHashes.has(rowKey)) {
+          if (store.rowHashes.size >= 250000) {
+            const oldestHash = store.rowHashes.keys().next().value;
+            if (oldestHash !== undefined) store.rowHashes.delete(oldestHash);
+          }
+          store.rowHashes.set(rowKey, fileIdx);
+        }
+      }
       return false;
     }
   }
-  const baseHash = ceraHashRow64_(row);
-  let rowKey;
-  if (!isCeraPartition) {
-    if (!store._sheetOcc || store._sheetOccFileIdx !== fileIdx) {
-      store._sheetOcc = new Map();
-      store._sheetOccFileIdx = fileIdx;
-    }
-    const occ = (store._sheetOcc.get(baseHash) || 0) + 1;
-    store._sheetOcc.set(baseHash, occ);
-    rowKey = occ === 1 ? baseHash : (baseHash + '#' + occ);
-  } else {
-    rowKey = baseHash;
+  if (store.totalSheets === 1) return false;
+  const baseHash = ceraHashRow64_(row, col ? col.eventId : -1);
+  if (!store._sheetOcc || store._sheetOccFileIdx !== fileIdx) {
+    store._sheetOcc = new Map();
+    store._sheetOccFileIdx = fileIdx;
   }
+  const occ = (store._sheetOcc.get(baseHash) || 0) + 1;
+  store._sheetOcc.set(baseHash, occ);
+  const rowKey = occ === 1 ? baseHash : (baseHash + '#' + occ);
   const firstFile = store.rowHashes.get(rowKey);
   if (firstFile === undefined) {
-    if (store.rowHashes.size >= 150000) {
+    if (store.rowHashes.size >= 250000) {
       const oldestHash = store.rowHashes.keys().next().value;
       if (oldestHash !== undefined) store.rowHashes.delete(oldestHash);
     }
@@ -551,12 +615,14 @@ function ceraShouldDedupeRow_(row, col, fileIdx, isCeraPartition, store) {
     return false;
   }
   if (firstFile === fileIdx) {
-    return Boolean(isCeraPartition);
+    return false;
   }
   const r1 = store.fileRanges && store.fileRanges[firstFile];
   const r2 = store.fileRanges && store.fileRanges[fileIdx];
-  const overlaps = !r1 || !r2 || !(isFinite(r1.minT) && isFinite(r2.minT)) || (r1.minT <= r2.maxT && r2.minT <= r1.maxT);
-  return Boolean(isCeraPartition || (r1 && r1.isPartition) || overlaps);
+  const overlaps = !r1 || !r2 ||
+    !(isFinite(r1.minT) && isFinite(r1.maxT) && isFinite(r2.minT) && isFinite(r2.maxT)) ||
+    (r1.minT <= r2.maxT && r2.minT <= r1.maxT);
+  return Boolean(overlaps);
 }
 
 /**
@@ -924,6 +990,7 @@ function executeDlpAnalysis(params) {
     const coverage = state.coverage;
     coverage.sheetsTotal = totalSheets;
     const dedupeStore = ceraDedupeStore_(state);
+    dedupeStore.totalSheets = totalSheets;
     const startNextIndex = nextIndex;
     const startRowCursor = rowCursor;
 
@@ -1102,6 +1169,7 @@ function executeDlpAnalysis(params) {
                 dedupeStore.fileRanges[q] = { minT: Infinity, maxT: -Infinity, isPartition: isCeraPartition };
               }
               ceraIndexFileRanges_(dedupeStore.fileRanges);
+              ceraPruneDisjointRowHashes_(dedupeStore, q);
               dedupeStore._sheetOcc = new Map();
               dedupeStore._sheetOccFileIdx = q;
               if (typeof ceraNotifySheetStart_ === 'function') {
@@ -1237,6 +1305,7 @@ function executeDlpAnalysis(params) {
 
             const startRow = rowCursor > 1 ? rowCursor : 1;
             if (startRow === 1) {
+              ceraPruneDisjointRowHashes_(dedupeStore, q);
               dedupeStore._sheetOcc = new Map();
               dedupeStore._sheetOccFileIdx = q;
               if (typeof ceraNotifySheetStart_ === 'function') {

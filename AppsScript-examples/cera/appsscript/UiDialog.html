@@ -650,7 +650,7 @@
 <body>
   <!-- Version badge & Language picker (always visible) -->
   <div class="lang-bar">
-    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.13</span>
+    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.14</span>
     <div class="lang-picker-group">
       <label for="lang-select" data-i18n="lang.label">Language</label>
       <select id="lang-select" onchange="changeLanguage(this.value)"></select>
@@ -1209,6 +1209,7 @@
         </div>
         <button data-i18n="common.add" type="button" class="btn-add-chip" id="btn-add-corp">+ Add</button>
       </div>
+      <div id="corp-suggestions" class="suggest-row chip-suggestions" style="display:none;"></div>
     </div>
 
     <div class="md3-card" id="card-ai">
@@ -1468,6 +1469,7 @@
         this.suggestionsContainer = config.suggestionsId ? document.getElementById(config.suggestionsId) : null;
         this.suggestions = Array.isArray(config.suggestions) ? config.suggestions : [];
         this.suggestLabelKey = config.suggestLabelKey || 'step2.ai.suggestLabel';
+        this.addAllLabelKey = config.addAllLabelKey || '';
         this.items = [];
 
         if (config.defaultItems) this.addItems(config.defaultItems);
@@ -1549,6 +1551,13 @@
         }
       }
 
+      setSuggestions(list) {
+        this.suggestions = Array.isArray(list)
+          ? Array.from(new Set(list.map(s => String(s || '').trim().toLowerCase()).filter(Boolean)))
+          : [];
+        this.renderSuggestions();
+      }
+
       render() {
         if (!this.pillsContainer) return;
         this.pillsContainer.innerHTML = '';
@@ -1620,6 +1629,19 @@
           };
           this.suggestionsContainer.appendChild(btn);
         });
+        if (this.addAllLabelKey && remaining.length > 1) {
+          const addAllBtn = document.createElement('button');
+          addAllBtn.type = 'button';
+          addAllBtn.className = 'chip-suggest btn-suggest-chip';
+          addAllBtn.setAttribute('data-suggest-add-all', 'true');
+          const addAllLabel = this.addAllLabelKey === 'step2.corp.addAll' ? t('step2.corp.addAll') : t(this.addAllLabelKey);
+          addAllBtn.textContent = '+ ' + addAllLabel;
+          addAllBtn.onclick = (e) => {
+            if (e && e.preventDefault) e.preventDefault();
+            this.addItems(remaining);
+          };
+          this.suggestionsContainer.appendChild(addAllBtn);
+        }
       }
 
       getValue() {
@@ -1628,6 +1650,7 @@
     }
 
     let corpChips, aiChips, prodChips, msgChips, partnerChips;
+    let runnerDirectoryDomains = [];
 
     function syncRegisteredDomainsToProd() {
       if (!prodChips || !corpChips) return;
@@ -1663,7 +1686,19 @@
     window.onload = function() {
       detectedBrowserTz = detectBrowserTimeZone();
       setRaw('step2-tz-badge', detectedBrowserTz);
-      corpChips = new ChipManager({ pillsId: 'corp-pills', inputId: 'corp-input', addBtnId: 'btn-add-corp', badgeId: 'corp-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-primary', defaultItems: [] });
+      corpChips = new ChipManager({
+        pillsId: 'corp-pills',
+        inputId: 'corp-input',
+        addBtnId: 'btn-add-corp',
+        badgeId: 'corp-badge',
+        badgeKey: 'chips.count.domains',
+        chipClass: 'chip-primary',
+        defaultItems: [],
+        suggestionsId: 'corp-suggestions',
+        suggestions: [],
+        suggestLabelKey: 'step2.corp.suggestLabel',
+        addAllLabelKey: 'step2.corp.addAll'
+      });
       aiChips = new ChipManager({
         pillsId: 'ai-pills',
         inputId: 'ai-input',
@@ -1683,6 +1718,9 @@
       google.script.run
         .withSuccessHandler(data => {
           data = data || {};
+          runnerDirectoryDomains = Array.isArray(data.registeredDomains)
+            ? data.registeredDomains.map(d => String(d || '').toLowerCase().trim()).filter(Boolean)
+            : (data.detectedCorpDomain ? String(data.detectedCorpDomain).split(/[ ,;]+/).map(d => d.toLowerCase().trim()).filter(Boolean) : []);
           if (data.detectedCorpDomain) {
             corpChips.setItems(data.detectedCorpDomain);
           }
@@ -2126,7 +2164,8 @@
     }
 
     function goToStep2() {
-      if (!selectedSource()) return;
+      const folderInput = selectedSource();
+      if (!folderInput) return;
 
       const genSlides = document.getElementById('generateSlides').checked;
       const genSheets = document.getElementById('generateSheets').checked;
@@ -2142,6 +2181,30 @@
       hideAllContainers();
       document.getElementById('step2-container').style.display = 'block';
       updateSingleUseWarningBanner('step2-container');
+
+      if (!activeExtractedFolderId && folderInput && corpChips) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (res && Array.isArray(res.domains) && res.domains.length > 0 && corpChips) {
+              const discovered = res.domains.map(d => String(d || '').toLowerCase().trim()).filter(Boolean);
+              if (discovered.length > 0) {
+                const currentItems = Array.isArray(corpChips.items) ? corpChips.items : [];
+                const onlyRunnerNoOverlap = currentItems.length > 0 &&
+                  runnerDirectoryDomains.length > 0 &&
+                  currentItems.every(d => runnerDirectoryDomains.includes(d)) &&
+                  !currentItems.some(d => discovered.includes(d));
+                if (currentItems.length === 0 || onlyRunnerNoOverlap) {
+                  corpChips.items = [discovered[0]];
+                  corpChips.render();
+                  syncRegisteredDomainsToProd();
+                }
+                corpChips.setSuggestions(discovered);
+              }
+            }
+          })
+          .withFailureHandler(function() {})
+          .discoverManualSourceDomains(folderInput);
+      }
     }
 
     function detectSourceType(val) {
