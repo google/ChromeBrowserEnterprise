@@ -6,7 +6,7 @@ if (Get-PackageProvider -Name NuGet) {
     Copy-WriteToLog -logString "NuGet is installed"
 }
 else {
-    register-packagesource -Name NuGet -ProviderName NuGet -location https://www.nuget.org/api/v2/
+    register-packagesource -Name NuGet -ProviderName NuGet -location 'https://www.nuget.org/api/v2/'
 }
 
 #https://www.nuget.org/packages/Newtonsoft.Json/13.0.1
@@ -62,17 +62,17 @@ function Set-EnrolledBrowser
             
         $authToken = Get-GoogleToken -SecretFile $SecretFile
 
-        $bearerToken = [string]::Format(“Bearer {0}”, $authToken)
+        $bearerToken = [string]::Format("Bearer {0}", $authToken)
 
         $deviceId = Get-EnrolledBrowser -Token $bearerToken -CustomerId $CustomerId -MachineName $MachineName
 
         $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-        $headers.Add("Authorization", [string]::Format(“{0}”, $bearerToken))
+        $headers.Add("Authorization", [string]::Format("{0}", $bearerToken))
         $headers.Add("Content-Type", "application/json")
 
         $body = "{`"org_unit_path`":`"$OrgUnitPath`",`"resource_ids`":[`"$deviceId`"]}"
 
-        [string]$requestURL = [string]::Format(“https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/moveChromeBrowsersToOu”,$CustomerId)
+        [string]$requestURL = [string]::Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/moveChromeBrowsersToOu",$CustomerId)
 
         $response = Invoke-RestMethod $requestURL -Method 'POST' -Headers $headers -Body $body
         $response | ConvertTo-Json
@@ -118,8 +118,8 @@ function Get-EnrolledBrowser
     {
 
         $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-        $headers.Add("Authorization", [string]::Format(“{0}”, $Token))
-        [string]$requestURL = [string]::Format(“https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?query=machine_name:{1}&projection=BASIC”,$CustomerId, $MachineName)
+        $headers.Add("Authorization", [string]::Format("{0}", $Token))
+        [string]$requestURL = [string]::Format("https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?query=machine_name:{1}&projection=BASIC",$CustomerId, $MachineName)
 
         $response = Invoke-RestMethod $requestURL -Method 'GET' -Headers $headers
 

@@ -31,18 +31,18 @@ function Get-GoogleToken
         $jsonFile.Add("private_key", $GooglePrivateKey)
         $jsonFile.Add("client_email", $GoogleClienteMail)
         $jsonFile.Add("client_id", $GoogleClientID)
-        $jsonFile.Add("auth_uri", https://accounts.google.com/o/oauth2/auth)
-        $jsonFile.Add("token_uri", https://oauth2.googleapis.com/token)
-        $jsonFile.Add("auth_provider_x509_cert_url", https://www.googleapis.com/oauth2/v1/certs)
-        $jsonFile.Add("client_x509_cert_url", https://www.googleapis.com/robot/v1/metadata/x509/$($GoogleClienteMail.Replace('@','%40')))
+        $jsonFile.Add("auth_uri", 'https://accounts.google.com/o/oauth2/auth')
+        $jsonFile.Add("token_uri", 'https://oauth2.googleapis.com/token')
+        $jsonFile.Add("auth_provider_x509_cert_url", 'https://www.googleapis.com/oauth2/v1/certs')
+        $jsonFile.Add("client_x509_cert_url", "https://www.googleapis.com/robot/v1/metadata/x509/$($GoogleClienteMail.Replace('@','%40'))")
         
         #Convert to json and fix
         $jsonCert = $jsonFile | ConvertTo-Json
-        $jsonCert = $jsonCert.Replace(\\n, "\n")
+        $jsonCert = $jsonCert.Replace('\\n', "\n")
         
         #Add necessary scopes
         $scopes = New-Object -TypeName System.Collections.Generic.List[string]
-        $scopes.Add(https://www.googleapis.com/auth/admin.directory.device.chromebrowsers)
+        $scopes.Add('https://www.googleapis.com/auth/admin.directory.device.chromebrowsers')
         
         #Create the credential and get token
         $googleCred = [Google.Apis.Auth.OAuth2.GoogleCredential]::FromJson($jsonCert)
