@@ -129,10 +129,9 @@ var ExecutivePresentationEngine = {
       else if (/[A-Z0-9%@]/.test(ch)) ems += 0.62;
       else ems += 0.53;
     }
-    for (let size = max; size > min; size--) {
-      if (ems * size <= width) return size;
-    }
-    return min;
+    const usableWidthPt = Math.max(16, width - 14);
+    if (ems === 0) return max;
+    return Math.min(max, Math.max(min, Math.floor(usableWidthPt / ems)));
   },
 
   /**
@@ -439,7 +438,7 @@ var ExecutivePresentationEngine = {
     const maxMs = state && state.maxDate instanceof Date ? state.maxDate.getTime() : (state && state.maxDate ? new Date(state.maxDate).getTime() : NaN);
     if (isFinite(minMs) && isFinite(maxMs) && maxMs >= minMs && calDays > 1) {
       const spanDays = (maxMs - minMs) / 86400000;
-      if ([1, 7, 14, 30, 60, 90, 180].indexOf(calDays - 1) !== -1 && spanDays <= (calDays - 1) + 0.05) {
+      if ([7, 14, 30, 60, 90, 180].indexOf(calDays - 1) !== -1 && spanDays <= (calDays - 1) + 0.05) {
         return calDays - 1;
       }
     }
@@ -846,7 +845,7 @@ var ExecutivePresentationEngine = {
         });
       });
       const catList = Object.keys(cats).map(k => cats[k]).filter(c => validName(c.name) && (c.bytes > 0 || c.count > 0))
-        .sort((a, b) => b.bytes - a.bytes || b.count - a.count || (a.name < b.name ? -1 : 1));
+        .sort((a, b) => b.count - a.count || b.bytes - a.bytes || (a.name < b.name ? -1 : 1));
       const catByCount = !catList.some(c => c.bytes > 0);
       const catTotal = catList.reduce((s, c) => s + (catByCount ? c.count : c.bytes), 0);
       catList.forEach(c => { c.sharePct = catTotal > 0 ? Math.round(((catByCount ? c.count : c.bytes) / catTotal) * 100) : 0; });
@@ -1357,7 +1356,7 @@ var ExecutivePresentationEngine = {
     {
       let txt = '{{sub1Vol}}';
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
-      this.addLineBox(slide, txt, 48, 243, 106, 26, 'Outfit', 16, 'bold', '#7C3AED', 'left');
+      this.addLineBox(slide, txt, 48, 243, 116, 26, 'Outfit', 16, 'bold', '#7C3AED', 'left');
     }
     {
       let txt = '{{sub1Count}}';
@@ -1378,7 +1377,7 @@ var ExecutivePresentationEngine = {
     {
       let txt = '{{sub2Vol}}';
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
-      this.addLineBox(slide, txt, 182, 243, 106, 26, 'Outfit', 16, 'bold', '#059669', 'left');
+      this.addLineBox(slide, txt, 182, 243, 116, 26, 'Outfit', 16, 'bold', '#059669', 'left');
     }
     {
       let txt = '{{sub2Count}}';
@@ -1399,7 +1398,7 @@ var ExecutivePresentationEngine = {
     {
       let txt = '{{sub3Vol}}';
       for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
-      this.addLineBox(slide, txt, 316, 243, 106, 26, 'Outfit', 16, 'bold', '#0284C7', 'left');
+      this.addLineBox(slide, txt, 316, 243, 116, 26, 'Outfit', 16, 'bold', '#0284C7', 'left');
     }
     {
       let txt = '{{sub3Count}}';
@@ -1596,7 +1595,7 @@ var ExecutivePresentationEngine = {
         this.addTextBox(slide, String(idx + 1), 376 - 1, rowY + 1, 24, 16, 'Roboto', 6.5, 'bold', isTop ? '#FFFFFF' : p.textMuted, 'center');
         // A category CERA named (internal apps, unspecified) in the report language; one of the log shortened
         const cDisplayName = ceraOwnCategory(c.name) ? ceraCategoryLabel(c.name, ctx._lang)
-          : (typeof VectorChartEngine !== 'undefined' ? VectorChartEngine.cleanLabel(c.name, 30) : c.name);
+          : (typeof VectorChartEngine !== 'undefined' ? VectorChartEngine.cleanLabel(c.name, 36) : c.name);
         this.addLineBox(slide, cDisplayName, 376 + 22, rowY + 1.5, 165, 16, 'Outfit', 7, 'bold', p.textDark, 'left');
         const cVolStr = this.fmtBytes(c.bytes || 0);
         const cShareStr = (typeof c.sharePct === 'number' && c.sharePct > 0) ? ` (${c.sharePct}%)` : '';
