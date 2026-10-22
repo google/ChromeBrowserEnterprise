@@ -138,6 +138,7 @@ function computeOutlierAnalytics(outliers, state) {
   let skewBytes = 0;
 
   Object.keys(outliers.ouActors || {}).sort().forEach(ou => {
+    if (typeof ceraIsUnreportedOu_ === 'function' && ceraIsUnreportedOu_(ou)) return;
     const o = outliers.ouActors[ou];
     if (o.totalBytes < 100 * (1024 ** 2)) return;
     let maxUserBytes = 0;
@@ -447,7 +448,22 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
     const c = Number(o.count) || 0;
     const v = globalByCount ? c : b;
     if (v <= 0) return;
-    if (!peakUnit || v > peakUnit.val || (v === peakUnit.val && c > peakUnit.count)) {
+    const isRealOu = typeof ceraIsUnreportedOu_ !== 'function' || !ceraIsUnreportedOu_(ou);
+    let shouldReplace = false;
+    if (!peakUnit) {
+      shouldReplace = true;
+    } else {
+      const peakIsReal = typeof ceraIsUnreportedOu_ !== 'function' || !ceraIsUnreportedOu_(peakUnit.ou);
+      if (isRealOu && !peakIsReal) {
+        shouldReplace = true;
+      } else if (isRealOu === peakIsReal) {
+        if (v > peakUnit.val || (v === peakUnit.val && c > peakUnit.count)) {
+          shouldReplace = true;
+        }
+      }
+    }
+
+    if (shouldReplace) {
       let topDom = '';
       let topDomVal = -1;
       Object.keys(o.domains || {}).filter(isValid).sort().forEach(d => {

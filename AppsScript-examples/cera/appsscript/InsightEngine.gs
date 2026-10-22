@@ -954,6 +954,7 @@ function ceraUnitSkew(state) {
   const units = (state && state.outliers && state.outliers.ouActors) || {};
   let best = null;
   Object.keys(units).sort().forEach(ou => {
+    if (typeof ceraIsUnreportedOu_ === 'function' && ceraIsUnreportedOu_(ou)) return;
     const u = units[ou] || {};
     const total = Number(u.totalBytes) || 0;
     const people = Object.keys(u.users || {}).filter(p => (Number(u.users[p]) || 0) > 0);

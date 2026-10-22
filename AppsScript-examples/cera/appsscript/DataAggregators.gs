@@ -881,7 +881,14 @@ function recordSensitiveOnPage(state, host, detectorText, ou, userIdent, dayKey,
 function ceraIsUnreportedOu_(ou) {
   if (!ou) return true;
   const s = String(ou).trim();
-  if (!s || s === 'Unassigned OU' || s === 'OU not reported') return true;
+  if (!s || s === 'Unassigned OU' || s === 'OU not reported' || s === 'N/A') return true;
+  if (typeof CERA_I18N_MESSAGES !== 'undefined') {
+    const keys = Object.keys(CERA_I18N_MESSAGES);
+    for (let i = 0; i < keys.length; i++) {
+      const msg = CERA_I18N_MESSAGES[keys[i]]['report.ou.notReported'];
+      if (msg && s === msg) return true;
+    }
+  }
   if (typeof ceraT === 'function') {
     try {
       if (s === ceraT('report.ou.notReported', null, 'en')) return true;

@@ -83,7 +83,7 @@ var VectorChartEngine = {
       const mime = /^(application|audio|font|image|message|model|multipart|text|video)\/[\w.+-]+$/i.test(str);
       if (str.indexOf('/') !== -1 && !spaced && !mime) {
         const parts = str.split('/').map(s => s.trim()).filter(Boolean);
-        const hostFirst = parts.length > 0 && /^[^\s]+\.[a-z]{2,}(:\d+)?$/i.test(parts[0]) && !/^\//.test(str);
+        const hostFirst = parts.length > 0 && /^[^\s]+:\d+$/.test(parts[0]) && !/^\//.test(str);
         str = parts.length ? (hostFirst ? parts[0] : parts[parts.length - 1]) : str;
       }
     }

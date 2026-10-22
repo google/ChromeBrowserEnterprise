@@ -1825,9 +1825,9 @@ function _isBlankRow_(row) {
 
 /**
  * Organizational unit label of a row, normalised once at ingestion so every report shows the same names. The root
- * unit ("/") gets the root label; a blank unit, or a domain name in the unit column (some log sources put the
- * customer's domain there), becomes "OU not reported"; a leading "/" of a unit path is dropped. Labels follow the
- * report language and are cached per run.
+ * unit ("/") gets the root label; a blank unit or placeholder becomes "OU not reported"; a leading "/" of a unit
+ * path is dropped. Domain-named and slash-separated OUs are preserved. Labels follow the report language and are
+ * cached per run.
  */
 function ceraOuLabel_(raw, state, corpDomains) {
   const s = raw === null || raw === undefined ? '' : String(raw).trim();
@@ -1836,11 +1836,9 @@ function ceraOuLabel_(raw, state, corpDomains) {
   if (cache[s] !== undefined) return cache[s];
   const lang = state.reportLang || 'en';
   const path = s.replace(/^\/+/, '').trim();
-  const isDomain = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(path) ||
-    (corpDomains || []).some(cd => cd && path.toLowerCase() === String(cd).toLowerCase());
   let label = path;
   if (s && !path) label = ceraT('report.ou.root', null, lang);
-  else if (!path || /^(null|undefined|-)$/i.test(path) || isDomain) label = ceraT('report.ou.notReported', null, lang);
+  else if (!path || /^(null|undefined|n\/a|-|unassigned ou|ou not reported)$/i.test(path)) label = ceraT('report.ou.notReported', null, lang);
   cache[s] = label;
   return label;
 }
