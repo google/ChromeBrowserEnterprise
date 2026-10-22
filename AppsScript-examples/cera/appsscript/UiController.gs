@@ -622,6 +622,252 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
 }
 
 /**
+ * Samples up to 3 spreadsheets from a manual Drive folder or sheet (reading only A1:AZ201 per sheet)
+ * to discover corporate and subsidiary domains from User Profile, Account, and OU columns for Step 2.
+ */
+function discoverManualSourceDomains(sourceInput) {
+  const empty = { domains: [], primaryDomain: '', counts: {} };
+  try {
+    const rawInput = String(sourceInput || '').trim();
+    if (!rawInput) return empty;
+    const targetId = (typeof extractDriveId === 'function' ? extractDriveId(rawInput) : '') ||
+      (typeof extractFolderId === 'function' ? extractFolderId(rawInput) : '');
+    if (!targetId) return empty;
+
+    let currentSsId = '';
+    try {
+      const activeSs = SpreadsheetApp.getActiveSpreadsheet();
+      if (activeSs && typeof activeSs.getId === 'function') {
+        currentSsId = String(activeSs.getId() || '');
+      }
+    } catch (ssErr) {}
+
+    let isSingleSheet = rawInput.includes('/spreadsheets/d/');
+    let target = null;
+    try {
+      if (typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.get === 'function') {
+        target = Drive.Files.get(targetId, { fields: 'id,name,mimeType', supportsAllDrives: true });
+        if (target && (target.mimeType === MimeType.GOOGLE_SHEETS || target.mimeType === 'application/vnd.google-apps.spreadsheet')) {
+          isSingleSheet = true;
+        }
+      }
+    } catch (dErr) {}
+
+    const sheetIds = [];
+    if (isSingleSheet) {
+      if (targetId !== currentSsId) sheetIds.push(targetId);
+    } else if (target) {
+      try {
+        let files = typeof ceraFolderSheets_ === 'function' ? ceraFolderSheets_(target.id) : [];
+        if (typeof ceraSortPartitionQueue_ === 'function') {
+          files = ceraSortPartitionQueue_(files);
+        }
+        let queue = [];
+        for (let i = 0; i < files.length; i++) {
+          const fid = files[i] && files[i].id ? String(files[i].id) : '';
+          if (fid && fid !== currentSsId && !queue.includes(fid)) {
+            queue.push(fid);
+          }
+        }
+        if (queue.length <= 8) {
+          for (let i = 0; i < queue.length; i++) sheetIds.push(queue[i]);
+        } else {
+          for (let i = 0; i < 8; i++) {
+            const idx = Math.floor(i * (queue.length - 1) / 7);
+            if (!sheetIds.includes(queue[idx])) sheetIds.push(queue[idx]);
+          }
+        }
+      } catch (listErr) {}
+    } else if (targetId !== currentSsId) {
+      sheetIds.push(targetId);
+    }
+
+    if (sheetIds.length === 0) return empty;
+
+    const consumerList = (typeof CeraConfig !== 'undefined' && Array.isArray(CeraConfig.CONSUMER_EMAIL_DOMAINS))
+      ? CeraConfig.CONSUMER_EMAIL_DOMAINS
+      : ['gmail.com', 'googlemail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com', 'live.com', 'msn.com', 'protonmail.com', 'proton.me', 'mail.com', 'zoho.com', 'yandex.com', 'gmx.com', 'me.com', 'mac.com'];
+    const consumerSet = new Set(consumerList.map(d => String(d).toLowerCase().trim()));
+    const consumerPrefixRe = /^(yahoo|outlook|hotmail|live|msn|icloud|aol|proton|gmx|ymail)./i;
+
+    const extractValidDomain = rawVal => {
+      if (rawVal === null || rawVal === undefined || rawVal === '') return '';
+      const s = String(rawVal).trim().toLowerCase();
+      if (!s) return '';
+      const m = s.match(/@([a-z0-9.-]+\.[a-z]{2,})\b/i);
+      if (!m || !m[1]) return '';
+      const dom = m[1].replace(/^\.+|\.+$/g, '').toLowerCase();
+      if (!dom || consumerSet.has(dom) || consumerPrefixRe.test(dom)) return '';
+      return dom;
+    };
+
+    const counts = {};
+    const accountCounts = {};
+    const corpStems = new Set();
+    const hasManagedOu = {};
+
+    function ceraColIndexToLetter_(idx) {
+      let temp, letter = '';
+      while (idx > 0) {
+        temp = (idx - 1) % 26;
+        letter = String.fromCharCode(temp + 65) + letter;
+        idx = (idx - temp - 1) / 26;
+      }
+      return letter;
+    }
+
+    const processOu = ouStr => {
+      if (!ouStr) return;
+      const parts = String(ouStr).split('/');
+      for (let p = 0; p < parts.length; p++) {
+        const segDom = extractValidDomain('u@' + parts[p].trim());
+        if (segDom) {
+          counts[segDom] = (counts[segDom] || 0) + 1;
+          hasManagedOu[segDom] = true;
+        }
+      }
+    };
+
+    for (let sIdx = 0; sIdx < sheetIds.length; sIdx++) {
+      const sheetId = sheetIds[sIdx];
+      let rows = [];
+      let grid = null;
+      try {
+        grid = typeof ceraGetSourceSheetGridInfo_ === 'function' ? ceraGetSourceSheetGridInfo_(sheetId) : null;
+        const maxRow = grid && Number(grid.rowCount) > 0 ? Math.min(201, Math.max(2, Number(grid.rowCount))) : 201;
+        const range = (grid && grid.escapedTitle && grid.lastCol)
+          ? (grid.escapedTitle + '!A1:' + grid.lastCol + maxRow)
+          : 'A1:AZ201';
+        if (typeof ceraReadSheetRangeWithRetry_ === 'function') {
+          rows = ceraReadSheetRangeWithRetry_(sheetId, range);
+        } else if (typeof Sheets !== 'undefined' && Sheets.Spreadsheets && Sheets.Spreadsheets.Values) {
+          const resp = Sheets.Spreadsheets.Values.get(sheetId, range);
+          rows = (resp && Array.isArray(resp.values)) ? resp.values : [];
+        }
+      } catch (readErr) {
+        try {
+          const extSs = SpreadsheetApp.openById(sheetId);
+          const sh = extSs.getSheetByName('Raw Data') || extSs.getSheets()[0];
+          if (sh && sh.getLastRow() > 1) {
+            const numRows = Math.min(201, sh.getLastRow());
+            const numCols = Math.min(52, Math.max(1, sh.getLastColumn()));
+            rows = sh.getRange(1, 1, numRows, numCols).getValues();
+          }
+        } catch (openErr) {}
+      }
+
+      if (!rows || rows.length < 2) continue;
+      const col = typeof resolveColumnIndices === 'function' ? resolveColumnIndices(rows[0] || []) : null;
+      if (!col) continue;
+
+      const limit = Math.min(rows.length, 201);
+      for (let r = 1; r < limit; r++) {
+        const row = rows[r];
+        if (!row) continue;
+        const puRaw = col.profileUser !== -1 ? row[col.profileUser] : (col.userAlt !== -1 ? row[col.userAlt] : '');
+        const puDom = extractValidDomain(puRaw) || (col.userAlt !== -1 && col.userAlt !== col.profileUser ? extractValidDomain(row[col.userAlt]) : '');
+        if (puDom) {
+          counts[puDom] = (counts[puDom] || 0) + 1;
+          const stem = puDom.split('.')[0];
+          if (stem && stem.length >= 3) corpStems.add(stem);
+        }
+        if (col.account !== -1 && row[col.account]) {
+          const accDom = extractValidDomain(row[col.account]);
+          if (accDom) {
+            accountCounts[accDom] = (accountCounts[accDom] || 0) + 1;
+          }
+        }
+        if (col.ou !== -1 && row[col.ou]) {
+          processOu(row[col.ou]);
+        }
+      }
+
+      if (typeof Sheets !== 'undefined' && Sheets.Spreadsheets && Sheets.Spreadsheets.Values && typeof Sheets.Spreadsheets.Values.batchGet === 'function' && grid && grid.rowCount > 201) {
+        try {
+          const puCol = col.profileUser !== -1 ? col.profileUser : col.userAlt;
+          const ouCol = col.ou;
+          const acCol = col.account;
+          if (puCol !== -1 || ouCol !== -1 || acCol !== -1) {
+            const ranges = [];
+            const r1 = 202;
+            let r2 = Math.min(sheetIds.length === 1 ? 100001 : 5001, grid.rowCount);
+            const title = grid.escapedTitle + '!';
+            if (puCol !== -1) ranges.push(title + ceraColIndexToLetter_(puCol + 1) + r1 + ':' + ceraColIndexToLetter_(puCol + 1) + r2);
+            if (ouCol !== -1) ranges.push(title + ceraColIndexToLetter_(ouCol + 1) + r1 + ':' + ceraColIndexToLetter_(ouCol + 1) + r2);
+            if (acCol !== -1) ranges.push(title + ceraColIndexToLetter_(acCol + 1) + r1 + ':' + ceraColIndexToLetter_(acCol + 1) + r2);
+            
+            if (sheetIds.length > 1 && grid.rowCount > 25000) {
+               const midR1 = 25001;
+               const midR2 = Math.min(30000, grid.rowCount);
+               if (puCol !== -1) ranges.push(title + ceraColIndexToLetter_(puCol + 1) + midR1 + ':' + ceraColIndexToLetter_(puCol + 1) + midR2);
+               if (ouCol !== -1) ranges.push(title + ceraColIndexToLetter_(ouCol + 1) + midR1 + ':' + ceraColIndexToLetter_(ouCol + 1) + midR2);
+               if (acCol !== -1) ranges.push(title + ceraColIndexToLetter_(acCol + 1) + midR1 + ':' + ceraColIndexToLetter_(acCol + 1) + midR2);
+            }
+            
+            const batchResp = Sheets.Spreadsheets.Values.batchGet(sheetId, { ranges: ranges });
+            if (batchResp && Array.isArray(batchResp.valueRanges)) {
+              for (let v = 0; v < batchResp.valueRanges.length; v++) {
+                const vr = batchResp.valueRanges[v];
+                if (!vr || !vr.values || !vr.range) continue;
+                const puColLetter = puCol !== -1 ? ceraColIndexToLetter_(puCol + 1) : '';
+                const ouColLetter = ouCol !== -1 ? ceraColIndexToLetter_(ouCol + 1) : '';
+                const acColLetter = acCol !== -1 ? ceraColIndexToLetter_(acCol + 1) : '';
+                const isPuCol = puCol !== -1 && (vr.range.includes('!' + puColLetter) || vr.range.includes(puColLetter + ':'));
+                const isOuCol = ouCol !== -1 && (vr.range.includes('!' + ouColLetter) || vr.range.includes(ouColLetter + ':'));
+                const isAcCol = acCol !== -1 && (vr.range.includes('!' + acColLetter) || vr.range.includes(acColLetter + ':'));
+                for (let k = 0; k < vr.values.length; k++) {
+                  const cellVal = vr.values[k][0];
+                  if (!cellVal) continue;
+                  if (isPuCol) {
+                    const puDom = extractValidDomain(cellVal);
+                    if (puDom) {
+                      counts[puDom] = (counts[puDom] || 0) + 1;
+                      const stem = puDom.split('.')[0];
+                      if (stem && stem.length >= 3) corpStems.add(stem);
+                    }
+                  }
+                  if (isOuCol) {
+                    processOu(cellVal);
+                  }
+                  if (isAcCol) {
+                    const accDom = extractValidDomain(cellVal);
+                    if (accDom) {
+                      accountCounts[accDom] = (accountCounts[accDom] || 0) + 1;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (bErr) {}
+      }
+    }
+
+    const hasProfileDomains = Object.keys(counts).length > 0;
+    Object.keys(accountCounts).forEach(dom => {
+      const stem = dom.split('.')[0];
+      if (!hasProfileDomains || counts[dom] || (stem && corpStems.has(stem))) {
+        counts[dom] = (counts[dom] || 0) + accountCounts[dom];
+      }
+    });
+
+    const domains = Object.keys(counts)
+      .filter(d => counts[d] > 0)
+      .sort((a, b) => (counts[b] - counts[a]) || (a < b ? -1 : (a > b ? 1 : 0)))
+      .slice(0, 50);
+
+    return {
+      domains: domains,
+      primaryDomain: domains[0] || '',
+      counts: counts
+    };
+  } catch (err) {
+    Logger.log('discoverManualSourceDomains notice: ' + err.message);
+    return empty;
+  }
+}
+
+/**
  * Bridge method to query live cloud ingestion status from the modal
  */
 function getCloudIngestionStatus() {

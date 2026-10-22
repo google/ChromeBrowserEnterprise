@@ -115,9 +115,30 @@ function isBlankDestination(value) {
  * Lowercase host (www. stripped) of a URL, or '' when there is none
  * (blank, "null" opaque origins such as blob:null/..., or browser-internal protocols).
  */
+const CERA_PUBLIC_INT_DOMAINS = Object.freeze([
+  'nato.int', 'who.int', 'interpol.int', 'itu.int', 'icao.int', 'wipo.int',
+  'cern.int', 'esa.int', 'ecmwf.int', 'iom.int', 'upu.int', 'iana.int',
+  'un.int', 'coe.int', 'efsa.int', 'eumetsat.int', 'eurocontrol.int',
+  'ices.int', 'ifad.int', 'iter.int', 'oie.int', 'osce.int'
+]);
+
+const CERA_DETECTOR_ACRONYMS = new Set([
+  'us', 'uk', 'gb', 'eu', 'uae', 'iban', 'swift', 'bic', 'ssn', 'sin', 'tin',
+  'nin', 'nric', 'nik', 'cccd', 'gst', 'vat', 'pan', 'cpf', 'cnpj', 'dni',
+  'nie', 'nif', 'curp', 'rfc', 'hkid', 'tfn', 'abn', 'ird', 'ip', 'mac',
+  'url', 'uri', 'uuid', 'guid', 'jwt', 'api', 'aws', 'gcp', 'ssh', 'pgp',
+  'rsa', 'pem', 'id', 'dob', 'hipaa', 'pci', 'gdpr', 'cvv', 'cvc', 'pin',
+  'ktp', 'npwp', 'fda', 'icd', 'icd9', 'icd10', 'imei', 'imsi', 'iccid',
+  'meid', 'bsn', 'cni', 'micr', 'aba', 'dea', 'npi', 'nhs', 'nino', 'utr',
+  'ein', 'itin', 'atin', 'ptin', 'pesel', 'regon', 'nip', 'rrn', 'brn',
+  'bvn', 'vin', 'nir', 'siren', 'siret', 'insee', 'iva', 'sepa', 'cusip',
+  'isin', 'sedol', 'figi', 'lei', 'duns', 'phi', 'pii'
+]);
+
 /**
  * Private or local destinations: RFC 1918, loopback and link-local IPv4, localhost, *.local, *.internal,
- * *.lan, *.corp, home.arpa, single-label hosts (intranet, jira:8443), chrome:// pages and local files.
+ * *.lan, *.corp, *.intranet, *.pvt, *.localdomain, non-treaty *.int, home.arpa, single-label hosts
+ * (intranet, jira:8443), chrome:// pages and local files.
  * Transfers to these stay inside the organization's network, so they are never counted as unmanaged SaaS.
  * A port is ignored.
  */
@@ -128,7 +149,10 @@ function isInternalHost(host) {
   if (h === 'localhost' || h === 'local' || raw.indexOf('local file') === 0) return true;
   if (/^(10|127)\.\d+\.\d+\.\d+$/.test(h) || /^192\.168\.\d+\.\d+$/.test(h) || /^169\.254\.\d+\.\d+$/.test(h)) return true;
   if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(h)) return true;
-  if (/\.(local|internal|lan|corp|home\.arpa)$/.test(h)) return true;
+  if (/^100\.(6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\.\d+\.\d+$/.test(h)) return true;
+  if (/^198\.1[89]\.\d+\.\d+$/.test(h)) return true;
+  if (/\.(local|internal|lan|corp|intranet|pvt|localdomain|home\.arpa)$/.test(h)) return true;
+  if (/\.int$/.test(h) && !matchDomainList(h, CERA_PUBLIC_INT_DOMAINS)) return true;
   if (/^chrome(-untrusted)?:/.test(h)) return true;
   // A host without a dot resolves only through the organization's own name service
   if (raw.indexOf(' ') === -1 && /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(h) && !/^\d+$/.test(h)) return true;
@@ -144,10 +168,16 @@ function ceraDetectorLabel(name) {
   const m = n.match(/^policies\/([A-Za-z0-9]+)$/);
   if (m) return 'Custom rule (' + m[1].slice(-6) + ')';
   // Predefined detector ids such as CREDIT_CARD_NUMBER or GENDER read as "Credit card number", "Gender"; short
-  // acronyms such as SSN or NIK stay as they are
+  // acronyms such as SSN or NIK stay as they are, and acronym tokens in UPPER_SNAKE_CASE stay uppercase.
   if (/^[A-Z0-9_]+$/.test(n) && (n.indexOf('_') !== -1 || n.length >= 5)) {
-    const words = n.toLowerCase().split('_').filter(Boolean).join(' ');
-    return words.charAt(0).toUpperCase() + words.slice(1);
+    const tokens = n.toLowerCase().split('_').filter(Boolean);
+    if (tokens.length === 1 && CERA_DETECTOR_ACRONYMS.has(tokens[0])) {
+      return tokens[0].toUpperCase();
+    }
+    return tokens.map((tok, idx) => {
+      if (CERA_DETECTOR_ACRONYMS.has(tok)) return tok.toUpperCase();
+      return idx === 0 ? (tok.charAt(0).toUpperCase() + tok.slice(1)) : tok;
+    }).join(' ');
   }
   return n;
 }
@@ -936,6 +966,10 @@ function formatBytes(bytes) {
   const num = Number(bytes);
   if (isNaN(num)) return '0.00 MB';
 
+  const tb = num / (1024 * 1024 * 1024 * 1024);
+  if (tb >= 1.0) {
+    return tb.toFixed(2) + ' TB';
+  }
   const gb = num / (1024 * 1024 * 1024);
   if (gb >= 1.0) {
     return gb.toFixed(2) + ' GB';
