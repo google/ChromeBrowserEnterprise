@@ -83,7 +83,7 @@ var VectorChartEngine = {
       const mime = /^(application|audio|font|image|message|model|multipart|text|video)\/[\w.+-]+$/i.test(str);
       if (str.indexOf('/') !== -1 && !spaced && !mime) {
         const parts = str.split('/').map(s => s.trim()).filter(Boolean);
-        const hostFirst = parts.length > 0 && /^[^\s]+\.[a-z]{2,}(:\d+)?$/i.test(parts[0]) && !/^\//.test(str);
+        const hostFirst = parts.length > 0 && /^[^\s]+:\d+$/.test(parts[0]) && !/^\//.test(str);
         str = parts.length ? (hostFirst ? parts[0] : parts[parts.length - 1]) : str;
       }
     }
@@ -471,7 +471,7 @@ var VectorChartEngine = {
 
     // Choose a display unit that keeps small tenants readable (B / KB / MB / GB)
     const maxBytes = Math.max(...rawBytes, 0);
-    const units = [['GB', 1024 ** 3], ['MB', 1024 ** 2], ['KB', 1024], ['B', 1]];
+    const units = [['TB', 1024 ** 4], ['GB', 1024 ** 3], ['MB', 1024 ** 2], ['KB', 1024], ['B', 1]];
     let unit = units[units.length - 1];
     for (let u = 0; u < units.length; u++) {
       if (maxBytes >= units[u][1]) { unit = units[u]; break; }

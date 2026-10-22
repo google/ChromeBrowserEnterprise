@@ -273,6 +273,8 @@ var CERA_I18N_MESSAGES = {
     "step2.corp.hintDirectory": "🏛️ <b>{n} domain(s) verified & auto-loaded</b> from Google Workspace Admin Directory. Add any subsidiary or sister-company domains below:",
     "step2.corp.hintManual": "Enter your primary and subsidiary company domains (e.g. <i>enterprise.com</i>, <i>subsidiary.com</i>). Accounts outside these domains (and Partner Organizations) are classified as personal accounts:",
     "step2.corp.placeholder": "Add corporate or subsidiary domain (e.g. subsidiary.com) and press Enter...",
+    "step2.corp.suggestLabel": "Discovered in logs:",
+    "step2.corp.addAll": "Add all",
     "step2.ai.title": "Sanctioned Enterprise AI",
     "step2.ai.desc": "Approved enterprise AI tools benchmarked against unsanctioned Shadow AI",
     "step2.ai.placeholder": "Type AI domain (e.g. notebooklm.google.com) and press Enter...",
@@ -1128,7 +1130,15 @@ var CERA_I18N_MESSAGES = {
     },
     "deck.radar.unitNone": "No organizational unit was recorded for Safe Browsing events.",
     "deck.radar.unitTitle": "Departmental Impact: {ou}",
-    "deck.signals2.hl": "{pw} password reuse events ({pwPeople}); {mal} flagged downloads ({malPeople})",
+    "deck.signals2.pwEvents": {
+      "one": "1 password reuse event",
+      "other": "{n} password reuse events"
+    },
+    "deck.signals2.malDownloads": {
+      "one": "1 flagged download",
+      "other": "{n} flagged downloads"
+    },
+    "deck.signals2.hl": "{pwEvents} ({pwPeople}); {malDownloads} ({malPeople})",
     "deck.signals2.hlNone": "No password reuse or malicious file events were recorded",
     "deck.printing.hl": "{pct}% of print jobs contained sensitive data ({sensitive} of {n})",
     "deck.printing.hlAllBlocked": {
@@ -1166,12 +1176,18 @@ var CERA_I18N_MESSAGES = {
     "deck.rec.unmanagedLeft": "Restrict transfers to unsanctioned apps where they still get through, such as {dest} ({bytes} so far)",
     "deck.rec.messaging": "Warn on transfers to web messaging ({mix})",
     "deck.rec.messagingLeft": "Warn on transfers to web messaging where they still get through ({mix}, led by {dest})",
-    "deck.rec.print": "Apply print controls to pages with sensitive data ({n} sensitive print jobs)",
+    "deck.rec.print": {
+      "one": "Apply print controls to pages with sensitive data (1 sensitive print job)",
+      "other": "Apply print controls to pages with sensitive data ({n} sensitive print jobs)"
+    },
     "deck.rec.printLeft": {
       "one": "Apply print controls where sensitive pages still print (1 sensitive print job, from {host})",
       "other": "Apply print controls where sensitive pages still print ({n} sensitive print jobs, led by {host})"
     },
-    "deck.rec.malware": "Block dangerous downloads ({n} potentially malicious files)",
+    "deck.rec.malware": {
+      "one": "Block dangerous downloads (1 potentially malicious file)",
+      "other": "Block dangerous downloads ({n} potentially malicious files)"
+    },
     "deck.rec.malwareLeft": {
       "one": "Block dangerous downloads that still get through (1 of {total} flagged downloads)",
       "other": "Block dangerous downloads that still get through ({n} of {total} flagged downloads)"
@@ -1184,8 +1200,14 @@ var CERA_I18N_MESSAGES = {
       "one": "Prevent Safe Browsing bypass: the 1 warning shown was clicked through, on {host}",
       "other": "Prevent Safe Browsing bypass: {bypassed} of {n} warnings clicked through ({rate}%), most on {host}"
     },
-    "deck.rec.certs": "Fix certificates on internal hosts ({n} warnings came from them)",
-    "deck.rec.password": "Require a password change after reuse is detected ({n} reuse events)",
+    "deck.rec.certs": {
+      "one": "Fix certificates on internal hosts (1 warning came from them)",
+      "other": "Fix certificates on internal hosts ({n} warnings came from them)"
+    },
+    "deck.rec.password": {
+      "one": "Require a password change after reuse is detected (1 reuse event)",
+      "other": "Require a password change after reuse is detected ({n} reuse events)"
+    },
     "deck.rec.personalSplit": "Block transfers to non-corporate accounts ({mix}, {split})",
     "deck.header.launches": "CHROME EGRESS RISK ANALYSIS • BROWSER LAUNCH SWITCHES",
     "deck.launch.hl": {
@@ -1928,6 +1950,8 @@ var CERA_I18N_MESSAGES = {
     "step2.corp.hintDirectory": "🏛️ <b>{n} domain terverifikasi & dimuat otomatis</b> dari Google Workspace Admin Directory. Tambahkan domain anak perusahaan atau grup di bawah:",
     "step2.corp.hintManual": "Masukkan domain utama dan anak perusahaan secara manual (mis. <i>enterprise.com</i>, <i>subsidiary.com</i>). Akun di luar domain ini (dan Organisasi Mitra) diklasifikasikan sebagai akun pribadi:",
     "step2.corp.placeholder": "Tambahkan domain perusahaan atau anak perusahaan (mis. subsidiary.com) lalu tekan Enter...",
+    "step2.corp.suggestLabel": "Ditemukan di log:",
+    "step2.corp.addAll": "Tambahkan semua",
     "step2.ai.title": "AI Perusahaan yang Disetujui",
     "step2.ai.desc": "Alat AI perusahaan yang disetujui, dibandingkan terhadap Shadow AI",
     "step2.ai.placeholder": "Ketik domain AI (mis. notebooklm.google.com) lalu tekan Enter...",
@@ -2783,7 +2807,15 @@ var CERA_I18N_MESSAGES = {
     },
     "deck.radar.unitNone": "Tidak ada unit organisasi yang tercatat untuk kejadian Safe Browsing.",
     "deck.radar.unitTitle": "Dampak per Unit: {ou}",
-    "deck.signals2.hl": "{pw} kejadian penggunaan ulang sandi ({pwPeople}); {mal} unduhan bertanda ({malPeople})",
+    "deck.signals2.pwEvents": {
+      "one": "1 kejadian penggunaan ulang sandi",
+      "other": "{n} kejadian penggunaan ulang sandi"
+    },
+    "deck.signals2.malDownloads": {
+      "one": "1 unduhan bertanda",
+      "other": "{n} unduhan bertanda"
+    },
+    "deck.signals2.hl": "{pwEvents} ({pwPeople}); {malDownloads} ({malPeople})",
     "deck.signals2.hlNone": "Tidak ada kejadian penggunaan ulang sandi atau file berbahaya yang tercatat",
     "deck.printing.hl": "{pct}% tugas cetak memuat data sensitif ({sensitive} dari {n})",
     "deck.printing.hlAllBlocked": {
@@ -2821,12 +2853,18 @@ var CERA_I18N_MESSAGES = {
     "deck.rec.unmanagedLeft": "Batasi transfer ke aplikasi tidak resmi yang masih lolos, seperti {dest} ({bytes} sejauh ini)",
     "deck.rec.messaging": "Peringatkan transfer ke pesan web ({mix})",
     "deck.rec.messagingLeft": "Peringatkan transfer ke pesan web yang masih lolos ({mix}, terutama ke {dest})",
-    "deck.rec.print": "Terapkan kontrol cetak pada halaman berisi data sensitif ({n} tugas cetak sensitif)",
+    "deck.rec.print": {
+      "one": "Terapkan kontrol cetak pada halaman berisi data sensitif (1 tugas cetak sensitif)",
+      "other": "Terapkan kontrol cetak pada halaman berisi data sensitif ({n} tugas cetak sensitif)"
+    },
     "deck.rec.printLeft": {
       "one": "Terapkan kontrol cetak pada halaman sensitif yang masih tercetak (1 tugas cetak sensitif, dari {host})",
       "other": "Terapkan kontrol cetak pada halaman sensitif yang masih tercetak ({n} tugas cetak sensitif, terutama dari {host})"
     },
-    "deck.rec.malware": "Blokir unduhan berbahaya ({n} file yang berpotensi berbahaya)",
+    "deck.rec.malware": {
+      "one": "Blokir unduhan berbahaya (1 file yang berpotensi berbahaya)",
+      "other": "Blokir unduhan berbahaya ({n} file yang berpotensi berbahaya)"
+    },
     "deck.rec.malwareLeft": {
       "one": "Blokir unduhan berbahaya yang masih lolos (1 dari {total} unduhan bertanda)",
       "other": "Blokir unduhan berbahaya yang masih lolos ({n} dari {total} unduhan bertanda)"
@@ -2839,8 +2877,14 @@ var CERA_I18N_MESSAGES = {
       "one": "Cegah pengabaian Safe Browsing: 1 peringatan yang muncul diabaikan, di {host}",
       "other": "Cegah pengabaian Safe Browsing: {bypassed} dari {n} peringatan diabaikan ({rate}%), terbanyak di {host}"
     },
-    "deck.rec.certs": "Perbaiki sertifikat di host internal ({n} peringatan berasal dari sana)",
-    "deck.rec.password": "Wajibkan penggantian sandi setelah penggunaan ulang terdeteksi ({n} kejadian)",
+    "deck.rec.certs": {
+      "one": "Perbaiki sertifikat di host internal (1 peringatan berasal dari sana)",
+      "other": "Perbaiki sertifikat di host internal ({n} peringatan berasal dari sana)"
+    },
+    "deck.rec.password": {
+      "one": "Wajibkan penggantian sandi setelah penggunaan ulang terdeteksi (1 kejadian)",
+      "other": "Wajibkan penggantian sandi setelah penggunaan ulang terdeteksi ({n} kejadian)"
+    },
     "deck.rec.personalSplit": "Blokir transfer ke akun non-perusahaan ({mix}, {split})",
     "deck.header.launches": "CHROME EGRESS RISK ANALYSIS • SWITCH PELUNCURAN BROWSER",
     "deck.launch.hl": {
@@ -3583,6 +3627,8 @@ var CERA_I18N_MESSAGES = {
     "step2.corp.hintDirectory": "🏛️ Google Workspace Admin Directory から <b>{n} 個のドメインを確認し、自動的に読み込みました</b>。子会社や関連会社のドメインがあれば下から追加してください:",
     "step2.corp.hintManual": "主要ドメインおよび子会社のドメインを手動で入力してください（例: <i>enterprise.com</i>、<i>subsidiary.com</i>）。これら（およびパートナー組織）以外のアカウントは個人アカウントとして分類されます:",
     "step2.corp.placeholder": "企業または子会社のドメイン（例: subsidiary.com）を入力して Enter キーを押します...",
+    "step2.corp.suggestLabel": "ログから検出:",
+    "step2.corp.addAll": "すべて追加",
     "step2.ai.title": "承認済みの企業向け AI",
     "step2.ai.desc": "未承認の Shadow AI との比較基準となる、承認済みの企業向け AI ツール",
     "step2.ai.placeholder": "AI ドメイン（例: notebooklm.google.com）を入力して Enter キーを押します...",
@@ -4438,7 +4484,15 @@ var CERA_I18N_MESSAGES = {
     },
     "deck.radar.unitNone": "Safe Browsing イベントの部門は記録されていない。",
     "deck.radar.unitTitle": "組織部門別の発生状況：{ou}",
-    "deck.signals2.hl": "パスワード再利用 {pw} 件（{pwPeople}）、検出されたダウンロード {mal} 件（{malPeople}）",
+    "deck.signals2.pwEvents": {
+      "one": "パスワード再利用 1 件",
+      "other": "パスワード再利用 {n} 件"
+    },
+    "deck.signals2.malDownloads": {
+      "one": "検出されたダウンロード 1 件",
+      "other": "検出されたダウンロード {n} 件"
+    },
+    "deck.signals2.hl": "{pwEvents}（{pwPeople}）、{malDownloads}（{malPeople}）",
     "deck.signals2.hlNone": "パスワード再利用・不正ファイルのイベントは記録されていない",
     "deck.printing.hl": "印刷ジョブの {pct}% に機密データ（{n} 件中 {sensitive} 件）",
     "deck.printing.hlAllBlocked": {
@@ -4476,12 +4530,18 @@ var CERA_I18N_MESSAGES = {
     "deck.rec.unmanagedLeft": "{dest} など、未承認アプリへの転送がまだ通過している箇所を制限（これまでに {bytes}）",
     "deck.rec.messaging": "Web メッセージングへの転送に警告を表示（{mix}）",
     "deck.rec.messagingLeft": "Web メッセージングへの転送がまだ通過している箇所で警告を表示（{mix}、最多は {dest}）",
-    "deck.rec.print": "機密データを含むページに印刷制御を適用（機密データを含む印刷ジョブ {n} 件）",
+    "deck.rec.print": {
+      "one": "機密データを含むページに印刷制御を適用（機密データを含む印刷ジョブ 1 件）",
+      "other": "機密データを含むページに印刷制御を適用（機密データを含む印刷ジョブ {n} 件）"
+    },
     "deck.rec.printLeft": {
       "one": "機密データを含むページの印刷がまだ通過している箇所に印刷制御を適用（機密データを含む印刷ジョブ 1 件、{host}）",
       "other": "機密データを含むページの印刷がまだ通過している箇所に印刷制御を適用（機密データを含む印刷ジョブ {n} 件、最多は {host}）"
     },
-    "deck.rec.malware": "危険なダウンロードをブロック（不正の可能性があるファイル {n} 件）",
+    "deck.rec.malware": {
+      "one": "危険なダウンロードをブロック（不正の可能性があるファイル 1 件）",
+      "other": "危険なダウンロードをブロック（不正の可能性があるファイル {n} 件）"
+    },
     "deck.rec.malwareLeft": {
       "one": "まだ通過している危険なダウンロードをブロック（検出されたダウンロード {total} 件中 1 件）",
       "other": "まだ通過している危険なダウンロードをブロック（検出されたダウンロード {total} 件中 {n} 件）"
@@ -4494,8 +4554,14 @@ var CERA_I18N_MESSAGES = {
       "one": "Safe Browsing の回避を防止（表示された警告 1 件を無視、{host}）",
       "other": "Safe Browsing の回避を防止（警告 {n} 件中 {bypassed} 件を無視、{rate}%、最多は {host}）"
     },
-    "deck.rec.certs": "内部ホストの証明書を修正（同ホスト由来の警告 {n} 件）",
-    "deck.rec.password": "再利用の検出後にパスワード変更を必須化（再利用イベント {n} 件）",
+    "deck.rec.certs": {
+      "one": "内部ホストの証明書を修正（同ホスト由来の警告 1 件）",
+      "other": "内部ホストの証明書を修正（同ホスト由来の警告 {n} 件）"
+    },
+    "deck.rec.password": {
+      "one": "再利用の検出後にパスワード変更を必須化（再利用イベント 1 件）",
+      "other": "再利用の検出後にパスワード変更を必須化（再利用イベント {n} 件）"
+    },
     "deck.rec.personalSplit": "企業外アカウントへの転送をブロック（{mix}、{split}）",
     "deck.header.launches": "CHROME EGRESS RISK ANALYSIS • ブラウザ起動時のスイッチ",
     "deck.launch.hl": {
@@ -5238,6 +5304,8 @@ var CERA_I18N_MESSAGES = {
     "step2.corp.hintDirectory": "🏛️ Google Workspace Admin 디렉터리에서 <b>인증된 도메인 {n}개를 자동으로 불러왔습니다</b>. 자회사 또는 계열사 도메인이 있으면 아래에 추가하십시오:",
     "step2.corp.hintManual": "본사 및 자회사 도메인(예: <i>enterprise.com</i>, <i>subsidiary.com</i>)을 직접 입력하십시오. 이 도메인(및 파트너 조직) 외부의 계정은 개인 계정으로 분류됩니다:",
     "step2.corp.placeholder": "기업 또는 자회사 도메인(예: subsidiary.com)을 입력하고 Enter 키를 누르십시오...",
+    "step2.corp.suggestLabel": "로그에서 발견됨:",
+    "step2.corp.addAll": "모두 추가",
     "step2.ai.title": "승인된 기업용 AI",
     "step2.ai.desc": "미승인 Shadow AI와 비교하여 평가할 승인된 기업용 AI 도구",
     "step2.ai.placeholder": "AI 도메인(예: notebooklm.google.com)을 입력하고 Enter 키를 누르십시오...",
@@ -6093,7 +6161,15 @@ var CERA_I18N_MESSAGES = {
     },
     "deck.radar.unitNone": "Safe Browsing 이벤트에 기록된 조직 단위 없음.",
     "deck.radar.unitTitle": "조직 단위별 발생 현황: {ou}",
-    "deck.signals2.hl": "비밀번호 재사용 {pw}건({pwPeople}), 탐지된 다운로드 {mal}건({malPeople})",
+    "deck.signals2.pwEvents": {
+      "one": "비밀번호 재사용 1건",
+      "other": "비밀번호 재사용 {n}건"
+    },
+    "deck.signals2.malDownloads": {
+      "one": "탐지된 다운로드 1건",
+      "other": "탐지된 다운로드 {n}건"
+    },
+    "deck.signals2.hl": "{pwEvents}({pwPeople}), {malDownloads}({malPeople})",
     "deck.signals2.hlNone": "비밀번호 재사용 및 악성 파일 이벤트 기록 없음",
     "deck.printing.hl": "인쇄 작업의 {pct}%에 민감 데이터 포함({n}건 중 {sensitive}건)",
     "deck.printing.hlAllBlocked": {
@@ -6131,12 +6207,18 @@ var CERA_I18N_MESSAGES = {
     "deck.rec.unmanagedLeft": "여전히 통과하는 비승인 앱으로의 전송 제한, 예: {dest}(현재까지 {bytes})",
     "deck.rec.messaging": "웹 메신저로의 전송 시 경고({mix})",
     "deck.rec.messagingLeft": "여전히 통과하는 웹 메신저 전송 시 경고({mix}, 최다 대상 {dest})",
-    "deck.rec.print": "민감 데이터 포함 페이지에 인쇄 제어 적용(민감 인쇄 작업 {n}건)",
+    "deck.rec.print": {
+      "one": "민감 데이터 포함 페이지에 인쇄 제어 적용(민감 인쇄 작업 1건)",
+      "other": "민감 데이터 포함 페이지에 인쇄 제어 적용(민감 인쇄 작업 {n}건)"
+    },
     "deck.rec.printLeft": {
       "one": "민감 페이지가 여전히 인쇄되는 곳에 인쇄 제어 적용(민감 인쇄 작업 1건, {host})",
       "other": "민감 페이지가 여전히 인쇄되는 곳에 인쇄 제어 적용(민감 인쇄 작업 {n}건, 최다 {host})"
     },
-    "deck.rec.malware": "위험한 다운로드 차단(악성 의심 파일 {n}건)",
+    "deck.rec.malware": {
+      "one": "위험한 다운로드 차단(악성 의심 파일 1건)",
+      "other": "위험한 다운로드 차단(악성 의심 파일 {n}건)"
+    },
     "deck.rec.malwareLeft": {
       "one": "여전히 통과하는 위험한 다운로드 차단(탐지된 다운로드 {total}건 중 1건)",
       "other": "여전히 통과하는 위험한 다운로드 차단(탐지된 다운로드 {total}건 중 {n}건)"
@@ -6149,8 +6231,14 @@ var CERA_I18N_MESSAGES = {
       "one": "Safe Browsing 경고 무시 방지: 표시된 경고 1건 무시 후 진행, {host}",
       "other": "Safe Browsing 경고 무시 방지: 경고 {n}건 중 {bypassed}건 무시 후 진행({rate}%), 최다 {host}"
     },
-    "deck.rec.certs": "내부 호스트 인증서 수정(해당 호스트 발생 경고 {n}건)",
-    "deck.rec.password": "비밀번호 재사용 탐지 시 비밀번호 변경 의무화(재사용 {n}건)",
+    "deck.rec.certs": {
+      "one": "내부 호스트 인증서 수정(해당 호스트 발생 경고 1건)",
+      "other": "내부 호스트 인증서 수정(해당 호스트 발생 경고 {n}건)"
+    },
+    "deck.rec.password": {
+      "one": "비밀번호 재사용 탐지 시 비밀번호 변경 의무화(재사용 1건)",
+      "other": "비밀번호 재사용 탐지 시 비밀번호 변경 의무화(재사용 {n}건)"
+    },
     "deck.rec.personalSplit": "비회사 계정으로의 전송 차단({mix}, {split})",
     "deck.header.launches": "CHROME EGRESS RISK ANALYSIS • 브라우저 실행 스위치",
     "deck.launch.hl": {
@@ -6893,6 +6981,8 @@ var CERA_I18N_MESSAGES = {
     "step2.corp.hintDirectory": "🏛️ <b>已从 Google Workspace 管理目录验证并自动加载 {n} 个网域</b>。请在下方添加任何子公司或关联公司网域：",
     "step2.corp.hintManual": "手动输入主公司和子公司网域（例如 <i>enterprise.com</i>、<i>subsidiary.com</i>）。不属于这些网域（以及合作伙伴组织）的账号将归类为个人账号：",
     "step2.corp.placeholder": "添加企业或子公司网域（例如 subsidiary.com）并按 Enter 键...",
+    "step2.corp.suggestLabel": "从日志中发现：",
+    "step2.corp.addAll": "全部添加",
     "step2.ai.title": "获准的企业 AI",
     "step2.ai.desc": "与未获准的 Shadow AI 进行对比的已批准企业 AI 工具",
     "step2.ai.placeholder": "输入 AI 网域（例如 notebooklm.google.com）并按 Enter 键...",
@@ -7748,7 +7838,15 @@ var CERA_I18N_MESSAGES = {
     },
     "deck.radar.unitNone": "未记录 Safe Browsing 事件的组织单位。",
     "deck.radar.unitTitle": "部门影响：{ou}",
-    "deck.signals2.hl": "{pw} 次密码重复使用事件（{pwPeople}）；{mal} 次标记下载（{malPeople}）",
+    "deck.signals2.pwEvents": {
+      "one": "1 次密码重复使用事件",
+      "other": "{n} 次密码重复使用事件"
+    },
+    "deck.signals2.malDownloads": {
+      "one": "1 次标记下载",
+      "other": "{n} 次标记下载"
+    },
+    "deck.signals2.hl": "{pwEvents}（{pwPeople}）；{malDownloads}（{malPeople}）",
     "deck.signals2.hlNone": "未记录到密码重复使用或恶意文件事件",
     "deck.printing.hl": "{pct}% 的打印作业含敏感数据（{n} 个中有 {sensitive} 个）",
     "deck.printing.hlAllBlocked": {
@@ -7786,12 +7884,18 @@ var CERA_I18N_MESSAGES = {
     "deck.rec.unmanagedLeft": "限制仍然流出的、传输至 {dest} 等未经批准应用的数据（目前 {bytes}）",
     "deck.rec.messaging": "对流向网页即时通讯的传输发出警告（{mix}）",
     "deck.rec.messagingLeft": "对仍然流出的网页即时通讯传输发出警告（{mix}，{dest} 居首）",
-    "deck.rec.print": "对含敏感数据的页面实施打印控制（{n} 个敏感打印作业）",
+    "deck.rec.print": {
+      "one": "对含敏感数据的页面实施打印控制（1 个敏感打印作业）",
+      "other": "对含敏感数据的页面实施打印控制（{n} 个敏感打印作业）"
+    },
     "deck.rec.printLeft": {
       "one": "对仍可打印的敏感页面实施打印控制（1 个敏感打印作业，来自 {host}）",
       "other": "对仍可打印的敏感页面实施打印控制（{n} 个敏感打印作业，{host} 居首）"
     },
-    "deck.rec.malware": "阻止危险下载（{n} 个可能的恶意文件）",
+    "deck.rec.malware": {
+      "one": "阻止危险下载（1 个可能的恶意文件）",
+      "other": "阻止危险下载（{n} 个可能的恶意文件）"
+    },
     "deck.rec.malwareLeft": {
       "one": "阻止仍然通过的危险下载（{total} 次标记下载中的 1 次）",
       "other": "阻止仍然通过的危险下载（{total} 次标记下载中的 {n} 次）"
@@ -7804,8 +7908,14 @@ var CERA_I18N_MESSAGES = {
       "one": "防止绕过 Safe Browsing：显示的 1 次警告被点击忽略，在 {host}",
       "other": "防止绕过 Safe Browsing：{n} 次警告中有 {bypassed} 次被点击忽略（{rate}%），主要在 {host}"
     },
-    "deck.rec.certs": "修复内部主机的证书问题（{n} 次警告来自这些主机）",
-    "deck.rec.password": "检测到密码重复使用后要求更改密码（{n} 次重复使用事件）",
+    "deck.rec.certs": {
+      "one": "修复内部主机的证书问题（1 次警告来自这些主机）",
+      "other": "修复内部主机的证书问题（{n} 次警告来自这些主机）"
+    },
+    "deck.rec.password": {
+      "one": "检测到密码重复使用后要求更改密码（1 次重复使用事件）",
+      "other": "检测到密码重复使用后要求更改密码（{n} 次重复使用事件）"
+    },
     "deck.rec.personalSplit": "阻止传输至非公司账号（{mix}，{split}）",
     "deck.header.launches": "CHROME EGRESS RISK ANALYSIS • 浏览器启动开关",
     "deck.launch.hl": {
@@ -8548,6 +8658,8 @@ var CERA_I18N_MESSAGES = {
     "step2.corp.hintDirectory": "🏛️ <b>{n} tên miền đã được xác minh & tự động tải</b> từ Danh bạ Quản trị Google Workspace. Thêm bất kỳ tên miền công ty con hoặc công ty liên kết nào bên dưới:",
     "step2.corp.hintManual": "Nhập tên miền công ty chính và công ty con của bạn (ví dụ: <i>enterprise.com</i>, <i>subsidiary.com</i>). Các tài khoản nằm ngoài những tên miền này (và Tổ chức Đối tác) được phân loại là tài khoản cá nhân:",
     "step2.corp.placeholder": "Thêm tên miền doanh nghiệp hoặc công ty con (ví dụ: subsidiary.com) rồi nhấn Enter...",
+    "step2.corp.suggestLabel": "Phát hiện trong nhật ký:",
+    "step2.corp.addAll": "Thêm tất cả",
     "step2.ai.title": "AI Doanh nghiệp Được phê duyệt",
     "step2.ai.desc": "Các công cụ AI doanh nghiệp được phê duyệt, dùng để đối chiếu với Shadow AI chưa được cấp phép",
     "step2.ai.placeholder": "Nhập tên miền AI (ví dụ: notebooklm.google.com) rồi nhấn Enter...",
@@ -9403,7 +9515,15 @@ var CERA_I18N_MESSAGES = {
     },
     "deck.radar.unitNone": "Không có đơn vị tổ chức nào được ghi nhận cho các sự kiện Safe Browsing.",
     "deck.radar.unitTitle": "Tác động theo đơn vị: {ou}",
-    "deck.signals2.hl": "{pw} sự kiện tái sử dụng mật khẩu ({pwPeople}); {mal} lượt tải xuống bị gắn cờ ({malPeople})",
+    "deck.signals2.pwEvents": {
+      "one": "1 sự kiện tái sử dụng mật khẩu",
+      "other": "{n} sự kiện tái sử dụng mật khẩu"
+    },
+    "deck.signals2.malDownloads": {
+      "one": "1 lượt tải xuống bị gắn cờ",
+      "other": "{n} lượt tải xuống bị gắn cờ"
+    },
+    "deck.signals2.hl": "{pwEvents} ({pwPeople}); {malDownloads} ({malPeople})",
     "deck.signals2.hlNone": "Không có sự kiện tái sử dụng mật khẩu hoặc tệp độc hại nào được ghi nhận",
     "deck.printing.hl": "{pct}% lệnh in có chứa dữ liệu nhạy cảm ({sensitive} trên {n})",
     "deck.printing.hlAllBlocked": {
@@ -9441,12 +9561,18 @@ var CERA_I18N_MESSAGES = {
     "deck.rec.unmanagedLeft": "Hạn chế truyền dữ liệu tới các ứng dụng chưa được phê duyệt tại những nơi dữ liệu vẫn lọt qua, chẳng hạn như {dest} ({bytes} tính đến nay)",
     "deck.rec.messaging": "Cảnh báo khi truyền dữ liệu tới các nền tảng nhắn tin trên web ({mix})",
     "deck.rec.messagingLeft": "Cảnh báo khi truyền dữ liệu tới các nền tảng nhắn tin trên web tại những nơi dữ liệu vẫn lọt qua ({mix}, dẫn đầu là {dest})",
-    "deck.rec.print": "Áp dụng biện pháp kiểm soát in ấn đối với các trang chứa dữ liệu nhạy cảm ({n} lệnh in nhạy cảm)",
+    "deck.rec.print": {
+      "one": "Áp dụng biện pháp kiểm soát in ấn đối với các trang chứa dữ liệu nhạy cảm (1 lệnh in nhạy cảm)",
+      "other": "Áp dụng biện pháp kiểm soát in ấn đối với các trang chứa dữ liệu nhạy cảm ({n} lệnh in nhạy cảm)"
+    },
     "deck.rec.printLeft": {
       "one": "Áp dụng biện pháp kiểm soát in ấn tại những nơi trang nhạy cảm vẫn được in ra (1 lệnh in nhạy cảm, từ {host})",
       "other": "Áp dụng biện pháp kiểm soát in ấn tại những nơi trang nhạy cảm vẫn được in ra ({n} lệnh in nhạy cảm, dẫn đầu là {host})"
     },
-    "deck.rec.malware": "Chặn các lượt tải xuống nguy hiểm ({n} tệp có khả năng độc hại)",
+    "deck.rec.malware": {
+      "one": "Chặn các lượt tải xuống nguy hiểm (1 tệp có khả năng độc hại)",
+      "other": "Chặn các lượt tải xuống nguy hiểm ({n} tệp có khả năng độc hại)"
+    },
     "deck.rec.malwareLeft": {
       "one": "Chặn các lượt tải xuống nguy hiểm vẫn còn lọt qua (1 trên {total} lượt tải xuống bị gắn cờ)",
       "other": "Chặn các lượt tải xuống nguy hiểm vẫn còn lọt qua ({n} trên {total} lượt tải xuống bị gắn cờ)"
@@ -9459,8 +9585,14 @@ var CERA_I18N_MESSAGES = {
       "one": "Ngăn chặn hành vi bỏ qua cảnh báo Safe Browsing: 1 cảnh báo hiển thị đã bị nhấp bỏ qua, trên {host}",
       "other": "Ngăn chặn hành vi bỏ qua cảnh báo Safe Browsing: {bypassed} trên {n} cảnh báo đã bị nhấp bỏ qua ({rate}%), nhiều nhất trên {host}"
     },
-    "deck.rec.certs": "Khắc phục chứng chỉ trên các máy chủ nội bộ ({n} cảnh báo bắt nguồn từ các máy chủ này)",
-    "deck.rec.password": "Yêu cầu đổi mật khẩu sau khi phát hiện tái sử dụng ({n} sự kiện tái sử dụng)",
+    "deck.rec.certs": {
+      "one": "Khắc phục chứng chỉ trên các máy chủ nội bộ (1 cảnh báo bắt nguồn từ các máy chủ này)",
+      "other": "Khắc phục chứng chỉ trên các máy chủ nội bộ ({n} cảnh báo bắt nguồn từ các máy chủ này)"
+    },
+    "deck.rec.password": {
+      "one": "Yêu cầu đổi mật khẩu sau khi phát hiện tái sử dụng (1 sự kiện tái sử dụng)",
+      "other": "Yêu cầu đổi mật khẩu sau khi phát hiện tái sử dụng ({n} sự kiện tái sử dụng)"
+    },
     "deck.rec.personalSplit": "Chặn truyền dữ liệu tới các tài khoản ngoài doanh nghiệp ({mix}, {split})",
     "deck.header.launches": "CHROME EGRESS RISK ANALYSIS • THAM SỐ KHỞI CHẠY TRÌNH DUYỆT",
     "deck.launch.hl": {
