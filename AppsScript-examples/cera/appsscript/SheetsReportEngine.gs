@@ -436,8 +436,12 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
     .setValue(T('report.ov.sigMal'))
     .setBackground('#FFFBEB').setFontColor('#D97706').setFontWeight('bold').setFontSize(9).setVerticalAlignment('middle').setHorizontalAlignment('center');
 
+  let filesUsers = T('report.ov.sigMalValue', { n: malwareCount, users: malUsersCount });
+  if (malwareCount === 1) filesUsers = filesUsers.replace(/\b1 files\b/g, '1 file');
+  if (malUsersCount === 1) filesUsers = filesUsers.replace(/\(1 users\)/g, '(1 user)');
+
   sheet.getRange('L24:L26').merge()
-    .setValue(T('report.ov.sigMalValue', { n: malwareCount, users: malUsersCount }))
+    .setValue(filesUsers)
     .setBackground('#FFFBEB').setFontColor('#D97706').setFontWeight('bold').setFontSize(8).setVerticalAlignment('middle').setHorizontalAlignment('center');
 
   const malFileStr = topMalFiles.length > 0 ? topMalFiles.map(x => x.name).join(', ') : noneLogged;

@@ -286,6 +286,8 @@ var InsightEngine = {
     } else {
       h.cover = T('deck.cover.hl', { bytes: A(f.outboundBytes, f.outboundCount, f.byCount), days: f.days, pct: pct(f.sensitiveOutbound, f.outboundCount) });
     }
+    if (f.days === 1 && h.cover) h.cover = h.cover.replace(/\bin 1 days\b/g, 'in 1 day');
+
     // The cover's note on outcomes: what was stopped (enforced), that nothing was (audit), or that the logs carry none
     if (f.mode === 'enforced') {
       h.coverNote = !hasOutbound ? '' : (out.stopped.count > 0
@@ -386,7 +388,14 @@ var InsightEngine = {
     else if (f.unsafeBlocked > 0) h.signals = T('deck.signals.hlBlocked', sb);
     else h.signals = T('deck.signals.hlDetected', sb);
     h.signals2 = (f.pwTotal + f.malTotal) > 0
-      ? T('deck.signals2.hl', { pw: f.pwTotal, pwPeople: P(f.pwUsers), mal: f.malTotal, malPeople: P(f.malUsers) })
+      ? T('deck.signals2.hl', {
+          pw: f.pwTotal,
+          pwEvents: T('deck.signals2.pwEvents', { n: f.pwTotal }),
+          pwPeople: P(f.pwUsers),
+          mal: f.malTotal,
+          malDownloads: T('deck.signals2.malDownloads', { n: f.malTotal }),
+          malPeople: P(f.malUsers)
+        })
       : T('deck.signals2.hlNone');
     h.signalsSub = T('deck.signals.sub');
     h.signals2Sub = T('deck.signals2.sub');
@@ -945,6 +954,7 @@ function ceraUnitSkew(state) {
   const units = (state && state.outliers && state.outliers.ouActors) || {};
   let best = null;
   Object.keys(units).sort().forEach(ou => {
+    if (typeof ceraIsUnreportedOu_ === 'function' && ceraIsUnreportedOu_(ou)) return;
     const u = units[ou] || {};
     const total = Number(u.totalBytes) || 0;
     const people = Object.keys(u.users || {}).filter(p => (Number(u.users[p]) || 0) > 0);
