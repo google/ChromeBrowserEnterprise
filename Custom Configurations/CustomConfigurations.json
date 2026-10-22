@@ -1,6 +1,7 @@
 {
   "ExtensionSettings": {
     "*": {
+      "installation_mode": "blocked",
       "blocked_install_message": "Please contact the IT Service Desk for more information and next steps"
     },
     "akimgimeeoiognljlfchpbkpfbmeapkh": {
