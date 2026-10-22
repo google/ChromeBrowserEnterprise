@@ -49,7 +49,7 @@ function Get-GoogleToken
         $googleCred = $googleCred.CreateScoped($scopes)
  
         $token = ([Google.Apis.Auth.OAuth2.ITokenAccess]$googleCred).GetAccessTokenForRequestAsync().GetAwaiter().GetResult()
-        Copy-WriteToLog -logString "The token is $($token)"
+        Copy-WriteToLog -logString "OAuth token acquired."
 
     }
     catch
