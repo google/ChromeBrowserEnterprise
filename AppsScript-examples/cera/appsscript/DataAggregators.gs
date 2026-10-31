@@ -125,6 +125,8 @@ function createInitialState() {
     // Transfers whose destination was not recorded (blank URL, blob:null, chrome-extension:// and other
     // browser-internal URLs): not an unmanaged app, so they are counted here and disclosed in the reports
     unknownDestinations: { count: 0, bytes: 0, egressCount: 0, egressBytes: 0 },
+    // Transfers to sanctioned corporate domains, Google Workspace (corporate sign-in) and authorized GenAI tools
+    sanctionedTransfers: { count: 0, bytes: 0, egressCount: 0, egressBytes: 0 },
     // Counted events flagged "Content unscanned" across the 4 DLP vectors
     unscanned: { bytes: 0, count: 0 },
     // Ingestion coverage. sheetsRead: partitions with data that were aggregated; sheetsAttempted:

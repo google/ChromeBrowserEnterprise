@@ -935,7 +935,11 @@ var ExecutivePresentationEngine = {
     const geminiUsers = Object.keys(sGemini.users || {}).length;
     const otherAiUsers = Object.keys(Object.assign({}, sShadow.users || {}, sPersonalAi.users || {})).length;
     const hasAi = aiTotalCount > 0;
-    const pctInt = (part, whole) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
+    const pctInt = (part, whole) => {
+      if (!(whole > 0) || !(part > 0)) return 0;
+      if (part >= whole) return 100;
+      return Math.max(1, Math.min(99, Math.round((part / whole) * 100)));
+    };
     const internalPctNum = pctInt(geminiCount, aiTotalCount);
     const shadowPctNum = hasAi ? (100 - internalPctNum) : 0;
     const personalAiPctNum = pctInt(personalAiCount, aiTotalCount);
@@ -1007,12 +1011,13 @@ var ExecutivePresentationEngine = {
 
     // Reasons of the Safe Browsing warnings: the most common one names the card; certificate errors count SSL reasons only
     const reasonKey = r => {
-      const c = String(r || '').toUpperCase();
-      if (c.indexOf('SSL') !== -1) return 'ssl';
-      if (c.indexOf('SOCIAL_ENGINEERING') !== -1) return 'phishing';
-      if (c.indexOf('MALWARE') !== -1) return 'malware';
-      if (c.indexOf('UNWANTED') !== -1) return 'unwanted';
-      if (c.indexOf('UNSPECIFIED') !== -1 || !c) return 'unspecified';
+      if (typeof ceraSafeBrowsingReasonKey_ === 'function') return ceraSafeBrowsingReasonKey_(r);
+      const c = String(r || '').trim().toUpperCase();
+      if (!c || c.indexOf('UNSPECIFIED') !== -1 || c === 'SECURITY_POLICY_TRIGGER') return 'unspecified';
+      if (c.indexOf('SSL') !== -1 || c.indexOf('CERT') !== -1) return 'ssl';
+      if (c.indexOf('SOCIAL_ENGINEERING') !== -1 || c.indexOf('PHISH') !== -1 || c.indexOf('DECEPTIVE') !== -1) return 'phishing';
+      if (c.indexOf('MALWARE') !== -1 || c.indexOf('MALICIOUS') !== -1) return 'malware';
+      if (c.indexOf('UNWANTED') !== -1 || c.indexOf('HARMFUL') !== -1) return 'unwanted';
       return 'other';
     };
     const unsafeAll = unsafeReasons.reduce((t, r) => t + (Number(r && r.count) || 0), 0);

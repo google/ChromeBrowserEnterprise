@@ -520,6 +520,8 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
     hasFunnel: hasFunnel,
     funnelOU: funnelOU,
     funnelDomain: funnelDomain,
+    funnelRawDomain: bestFunnel ? bestFunnel.topDom : (m.topFunnelDomain || ''),
+    funnelBytes: bestFunnel ? bestFunnel.totalBytes : ((Number(m.funnelVolumeGb) || 0) * (1024 ** 3)),
     funnelHHI: funnelHHI,
     funnelHHIStr: Math.round(funnelHHI * 100) + '%',
     funnelTitle: funnelTitle,
@@ -547,7 +549,7 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
  * @param {string} lang - report language of the dates and labels (default English)
  * @return {Object} Structured vector timeline analytics
  */
-function computeVectorTimelineAnalytics(vectorTimeline, vectorActors, lang) {
+function computeVectorTimelineAnalytics(vectorTimeline, vectorActors, lang, bounds) {
   vectorTimeline = vectorTimeline || {};
   vectorActors = vectorActors || {};
   lang = lang || 'en';
@@ -629,13 +631,13 @@ function computeVectorTimelineAnalytics(vectorTimeline, vectorActors, lang) {
     };
   });
 
-  // 4. Centered Outlier Context Window (±7 days around peak outlier)
+  // 4. Centered Outlier Context Window (±7 days around peak outlier, clamped to observed bounds when provided)
   const topSpike = topSpikes.length > 0 ? topSpikes[0] : null;
   const peakDateStr = topSpike ? topSpike.rawDate : (dates.length > 0 ? dates[0] : null);
-  const outlierTimelineSeries = computeOutlierContextTimeline(vectorTimeline, peakDateStr, 7, lang);
+  const outlierTimelineSeries = computeOutlierContextTimeline(vectorTimeline, peakDateStr, 7, lang, bounds);
 
   // 5. Top 5 Actors Granular Daily Timelines (Centered on peak outlier corridor)
-  const top5ActorTimelines = computeTop5ActorTimelines({ key: 'dlp', timeline: vectorTimeline, actors: vectorActors }, peakDateStr, lang);
+  const top5ActorTimelines = computeTop5ActorTimelines({ key: 'dlp', timeline: vectorTimeline, actors: vectorActors }, peakDateStr, lang, bounds);
 
   return {
     timelineSeries: timelineSeries,
@@ -652,7 +654,7 @@ function computeVectorTimelineAnalytics(vectorTimeline, vectorActors, lang) {
  * Computes Specialized Anomaly & Timeline Analytics for Threat Vector 5: Security Signals Radar
  * Focuses on Incident Rates, User Exposure, Warning Bypass Velocity, and Target Attack Surfaces.
  */
-function computeSecurityRadarAnalytics(radar, lang) {
+function computeSecurityRadarAnalytics(radar, lang, bounds) {
   if (!radar) return null;
   lang = lang || 'en';
   const notRecorded = ceraT('deck.notRecorded', null, lang);
@@ -785,10 +787,10 @@ function computeSecurityRadarAnalytics(radar, lang) {
   // False when no incident carried an Event Result: the bypass rate is then unknown, not 0%
   const resultReported = (radar.totalIncidents || 0) - (radar.unreportedCount || 0) > 0;
 
-  // 8. Centered Outlier Context Window (±7 days around peak incident date)
+  // 8. Centered Outlier Context Window (±7 days around peak incident date, clamped to observed bounds when provided)
   const topSpike = topSpikes.length > 0 ? topSpikes[0] : null;
   const peakRadarDateStr = topSpike ? topSpike.rawDate : (dates.length > 0 ? dates[0] : null);
-  const outlierTimelineSeries = computeSecurityRadarOutlierContextTimeline(radar.timeline, peakRadarDateStr, 7, lang);
+  const outlierTimelineSeries = computeSecurityRadarOutlierContextTimeline(radar.timeline, peakRadarDateStr, 7, lang, bounds);
 
   return {
     timelineSeries: timelineSeries,
@@ -802,7 +804,7 @@ function computeSecurityRadarAnalytics(radar, lang) {
     bypassRatePct: bypassRate,
     resultReported: resultReported,
     detailedBreakdown: computeDetailedSecurityRadarBreakdown(radar, lang),
-    top5ActorTimelines: computeTop5ActorTimelines(radar, peakRadarDateStr, lang)
+    top5ActorTimelines: computeTop5ActorTimelines(radar, peakRadarDateStr, lang, bounds)
   };
 }
 
@@ -810,7 +812,7 @@ function computeSecurityRadarAnalytics(radar, lang) {
  * Computes granular day-by-day chronological timeline trajectories for the Top 5 Actors
  * of any given threat vector, calculating personal baseline velocity and outlier burst multiples.
  */
-function computeTop5ActorTimelines(vector, peakDateStr, lang) {
+function computeTop5ActorTimelines(vector, peakDateStr, lang, bounds) {
   if (!vector || !vector.actors) return [];
   lang = lang || 'en';
   const actorList = Object.values(vector.actors);
@@ -846,23 +848,9 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang) {
     });
   }
 
-  // Build the continuous 15-day outlier window (7 days before, peak day, 7 days after)
-  let windowDates = [];
-  const m = String(peakDateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) {
-    const peakYear = parseInt(m[1], 10);
-    const peakMonth = parseInt(m[2], 10) - 1;
-    const peakDay = parseInt(m[3], 10);
-    for (let offset = -7; offset <= 7; offset++) {
-      const d = new Date(Date.UTC(peakYear, peakMonth, peakDay + offset));
-      const yyyy = d.getUTCFullYear();
-      const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-      const dd = String(d.getUTCDate()).padStart(2, '0');
-      windowDates.push(`${yyyy}-${mm}-${dd}`);
-    }
-  } else {
-    windowDates = vectorDates;
-  }
+  // Build the outlier window (±7 days around peak day), clamped to [firstDayKey, lastDayKey] when bounds are provided
+  const winSlots = buildOutlierContextWindow_(peakDateStr, 7, bounds);
+  const windowDates = winSlots.length ? winSlots.map(s => s.dateStr) : vectorDates;
 
   return top5.map((act, idx) => {
     const actTimeline = act.timeline || {};
@@ -995,6 +983,20 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang) {
 }
 
 /**
+ * Classifies a Safe Browsing / unsafe site visit reason (API code or Console label) into a canonical catalog key:
+ * 'ssl', 'phishing', 'malware', 'unwanted', 'unspecified', or 'other'.
+ */
+function ceraSafeBrowsingReasonKey_(reason) {
+  const c = String(reason || '').trim().toUpperCase();
+  if (!c || c.indexOf('UNSPECIFIED') !== -1 || c === 'SECURITY_POLICY_TRIGGER') return 'unspecified';
+  if (c.indexOf('SSL') !== -1 || c.indexOf('CERT') !== -1) return 'ssl';
+  if (c.indexOf('SOCIAL_ENGINEERING') !== -1 || c.indexOf('PHISH') !== -1 || c.indexOf('DECEPTIVE') !== -1) return 'phishing';
+  if (c.indexOf('MALWARE') !== -1 || c.indexOf('MALICIOUS') !== -1) return 'malware';
+  if (c.indexOf('UNWANTED') !== -1 || c.indexOf('HARMFUL') !== -1) return 'unwanted';
+  return 'other';
+}
+
+/**
  * Computes granular forensic tables for the 3 distinct signals of Threat Vector 5: Security Signals Radar
  */
 function computeDetailedSecurityRadarBreakdown(radar, lang) {
@@ -1008,9 +1010,8 @@ function computeDetailedSecurityRadarBreakdown(radar, lang) {
   const u = signals.unsafeSiteVisit || {};
   const unsafeReasons = Object.entries(u.reasons || {}).map(([reason, count]) => {
     const pct = u.total > 0 ? ((count / u.total) * 100).toFixed(1) + '%' : '0.0%';
-    let desc = 'SSL/TLS certificate error or expired cert';
-    if (reason.includes('SOCIAL_ENGINEERING')) desc = 'Phishing or deceptive domain';
-    else if (reason.includes('MALWARE')) desc = 'Malicious domain blacklisted by Google Safe Browsing';
+    const key = ceraSafeBrowsingReasonKey_(reason);
+    const desc = ceraT('deck.sb.reason.' + key, null, lang || 'en');
     return { reason, count, pct, description: desc };
   }).sort((a, b) => b.count - a.count);
 
@@ -1129,30 +1130,48 @@ function computeDetailedSecurityRadarBreakdown(radar, lang) {
 }
 
 /**
- * Constructs a centered ±N-day chronological context window around a peak outlier date (e.g. T_peak ± 7 days).
- * Guarantees a continuous 15-day corridor (7 days before, peak day, 7 days after) for visualizing outlier ramp-up and aftermath.
+ * Builds the centered ±windowDays date list [{ dateStr, offset }] around peakDateStr, clamping to
+ * [bounds.firstDayKey, bounds.lastDayKey] when valid YYYY-MM-DD bounds are supplied (falling back to the full ±windowDays
+ * corridor when bounds are omitted in standalone helper calls).
  */
-function computeOutlierContextTimeline(vectorTimeline, peakDateStr, windowDays, lang) {
+function buildOutlierContextWindow_(peakDateStr, windowDays, bounds) {
   windowDays = windowDays || 7;
-  if (!peakDateStr) return [];
-
-  const m = String(peakDateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const m = String(peakDateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return [];
   const peakYear = parseInt(m[1], 10);
   const peakMonth = parseInt(m[2], 10) - 1;
   const peakDay = parseInt(m[3], 10);
-  const result = [];
+  const firstKey = (bounds && typeof bounds.firstDayKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(bounds.firstDayKey)) ? bounds.firstDayKey : '';
+  const lastKey = (bounds && typeof bounds.lastDayKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(bounds.lastDayKey)) ? bounds.lastDayKey : '';
+  const all = [];
   for (let offset = -windowDays; offset <= windowDays; offset++) {
     const d = new Date(Date.UTC(peakYear, peakMonth, peakDay + offset));
     const yyyy = d.getUTCFullYear();
     const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(d.getUTCDate()).padStart(2, '0');
-    const dateStr = `${yyyy}-${mm}-${dd}`;
+    all.push({ dateStr: `${yyyy}-${mm}-${dd}`, offset: offset });
+  }
+  if (!firstKey && !lastKey) return all;
+  const clamped = all.filter(x => (!firstKey || x.dateStr >= firstKey) && (!lastKey || x.dateStr <= lastKey));
+  return clamped.length > 0 ? clamped : all;
+}
+
+/**
+ * Constructs a centered ±N-day chronological context window around a peak outlier date (e.g. T_peak ± 7 days),
+ * clamped to [bounds.firstDayKey, bounds.lastDayKey] when observed bounds are supplied.
+ */
+function computeOutlierContextTimeline(vectorTimeline, peakDateStr, windowDays, lang, bounds) {
+  const slots = buildOutlierContextWindow_(peakDateStr, windowDays || 7, bounds);
+  if (!slots.length) return [];
+
+  return slots.map(slot => {
+    const dateStr = slot.dateStr;
+    const offset = slot.offset;
     const item = (vectorTimeline && vectorTimeline[dateStr]) || {};
     const evts = (item.totalEvents !== undefined && item.totalEvents !== null) ? item.totalEvents : (item.totalCount || 0);
     const dispDate = typeof formatDisplayDate === 'function' ? formatDisplayDate(dateStr, false, lang) : dateStr;
 
-    result.push({
+    return {
       date: dateStr,
       displayDate: dispDate,
       uploadGb: (item.uploadBytes || 0) / (1024 ** 3),
@@ -1165,36 +1184,26 @@ function computeOutlierContextTimeline(vectorTimeline, peakDateStr, windowDays, 
       totalEvents: evts,
       isPeak: (offset === 0),
       offsetDays: offset
-    });
-  }
-  return result;
+    };
+  });
 }
 
 /**
- * Constructs a centered ±N-day chronological context window for Security Radar around peak incident date.
+ * Constructs a centered ±N-day chronological context window for Security Radar around peak incident date,
+ * clamped to [bounds.firstDayKey, bounds.lastDayKey] when observed bounds are supplied.
  */
-function computeSecurityRadarOutlierContextTimeline(radarTimeline, peakDateStr, windowDays, lang) {
-  windowDays = windowDays || 7;
-  if (!peakDateStr) return [];
+function computeSecurityRadarOutlierContextTimeline(radarTimeline, peakDateStr, windowDays, lang, bounds) {
+  const slots = buildOutlierContextWindow_(peakDateStr, windowDays || 7, bounds);
+  if (!slots.length) return [];
 
-  const m = String(peakDateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return [];
-  const peakYear = parseInt(m[1], 10);
-  const peakMonth = parseInt(m[2], 10) - 1;
-  const peakDay = parseInt(m[3], 10);
-
-  const result = [];
-  for (let offset = -windowDays; offset <= windowDays; offset++) {
-    const d = new Date(Date.UTC(peakYear, peakMonth, peakDay + offset));
-    const yyyy = d.getUTCFullYear();
-    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const dd = String(d.getUTCDate()).padStart(2, '0');
-    const dateStr = `${yyyy}-${mm}-${dd}`;
+  return slots.map(slot => {
+    const dateStr = slot.dateStr;
+    const offset = slot.offset;
     const entry = (radarTimeline && radarTimeline[dateStr]) || {};
     const total = entry.total || (entry.unsafe + entry.password + entry.malware) || 0;
     const dispDate = typeof formatDisplayDate === 'function' ? formatDisplayDate(dateStr, false, lang) : dateStr;
 
-    result.push({
+    return {
       date: dateStr,
       displayDate: dispDate,
       unsafe: entry.unsafe || 0,
@@ -1207,16 +1216,15 @@ function computeSecurityRadarOutlierContextTimeline(radarTimeline, peakDateStr, 
       total: total,
       isPeak: (offset === 0),
       offsetDays: offset
-    });
-  }
-  return result;
+    };
+  });
 }
 
 /**
  * Constructs a centralized multi-vector outlier timeline corridor [T_peak - windowDays, T_peak + windowDays]
  * aggregating daily payload metrics for Personal Accounts, Shadow AI, Unmanaged Apps, Web Messaging, and Security Radar.
  */
-function computeCrossVectorOutlierTimeline(vectors, peakDateStr, windowDays, lang) {
+function computeCrossVectorOutlierTimeline(vectors, peakDateStr, windowDays, lang, bounds) {
   windowDays = windowDays || 7;
   if (!vectors) return [];
 
@@ -1242,10 +1250,8 @@ function computeCrossVectorOutlierTimeline(vectors, peakDateStr, windowDays, lan
     }
   }
 
-  if (!m) return [];
-  const peakYear = parseInt(m[1], 10);
-  const peakMonth = parseInt(m[2], 10) - 1;
-  const peakDay = parseInt(m[3], 10);
+  const slots = buildOutlierContextWindow_(peakDateStr, windowDays, bounds);
+  if (!slots.length) return [];
 
   const personalTimeline = (vectors.personal && vectors.personal.timeline) || {};
   const shadowTimeline = (vectors.shadowAi && vectors.shadowAi.timeline) || {};
@@ -1253,13 +1259,9 @@ function computeCrossVectorOutlierTimeline(vectors, peakDateStr, windowDays, lan
   const messagingTimeline = (vectors.messaging && vectors.messaging.timeline) || {};
   const radarTimeline = (vectors.securityRadar && vectors.securityRadar.timeline) || {};
 
-  const result = [];
-  for (let offset = -windowDays; offset <= windowDays; offset++) {
-    const d = new Date(Date.UTC(peakYear, peakMonth, peakDay + offset));
-    const yyyy = d.getUTCFullYear();
-    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const dd = String(d.getUTCDate()).padStart(2, '0');
-    const dateStr = `${yyyy}-${mm}-${dd}`;
+  return slots.map(slot => {
+    const dateStr = slot.dateStr;
+    const offset = slot.offset;
     const dispDate = typeof formatDisplayDate === 'function' ? formatDisplayDate(dateStr, false, lang) : dateStr;
 
     const pItem = personalTimeline[dateStr] || {};
@@ -1276,7 +1278,7 @@ function computeCrossVectorOutlierTimeline(vectors, peakDateStr, windowDays, lan
 
     const radarIncidents = rItem.total || ((rItem.unsafe || 0) + (rItem.password || 0) + (rItem.malware || 0)) || 0;
 
-    result.push({
+    return {
       date: dateStr,
       displayDate: dispDate,
       personalGb: pGb,
@@ -1287,9 +1289,8 @@ function computeCrossVectorOutlierTimeline(vectors, peakDateStr, windowDays, lan
       radarIncidents: radarIncidents,
       isPeak: (offset === 0),
       offsetDays: offset
-    });
-  }
-  return result;
+    };
+  });
 }
 
 

@@ -879,6 +879,27 @@ function extractMainDomain(domainStr) {
   return parts.slice(-2).join('.');
 }
 
+var CERA_PSEUDO_TAB_HOSTS_ = {
+  'about': true,
+  'blob': true,
+  'data': true,
+  'chrome-extension': true,
+  'chrome': true,
+  'chrome-untrusted': true,
+  'devtools': true,
+  'javascript': true,
+  'direct browser protocol': true
+};
+
+function ceraIsPseudoTabHost_(raw) {
+  const s = String(raw === null || raw === undefined ? '' : raw).trim().toLowerCase();
+  if (!s || isBlankDestination(s) || CERA_PSEUDO_TAB_HOSTS_[s]) return true;
+  const scheme = s.match(/^([a-z][a-z0-9+.-]*):/);
+  if (scheme && scheme[1] !== 'http' && scheme[1] !== 'https' && CERA_PSEUDO_TAB_HOSTS_[scheme[1]]) return true;
+  const dom = extractMainDomain(s);
+  return !dom || isBlankDestination(dom) || !!CERA_PSEUDO_TAB_HOSTS_[dom];
+}
+
 /**
  * Formats clean category label for unspecified URL categories using apex domain
  */
@@ -886,10 +907,12 @@ function formatUnspecifiedCategoryLabel(unspecifiedTabDomains) {
   if (!unspecifiedTabDomains || Object.keys(unspecifiedTabDomains).length === 0) {
     return 'Unspecified';
   }
-  const sorted = Object.entries(unspecifiedTabDomains).sort((a, b) => b[1] - a[1]);
+  const sorted = Object.entries(unspecifiedTabDomains)
+    .filter(entry => !ceraIsPseudoTabHost_(entry[0]) && Number(entry[1]) > 0)
+    .sort((a, b) => b[1] - a[1]);
   if (sorted.length === 0) return 'Unspecified';
   const topDomain = extractMainDomain(sorted[0][0]);
-  return 'Unspecified (' + topDomain + ')';
+  return topDomain ? 'Unspecified (' + topDomain + ')' : 'Unspecified';
 }
 
 /**
@@ -935,7 +958,8 @@ function cleanMimeType(contentType, contentName) {
   }
 
   // 7. Binary Executables & Installers
-  if (type.includes('executable') || type.includes('octet-stream') && (name.endsWith('.exe') || name.endsWith('.dmg') || name.endsWith('.pkg') || name.endsWith('.msi')) ||
+  if (type.includes('executable') || type.includes('x-msdownload') || type.includes('x-msdos-program') ||
+      type.includes('octet-stream') && (name.endsWith('.exe') || name.endsWith('.dmg') || name.endsWith('.pkg') || name.endsWith('.msi')) ||
       name.endsWith('.exe') || name.endsWith('.msi') || name.endsWith('.dmg') || name.endsWith('.pkg') || name.endsWith('.deb') || name.endsWith('.rpm')) {
     return 'Executable / Binary Payload';
   }
@@ -1695,7 +1719,10 @@ var URL_CATEGORY_API_MAP = {
   'TRAVEL_AND_TRANSPORTATION__TOURIST_DESTINATIONS': 'Tourist Destinations',
   'TRAVEL_AND_TRANSPORTATION__TRANSPORTATION': 'Transportation',
   'TRAVEL_AND_TRANSPORTATION__TRAVEL_AGENCIES_AND_SERVICES': 'Travel Agencies & Services',
-  'TRAVEL_AND_TRANSPORTATION__TRAVEL_GUIDES_AND_TRAVELOGUES': 'Travel Guides & Travelogues'
+  'TRAVEL_AND_TRANSPORTATION__TRAVEL_GUIDES_AND_TRAVELOGUES': 'Travel Guides & Travelogues',
+
+  // Private / Internal URL
+  'PRIVATE_URL': 'Private / Internal URL'
 };
 
 /**

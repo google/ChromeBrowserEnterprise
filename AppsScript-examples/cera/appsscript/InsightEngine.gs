@@ -369,7 +369,9 @@ var InsightEngine = {
         // Shares of what users sent to AI tools; sanctioned tools used from non-corporate accounts fold into the
         // other-tools share so the two-part percentage bar adds up to 100%, with the detail explained below the bar
         const tail = f.aiStopped ? 'Targeted' : '';
-        const sPct = pct(f.aiSanctionedCount, f.aiTotal);
+        const sPct = !(f.aiSanctionedCount > 0)
+          ? 0
+          : (f.aiSanctionedCount >= f.aiTotal ? 100 : Math.max(1, Math.min(99, Math.round((f.aiSanctionedCount / f.aiTotal) * 100))));
         h[k + 'Deep'] = T('deck.shadowAi.hlBenchmark' + tail, { pct: sPct, other: 100 - sPct });
       } else if (v.topType) {
         h[k + 'Deep'] = T('deck.v.hlType', { vector: v.name, type: v.topType.name, pct: v.byCount ? pct(v.topType.count, v.count) : pct(v.topType.bytes, v.bytes) });
@@ -458,7 +460,10 @@ var InsightEngine = {
       else add(1000 + aiSent.sensitive, 'deck.rec.aiSensitive', { n: aiSent.sensitive, dest: aiSent.dest }, 'shadowAi');
     }
     // AI use is steered while transfers to other tools still get through; the shares are of what users sent
-    const aiOtherPct = f.aiTotal > 0 ? (100 - pct(f.aiSanctionedCount, f.aiTotal)) : 0;
+    const aiSancPct = !(f.aiTotal > 0) || !(f.aiSanctionedCount > 0)
+      ? 0
+      : (f.aiSanctionedCount >= f.aiTotal ? 100 : Math.max(1, Math.min(99, Math.round((f.aiSanctionedCount / f.aiTotal) * 100))));
+    const aiOtherPct = f.aiTotal > 0 ? (100 - aiSancPct) : 0;
     if (f.aiTotal > 0 && f.aiShadowCount > 0 && aiOtherPct >= 25 && !stoppedAll(ai)) {
       const tail = f.aiStopped ? 'Targeted' : '';
       add(600 + aiOtherPct, (f.sanctionedAi ? 'deck.rec.aiSteer' : 'deck.rec.aiSteerNoList') + tail, { pct: aiOtherPct, sanctioned: f.sanctionedAi }, 'shadowAi');
@@ -554,12 +559,18 @@ var InsightEngine = {
     const HIGH = /NIK|NATIONAL|MY ?NUMBER|CCCD|SSN|SOCIAL SECURITY|PASSPORT|CREDIT|CARD|IBAN|BANK|TAX|DRIVER/i;
     let best = null;
     let bestHigh = null;
+    let totalHits = 0;
     Object.keys(map || {}).forEach(k => {
       if (!k || /^policies\//.test(k) || /^(OTHER|UNKNOWN)$/i.test(k)) return;
-      if (!best || map[k] > map[best]) best = k;
-      if (HIGH.test(k) && (!bestHigh || map[k] > map[bestHigh])) bestHigh = k;
+      const n = Number(map[k]) || 0;
+      if (n <= 0) return;
+      totalHits += n;
+      if (!best || n > (Number(map[best]) || 0)) best = k;
+      if (HIGH.test(k) && (!bestHigh || n > (Number(map[bestHigh]) || 0))) bestHigh = k;
     });
-    const pick = bestHigh || best;
+    const bestHighCount = bestHigh ? (Number(map[bestHigh]) || 0) : 0;
+    const useHigh = bestHigh && (totalHits < 20 || (bestHighCount >= 2 && (bestHighCount / totalHits) >= 0.005));
+    const pick = useHigh ? bestHigh : best;
     return pick ? ceraDetectorLabel(pick) : '';
   }
 };

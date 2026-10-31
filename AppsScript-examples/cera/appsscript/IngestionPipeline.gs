@@ -171,24 +171,38 @@ function ceraSaveAnalysisBatch_(token, checkpoint) {
 
   // Durable fallback in ScriptProperties / DocumentProperties + Drive checkpoint file so CacheService eviction never loses state
   let checkpointFileId = '';
+  let prevCheckpointFileId = '';
   try {
-    if (checkpoint.folderId && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.create === 'function') {
+    const docPropsPre = (typeof PropertiesService !== 'undefined' && PropertiesService && PropertiesService.getDocumentProperties)
+      ? PropertiesService.getDocumentProperties()
+      : null;
+    const rawPrevJob = docPropsPre ? docPropsPre.getProperty(ceraAnalysisJobPropKey_()) : '';
+    const prevJob = rawPrevJob ? JSON.parse(rawPrevJob) : null;
+    if (prevJob && prevJob.checkpointFileId) prevCheckpointFileId = String(prevJob.checkpointFileId);
+  } catch (pjErr) {}
+
+  try {
+    const cpParentId = (typeof ceraEnsureRootFolder_ === 'function') ? ceraEnsureRootFolder_(false) : '';
+    if (cpParentId && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.create === 'function') {
       const cpName = 'cera-analysis-checkpoint-' + token + '.json';
-      const existing = Drive.Files.list({
-        q: `'${checkpoint.folderId}' in parents and name = '${cpName}' and trashed = false`,
+      const existing = (typeof Drive.Files.list === 'function') ? Drive.Files.list({
+        q: `'${cpParentId}' in parents and name = '${cpName}' and trashed = false`,
         fields: 'files(id)',
         supportsAllDrives: true,
         includeItemsFromAllDrives: true
-      });
+      }) : null;
       const blob = (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.newBlob === 'function')
-        ? Utilities.newBlob(payload, 'application/json', cpName)
+        ? Utilities.newBlob(payload, 'text/plain', cpName)
         : null;
       if (existing && existing.files && existing.files.length > 0) {
         checkpointFileId = existing.files[0].id;
-        Drive.Files.update({ name: cpName, mimeType: 'application/json', _checkpointPayload: payload }, checkpointFileId, blob, { supportsAllDrives: true });
+        Drive.Files.update({ name: cpName, mimeType: 'text/plain' }, checkpointFileId, blob, { supportsAllDrives: true });
       } else {
-        const created = Drive.Files.create({ name: cpName, mimeType: 'application/json', parents: [checkpoint.folderId], _checkpointPayload: payload }, blob, { supportsAllDrives: true });
+        const created = Drive.Files.create({ name: cpName, mimeType: 'text/plain', parents: [cpParentId] }, blob, { supportsAllDrives: true });
         if (created && created.id) checkpointFileId = created.id;
+      }
+      if (prevCheckpointFileId && checkpointFileId && prevCheckpointFileId !== checkpointFileId) {
+        ceraTrashDriveCheckpointFile_(prevCheckpointFileId);
       }
     }
   } catch (dErr) {}
@@ -291,12 +305,32 @@ function ceraLoadAnalysisBatch_(token, scope) {
         : null;
       const rawJob = docProps ? docProps.getProperty(ceraAnalysisJobPropKey_()) : '';
       const jobMeta = rawJob ? JSON.parse(rawJob) : null;
-      if (jobMeta && jobMeta.checkpointFileId && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.get === 'function') {
-        const fileObj = Drive.Files.get(jobMeta.checkpointFileId, { alt: 'media', supportsAllDrives: true });
-        if (typeof fileObj === 'string' && fileObj.trim().charAt(0) === '{') {
-          rawJson = fileObj;
-        } else if (fileObj && typeof fileObj._checkpointPayload === 'string') {
-          rawJson = fileObj._checkpointPayload;
+      if (jobMeta && jobMeta.checkpointFileId) {
+        if (typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.get === 'function') {
+          try {
+            const resp = Drive.Files.get(jobMeta.checkpointFileId, { alt: 'media', supportsAllDrives: true });
+            if (typeof resp === 'string' && resp.trim().charAt(0) === '{') {
+              rawJson = resp;
+            } else if (resp && typeof resp.getDataAsString === 'function') {
+              const str = resp.getDataAsString();
+              if (typeof str === 'string' && str.trim().charAt(0) === '{') rawJson = str;
+            } else if (resp && typeof resp.content === 'string' && resp.content.trim().charAt(0) === '{') {
+              rawJson = resp.content;
+            }
+          } catch (getErr) {}
+        }
+        if (!rawJson && typeof UrlFetchApp !== 'undefined' && UrlFetchApp && typeof UrlFetchApp.fetch === 'function' &&
+            typeof ScriptApp !== 'undefined' && ScriptApp && typeof ScriptApp.getOAuthToken === 'function') {
+          try {
+            const httpResp = UrlFetchApp.fetch(
+              'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(jobMeta.checkpointFileId) + '?alt=media&supportsAllDrives=true',
+              { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true }
+            );
+            if (httpResp && typeof httpResp.getResponseCode === 'function' && httpResp.getResponseCode() === 200) {
+              const txt = typeof httpResp.getContentText === 'function' ? httpResp.getContentText() : '';
+              if (typeof txt === 'string' && txt.trim().charAt(0) === '{') rawJson = txt;
+            }
+          } catch (httpErr) {}
         }
       }
     } catch (dErr) {}
@@ -308,6 +342,7 @@ function ceraLoadAnalysisBatch_(token, scope) {
   if (state) {
     if (state.minDate) state.minDate = new Date(state.minDate);
     if (state.maxDate) state.maxDate = new Date(state.maxDate);
+    if (!state.sanctionedTransfers) state.sanctionedTransfers = { count: 0, bytes: 0, egressCount: 0, egressBytes: 0 };
     if (Array.isArray(saved.hourSlots)) {
       const hs = Object.create(null);
       for (let i = 0; i < saved.hourSlots.length; i++) hs[saved.hourSlots[i]] = 1;
@@ -357,11 +392,41 @@ function ceraLoadAnalysisBatch_(token, scope) {
   return saved;
 }
 
+function ceraTrashDriveCheckpointFile_(fileId) {
+  if (!fileId) return;
+  try {
+    if (typeof Drive !== 'undefined' && Drive.Files) {
+      if (typeof Drive.Files.update === 'function') {
+        Drive.Files.update({ trashed: true }, fileId, null, { supportsAllDrives: true });
+      } else if (typeof Drive.Files.remove === 'function') {
+        Drive.Files.remove(fileId);
+      }
+    }
+  } catch (driveCleanErr) {}
+}
+
 function ceraClearAnalysisBatch_(token) {
   try {
+    let effectiveToken = token || '';
+    const docProps = (typeof PropertiesService !== 'undefined' && PropertiesService && PropertiesService.getDocumentProperties)
+      ? PropertiesService.getDocumentProperties()
+      : null;
+    if (docProps) {
+      const rawJob = docProps.getProperty(ceraAnalysisJobPropKey_());
+      if (rawJob) {
+        const parsed = JSON.parse(rawJob);
+        if (!token || (parsed && parsed.batchToken === token)) {
+          if (!effectiveToken && parsed && parsed.batchToken) effectiveToken = String(parsed.batchToken);
+          if (parsed && parsed.checkpointFileId) {
+            ceraTrashDriveCheckpointFile_(parsed.checkpointFileId);
+          }
+          docProps.deleteProperty(ceraAnalysisJobPropKey_());
+        }
+      }
+    }
     const cache = ceraAnalysisBatchCache_();
-    const prefix = 'CERA_ANALYSIS_BATCH_' + token + '_';
-    if (cache && token) {
+    const prefix = 'CERA_ANALYSIS_BATCH_' + effectiveToken + '_';
+    if (cache && effectiveToken) {
       const metaRaw = cache.get(prefix + 'meta');
       if (metaRaw) {
         const meta = JSON.parse(metaRaw);
@@ -369,9 +434,9 @@ function ceraClearAnalysisBatch_(token) {
       }
       cache.remove(prefix + 'meta');
     }
-    if (typeof PropertiesService !== 'undefined' && PropertiesService) {
+    if (typeof PropertiesService !== 'undefined' && PropertiesService && effectiveToken) {
       const scriptProps = PropertiesService.getScriptProperties && PropertiesService.getScriptProperties();
-      if (scriptProps && token) {
+      if (scriptProps) {
         const pMetaRaw = scriptProps.getProperty(prefix + 'P_meta');
         if (pMetaRaw) {
           const pMeta = JSON.parse(pMetaRaw);
@@ -379,29 +444,12 @@ function ceraClearAnalysisBatch_(token) {
         }
         scriptProps.deleteProperty(prefix + 'P_meta');
       }
-      const docProps = PropertiesService.getDocumentProperties && PropertiesService.getDocumentProperties();
-      if (docProps) {
-        const rawJob = docProps.getProperty(ceraAnalysisJobPropKey_());
-        if (rawJob) {
-          const parsed = JSON.parse(rawJob);
-          if (!token || parsed.batchToken === token) {
-            if (parsed && parsed.checkpointFileId) {
-              try {
-                if (typeof Drive !== 'undefined' && Drive.Files) {
-                  if (typeof Drive.Files.update === 'function') {
-                    Drive.Files.update({ trashed: true }, parsed.checkpointFileId, null, { supportsAllDrives: true });
-                  } else if (typeof Drive.Files.remove === 'function') {
-                    Drive.Files.remove(parsed.checkpointFileId);
-                  }
-                }
-              } catch (driveCleanErr) {}
-            }
-            docProps.deleteProperty(ceraAnalysisJobPropKey_());
-          }
-        }
-      }
     }
   } catch (e) {}
+}
+
+function ceraClearAnalysisCheckpoint_(token) {
+  return ceraClearAnalysisBatch_(token);
 }
 
 /**
@@ -868,7 +916,7 @@ function executeDlpAnalysis(params) {
     let nextIndex = 0;
     let rowCursor = 0;
     let targetPresentationId = params.targetPresentationId || (resumed && resumed.targetPresentationId) || '';
-    const targetInput = (params.driveFolderInput || '').trim();
+    const targetInput = ((params && params.driveFolderInput) || (resumed && resumed.folderId) || '').trim();
     const targetId = extractFolderId(targetInput);
 
     if (resumed) {
@@ -1499,7 +1547,7 @@ function executeDlpAnalysis(params) {
       }
     }
 
-    if (batchToken) ceraClearAnalysisBatch_(batchToken);
+    ceraClearAnalysisBatch_(batchToken);
     updateProgress(ceraT('prog.complete', null, lang), '', totalSheets, totalSheets, errors);
 
     let outputKey = 'result.out.none';
@@ -1542,7 +1590,7 @@ function executeDlpAnalysis(params) {
 
     try {
       if (typeof ceraRecordDiagAnalysisSummary_ === 'function') {
-        const diagFolderId = extractFolderId((params.driveFolderInput || '').trim());
+        const diagFolderId = extractFolderId(((params && params.driveFolderInput) || (resumed && resumed.folderId) || '').trim());
         if (diagFolderId) {
           ceraRecordDiagAnalysisSummary_(diagFolderId, {
             sheetsTotal: coverage.sheetsTotal,
@@ -2194,7 +2242,7 @@ function ceraClassifyDestination_(rawUrl, rawTabUrl, account, userIdent, rawCate
   if (isStillUnspecified) {
     category = 'Unspecified';
     const tabDom = tabHost || (!rawTabUrl && urlHost) || extractTabDomain(rawTabUrl, rawUrl);
-    if (tabDom && !isBlankDestination(tabDom)) {
+    if (tabDom && !isBlankDestination(tabDom) && (typeof ceraIsPseudoTabHost_ !== 'function' || !ceraIsPseudoTabHost_(tabDom))) {
       if (!state.unspecifiedTabDomains) state.unspecifiedTabDomains = {};
       state.unspecifiedTabDomains[tabDom] = (state.unspecifiedTabDomains[tabDom] || 0) + 1;
     }
@@ -2360,7 +2408,7 @@ function ceraAggregateAction_(a, scope, state) {
 
   // 7. Mutex Primary Vector Classification Hierarchy (exact-or-suffix domain matching throughout)
   const isGoogleOrGmail = domScope.isGoogleOrGmail;
-  const isMessaging = !isGoogleOrGmail && (domScope.isMessagingDomain || catLower.includes('messaging'));
+  const isMessaging = !isGoogleOrGmail && (domScope.isMessagingDomain || (catLower.includes('messaging') && !catLower.includes('email') && !catLower.includes('mail')));
 
   let isSanctionedGoogle = false;
   if (isGoogleOrGmail) {
@@ -2410,6 +2458,15 @@ function ceraAggregateAction_(a, scope, state) {
     ud.count++;
     ud.bytes += sizeBytes;
     if (isEgressAction(action)) { ud.egressCount++; ud.egressBytes += sizeBytes; }
+  }
+
+  // Sanctioned corporate, Google Workspace (corporate sign-in) and authorized GenAI transfers: outside the risk vectors
+  if (!isPrint && !assignedVector && !isInternalDestination && !isUnknownDestination) {
+    if (!state.sanctionedTransfers) state.sanctionedTransfers = { count: 0, bytes: 0, egressCount: 0, egressBytes: 0 };
+    const st = state.sanctionedTransfers;
+    st.count++;
+    st.bytes += sizeBytes;
+    if (isEgressAction(action)) { st.egressCount++; st.egressBytes += sizeBytes; }
   }
 
   // File uploads, pastes into a page and prints apart: Chrome logs a paste into a page as an upload

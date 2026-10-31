@@ -354,9 +354,10 @@ var IngestionMonitorSheet = {
     const partRows = [];
     if (partitions && partitions.length > 0) {
       partitions.forEach((p, idx) => {
+        const partNum = p.fileIndex || p.index || (idx + 1);
         partRows.push([
-          T('mon.part', { n: idx + 1 }),
-          p.fileName || `Chrome_Logs_Part_${String(idx + 1).padStart(2, '0')}`,
+          T('mon.part', { n: partNum }),
+          p.fileName || `Chrome_Logs_Part_${String(partNum).padStart(2, '0')}`,
           num(p.rowCount),
           num(maxRows),
           partStatus(p.status || (idx === partitions.length - 1 && status === 'RUNNING' ? 'IN_PROGRESS' : 'COMPLETED')),
@@ -379,6 +380,16 @@ var IngestionMonitorSheet = {
     }
 
     const firstPartRow = partTitleRow + 2;
+    const sheetMaxRows = typeof sheet.getMaxRows === 'function' ? sheet.getMaxRows() : 100;
+    const dynClearRows = Math.max(1, Math.min(sheetMaxRows - firstPartRow + 1, Math.max(26, partRows.length + 10)));
+    const dynRange = sheet.getRange(firstPartRow, 1, dynClearRows, 8);
+    if (typeof dynRange.breakApart === 'function') dynRange.breakApart();
+    if (typeof dynRange.clearContent === 'function') dynRange.clearContent();
+    if (typeof dynRange.clearFormat === 'function') dynRange.clearFormat();
+    if (typeof dynRange.setFontFamily === 'function') dynRange.setFontFamily('Google Sans, Roboto, Arial, sans-serif');
+    if (SpreadsheetApp.WrapStrategy && SpreadsheetApp.WrapStrategy.CLIP && typeof dynRange.setWrapStrategy === 'function') {
+      dynRange.setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+    }
     sheet.getRange(firstPartRow, 1, partRows.length, 8).setValues(partRows)
       .setFontSize(9).setFontColor('#1E293B').setBackground('#FFFFFF');
     for (let pr = firstPartRow; pr < firstPartRow + partRows.length; pr++) sheet.setRowHeight(pr, 20);

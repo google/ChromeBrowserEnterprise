@@ -32,7 +32,7 @@
 function sanitizeCellText_(value) {
   if (value === null || value === undefined) return '';
   if (typeof value !== 'string') return value;
-  if (value === '') return value;
+  if (value === '' || value === '-' || value === '—' || value === '–') return value;
   if (/^[=+\-@\t\r\n]/.test(value)) return "'" + value;
   if (/\d/.test(value) && /^[\s\d.,:\/%$€£¥()eE+\-]+$/.test(value)) return "'" + value;
   if (/^\s*(true|false)\s*$/i.test(value)) return "'" + value;
@@ -167,17 +167,40 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   for (let key in vectors) {
     const v = vectors[key];
     if (!v) continue;
+    const isRadar = key === 'securityRadar';
     const vGb = (v.totalBytes || 0) / (1024 ** 3);
-    const topDomain = mapToSortedArray(v.domains || {}, 1);
-    const topOU = (typeof subMapToStackedArray === 'function' && v.actions) ? subMapToStackedArray(v.ous || {}, 1) : mapToSortedArray(v.ous || {}, 1);
+    let topDomName = '-';
+    let topOuName = '-';
+    if (isRadar) {
+      const domEntries = Object.entries(v.domains || {})
+        .map(e => ({ name: e[0], count: typeof e[1] === 'object' ? reportNum_(e[1] && (e[1].total || e[1].count)) : reportNum_(e[1]) }))
+        .filter(e => e.name && e.count > 0)
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+      const namedDoms = domEntries.filter(e => !/^unknown (endpoint|destination)$/i.test(String(e.name).trim()) && e.name !== '-' && e.name !== 'N/A');
+      if (namedDoms.length) topDomName = ceraDestinationLabel(namedDoms[0].name, lang);
+
+      const ouEntries = Object.entries(v.ous || {})
+        .map(e => ({ name: e[0], count: typeof e[1] === 'object' ? reportNum_(e[1] && (e[1].total || e[1].count)) : reportNum_(e[1]) }))
+        .filter(e => e.name && e.count > 0)
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+      const namedOus = ouEntries.filter(e => !(typeof ceraIsUnreportedOu_ === 'function' ? ceraIsUnreportedOu_(e.name) : /^(Unassigned OU|OU not reported|N\/A)$/i.test(String(e.name).trim())));
+      if (namedOus.length) topOuName = namedOus[0].name;
+      else if (ouEntries.length) topOuName = T('report.ou.notReported');
+    } else {
+      const topDomain = mapToSortedArray(v.domains || {}, 1);
+      const topOU = (typeof subMapToStackedArray === 'function' && v.actions) ? subMapToStackedArray(v.ous || {}, 1) : mapToSortedArray(v.ous || {}, 1);
+      topDomName = topDomain.length ? topDomain[0].name : '-';
+      topOuName = topOU.length ? topOU[0].name : '-';
+    }
 
     const stat = {
       name: reportVectorName_(key, lang),
+      isRadar: isRadar,
       count: v.totalEvents || v.totalIncidents || 0,
       bytes: v.totalBytes || 0,
       volumeGb: vGb,
-      topDomain: topDomain.length ? topDomain[0].name : '-',
-      topOU: topOU.length ? topOU[0].name : '-'
+      topDomain: topDomName,
+      topOU: topOuName
     };
     vectorStats.push(stat);
   }
@@ -304,9 +327,18 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   } else if (outMode === 'not_reported') {
     briefingLines.push(ceraT('report.briefing.outcomeNotReported', null, lang));
   }
+  const s3Cards = (typeof ceraSlide3Cards === 'function') ? ceraSlide3Cards(state, outlierMetrics, null, lang) : null;
+  const alignedOutliers = s3Cards ? Object.assign({}, outlierMetrics, {
+    topFunnelOU: s3Cards.hasFunnel ? s3Cards.funnelOU : outlierMetrics.topFunnelOU,
+    topFunnelDomain: s3Cards.hasFunnel ? s3Cards.funnelRawDomain : outlierMetrics.topFunnelDomain,
+    funnelVolumeGb: s3Cards.hasFunnel ? (s3Cards.funnelBytes / (1024 ** 3)) : outlierMetrics.funnelVolumeGb,
+    funnelHHI: (s3Cards.hasFunnel && s3Cards.funnelBytes >= 50 * 1024 * 1024) ? s3Cards.funnelHHI : outlierMetrics.funnelHHI,
+    topScatterOU: s3Cards.hasScatter ? s3Cards.scatterOU : outlierMetrics.topScatterOU,
+    scatterDomainCount: s3Cards.hasScatter ? s3Cards.scatterCount : outlierMetrics.scatterDomainCount
+  }) : outlierMetrics;
   if (topGlobalType.length) briefingLines.push(ceraT('report.briefing.format', { type: topTypeName, amount: formatBytes(topGlobalType[0].totalBytes) }, lang));
   if (topOutDest) briefingLines.push(ceraT('report.briefing.destination', { dest: ceraDestinationLabel(topOutDest, lang), amount: formatBytes(outDest[topOutDest]) }, lang));
-  briefingLines.push(T('report.briefing.behavior', { text: (typeof DynamicNarrativeEngine !== 'undefined') ? DynamicNarrativeEngine.getOutlierNarrative(outlierMetrics, lang, state) : '' }));
+  briefingLines.push(T('report.briefing.behavior', { text: (typeof DynamicNarrativeEngine !== 'undefined') ? DynamicNarrativeEngine.getOutlierNarrative(alignedOutliers, lang, state) : '' }));
   const briefing = briefingLines.join('\n');
 
   sheet.getRange('B7:S10').merge()
@@ -325,9 +357,9 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   const matrixRows = vectorStats.map(vs => [
     sanitizeCellText_(vs.name),
     vs.count,
-    totalEvents > 0 ? vs.count / totalEvents : 0,
+    vs.isRadar ? '-' : (totalEvents > 0 ? vs.count / totalEvents : 0),
     vs.volumeGb,
-    totalBytes > 0 ? vs.bytes / totalBytes : 0,
+    vs.isRadar ? '-' : (totalBytes > 0 ? vs.bytes / totalBytes : 0),
     sanitizeCellText_(vs.topDomain),
     sanitizeCellText_(vs.topOU)
   ]);
@@ -340,11 +372,19 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   sheet.getRange(14, 6, numVectors, 1).setNumberFormat('0.0%');
   sheet.getRange(14, 2, numVectors, 7).setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
 
-  // Transfers without a recorded destination are outside the vectors above: disclosed here, never dropped
+  // Transfers without a recorded destination or to sanctioned corporate / authorized AI hosts are outside the
+  // four risk vectors above: disclosed in the existing B19 note cell without shifting downstream row coordinates.
   const unknownDest = state.unknownDestinations || {};
-  if (reportNum_(unknownDest.count) > 0) {
+  const hasUnknownDest = reportNum_(unknownDest.count) > 0;
+  const sanctionedDest = state.sanctionedTransfers || {};
+  const sanctionedOut = reportNum_(sanctionedDest.egressCount);
+  const sanctionedClause = sanctionedOut > 0
+    ? ceraT('report.sanctionedTransfers', { n: sanctionedOut, bytes: formatBytes(reportNum_(sanctionedDest.egressBytes)) }, lang)
+    : '';
+  if (hasUnknownDest) {
+    const unknownText = ceraT('report.unknownDestinations', { n: reportNum_(unknownDest.count), bytes: formatBytes(reportNum_(unknownDest.bytes)), out: reportNum_(unknownDest.egressCount) }, lang);
     sheet.getRange(14 + numVectors, 2, 1, 7).merge()
-      .setValue(ceraT('report.unknownDestinations', { n: reportNum_(unknownDest.count), bytes: formatBytes(reportNum_(unknownDest.bytes)), out: reportNum_(unknownDest.egressCount) }, lang))
+      .setValue(sanctionedClause ? (unknownText + ' ' + sanctionedClause) : unknownText)
       .setFontStyle('italic').setFontColor('#64748B').setFontSize(8).setWrap(true);
   }
 
@@ -361,8 +401,13 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
       : ceraT('report.printingNoPeople', { n: printJobs }, lang)];
     if (printSensitive > 0) printParts.push(ceraT('report.printingSensitive', { n: printSensitive }, lang));
     if (printSensitive > 0 && printDetectors) printParts.push(ceraT('deck.print.detectors', { list: printDetectors }, lang));
-    sheet.getRange(14 + numVectors + (reportNum_(unknownDest.count) > 0 ? 1 : 0), 2, 1, 7).merge()
+    if (!hasUnknownDest && sanctionedClause) printParts.push(sanctionedClause);
+    sheet.getRange(14 + numVectors + (hasUnknownDest ? 1 : 0), 2, 1, 7).merge()
       .setValue(printParts.join(' '))
+      .setFontStyle('italic').setFontColor('#64748B').setFontSize(8).setWrap(true);
+  } else if (!hasUnknownDest && sanctionedClause) {
+    sheet.getRange(14 + numVectors, 2, 1, 7).merge()
+      .setValue(sanctionedClause)
       .setFontStyle('italic').setFontColor('#64748B').setFontSize(8).setWrap(true);
   }
 
@@ -463,16 +508,24 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
     .setValue(reportPeakText_(outlierMetrics, lang))
     .setBackground('#F0FDF4').setFontColor('#166534').setFontWeight('bold').setFontSize(8).setWrap(true).setVerticalAlignment('middle').setHorizontalAlignment('center');
 
-  // Destination concentration and spread of the people above 50 MB of outbound data (computeOutlierAnalytics)
+  // Destination concentration, dispersion and intra-unit skew aligned with Slide 3 (ceraSlide3Cards / ceraUnitSkew)
   const validUnit = u => !!u && u !== 'N/A';
   const outlierLines = [];
-  if (validUnit(outlierMetrics.topFunnelOU) && reportNum_(outlierMetrics.funnelHHI) > 0) {
-    outlierLines.push(ceraT('report.adv.funnel', { ou: outlierMetrics.topFunnelOU, amount: reportGbText_(outlierMetrics.funnelVolumeGb), dest: ceraDestinationLabel(outlierMetrics.topFunnelDomain, lang), hhi: (reportNum_(outlierMetrics.funnelHHI) * 100).toFixed(0) + '%' }, lang));
+  if (s3Cards) {
+    if (s3Cards.hasFunnel) outlierLines.push('• ' + s3Cards.funnelNarrative);
+    if (s3Cards.hasScatter) outlierLines.push('• ' + s3Cards.scatterNarrative);
+    if (s3Cards.hasSkew) outlierLines.push('• ' + ceraT('deck.skew.assess', { pct: s3Cards.skewPct, ou: s3Cards.skewOU }, lang));
+  } else {
+    if (validUnit(outlierMetrics.topFunnelOU) && reportNum_(outlierMetrics.funnelHHI) > 0) {
+      outlierLines.push(ceraT('report.adv.funnel', { ou: outlierMetrics.topFunnelOU, amount: reportGbText_(outlierMetrics.funnelVolumeGb), dest: ceraDestinationLabel(outlierMetrics.topFunnelDomain, lang), hhi: (reportNum_(outlierMetrics.funnelHHI) * 100).toFixed(0) + '%' }, lang));
+    }
+    if (validUnit(outlierMetrics.topScatterOU) && reportNum_(outlierMetrics.scatterDomainCount) > 0) {
+      outlierLines.push(ceraT('report.adv.scatter', { ou: outlierMetrics.topScatterOU, n: reportNum_(outlierMetrics.scatterDomainCount) }, lang));
+    }
   }
-  if (validUnit(outlierMetrics.topScatterOU) && reportNum_(outlierMetrics.scatterDomainCount) > 0) {
-    outlierLines.push(ceraT('report.adv.scatter', { ou: outlierMetrics.topScatterOU, n: reportNum_(outlierMetrics.scatterDomainCount) }, lang));
-  }
-  const outlierContextNote = outlierLines.length ? outlierLines.join('\n') : ceraT('report.adv.outliersNone', null, lang);
+  const outlierContextNote = outlierLines.length
+    ? outlierLines.join('\n')
+    : (s3Cards ? s3Cards.funnelNarrative : ceraT('report.adv.outliersNone', null, lang));
   sheet.getRange('M27:P29').merge()
     .setValue(outlierContextNote)
     .setBackground('#FFFFFF').setFontColor('#1E293B').setFontSize(8).setWrap(true).setVerticalAlignment('middle');
@@ -537,7 +590,7 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   const egressPeak = (outlierMetrics && outlierMetrics.egressPeak) || {};
   const peakOverallDate = egressPeak.peakKey || (outlierMetrics && (outlierMetrics.rawPeakDate || outlierMetrics.peakDate)) || null;
   const crossVectorTimeline = (typeof computeCrossVectorOutlierTimeline === 'function')
-    ? computeCrossVectorOutlierTimeline(vectors, peakOverallDate, 7, lang)
+    ? computeCrossVectorOutlierTimeline(vectors, peakOverallDate, 7, lang, state)
     : [];
 
   const execTimelineHeaderRow = 35;
@@ -771,8 +824,9 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
   const userCount = Object.keys(v.users || {}).length;
 
   // 1. Compute deep timeline & actor outlier analytics, its dates and labels in the report language
+  const stateBounds = (stateOrDomains && (stateOrDomains.firstDayKey || stateOrDomains.lastDayKey)) ? stateOrDomains : null;
   const vectorAnalytics = (typeof computeVectorTimelineAnalytics === 'function')
-    ? computeVectorTimelineAnalytics(v.timeline, v.actors, lang)
+    ? computeVectorTimelineAnalytics(v.timeline, v.actors, lang, stateBounds)
     : { timelineSeries: [], outlierTimelineSeries: [], topSpikes: [], top10Actors: [], top5ActorTimelines: [], avgDailyBytes: 0, avgDailyEvents: 0 };
 
   const topSpikes = vectorAnalytics.topSpikes || [];
@@ -1115,7 +1169,7 @@ function renderSecurityRadarSheetWithCharts(ss, radar, state) {
 
   // 1. Compute specialized analytics, its dates and labels in the report language
   const radarAnalytics = (typeof computeSecurityRadarAnalytics === 'function')
-    ? computeSecurityRadarAnalytics(radar, lang)
+    ? computeSecurityRadarAnalytics(radar, lang, state)
     : { timelineSeries: [], outlierTimelineSeries: [], topSpikes: [], top10OUs: [], top10Destinations: [], topMalwareFiles: [], top10Actors: [], top5ActorTimelines: [], detailedBreakdown: null, bypassRatePct: '0.0' };
 
   // Use ±7-day outlier context window for the security incident combo chart
@@ -1437,19 +1491,23 @@ function renderBrowserLaunchSection_(sheet, lf, startRow, lang) {
     sheet.getRange(row + 1, col, 1, 4).setValues([[T('report.col.rank'), T(nameKey), T('report.launch.col.launches'), T('report.launch.col.other')]])
       .setBackground('#F1F5F9').setFontColor('#334155').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center');
     const rows = [];
-    for (let i = 0; i < 10; i++) {
-      const e = list[i];
-      if (e) rows.push([i + 1, sanitizeCellText_(e.name), e.launches, e.nonRoutine]);
-      else if (i === 0 && !count.n) rows.push(['', T('report.launch.notReportedCell'), '', '']);
-      else rows.push([i + 1, '-', '', '']);
+    if (list.length === 0) {
+      rows.push(['-', !count.n ? T('report.launch.notReportedCell') : '-', '-', '-']);
+    } else {
+      for (let i = 0; i < 10; i++) {
+        const e = list[i];
+        if (e) rows.push([i + 1, sanitizeCellText_(e.name), e.launches, e.nonRoutine]);
+        else rows.push([i + 1, '-', '', '']);
+      }
     }
-    sheet.getRange(row + 2, col, 10, 4).setValues(rows).setFontSize(8);
-    sheet.getRange(row + 2, col + 2, 10, 2).setNumberFormat('#,##0');
-    sheet.getRange(row + 2, col, 10, 4).setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
+    sheet.getRange(row + 2, col, rows.length, 4).setValues(rows).setFontSize(8);
+    if (list.length > 0) sheet.getRange(row + 2, col + 2, rows.length, 2).setNumberFormat('#,##0');
+    sheet.getRange(row + 2, col, rows.length, 4).setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
+    return rows.length;
   };
-  ranked(lf.devicesList, lf.devices, 'report.launch.devicesTitle', 'report.launch.col.device', 2);
-  ranked(lf.peopleList, lf.people, 'report.launch.peopleTitle', 'report.launch.col.person', 10);
-  return row + 12;
+  const devRows = ranked(lf.devicesList, lf.devices, 'report.launch.devicesTitle', 'report.launch.col.device', 2);
+  const pplRows = ranked(lf.peopleList, lf.people, 'report.launch.peopleTitle', 'report.launch.col.person', 10);
+  return row + 2 + Math.max(devRows, pplRows);
 }
 
 /**
@@ -1550,16 +1608,21 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
   const corporate = reportCorporateDomains_(state, radar);
   const kindOf = d => reportDestinationKind_(d, corporate, lang);
   const capital = text => String(text).charAt(0).toUpperCase() + String(text).slice(1);
-  // Safe Browsing reason codes in the deck's words (certificate errors, phishing, ...)
-  const reasonLabel = code => {
-    const c = String(code || '').toUpperCase();
-    let key = 'other';
-    if (c.indexOf('SSL') !== -1) key = 'ssl';
-    else if (c.indexOf('SOCIAL_ENGINEERING') !== -1) key = 'phishing';
-    else if (c.indexOf('MALWARE') !== -1) key = 'malware';
-    else if (c.indexOf('UNWANTED') !== -1) key = 'unwanted';
-    else if (c.indexOf('UNSPECIFIED') !== -1 || !c) key = 'unspecified';
-    return T('deck.sb.reason.' + key);
+  // Safe Browsing reason codes in the deck's words (certificate errors, phishing, ...) and clean display codes
+  const sbKey = code => {
+    if (typeof ceraSafeBrowsingReasonKey_ === 'function') return ceraSafeBrowsingReasonKey_(code);
+    const c = String(code || '').trim().toUpperCase();
+    if (!c || c.indexOf('UNSPECIFIED') !== -1 || c === 'SECURITY_POLICY_TRIGGER') return 'unspecified';
+    if (c.indexOf('SSL') !== -1 || c.indexOf('CERT') !== -1) return 'ssl';
+    if (c.indexOf('SOCIAL_ENGINEERING') !== -1 || c.indexOf('PHISH') !== -1 || c.indexOf('DECEPTIVE') !== -1) return 'phishing';
+    if (c.indexOf('MALWARE') !== -1 || c.indexOf('MALICIOUS') !== -1) return 'malware';
+    if (c.indexOf('UNWANTED') !== -1 || c.indexOf('HARMFUL') !== -1) return 'unwanted';
+    return 'other';
+  };
+  const reasonLabel = code => T('deck.sb.reason.' + sbKey(code));
+  const sbReasonCode = code => {
+    const k = sbKey(code);
+    return k === 'other' ? String(code || '').trim() : T('report.radar.sbCode.' + k);
   };
 
   // =========================================================================
@@ -1605,7 +1668,7 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
   for (let r = 0; r < 5; r++) {
     if (r < reasonList.length) {
       const item = reasonList[r];
-      reasonRows.push([sanitizeCellText_(item.reason), sanitizeCellText_(capital(reasonLabel(item.reason))), reportNum_(item.count), reportPctFraction_(item.pct)]);
+      reasonRows.push([sanitizeCellText_(sbReasonCode(item.reason)), sanitizeCellText_(capital(reasonLabel(item.reason))), reportNum_(item.count), reportPctFraction_(item.pct)]);
     } else {
       reasonRows.push(['-', '-', '', '']);
     }

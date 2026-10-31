@@ -71,10 +71,28 @@ function ceraLaunchSwitches_(value) {
     }
   }
   const out = [];
+  const flagSwitches = {};
+  let pendingFlagBlock = null;
   parts.forEach(p => {
     const t = String(p).trim().replace(/^["']+|["']+$/g, '').trim().replace(/^-+/, '').replace(/^\/(?=[a-z])/i, '').trim();
-    if (t && out.indexOf(t) === -1) out.push(t);
+    if (!t) return;
+    const sep = t.search(/[=:]/);
+    const swName = (sep === -1 ? t : t.slice(0, sep)).trim().toLowerCase();
+    if (swName === 'flag-switches-begin') {
+      pendingFlagBlock = [];
+    } else if (swName === 'flag-switches-end') {
+      if (pendingFlagBlock) {
+        for (let i = 0; i < pendingFlagBlock.length; i++) flagSwitches[pendingFlagBlock[i]] = true;
+        pendingFlagBlock = null;
+      }
+    } else if (pendingFlagBlock) {
+      pendingFlagBlock.push(t);
+    }
+    if (out.indexOf(t) === -1) out.push(t);
   });
+  if (Object.keys(flagSwitches).length > 0) {
+    Object.defineProperty(out, 'flagSwitches', { value: flagSwitches, enumerable: false });
+  }
   return out;
 }
 
@@ -119,17 +137,51 @@ function ceraLaunchSwitchClass_(token) {
 }
 
 /**
+ * Explicit external command-line / launcher switches that Chrome never sets via chrome://flags and that must never
+ * be downgraded to routine even if placed between --flag-switches-begin and --flag-switches-end.
+ */
+var CERA_EXTERNAL_LAUNCH_SWITCHES_ = {
+  'user-data-dir': true,
+  'app-id': true,
+  'app': true,
+  'load-extension': true,
+  'disable-extensions-except': true,
+  'no-first-run': true,
+  'no-default-browser-check': true,
+  'allow-file-access-from-files': true,
+  'allow-insecure-localhost': true,
+  'unsafely-disable-devtools-self-xss-warnings': true
+};
+
+/**
+ * Classifies one launch switch with chrome://flags context. The 4 security risk classes (automation, protectionsOff,
+ * extensionsFromDisk, trafficRedirected) and explicit external launcher switches are always evaluated first and never
+ * downgraded; only harmless 'other' experiment switches strictly inside --flag-switches-begin ... --flag-switches-end
+ * become 'routine'.
+ */
+function ceraClassifyLaunchSwitch_(token, inFlagBlock) {
+  const base = ceraLaunchSwitchClass_(token);
+  if (base.cls !== 'other') return base;
+  if (inFlagBlock && !CERA_EXTERNAL_LAUNCH_SWITCHES_[String(base.label || '').toLowerCase()]) {
+    return { cls: 'routine', label: base.label };
+  }
+  return base;
+}
+
+/**
  * The fields of a launch row: time, device, profile user, device user and switches (null when the sheet has no switches
  * column). rec is the row normalized by ceraNormalizeRow_.
  */
 function ceraLaunchRow_(row, col, rec) {
   const text = idx => (idx !== undefined && idx !== -1 && row[idx] !== null && row[idx] !== undefined ? String(row[idx]).trim() : '');
+  const parsedSwitches = col.switches !== undefined && col.switches !== -1 ? ceraLaunchSwitches_(row[col.switches]) : null;
   return {
     t: rec.t,
     device: text(col.deviceName),
     user: rec.userIdent,
     deviceUser: text(col.deviceUser).toLowerCase(),
-    switches: col.switches !== undefined && col.switches !== -1 ? ceraLaunchSwitches_(row[col.switches]) : null
+    switches: parsedSwitches,
+    flagSwitches: (parsedSwitches && parsedSwitches.flagSwitches) ? parsedSwitches.flagSwitches : null
   };
 }
 
@@ -154,10 +206,22 @@ function ceraAddLaunchRow_(state, row) {
   };
   store.events++;
   const switches = row.switches ? row.switches.slice().sort() : null;
+  const rowFlags = row.flagSwitches || (row.switches && row.switches.flagSwitches) || null;
   const identity = row.device ? 'd|' + row.device : (row.user ? 'u|' + row.user : (row.deviceUser ? 'w|' + row.deviceUser : ''));
   const key = identity + '\u0000' + (switches ? switches.join('\n') : '\u0001');
   let entry = store.keys.get(key);
-  if (!entry) store.keys.set(key, entry = { device: row.device || '', switches: switches, rows: [] });
+  if (!entry) {
+    const flagCopy = rowFlags ? Object.assign({}, rowFlags) : null;
+    store.keys.set(key, entry = { device: row.device || '', switches: switches, flagSwitches: flagCopy, rows: [] });
+  } else if (entry.flagSwitches) {
+    if (!rowFlags) {
+      entry.flagSwitches = null;
+    } else {
+      Object.keys(entry.flagSwitches).forEach(k => {
+        if (!rowFlags[k]) delete entry.flagSwitches[k];
+      });
+    }
+  }
   entry.rows.push(typeof row.t === 'number' && !isNaN(row.t) ? row.t : NaN, nameId(row.user), nameId(row.deviceUser));
 }
 
@@ -199,7 +263,7 @@ function ceraFlushLaunches_(state) {
       const distinct = list => list.filter((u, i) => u && list.indexOf(u) === i);
       const profileUsers = distinct(launch.rows.map(r => r.user));
       const users = profileUsers.length ? profileUsers : distinct(launch.rows.map(r => r.deviceUser));
-      ceraAggregateLaunch_(agg, { device: entry.device, users: users, switches: entry.switches });
+      ceraAggregateLaunch_(agg, { device: entry.device, users: users, switches: entry.switches, flagSwitches: entry.flagSwitches || null });
     };
     rows.forEach(r => {
       if (launch && !isNaN(r.t) && !isNaN(launch.t) && r.t - launch.t <= windowMs) {
@@ -237,13 +301,15 @@ function ceraAggregateLaunch_(agg, launch) {
   }
   const labels = {};
   const classes = {};
+  const flagMap = launch.flagSwitches || (launch.switches && launch.switches.flagSwitches) || null;
   launch.switches.forEach(token => {
-    const c = ceraLaunchSwitchClass_(token);
-    labels[c.label] = c.cls;
+    const c = ceraClassifyLaunchSwitch_(token, !!(flagMap && flagMap[token]));
+    if (!labels[c.label] || labels[c.label] === 'routine') labels[c.label] = c.cls;
     if (c.cls !== 'routine') classes[c.cls] = true;
   });
   Object.keys(labels).forEach(label => {
     const sw = agg.switches[label] || (agg.switches[label] = { launches: 0, cls: labels[label] });
+    if (sw.cls === 'routine' && labels[label] !== 'routine') sw.cls = labels[label];
     sw.launches++;
   });
   const list = Object.keys(classes);
@@ -290,7 +356,7 @@ function ceraLaunchFacts(state) {
   const switches = Object.keys(b.switches || {}).map(name => ({ name: name, cls: b.switches[name].cls, launches: b.switches[name].launches }))
     .sort((x, y) => y.launches - x.launches || (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
   const ranked = kind => Object.keys(b.all[kind]).map(name => ({ name: name, launches: b.all[kind][name], nonRoutine: b.nonRoutine[kind][name] || 0 }))
-    .sort((x, y) => y.nonRoutine - x.nonRoutine || y.launches - x.launches || (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
+    .sort((x, y) => (y.nonRoutine || 0) - (x.nonRoutine || 0) || y.launches - x.launches || String(x.name).localeCompare(String(y.name)));
   return {
     events: b.events,
     launches: b.launches,

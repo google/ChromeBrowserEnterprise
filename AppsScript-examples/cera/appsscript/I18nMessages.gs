@@ -414,9 +414,18 @@ var CERA_I18N_MESSAGES = {
     },
     "report.radar.sec3aTitle": "SECTION 3A: UNSAFE SITE VISITS BY REASON AND DESTINATION",
     "report.radar.sec3aSub": "Reasons Chrome recorded for unsafe site visits, the destinations with the most visits, and bypasses where the log reports a result.",
+    "report.radar.sbCode.ssl": "SSL / TLS certificate error",
+    "report.radar.sbCode.phishing": "Phishing / social engineering",
+    "report.radar.sbCode.malware": "Malware",
+    "report.radar.sbCode.unwanted": "Unwanted software",
+    "report.radar.sbCode.unspecified": "Not reported",
     "report.unknownDestinations": {
       "one": "Not in the vectors above: 1 transfer ({bytes}) had no recorded destination (blank, blob: or browser-extension URL); outbound: {out}.",
       "other": "Not in the vectors above: {n} transfers ({bytes}) had no recorded destination (blank, blob: or browser-extension URL); outbound: {out}."
+    },
+    "report.sanctionedTransfers": {
+      "one": "Not in the vectors above: 1 outbound transfer ({bytes}) went to sanctioned corporate or authorized AI destinations.",
+      "other": "Not in the vectors above: {n} outbound transfers ({bytes}) went to sanctioned corporate or authorized AI destinations."
     },
     "report.printing": {
       "one": "Not in the vectors above: 1 print job by {people}.",
@@ -2091,9 +2100,18 @@ var CERA_I18N_MESSAGES = {
     },
     "report.radar.sec3aTitle": "BAGIAN 3A: KUNJUNGAN SITUS TIDAK AMAN MENURUT ALASAN DAN TUJUAN",
     "report.radar.sec3aSub": "Alasan yang dicatat Chrome untuk kunjungan situs tidak aman, tujuan dengan kunjungan terbanyak, dan pengabaian jika log melaporkan hasilnya.",
+    "report.radar.sbCode.ssl": "Kesalahan sertifikat SSL / TLS",
+    "report.radar.sbCode.phishing": "Phishing / rekayasa sosial",
+    "report.radar.sbCode.malware": "Perangkat lunak berbahaya",
+    "report.radar.sbCode.unwanted": "Perangkat lunak tidak diinginkan",
+    "report.radar.sbCode.unspecified": "Tidak dilaporkan",
     "report.unknownDestinations": {
       "one": "Tidak termasuk vektor di atas: 1 transfer ({bytes}) tanpa tujuan yang tercatat (URL kosong, blob:, atau ekstensi browser); keluar: {out}.",
       "other": "Tidak termasuk vektor di atas: {n} transfer ({bytes}) tanpa tujuan yang tercatat (URL kosong, blob:, atau ekstensi browser); keluar: {out}."
+    },
+    "report.sanctionedTransfers": {
+      "one": "Tidak termasuk vektor di atas: 1 transfer keluar ({bytes}) ke tujuan korporat resmi atau AI yang disetujui.",
+      "other": "Tidak termasuk vektor di atas: {n} transfer keluar ({bytes}) ke tujuan korporat resmi atau AI yang disetujui."
     },
     "report.printing": {
       "one": "Tidak termasuk vektor di atas: 1 tugas cetak oleh {people}.",
@@ -3768,9 +3786,18 @@ var CERA_I18N_MESSAGES = {
     },
     "report.radar.sec3aTitle": "セクション 3A：理由と送信先別の安全でないサイトへのアクセス",
     "report.radar.sec3aSub": "Chrome が記録した安全でないサイトへのアクセスの理由、アクセスが多い送信先、および結果が記録されている場合の回避状況。",
+    "report.radar.sbCode.ssl": "SSL / TLS 証明書エラー",
+    "report.radar.sbCode.phishing": "フィッシング / ソーシャル エンジニアリング",
+    "report.radar.sbCode.malware": "マルウェア",
+    "report.radar.sbCode.unwanted": "望ましくないソフトウェア",
+    "report.radar.sbCode.unspecified": "記録なし",
     "report.unknownDestinations": {
       "one": "上記のベクトルに含まれないもの：送信先が記録されていない転送 1 件（{bytes}、URL が空・blob:・ブラウザ拡張機能）、うち送信 {out} 件。",
       "other": "上記のベクトルに含まれないもの：送信先が記録されていない転送 {n} 件（{bytes}、URL が空・blob:・ブラウザ拡張機能）、うち送信 {out} 件。"
+    },
+    "report.sanctionedTransfers": {
+      "one": "上記のベクトルに含まれないもの：承認済みの社内または公認 AI の送信先への送信 1 件（{bytes}）。",
+      "other": "上記のベクトルに含まれないもの：承認済みの社内または公認 AI の送信先への送信 {n} 件（{bytes}）。"
     },
     "report.printing": {
       "one": "上記のベクトルに含まれないもの：{people}による印刷 1 件。",
@@ -5445,9 +5472,18 @@ var CERA_I18N_MESSAGES = {
     },
     "report.radar.sec3aTitle": "섹션 3A: 사유 및 대상별 안전하지 않은 사이트 방문",
     "report.radar.sec3aSub": "Chrome이 기록한 안전하지 않은 사이트 방문 사유, 방문이 가장 많은 대상, 그리고 로그에 결과가 보고된 경우의 무시 여부.",
+    "report.radar.sbCode.ssl": "SSL / TLS 인증서 오류",
+    "report.radar.sbCode.phishing": "피싱 / 소셜 엔지니어링",
+    "report.radar.sbCode.malware": "멀웨어",
+    "report.radar.sbCode.unwanted": "원치 않는 소프트웨어",
+    "report.radar.sbCode.unspecified": "미보고",
     "report.unknownDestinations": {
       "one": "위 벡터에 포함되지 않음: 대상이 기록되지 않은 전송 1건({bytes}, 빈 URL·blob:·브라우저 확장 프로그램), 그중 외부 전송 {out}건.",
       "other": "위 벡터에 포함되지 않음: 대상이 기록되지 않은 전송 {n}건({bytes}, 빈 URL·blob:·브라우저 확장 프로그램), 그중 외부 전송 {out}건."
+    },
+    "report.sanctionedTransfers": {
+      "one": "위 벡터에 포함되지 않음: 승인된 사내 또는 공인 AI 대상으로의 외부 전송 1건({bytes}).",
+      "other": "위 벡터에 포함되지 않음: 승인된 사내 또는 공인 AI 대상으로의 외부 전송 {n}건({bytes})."
     },
     "report.printing": {
       "one": "위 벡터에 포함되지 않음: {people}의 인쇄 1건.",
@@ -7122,9 +7158,18 @@ var CERA_I18N_MESSAGES = {
     },
     "report.radar.sec3aTitle": "第 3A 部分：按原因和目标划分的不安全网站访问",
     "report.radar.sec3aSub": "Chrome 记录的不安全网站访问原因、访问最多的目标，以及日志报告结果时的绕过情况。",
+    "report.radar.sbCode.ssl": "SSL / TLS 证书错误",
+    "report.radar.sbCode.phishing": "网络钓鱼 / 社会工程",
+    "report.radar.sbCode.malware": "恶意软件",
+    "report.radar.sbCode.unwanted": "不需要的软件",
+    "report.radar.sbCode.unspecified": "未报告",
     "report.unknownDestinations": {
       "one": "未计入上述向量：1 次传输（{bytes}）没有记录目标（URL 为空、blob: 或浏览器扩展程序），其中外发 {out} 次。",
       "other": "未计入上述向量：{n} 次传输（{bytes}）没有记录目标（URL 为空、blob: 或浏览器扩展程序），其中外发 {out} 次。"
+    },
+    "report.sanctionedTransfers": {
+      "one": "未计入上述向量：1 次外发传输（{bytes}）发往受认可的企业或授权 AI 目标。",
+      "other": "未计入上述向量：{n} 次外发传输（{bytes}）发往受认可的企业或授权 AI 目标。"
     },
     "report.printing": {
       "one": "未计入上述向量：{people}的 1 次打印。",
@@ -8799,9 +8844,18 @@ var CERA_I18N_MESSAGES = {
     },
     "report.radar.sec3aTitle": "PHẦN 3A: LƯỢT TRUY CẬP TRANG WEB KHÔNG AN TOÀN THEO LÝ DO VÀ ĐÍCH ĐẾN",
     "report.radar.sec3aSub": "Các lý do Chrome ghi nhận đối với lượt truy cập trang web không an toàn, những đích đến có nhiều lượt truy cập nhất và các trường hợp bỏ qua cảnh báo khi nhật ký có ghi nhận kết quả.",
+    "report.radar.sbCode.ssl": "Lỗi chứng chỉ SSL / TLS",
+    "report.radar.sbCode.phishing": "Giả mạo / tấn công phi kỹ thuật",
+    "report.radar.sbCode.malware": "Phần mềm độc hại",
+    "report.radar.sbCode.unwanted": "Phần mềm không mong muốn",
+    "report.radar.sbCode.unspecified": "Không được ghi nhận",
     "report.unknownDestinations": {
       "one": "Không thuộc các kênh trên: 1 lượt truyền ({bytes}) không có đích đến được ghi nhận (URL trống, blob: hoặc tiện ích mở rộng trình duyệt); chiều ra: {out}.",
       "other": "Không thuộc các kênh trên: {n} lượt truyền ({bytes}) không có đích đến được ghi nhận (URL trống, blob: hoặc tiện ích mở rộng trình duyệt); chiều ra: {out}."
+    },
+    "report.sanctionedTransfers": {
+      "one": "Không thuộc các kênh trên: 1 lượt truyền ra ngoài ({bytes}) tới đích đến doanh nghiệp hoặc AI được phê duyệt.",
+      "other": "Không thuộc các kênh trên: {n} lượt truyền ra ngoài ({bytes}) tới đích đến doanh nghiệp hoặc AI được phê duyệt."
     },
     "report.printing": {
       "one": "Không thuộc các kênh trên: 1 lệnh in bởi {people}.",
