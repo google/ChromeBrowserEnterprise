@@ -1013,6 +1013,9 @@ function executeDlpAnalysis(params) {
   try {
     const lang = ceraNormalizeLang_(params.lang || ceraGetLanguage());
     const currentSs = SpreadsheetApp.getActiveSpreadsheet();
+    if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+      ceraAssertWorkbookAuthorized_(currentSs);
+    }
     const currentSsId = currentSs.getId();
 
     const corpDomains = parseDomains(params.corpDomains);

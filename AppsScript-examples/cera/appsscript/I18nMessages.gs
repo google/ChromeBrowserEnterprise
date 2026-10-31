@@ -1708,7 +1708,19 @@ var CERA_I18N_MESSAGES = {
     "mon.diag.copied": "Zero-PII diagnostic summary copied to clipboard",
     "step2.tz.title": "Report Time Zone (Working Hours & Activity)",
     "step2.tz.desc": "Auto-detected from your browser for local working-hours analysis (08:00–19:00).",
-    "exec.status.retrying": "Transient network notice — retrying batch ({attempt}/{max})..."
+    "exec.status.retrying": "Transient network notice — retrying batch ({attempt}/{max})...",
+    "license.gate.pill": "🔒 Workbook Access Restricted",
+    "license.gate.title": "This CERA Copy Is Not Authorized for Execution",
+    "license.gate.descUser": "This CERA workbook ({ref}) is registered exclusively to {email}. You may view existing report tabs in this spreadsheet, but only the registered owner can initiate CERA.",
+    "license.gate.descClone": "This spreadsheet was copied from an existing CERA instance ({ref}). Each CERA request authorizes a single primary copy and cannot be cloned.",
+    "license.gate.descTampered": "The authorization metadata on this CERA workbook ({ref}) is invalid or corrupted. Please request a fresh official copy at goo.gle/cera.",
+    "license.gate.recTitle": "✨ Get Your Own Official CERA Copy",
+    "license.gate.recB1": "Dedicated single-use instance: goo.gle/cera provisions an official CERA workbook registered to your Google Workspace account.",
+    "license.gate.recB2": "Zero re-extraction needed: if Chrome logs are already exported to Google Drive, you can analyze that folder immediately via Manual Export in your new copy.",
+    "license.gate.cta": "Open goo.gle/cera to Get Official Copy ↗",
+    "license.err.unauthorizedUser": "This CERA workbook ({ref}) is registered to {email}. Please request your own official copy at https://goo.gle/cera.",
+    "license.err.secondaryCopy": "This spreadsheet is an unauthorized secondary copy of CERA instance {ref}. Please request a fresh official copy at https://goo.gle/cera.",
+    "license.err.tampered": "The license metadata on this CERA workbook{ref} is invalid. Please request a fresh official copy at https://goo.gle/cera."
   },
   "id": {
     "lang.label": "Bahasa",
@@ -3399,7 +3411,19 @@ var CERA_I18N_MESSAGES = {
     "mon.diag.copied": "Ringkasan diagnostik Tanpa-PII disalin ke papan klip",
     "step2.tz.title": "Zona Waktu Laporan (Jam Kerja & Aktivitas)",
     "step2.tz.desc": "Terdeteksi otomatis dari browser Anda untuk analisis jam kerja lokal (08:00–19:00).",
-    "exec.status.retrying": "Gangguan jaringan sementara — mencoba ulang batch ({attempt}/{max})..."
+    "exec.status.retrying": "Gangguan jaringan sementara — mencoba ulang batch ({attempt}/{max})...",
+    "license.gate.pill": "🔒 Akses Buku Kerja Dibatasi",
+    "license.gate.title": "Salinan CERA Ini Tidak Diizinkan untuk Dijalankan",
+    "license.gate.descUser": "Buku kerja CERA ini ({ref}) terdaftar secara eksklusif untuk {email}. Anda dapat melihat tab laporan yang sudah ada di spreadsheet ini, namun hanya pemilik terdaftar yang dapat menjalankan CERA.",
+    "license.gate.descClone": "Spreadsheet ini disalin dari instans CERA yang sudah ada ({ref}). Setiap permintaan CERA hanya mengizinkan satu salinan utama dan tidak dapat digandakan.",
+    "license.gate.descTampered": "Metadata otorisasi pada buku kerja CERA ini ({ref}) tidak valid atau rusak. Silakan minta salinan resmi baru di goo.gle/cera.",
+    "license.gate.recTitle": "✨ Dapatkan Salinan Resmi CERA Anda Sendiri",
+    "license.gate.recB1": "Instans khusus sekali pakai: goo.gle/cera menyediakan buku kerja CERA resmi yang terdaftar untuk akun Google Workspace Anda.",
+    "license.gate.recB2": "Tanpa ekstraksi ulang: jika log Chrome sudah diekspor ke Google Drive, Anda dapat langsung menganalisis folder tersebut melalui Ekspor Manual di salinan baru Anda.",
+    "license.gate.cta": "Buka goo.gle/cera untuk Mendapatkan Salinan Resmi ↗",
+    "license.err.unauthorizedUser": "Buku kerja CERA ini ({ref}) terdaftar untuk {email}. Silakan minta salinan resmi Anda sendiri di https://goo.gle/cera.",
+    "license.err.secondaryCopy": "Spreadsheet ini adalah salinan sekunder tidak resmi dari instans CERA {ref}. Silakan minta salinan resmi baru di https://goo.gle/cera.",
+    "license.err.tampered": "Metadata lisensi pada buku kerja CERA ini{ref} tidak valid. Silakan minta salinan resmi baru di https://goo.gle/cera."
   },
   "ja": {
     "lang.label": "言語",
@@ -5090,7 +5114,19 @@ var CERA_I18N_MESSAGES = {
     "mon.diag.copied": "個人情報を含まない（Zero-PII）診断サマリーをクリップボードにコピーしました",
     "step2.tz.title": "レポートのタイムゾーン（営業時間・アクティビティ判定）",
     "step2.tz.desc": "ブラウザから自動検出されたタイムゾーンを営業時間（08:00〜19:00）の分析に使用します。",
-    "exec.status.retrying": "一時的な通信エラー — バッチを再試行しています ({attempt}/{max})..."
+    "exec.status.retrying": "一時的な通信エラー — バッチを再試行しています ({attempt}/{max})...",
+    "license.gate.pill": "🔒 ワークブックのアクセス制限",
+    "license.gate.title": "この CERA コピーは実行が許可されていません",
+    "license.gate.descUser": "この CERA ワークブック（{ref}）は {email} 専用に登録されています。既存のレポートタブは閲覧できますが、CERA を実行できるのは登録されたオーナーのみです。",
+    "license.gate.descClone": "このスプレッドシートは既存の CERA インスタンス（{ref}）からコピーされたものです。各 CERA リクエストは 1 つのプライマリコピーのみを許可しており、複製することはできません。",
+    "license.gate.descTampered": "この CERA ワークブック（{ref}）の認証メタデータが無効または破損しています。goo.gle/cera から新しい公式コピーを取得してください。",
+    "license.gate.recTitle": "✨ 公式の CERA コピーを取得する",
+    "license.gate.recB1": "専用シングルユースインスタンス: goo.gle/cera からお使いの Google Workspace アカウントに登録された公式 CERA ワークブックを発行できます。",
+    "license.gate.recB2": "再抽出は不要: Chrome ログがすでに Google ドライブに出力されている場合は、新しいコピーの「手動エクスポート」からすぐに分析できます。",
+    "license.gate.cta": "goo.gle/cera を開いて公式コピーを取得 ↗",
+    "license.err.unauthorizedUser": "この CERA ワークブック（{ref}）は {email} に登録されています。https://goo.gle/cera からご自身の公式コピーを取得してください。",
+    "license.err.secondaryCopy": "このスプレッドシートは CERA インスタンス {ref} の許可されていない二次コピーです。https://goo.gle/cera から新しい公式コピーを取得してください。",
+    "license.err.tampered": "この CERA ワークブック{ref}のライセンスメタデータが無効です。https://goo.gle/cera から新しい公式コピーを取得してください。"
   },
   "ko": {
     "lang.label": "언어",
@@ -6781,7 +6817,19 @@ var CERA_I18N_MESSAGES = {
     "mon.diag.copied": "개인정보 없는(Zero-PII) 진단 요약이 클립보드에 복사되었습니다",
     "step2.tz.title": "보고서 시간대 (근무 시간 및 활동 기준)",
     "step2.tz.desc": "현지 근무 시간(08:00~19:00) 분석을 위해 브라우저에서 자동 감지되었습니다.",
-    "exec.status.retrying": "일시적인 네트워크 알림 — 배치 재시도 중 ({attempt}/{max})..."
+    "exec.status.retrying": "일시적인 네트워크 알림 — 배치 재시도 중 ({attempt}/{max})...",
+    "license.gate.pill": "🔒 통합 문서 실행 제한",
+    "license.gate.title": "이 CERA 사본은 실행 권한이 없습니다",
+    "license.gate.descUser": "이 CERA 통합 문서({ref})는 {email} 계정 전용으로 등록되어 있습니다. 기존 보고서 탭은 열람할 수 있으나, CERA 실행은 등록된 소유자만 가능합니다.",
+    "license.gate.descClone": "이 스프레드시트는 기존 CERA 인스턴스({ref})에서 복사되었습니다. 각 CERA 요청은 단일 기본 사본만 허용하며 복제할 수 없습니다.",
+    "license.gate.descTampered": "이 CERA 통합 문서({ref})의 인증 메타데이터가 유효하지 않거나 손상되었습니다. goo.gle/cera에서 새 공식 사본을 요청해 주세요.",
+    "license.gate.recTitle": "✨ 공식 CERA 사본 받기",
+    "license.gate.recB1": "전용 1회용 인스턴스: goo.gle/cera에서 귀하의 Google Workspace 계정에 등록된 공식 CERA 통합 문서를 발급합니다.",
+    "license.gate.recB2": "재추출 불필요: Chrome 로그가 이미 Google Drive로 내보내진 경우, 새 사본의 수동 내보내기를 통해 해당 폴더를 즉시 분석할 수 있습니다.",
+    "license.gate.cta": "goo.gle/cera에서 공식 사본 받기 ↗",
+    "license.err.unauthorizedUser": "이 CERA 통합 문서({ref})는 {email} 계정에 등록되어 있습니다. https://goo.gle/cera에서 본인의 공식 사본을 요청해 주세요.",
+    "license.err.secondaryCopy": "이 스프레드시트는 CERA 인스턴스 {ref}의 승인되지 않은 2차 사본입니다. https://goo.gle/cera에서 새 공식 사본을 요청해 주세요.",
+    "license.err.tampered": "이 CERA 통합 문서{ref}의 라이선스 메타데이터가 유효하지 않습니다. https://goo.gle/cera에서 새 공식 사본을 요청해 주세요."
   },
   "zh-CN": {
     "lang.label": "语言",
@@ -8472,7 +8520,19 @@ var CERA_I18N_MESSAGES = {
     "mon.diag.copied": "零个人身份信息 (Zero-PII) 诊断摘要已复制到剪贴板",
     "step2.tz.title": "报告时区（工作时间与活动分析）",
     "step2.tz.desc": "已从您的浏览器自动检测，用于本地工作时间（08:00–19:00）分析。",
-    "exec.status.retrying": "临时网络提示 — 正在重试批次 ({attempt}/{max})..."
+    "exec.status.retrying": "临时网络提示 — 正在重试批次 ({attempt}/{max})...",
+    "license.gate.pill": "🔒 工作簿执行受限",
+    "license.gate.title": "此 CERA 副本未获授权执行",
+    "license.gate.descUser": "此 CERA 工作簿 ({ref}) 仅注册给 {email}。您可以查看此工作表中的现有报告标签页，但仅注册所有者可以启动 CERA。",
+    "license.gate.descClone": "此电子表格复制自现有的 CERA 实例 ({ref})。每次 CERA 申请仅授权一个主副本，不可再次克隆。",
+    "license.gate.descTampered": "此 CERA 工作簿 ({ref}) 的授权元数据无效或已损坏。请访问 goo.gle/cera 获取新的官方副本。",
+    "license.gate.recTitle": "✨ 获取您专属的官方 CERA 副本",
+    "license.gate.recB1": "专属单次评估实例：goo.gle/cera 将为您生成注册到您 Google Workspace 账号的官方 CERA 工作簿。",
+    "license.gate.recB2": "无需重新提取：如果 Chrome 日志已导出至 Google 云端硬盘，您可在新副本中通过“手动导出”直接分析该文件夹。",
+    "license.gate.cta": "打开 goo.gle/cera 获取官方副本 ↗",
+    "license.err.unauthorizedUser": "此 CERA 工作簿 ({ref}) 已注册给 {email}。请访问 https://goo.gle/cera 获取您自己的官方副本。",
+    "license.err.secondaryCopy": "此电子表格是 CERA 实例 {ref} 的未授权二次副本。请访问 https://goo.gle/cera 获取新的官方副本。",
+    "license.err.tampered": "此 CERA 工作簿{ref}的许可元数据无效。请访问 https://goo.gle/cera 获取新的官方副本。"
   },
   "vi": {
     "lang.label": "Ngôn ngữ",
@@ -10163,6 +10223,18 @@ var CERA_I18N_MESSAGES = {
     "mon.diag.copied": "Đã sao chép tóm tắt chẩn đoán Không-PII vào bảng nhớ tạm",
     "step2.tz.title": "Múi giờ Báo cáo (Giờ làm việc & Hoạt động)",
     "step2.tz.desc": "Tự động phát hiện từ trình duyệt của bạn để phân tích khung giờ làm việc tại địa phương (08:00–19:00).",
-    "exec.status.retrying": "Thông báo mạng tạm thời — đang thử lại lô ({attempt}/{max})..."
+    "exec.status.retrying": "Thông báo mạng tạm thời — đang thử lại lô ({attempt}/{max})...",
+    "license.gate.pill": "🔒 Quyền thực thi Bảng tính bị hạn chế",
+    "license.gate.title": "Bản sao CERA này không được phép thực thi",
+    "license.gate.descUser": "Bảng tính CERA này ({ref}) được đăng ký độc quyền cho {email}. Bạn có thể xem các tab báo cáo hiện có trong bảng tính này, nhưng chỉ chủ sở hữu đã đăng ký mới có thể khởi chạy CERA.",
+    "license.gate.descClone": "Bảng tính này được sao chép từ một phiên bản CERA hiện có ({ref}). Mỗi yêu cầu CERA chỉ cấp quyền cho một bản sao chính duy nhất và không thể nhân bản.",
+    "license.gate.descTampered": "Siêu dữ liệu xác thực trên bảng tính CERA này ({ref}) không hợp lệ hoặc bị hỏng. Vui lòng yêu cầu bản sao chính thức mới tại goo.gle/cera.",
+    "license.gate.recTitle": "✨ Nhận Bản sao CERA Chính thức của Riêng Bạn",
+    "license.gate.recB1": "Phiên bản dùng một lần chuyên biệt: goo.gle/cera cấp bảng tính CERA chính thức được đăng ký cho tài khoản Google Workspace của bạn.",
+    "license.gate.recB2": "Không cần trích xuất lại: nếu nhật ký Chrome đã được xuất sang Google Drive, bạn có thể phân tích ngay thư mục đó qua Xuất Thủ công trong bản sao mới.",
+    "license.gate.cta": "Mở goo.gle/cera để Nhận Bản sao Chính thức ↗",
+    "license.err.unauthorizedUser": "Bảng tính CERA này ({ref}) được đăng ký cho {email}. Vui lòng yêu cầu bản sao chính thức của riêng bạn tại https://goo.gle/cera.",
+    "license.err.secondaryCopy": "Bảng tính này là bản sao thứ cấp trái phép của phiên bản CERA {ref}. Vui lòng yêu cầu bản sao chính thức mới tại https://goo.gle/cera.",
+    "license.err.tampered": "Siêu dữ liệu giấy phép trên bảng tính CERA này{ref} không hợp lệ. Vui lòng yêu cầu bản sao chính thức mới tại https://goo.gle/cera."
   }
 };

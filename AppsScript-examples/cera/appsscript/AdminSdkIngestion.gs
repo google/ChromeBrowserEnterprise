@@ -247,6 +247,9 @@ function ceraEnsureRootFolder_(forceCreateNew) {
  * Optionally runs Batch #1 inline when runFirstBatchInline is true, and schedules subsequent batches in Google Apps Script background.
  */
 function engageCloudIngestion(dateRangeDays, runFirstBatchInline) {
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    ceraAssertWorkbookAuthorized_();
+  }
   const daysFilter = ceraRangeDays_(dateRangeDays);
   const nowMs = Date.now();
   const windowStartMs = nowMs - (daysFilter * 86400000);
@@ -477,6 +480,9 @@ function stopAndFinalizeCurrentIngestion() {
  * Resumes a paused or interrupted cloud ingestion from its last saved checkpoint
  */
 function resumeCloudIngestion() {
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    ceraAssertWorkbookAuthorized_();
+  }
   let state = getProgressUpdate();
   if (!state) {
     throw new Error(ceraT('err.noSession'));
@@ -3359,10 +3365,16 @@ function ceraBuildIncidentPacket_(passedState) {
   const status = state.status || ctl.status || 'IDLE';
   const errCode = ceraScrubText_(ctl.lastErrorCode || state.errorKey || 'NONE', 60);
   const errMsg = ceraScrubText_(ctl.lastErrorMsg || state.errorMessage || '', 120);
+  const lic = (typeof ceraVerifyWorkbookLicense_ === 'function')
+    ? ceraVerifyWorkbookLicense_(null, null, { skipDriveCheck: true })
+    : null;
 
   const packetObj = {
     schema: 'cera.incident.v1',
     v: ver,
+    instanceRef: (lic && lic.refCode) || 'UNBOUND',
+    licenseState: (lic && lic.licenseState) || 'UNSTAMPED',
+    ownerMask: (lic && lic.maskedEmail) || '',
     activityId: state.activityId || ctl.activityId || 'NONE',
     status: status,
     healthState: health.healthState,
@@ -3406,6 +3418,10 @@ function ceraBuildIncidentPacket_(passedState) {
     json = JSON.stringify(packetObj);
   }
   return json;
+}
+
+function getDiagnosticSummaryText(passedState) {
+  return ceraBuildIncidentPacket_(passedState);
 }
 
 if (typeof globalThis !== 'undefined' && typeof globalThis.copyIngestionIncidentPacket !== 'function') {
@@ -3991,6 +4007,9 @@ function ceraInitDiagnosticLog_(initialState, firstPartition) {
       (initialState.plan && initialState.plan.total) ||
       0
     );
+    const lic = (typeof ceraVerifyWorkbookLicense_ === 'function')
+      ? ceraVerifyWorkbookLicense_(null, null, { skipDriveCheck: true })
+      : null;
     const diag = {
       schemaVersion: '1.0',
       ceraVersion: (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.12',
@@ -4001,6 +4020,9 @@ function ceraInitDiagnosticLog_(initialState, firstPartition) {
       updatedAtUtc: nowIso,
       environment: {
         hostSpreadsheetId: hostSpreadsheetId,
+        instanceRef: (lic && lic.refCode) || 'UNBOUND',
+        licenseState: (lic && lic.licenseState) || 'UNSTAMPED',
+        ownerMask: (lic && lic.maskedEmail) || '',
         locale: (typeof ceraGetLanguage === 'function') ? ceraGetLanguage() : 'en',
         scriptTimeZone: tz,
         targetEventsCount: TARGET_EVENTS.length,
@@ -4307,6 +4329,10 @@ function ceraRenderDiagnosticLogTxt_(diag) {
   const preTotal = pre.plannedSlicesCount !== undefined ? pre.plannedSlicesCount : (pre.totalWeeksCount || wd.totalPlannedSlices || 0);
   const preUnit = (pre.activeSlicesCount === undefined && pre.activeWeeksCount !== undefined) ? 'Active Weeks' : 'Active Slices';
 
+  const instRef = (diag.environment && diag.environment.instanceRef) || 'UNBOUND';
+  const licState = (diag.environment && diag.environment.licenseState) || 'UNSTAMPED';
+  const ownMask = (diag.environment && diag.environment.ownerMask) ? (' | Owner: ' + diag.environment.ownerMask) : '';
+
   const headerLines = [
     '================================================================================',
     `CERA (Chrome Egress Risk Analysis) — Direct Ingestion Diagnostic Log`,
@@ -4315,6 +4341,7 @@ function ceraRenderDiagnosticLogTxt_(diag) {
     '================================================================================',
     `Activity ID        : ${diag.activityId || 'N/A'}`,
     `Host Spreadsheet   : ${(diag.environment && diag.environment.hostSpreadsheetId) || 'N/A'}`,
+    `Instance & License : ${instRef} (${licState}${ownMask})`,
     `Job Status         : ${diag.status || 'UNKNOWN'}`,
     `Created (UTC)      : ${diag.createdAtUtc || 'N/A'}`,
     `Last Updated (UTC) : ${diag.updatedAtUtc || 'N/A'}`,
@@ -4608,10 +4635,17 @@ function ceraWriteDiagAnalysisFallbackSummary_(summaryObj) {
       ? String(CeraConfig.VERSION).replace(/[^0-9A-Za-z._-]/g, '')
       : '2.0.15';
 
+    const licFallback = (typeof ceraVerifyWorkbookLicense_ === 'function')
+      ? ceraVerifyWorkbookLicense_(null, null, { skipDriveCheck: true })
+      : null;
+
     // Strict Zero-PII schema whitelist: never serialize arbitrary or raw caller properties
     const safeSummary = {
       completedAtUtc: String(summaryObj.completedAtUtc || new Date().toISOString()).replace(/[^0-9TZ:.+-]/g, '').slice(0, 40) || new Date().toISOString(),
       analyzedFromSpreadsheetId: ceraSanitizeDiagId_(summaryObj.analyzedFromSpreadsheetId),
+      instanceRef: ceraScrubText_(summaryObj.instanceRef || (licFallback && licFallback.refCode) || 'UNBOUND', 24),
+      licenseState: ceraScrubText_(summaryObj.licenseState || (licFallback && licFallback.licenseState) || 'UNSTAMPED', 40),
+      ownerMask: String(summaryObj.ownerMask || (licFallback && licFallback.maskedEmail) || '').slice(0, 80),
       sheetsTotal: Number(summaryObj.sheetsTotal) || 0,
       sheetsRead: Number(summaryObj.sheetsRead) || 0,
       rowsRead: Number(summaryObj.rowsRead) || 0,
@@ -4633,6 +4667,7 @@ function ceraWriteDiagAnalysisFallbackSummary_(summaryObj) {
       '================================================================================',
       `Completed (UTC)    : ${safeSummary.completedAtUtc || 'N/A'}`,
       `Analyzed Workbook  : ${safeSummary.analyzedFromSpreadsheetId || 'N/A'}`,
+      `Instance & License : ${safeSummary.instanceRef} (${safeSummary.licenseState}${safeSummary.ownerMask ? ' | Owner: ' + safeSummary.ownerMask : ''})`,
       `Partitions Read    : ${safeSummary.sheetsRead}/${safeSummary.sheetsTotal}`,
       `Rows Read / Merged : ${safeSummary.rowsRead} read / ${safeSummary.rowsMerged} merged / ${safeSummary.rowsDropped} dropped`,
       `Actions Assembled  : ${safeSummary.actionsAssembled}`,
@@ -4739,10 +4774,17 @@ function ceraRecordDiagAnalysisSummary_(folderId, analysisStats) {
       }
     } catch (e) {}
 
+    const lic = (typeof ceraVerifyWorkbookLicense_ === 'function')
+      ? ceraVerifyWorkbookLicense_(null, null, { skipDriveCheck: true })
+      : null;
+
     const nowIso = new Date().toISOString();
     const summaryObj = {
       completedAtUtc: nowIso,
       analyzedFromSpreadsheetId: analyzedFromSpreadsheetId,
+      instanceRef: (lic && lic.refCode) || 'UNBOUND',
+      licenseState: (lic && lic.licenseState) || 'UNSTAMPED',
+      ownerMask: (lic && lic.maskedEmail) || '',
       sheetsTotal: Number(analysisStats.sheetsTotal) || 0,
       sheetsRead: Number(analysisStats.sheetsRead) || 0,
       rowsRead: Number(analysisStats.rowsRead) || 0,

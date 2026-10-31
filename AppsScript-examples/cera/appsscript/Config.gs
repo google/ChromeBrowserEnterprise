@@ -19,9 +19,9 @@
  */
 
 var CeraConfig = {
-  VERSION: '2.0.15',
+  VERSION: '2.0.16',
   SUITE_NAME: 'Chrome Egress Risk Analysis (CERA)',
-  SHORT_NAME: 'CERA v2.0.15',
+  SHORT_NAME: 'CERA v2.0.16',
   RELEASE_DATE: '2026-10-31',
   FRESHNESS_WARN_DAYS: 90,
   FEEDBACK_URL: 'https://goo.gle/cera-feedback',
