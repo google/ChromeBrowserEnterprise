@@ -33,7 +33,7 @@ function sanitizeCellText_(value) {
   if (value === null || value === undefined) return '';
   if (typeof value !== 'string') return value;
   if (value === '' || value === '-' || value === '—' || value === '–') return value;
-  if (/^[=+\-@\t\r\n]/.test(value)) return "'" + value;
+  if (/^\s*[=+\-@\uFF1D\uFF0B\uFF0D\uFF20]|^[\t\r\n]/.test(value)) return "'" + value;
   if (/\d/.test(value) && /^[\s\d.,:\/%$€£¥()eE+\-]+$/.test(value)) return "'" + value;
   if (/^\s*(true|false)\s*$/i.test(value)) return "'" + value;
   return value;
@@ -171,6 +171,8 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
     const vGb = (v.totalBytes || 0) / (1024 ** 3);
     let topDomName = '-';
     let topOuName = '-';
+    const fmtOu = raw => (typeof ceraFormatOuDisplay_ === 'function') ? ceraFormatOuDisplay_(raw, lang) : String(raw || '').trim();
+    const isUnrepOu = name => (typeof ceraIsUnreportedOu_ === 'function') ? ceraIsUnreportedOu_(name) : /^(Unassigned OU|OU not reported|Unknown OU|N\/A)$/i.test(String(name || '').trim());
     if (isRadar) {
       const domEntries = Object.entries(v.domains || {})
         .map(e => ({ name: e[0], count: typeof e[1] === 'object' ? reportNum_(e[1] && (e[1].total || e[1].count)) : reportNum_(e[1]) }))
@@ -179,18 +181,26 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
       const namedDoms = domEntries.filter(e => !/^unknown (endpoint|destination)$/i.test(String(e.name).trim()) && e.name !== '-' && e.name !== 'N/A');
       if (namedDoms.length) topDomName = ceraDestinationLabel(namedDoms[0].name, lang);
 
-      const ouEntries = Object.entries(v.ous || {})
-        .map(e => ({ name: e[0], count: typeof e[1] === 'object' ? reportNum_(e[1] && (e[1].total || e[1].count)) : reportNum_(e[1]) }))
-        .filter(e => e.name && e.count > 0)
+      const mergedOus = {};
+      Object.entries(v.ous || {}).forEach(e => {
+        const cnt = typeof e[1] === 'object' ? reportNum_(e[1] && (e[1].total || e[1].count)) : reportNum_(e[1]);
+        if (!e[0] || cnt <= 0) return;
+        const disp = fmtOu(e[0]);
+        mergedOus[disp] = (mergedOus[disp] || 0) + cnt;
+      });
+      const ouEntries = Object.entries(mergedOus)
+        .map(e => ({ name: e[0], count: e[1] }))
         .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-      const namedOus = ouEntries.filter(e => !(typeof ceraIsUnreportedOu_ === 'function' ? ceraIsUnreportedOu_(e.name) : /^(Unassigned OU|OU not reported|N\/A)$/i.test(String(e.name).trim())));
+      const namedOus = ouEntries.filter(e => !isUnrepOu(e.name));
       if (namedOus.length) topOuName = namedOus[0].name;
       else if (ouEntries.length) topOuName = T('report.ou.notReported');
     } else {
       const topDomain = mapToSortedArray(v.domains || {}, 1);
-      const topOU = (typeof subMapToStackedArray === 'function' && v.actions) ? subMapToStackedArray(v.ous || {}, 1) : mapToSortedArray(v.ous || {}, 1);
+      const allOUs = (typeof subMapToStackedArray === 'function' && v.actions) ? subMapToStackedArray(v.ous || {}, 50) : mapToSortedArray(v.ous || {}, 50);
+      const normOUs = allOUs.map(o => ({ name: fmtOu(o.name), raw: o }));
+      const namedOUs = normOUs.filter(o => o.name && !isUnrepOu(o.name));
       topDomName = topDomain.length ? topDomain[0].name : '-';
-      topOuName = topOU.length ? topOU[0].name : '-';
+      topOuName = namedOUs.length ? namedOUs[0].name : (normOUs.length ? normOUs[0].name : '-');
     }
 
     const stat = {
@@ -329,12 +339,12 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   }
   const s3Cards = (typeof ceraSlide3Cards === 'function') ? ceraSlide3Cards(state, outlierMetrics, null, lang) : null;
   const alignedOutliers = s3Cards ? Object.assign({}, outlierMetrics, {
-    topFunnelOU: s3Cards.hasFunnel ? s3Cards.funnelOU : outlierMetrics.topFunnelOU,
-    topFunnelDomain: s3Cards.hasFunnel ? s3Cards.funnelRawDomain : outlierMetrics.topFunnelDomain,
-    funnelVolumeGb: s3Cards.hasFunnel ? (s3Cards.funnelBytes / (1024 ** 3)) : outlierMetrics.funnelVolumeGb,
-    funnelHHI: (s3Cards.hasFunnel && s3Cards.funnelBytes >= 50 * 1024 * 1024) ? s3Cards.funnelHHI : outlierMetrics.funnelHHI,
-    topScatterOU: s3Cards.hasScatter ? s3Cards.scatterOU : outlierMetrics.topScatterOU,
-    scatterDomainCount: s3Cards.hasScatter ? s3Cards.scatterCount : outlierMetrics.scatterDomainCount
+    topFunnelOU: s3Cards.hasFunnel ? s3Cards.funnelOU : 'N/A',
+    topFunnelDomain: s3Cards.hasFunnel ? s3Cards.funnelRawDomain : 'N/A',
+    funnelVolumeGb: s3Cards.hasFunnel ? (s3Cards.funnelBytes / (1024 ** 3)) : 0,
+    funnelHHI: (s3Cards.hasFunnel && s3Cards.funnelBytes >= 50 * 1024 * 1024) ? s3Cards.funnelHHI : 0,
+    topScatterOU: s3Cards.hasScatter ? s3Cards.scatterOU : 'N/A',
+    scatterDomainCount: s3Cards.hasScatter ? s3Cards.scatterCount : 0
   }) : outlierMetrics;
   if (topGlobalType.length) briefingLines.push(ceraT('report.briefing.format', { type: topTypeName, amount: formatBytes(topGlobalType[0].totalBytes) }, lang));
   if (topOutDest) briefingLines.push(ceraT('report.briefing.destination', { dest: ceraDestinationLabel(topOutDest, lang), amount: formatBytes(outDest[topOutDest]) }, lang));
@@ -372,26 +382,29 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   sheet.getRange(14, 6, numVectors, 1).setNumberFormat('0.0%');
   sheet.getRange(14, 2, numVectors, 7).setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
 
-  // Transfers without a recorded destination or to sanctioned corporate / authorized AI hosts are outside the
-  // four risk vectors above: disclosed in the existing B19 note cell without shifting downstream row coordinates.
+  // Transfers without a recorded destination, outbound transfers to sanctioned corporate / authorized AI hosts,
+  // clipboard copies (not outbound), and print jobs sit outside the four risk vectors above: disclosed in B19/B20
+  // without shifting downstream row coordinates, using native ideographic punctuation spacing in ja / zh-CN.
+  const sentSep = (lang === 'ja' || lang === 'zh-CN') ? '' : ' ';
   const unknownDest = state.unknownDestinations || {};
   const hasUnknownDest = reportNum_(unknownDest.count) > 0;
+  const unknownClause = hasUnknownDest
+    ? ceraT('report.unknownDestinations', { n: reportNum_(unknownDest.count), bytes: formatBytes(reportNum_(unknownDest.bytes)), out: reportNum_(unknownDest.egressCount) }, lang)
+    : '';
   const sanctionedDest = state.sanctionedTransfers || {};
   const sanctionedOut = reportNum_(sanctionedDest.egressCount);
   const sanctionedClause = sanctionedOut > 0
     ? ceraT('report.sanctionedTransfers', { n: sanctionedOut, bytes: formatBytes(reportNum_(sanctionedDest.egressBytes)) }, lang)
     : '';
-  if (hasUnknownDest) {
-    const unknownText = ceraT('report.unknownDestinations', { n: reportNum_(unknownDest.count), bytes: formatBytes(reportNum_(unknownDest.bytes)), out: reportNum_(unknownDest.egressCount) }, lang);
-    sheet.getRange(14 + numVectors, 2, 1, 7).merge()
-      .setValue(sanctionedClause ? (unknownText + ' ' + sanctionedClause) : unknownText)
-      .setFontStyle('italic').setFontColor('#64748B').setFontSize(8).setWrap(true);
-  }
+  const copiesState = state.copies || {};
+  const copiesCount = reportNum_(copiesState.count);
+  const copiesClause = copiesCount > 0
+    ? ceraT('report.copies', { n: copiesCount }, lang)
+    : '';
 
-  // Print jobs are outside the vectors too (a print sends nothing to the site of the page): disclosed on the next row,
-  // with the detectors of the sensitive jobs named as on the deck's printing slide
   const printState = state.printStats || {};
   const printJobs = reportNum_(printState.totalEvents);
+  let printClause = '';
   if (printJobs > 0) {
     const printPeople = Object.keys(printState.users || {}).length;
     const printSensitive = reportNum_(printState.sensitivity && printState.sensitivity.sensitiveCount);
@@ -401,13 +414,20 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
       : ceraT('report.printingNoPeople', { n: printJobs }, lang)];
     if (printSensitive > 0) printParts.push(ceraT('report.printingSensitive', { n: printSensitive }, lang));
     if (printSensitive > 0 && printDetectors) printParts.push(ceraT('deck.print.detectors', { list: printDetectors }, lang));
-    if (!hasUnknownDest && sanctionedClause) printParts.push(sanctionedClause);
-    sheet.getRange(14 + numVectors + (hasUnknownDest ? 1 : 0), 2, 1, 7).merge()
-      .setValue(printParts.join(' '))
-      .setFontStyle('italic').setFontColor('#64748B').setFontSize(8).setWrap(true);
-  } else if (!hasUnknownDest && sanctionedClause) {
+    printClause = printParts.join(sentSep);
+  }
+
+  const b19Parts = hasUnknownDest
+    ? [unknownClause, sanctionedClause, copiesClause].filter(Boolean)
+    : [printClause, sanctionedClause, copiesClause].filter(Boolean);
+  if (b19Parts.length > 0) {
     sheet.getRange(14 + numVectors, 2, 1, 7).merge()
-      .setValue(sanctionedClause)
+      .setValue(b19Parts.join(sentSep))
+      .setFontStyle('italic').setFontColor('#64748B').setFontSize(8).setWrap(true);
+  }
+  if (hasUnknownDest && printClause) {
+    sheet.getRange(14 + numVectors + 1, 2, 1, 7).merge()
+      .setValue(printClause)
       .setFontStyle('italic').setFontColor('#64748B').setFontSize(8).setWrap(true);
   }
 
@@ -512,9 +532,9 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   const validUnit = u => !!u && u !== 'N/A';
   const outlierLines = [];
   if (s3Cards) {
-    if (s3Cards.hasFunnel) outlierLines.push('• ' + s3Cards.funnelNarrative);
-    if (s3Cards.hasScatter) outlierLines.push('• ' + s3Cards.scatterNarrative);
-    if (s3Cards.hasSkew) outlierLines.push('• ' + ceraT('deck.skew.assess', { pct: s3Cards.skewPct, ou: s3Cards.skewOU }, lang));
+    if (s3Cards.hasFunnel && s3Cards.funnelNarrative) outlierLines.push('• ' + s3Cards.funnelNarrative);
+    if (s3Cards.hasScatter && s3Cards.scatterNarrative) outlierLines.push('• ' + s3Cards.scatterNarrative);
+    if (s3Cards.hasSkew && s3Cards.skewOU) outlierLines.push('• ' + ceraT('deck.skew.assess', { pct: s3Cards.skewPct, ou: s3Cards.skewOU }, lang));
   } else {
     if (validUnit(outlierMetrics.topFunnelOU) && reportNum_(outlierMetrics.funnelHHI) > 0) {
       outlierLines.push(ceraT('report.adv.funnel', { ou: outlierMetrics.topFunnelOU, amount: reportGbText_(outlierMetrics.funnelVolumeGb), dest: ceraDestinationLabel(outlierMetrics.topFunnelDomain, lang), hhi: (reportNum_(outlierMetrics.funnelHHI) * 100).toFixed(0) + '%' }, lang));
@@ -525,7 +545,7 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   }
   const outlierContextNote = outlierLines.length
     ? outlierLines.join('\n')
-    : (s3Cards ? s3Cards.funnelNarrative : ceraT('report.adv.outliersNone', null, lang));
+    : ((s3Cards && s3Cards.funnelNarrative) ? s3Cards.funnelNarrative : ceraT('report.adv.outliersNone', null, lang));
   sheet.getRange('M27:P29').merge()
     .setValue(outlierContextNote)
     .setBackground('#FFFFFF').setFontColor('#1E293B').setFontSize(8).setWrap(true).setVerticalAlignment('middle');
@@ -613,7 +633,7 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
     const isPeak = item.isPeak && egressPeak.isPeak === true;
     const status = isPeak
       ? T('report.ov.statusPeak', { multiple: (Number(egressPeak.multiple) || 0).toFixed(1) })
-      : T(item.totalDlpGb > 0 || item.radarIncidents > 0 ? 'report.ov.statusActive' : 'report.status.noActivity');
+      : T(item.totalDlpGb > 0 || (item.totalDlpEvents || 0) > 0 || item.radarIncidents > 0 ? 'report.ov.statusActive' : 'report.status.noActivity');
 
     execTimelineRows.push([
       item.displayDate || item.date,
@@ -626,14 +646,15 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
     ]);
   });
 
-  if (execTimelineRows.length > 0) {
-    sheet.getRange(execTimelineHeaderRow + 3, 2, execTimelineRows.length, execTimelineHeaders.length)
-      .setValues(execTimelineRows).setFontSize(8);
-    sheet.getRange(execTimelineHeaderRow + 3, 3, execTimelineRows.length, 4).setNumberFormat('#,##0.00'); // DLP Volumes (GB)
-    sheet.getRange(execTimelineHeaderRow + 3, 7, execTimelineRows.length, 1).setNumberFormat('#,##0');    // Security Incidents
-    sheet.getRange(execTimelineHeaderRow + 3, 2, execTimelineRows.length, execTimelineHeaders.length)
-      .setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
-  }
+  const execRowsToWrite = execTimelineRows.length > 0
+    ? execTimelineRows
+    : [[T('report.status.noTimeline'), 0, 0, 0, 0, 0, T('report.status.noActivity')]];
+  sheet.getRange(execTimelineHeaderRow + 3, 2, execRowsToWrite.length, execTimelineHeaders.length)
+    .setValues(execRowsToWrite).setFontSize(8);
+  sheet.getRange(execTimelineHeaderRow + 3, 3, execRowsToWrite.length, 4).setNumberFormat('#,##0.00'); // DLP Volumes (GB)
+  sheet.getRange(execTimelineHeaderRow + 3, 7, execRowsToWrite.length, 1).setNumberFormat('#,##0');    // Security Incidents
+  sheet.getRange(execTimelineHeaderRow + 3, 2, execRowsToWrite.length, execTimelineHeaders.length)
+    .setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
 
   // Embed Multi-Vector Outlier Combo Chart (Rows 37 to 52, Cols J to S / Cols 10 to 19)
   if (typeof NativeSheetsChartEngine !== 'undefined' && execTimelineRows.length > 0) {
@@ -934,17 +955,16 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
     ]);
   });
 
-  const timelineRowCount = Math.max(1, timelineRows.length);
-  if (timelineRows.length > 0) {
-    sheet.getRange(timelineHeaderRow + 2, 2, timelineRows.length, timelineColHeaders.length).setValues(timelineRows).setFontSize(8);
-    sheet.getRange(timelineHeaderRow + 2, 3, timelineRows.length, 1).setNumberFormat('#,##0.00'); // Upload GB
-    sheet.getRange(timelineHeaderRow + 2, 4, timelineRows.length, 1).setNumberFormat('#,##0');    // Total Events
-    sheet.getRange(timelineHeaderRow + 2, 5, timelineRows.length, 1).setNumberFormat('#,##0.00'); // Total GB
-    sheet.getRange(timelineHeaderRow + 2, 6, timelineRows.length, 1).setNumberFormat('#,##0');    // Upload Events
-    sheet.getRange(timelineHeaderRow + 2, 2, timelineRows.length, timelineColHeaders.length).setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
-  } else {
-    sheet.getRange(timelineHeaderRow + 2, 2, 1, timelineColHeaders.length).setValues([[T('report.status.noTimeline'), 0, 0, 0, 0]]).setFontSize(8);
-  }
+  const timelineRowsToWrite = timelineRows.length > 0
+    ? timelineRows
+    : [[T('report.status.noTimeline'), 0, 0, 0, 0]];
+  const timelineRowCount = timelineRowsToWrite.length;
+  sheet.getRange(timelineHeaderRow + 2, 2, timelineRowCount, timelineColHeaders.length).setValues(timelineRowsToWrite).setFontSize(8);
+  sheet.getRange(timelineHeaderRow + 2, 3, timelineRowCount, 1).setNumberFormat('#,##0.00'); // Upload GB
+  sheet.getRange(timelineHeaderRow + 2, 4, timelineRowCount, 1).setNumberFormat('#,##0');    // Total Events
+  sheet.getRange(timelineHeaderRow + 2, 5, timelineRowCount, 1).setNumberFormat('#,##0.00'); // Total GB
+  sheet.getRange(timelineHeaderRow + 2, 6, timelineRowCount, 1).setNumberFormat('#,##0');    // Upload Events
+  sheet.getRange(timelineHeaderRow + 2, 2, timelineRowCount, timelineColHeaders.length).setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
 
   // Populate Top MIME Types Data Rows (Cols L to O), each format by its name in the report language
   const topMimeTypes = (typeof subMapToStackedArray === 'function') ? subMapToStackedArray(v.types || {}, 5) : [];
@@ -1220,7 +1240,8 @@ function renderSecurityRadarSheetWithCharts(ss, radar, state) {
   const unsafeHits = (radar.signals && radar.signals.unsafeSiteVisit && radar.signals.unsafeSiteVisit.total) || 0;
   const pwdHits = (radar.signals && radar.signals.passwordReuse && radar.signals.passwordReuse.total) || 0;
   const malHits = (radar.signals && radar.signals.malwareTransfer && radar.signals.malwareTransfer.total) || 0;
-  const topOUItem = top10OUs.length > 0 ? top10OUs[0].ou : T('deck.notRecorded');
+  const namedTopRadarOu = top10OUs.find(o => !(typeof ceraIsUnreportedOu_ === 'function' && ceraIsUnreportedOu_(o.ou)));
+  const topOUItem = namedTopRadarOu ? namedTopRadarOu.ou : (top10OUs.length > 0 ? top10OUs[0].ou : T('deck.notRecorded'));
 
   const radarSummary = totalIncidents > 0
     ? ceraT('report.radar.summary', {
@@ -1285,15 +1306,14 @@ function renderSecurityRadarSheetWithCharts(ss, radar, state) {
     ]);
   });
 
-  const timelineRowCount = Math.max(1, timelineRows.length);
-  if (timelineRows.length > 0) {
-    sheet.getRange(timelineHeaderRow + 2, 2, timelineRows.length, timelineColHeaders.length).setValues(timelineRows).setFontSize(8);
-    sheet.getRange(timelineHeaderRow + 2, 3, timelineRows.length, 7).setNumberFormat('#,##0'); // Counts, C (Unsafe) to I (Detected / Allowed)
-    sheet.getRange(timelineHeaderRow + 2, 10, timelineRows.length, 1).setNumberFormat('0.0%'); // Bypass %
-    sheet.getRange(timelineHeaderRow + 2, 2, timelineRows.length, timelineColHeaders.length).setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
-  } else {
-    sheet.getRange(timelineHeaderRow + 2, 2, 1, timelineColHeaders.length).setValues([[T('report.status.noIncidentData'), 0, 0, 0, 0, 0, 0, 0, 0]]).setFontSize(8);
-  }
+  const timelineRowsToWrite = timelineRows.length > 0
+    ? timelineRows
+    : [[T('report.status.noIncidentData'), 0, 0, 0, 0, 0, 0, 0, 0]];
+  const timelineRowCount = timelineRowsToWrite.length;
+  sheet.getRange(timelineHeaderRow + 2, 2, timelineRowCount, timelineColHeaders.length).setValues(timelineRowsToWrite).setFontSize(8);
+  sheet.getRange(timelineHeaderRow + 2, 3, timelineRowCount, 7).setNumberFormat('#,##0'); // Counts, C (Unsafe) to I (Detected / Allowed)
+  sheet.getRange(timelineHeaderRow + 2, 10, timelineRowCount, 1).setNumberFormat('0.0%'); // Bypass %
+  sheet.getRange(timelineHeaderRow + 2, 2, timelineRowCount, timelineColHeaders.length).setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
 
   // Populate Enforcement Rows (Cols L to O)
   // One row per outcome of the Event Result column, so the shares add up to all incidents
@@ -1553,10 +1573,11 @@ function renderTop5ActorsTimelineSection(sheet, v, vectorAnalytics, startRow, la
     const dayRows = [];
     const dailyData = act.dailyRows || [];
     dailyData.forEach(d => {
-      const isPeak = (d.displayDate === act.peakDate || d.date === act.peakDate) && actBurst >= 1.5 && d.totalGb > 0;
+      const dayHasActivity = d.totalGb > 0 || (d.totalEvents || 0) > 0;
+      const isPeak = (d.displayDate === act.peakDate || d.date === act.peakDate) && actBurst >= 1.5 && dayHasActivity;
       const status = isPeak
         ? T('report.vec.statusPeak', { multiple: actBurst.toFixed(1) })
-        : (d.totalGb > 0 ? T('report.vec.statusNormal') : T('report.status.noActivity'));
+        : (dayHasActivity ? T('report.vec.statusNormal') : T('report.status.noActivity'));
 
       dayRows.push([
         d.displayDate || d.date,
@@ -1622,7 +1643,9 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
   const reasonLabel = code => T('deck.sb.reason.' + sbKey(code));
   const sbReasonCode = code => {
     const k = sbKey(code);
-    return k === 'other' ? String(code || '').trim() : T('report.radar.sbCode.' + k);
+    const raw = String(code || '').trim();
+    if (k !== 'other') return T('report.radar.sbCode.' + k);
+    return (!raw || /^[A-Z0-9_]+$/.test(raw.toUpperCase())) ? T('report.radar.sbCode.other') : raw;
   };
 
   // =========================================================================
@@ -1705,9 +1728,11 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
   const unsafeBypassUnknown = !(reportNum_(detailed.reportedCount) > 0) && reportNum_(detailed.unreportedCount) > 0;
   const unsafeBypassed = reportNum_(detailed.bypassedCount);
   const unsafeHeeded = reportNum_(detailed.warnedCount);
+  const sentSep = (lang === 'ja' || lang === 'zh-CN') ? '' : ' ';
+  const sentEnd = (lang === 'ja' || lang === 'zh-CN') ? '。' : '.';
   const calloutParts3A = [];
   if (topReasonItem) {
-    calloutParts3A.push(T('deck.sb.reasonTitle', { reason: reasonLabel(topReasonItem.reason), pct: topReasonItem.pct }) + '.');
+    calloutParts3A.push(T('deck.sb.reasonTitle', { reason: reasonLabel(topReasonItem.reason), pct: topReasonItem.pct }) + sentEnd);
     if (topEndpointItem) calloutParts3A.push(T('deck.radar.endpoint', { host: ceraDestinationLabel(topEndpointItem.domain, lang), kind: kindOf(topEndpointItem.domain), n: reportNum_(topEndpointItem.total) }));
     if (unsafeBypassUnknown) calloutParts3A.push(T('deck.radar.bypassUnknown'));
     else if (unsafeBypassed + unsafeHeeded > 0) calloutParts3A.push(T('report.radar.bypassed', { n: unsafeBypassed, total: unsafeBypassed + unsafeHeeded, pct: ((unsafeBypassed / (unsafeBypassed + unsafeHeeded)) * 100).toFixed(1) + '%' }));
@@ -1715,7 +1740,7 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
   } else {
     calloutParts3A.push(T('report.radar.callout3ANone'));
   }
-  const callout3A = calloutParts3A.join(' ');
+  const callout3A = calloutParts3A.join(sentSep);
 
   sheet.getRange(currentRow, 2, 1, 19).merge()
     .setValue(callout3A)
@@ -1765,7 +1790,7 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
 
   // Callout 3B: how many events, on how many destinations, and the destination with the most
   const callout3B = pwdList.length
-    ? T('deck.sig.pwCount', { n: pwTotalAll }) + ' ' + T('report.radar.callout3B', { hosts: pwdList.length, top: ceraDestinationLabel(pwdList[0].domain, lang), topN: reportNum_(pwdList[0].total) })
+    ? T('deck.sig.pwCount', { n: pwTotalAll }) + sentSep + T('report.radar.callout3B', { hosts: pwdList.length, top: ceraDestinationLabel(pwdList[0].domain, lang), topN: reportNum_(pwdList[0].total) })
     : T('deck.sig.pwNone');
 
   sheet.getRange(currentRow, 2, 1, 19).merge()
@@ -1788,24 +1813,27 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
 
   currentRow += 2;
 
-  const malHeaders = [T('report.col.rank'), T('report.col.fileName'), T('report.radar.malReason'), T('report.col.source'), T('report.col.attempts'), T('report.col.warned'), T('report.col.bypassedByUser'), T('report.col.enforcementStatus')];
+  const malHeaders = [T('report.col.rank'), T('report.col.fileName'), T('report.radar.malReason'), T('report.col.source'), T('report.col.attempts'), T('report.outcomes.shown'), T('report.col.bypassedByUser'), T('report.col.enforcementStatus')];
   sheet.getRange(currentRow, 2, 1, malHeaders.length).setValues([malHeaders])
     .setBackground('#F1F5F9').setFontColor('#334155').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center');
 
   currentRow += 1;
 
   const malList = detailed.malwareFiles || [];
-  // Without an Event Result for these downloads, warned / bypassed are unknown rather than 0
+  // Without an Event Result for these downloads, warnings shown / bypassed are unknown rather than 0
   const malResultUnknown = detailed.malwareResultReported === false;
   const malFiles = (radar && radar.signals && radar.signals.malwareTransfer && radar.signals.malwareTransfer.files) || {};
-  // The reason Chrome logged for a file (MALWARE_TRANSFER_DANGEROUS_FILE_TYPE -> "Dangerous file type"); a code
-  // without a catalog entry is shown as logged
-  const MAL_CODES = { DANGEROUS: 'dangerous', DANGEROUS_FILE_TYPE: 'fileType', DANGEROUS_HOST: 'host', UNCOMMON: 'uncommon', POTENTIALLY_UNWANTED: 'unwanted', UNKNOWN: 'unknown' };
+  // The reason Chrome logged for a file (MALWARE_TRANSFER_* or Console label -> localized catalog entry)
   const malReason = name => {
     const raw = String((malFiles[name] && malFiles[name].reason) || '').trim();
+    if (typeof ceraMalwareReasonKey_ === 'function') {
+      const mKey = ceraMalwareReasonKey_(raw);
+      return mKey ? T('report.radar.malCode.' + mKey) : raw;
+    }
+    const MAL_CODES = { DANGEROUS: 'dangerous', DANGEROUS_FILE_TYPE: 'fileType', DANGEROUS_HOST: 'host', UNCOMMON: 'uncommon', POTENTIALLY_UNWANTED: 'unwanted', UNKNOWN: 'unknown' };
     const code = raw.toUpperCase().replace(/^MALWARE_TRANSFER_?/, '');
-    if (!code) return T('report.radar.malCode.none');
-    return MAL_CODES[code] ? T('report.radar.malCode.' + MAL_CODES[code]) : raw;
+    if (!code || code === 'SECURITY_POLICY_TRIGGER' || code.indexOf('UNSPECIFIED') !== -1) return T('report.radar.malCode.none');
+    return MAL_CODES[code] ? T('report.radar.malCode.' + MAL_CODES[code]) : (/^[A-Z0-9_]+$/.test(code) ? T('report.radar.malCode.unknown') : raw);
   };
   // The outcome the log reports: bypassed, blocked or warned, otherwise only detected
   const malOutcome = item => {
@@ -1821,7 +1849,7 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
       const item = malList[m];
       const enfStatus = malResultUnknown ? ceraT('report.radar.unreported', null, lang) : malOutcome(item);
       malRows.push([m + 1, sanitizeCellText_(ceraFileLabel(item.fileName, item.domain, lang)), sanitizeCellText_(malReason(item.fileName)), sanitizeCellText_(ceraDestinationLabel(item.domain, lang)), reportNum_(item.total),
-        malResultUnknown ? '' : reportNum_(item.warned), malResultUnknown ? '' : reportNum_(item.bypassed), enfStatus]);
+        malResultUnknown ? '' : reportNum_(item.warned) + reportNum_(item.bypassed), malResultUnknown ? '' : reportNum_(item.bypassed), enfStatus]);
     } else {
       malRows.push([m + 1, '-', '-', '-', '', '', '', '-']);
     }
@@ -1836,10 +1864,10 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
   const topMalItem = (malList.length > 0 && malList[0] && malList[0].total > 0) ? malList[0] : null;
   const malTotalAll = malList.reduce((acc, it) => acc + reportNum_(it.total), 0);
   let callout3C = topMalItem
-    ? T('deck.sig.malCount', { n: malTotalAll }) + ' ' + T('report.radar.callout3C', { files: malList.length, top: ceraFileLabel(topMalItem.fileName, topMalItem.domain, lang), topN: reportNum_(topMalItem.total) })
+    ? T('deck.sig.malCount', { n: malTotalAll }) + sentSep + T('report.radar.callout3C', { files: malList.length, top: ceraFileLabel(topMalItem.fileName, topMalItem.domain, lang), topN: reportNum_(topMalItem.total) })
     : T('deck.sig.malNone');
   const malBypassed = malList.reduce((acc, it) => acc + reportNum_(it.bypassed), 0);
-  if (topMalItem && !malResultUnknown && malBypassed > 0) callout3C += ' ' + T('report.radar.callout3CBypass', { n: malBypassed });
+  if (topMalItem && !malResultUnknown && malBypassed > 0) callout3C += sentSep + T('report.radar.callout3CBypass', { n: malBypassed });
 
   sheet.getRange(currentRow, 2, 1, 19).merge()
     .setValue(callout3C)
@@ -1864,6 +1892,17 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
   const top5Sec = (radarAnalytics && radarAnalytics.top5ActorTimelines) || [];
   const secColHeaders = ['date', 'unsafeSiteVisits', 'passwordReuse', 'malwareDownloads', 'bypassedWarnings', 'warnedEvents', 'totalIncidents', 'surgeStatus']
     .map(c => T('report.col.' + c));
+
+  if (top5Sec.length === 0) {
+    sheet.getRange(currentRow, 2, 1, secColHeaders.length).setValues([secColHeaders])
+      .setBackground('#E2E8F0').setFontColor('#334155').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center');
+    const emptySecRange = sheet.getRange(currentRow + 1, 2, 1, secColHeaders.length);
+    emptySecRange.setValues([[T('report.status.noIncidentLogs'), 0, 0, 0, 0, 0, 0, '-']]).setFontSize(8);
+    sheet.getRange(currentRow + 1, 3, 1, 6).setNumberFormat('#,##0');
+    emptySecRange.setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
+    currentRow += 3;
+    return currentRow;
+  }
 
   top5Sec.forEach((act, idx) => {
     const actBurst = reportNum_(act.burstMultiple || 1);
@@ -1901,7 +1940,7 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
     if (dayRows.length > 0) {
       const range = sheet.getRange(currentRow + 2, 2, dayRows.length, secColHeaders.length);
       range.setValues(dayRows).setFontSize(8);
-      sheet.getRange(currentRow + 2, 3, dayRows.length, 5).setNumberFormat('#,##0');
+      sheet.getRange(currentRow + 2, 3, dayRows.length, 6).setNumberFormat('#,##0'); // C (Unsafe) to H (Total Incidents)
       range.setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
 
       // Render native security incident combo chart for the actor starting at Column N (Col 14)
@@ -1913,7 +1952,10 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
 
       currentRow += Math.max(dayRows.length + 3, 18);
     } else {
-      sheet.getRange(currentRow + 2, 2, 1, secColHeaders.length).setValues([[T('report.status.noIncidentLogs'), 0, 0, 0, 0, 0, 0, '-']]).setFontSize(8);
+      const emptyActRange = sheet.getRange(currentRow + 2, 2, 1, secColHeaders.length);
+      emptyActRange.setValues([[T('report.status.noIncidentLogs'), 0, 0, 0, 0, 0, 0, '-']]).setFontSize(8);
+      sheet.getRange(currentRow + 2, 3, 1, 6).setNumberFormat('#,##0');
+      emptyActRange.setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
       currentRow += 4;
     }
   });

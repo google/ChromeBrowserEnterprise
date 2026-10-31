@@ -511,7 +511,8 @@ var ExecutivePresentationEngine = {
     };
 
     const notRepOu = T('report.ou.notReported');
-    const isRealOu = name => validName(name) && name !== notRepOu && name !== 'OU not reported' && name !== 'Unassigned OU';
+    const isRealOu = name => validName(name) && name !== notRepOu &&
+      !(typeof ceraIsUnreportedOu_ === 'function' ? ceraIsUnreportedOu_(name) : (name === 'OU not reported' || name === 'Unassigned OU'));
     const radarForOus = (state && ((state.vectors && state.vectors.securityRadar && state.vectors.securityRadar.signals) || state.securityRadar)) || {};
     const allSeenOus = {};
     [
@@ -682,7 +683,14 @@ var ExecutivePresentationEngine = {
     const radar = (state && ((state.vectors && state.vectors.securityRadar && state.vectors.securityRadar.signals) || state.securityRadar)) || {};
     const pwData = radar.passwordReuse || {};
     const pwTotal = pwData.total || 0;
-    const topPwOUs = (typeof countMapToArray === 'function' && pwData.ous) ? cleanArr(countMapToArray(pwData.ous)).slice(0, 1) : [];
+    const normPwOuMap = {};
+    Object.keys((pwData && pwData.ous) || {}).forEach(k => {
+      const disp = (typeof ceraFormatOuDisplay_ === 'function') ? ceraFormatOuDisplay_(k, lang) : k;
+      normPwOuMap[disp] = (normPwOuMap[disp] || 0) + (Number(pwData.ous[k]) || 0);
+    });
+    const allPwOUs = (typeof countMapToArray === 'function') ? cleanArr(countMapToArray(normPwOuMap)) : [];
+    const realPwOUs = allPwOUs.filter(o => isRealOu(o.name));
+    const topPwOUs = realPwOUs.slice(0, 1);
 
     // Findings on password reuse: the unit with the most events and, when corporate sites are among the destinations,
     // how many events were on them
@@ -923,12 +931,13 @@ var ExecutivePresentationEngine = {
     const sGemini = gBench.sanctioned || { bytes: 0, count: 0, users: {} };
     const sShadow = gBench.shadow || { bytes: 0, count: 0, users: {} };
     const sPersonalAi = gBench.personalSanctioned || { bytes: 0, count: 0, users: {} };
-    const geminiBytes = sGemini.bytes || 0;
-    const shadowBytes = sShadow.bytes || 0;
-    const personalAiBytes = Number(sPersonalAi.bytes) || 0;
-    const geminiCount = sGemini.count || 0;
-    const shadowCount = sShadow.count || 0;
-    const personalAiCount = Number(sPersonalAi.count) || 0;
+    const nonNeg = v => Math.max(0, Number(v) || 0);
+    const geminiBytes = nonNeg(sGemini.bytes);
+    const shadowBytes = nonNeg(sShadow.bytes);
+    const personalAiBytes = nonNeg(sPersonalAi.bytes);
+    const geminiCount = nonNeg(sGemini.count);
+    const shadowCount = nonNeg(sShadow.count);
+    const personalAiCount = nonNeg(sPersonalAi.count);
     const otherAiCount = shadowCount + personalAiCount;
     const otherAiBytes = shadowBytes + personalAiBytes;
     const aiTotalCount = geminiCount + otherAiCount;
@@ -1048,7 +1057,8 @@ var ExecutivePresentationEngine = {
       if (topDirectIp.shown > 0) radarEndpointNarrative += ' ' + T('deck.radar.endpointBypassedOf', { bypassed: Number(topDirectIp.bypassed) || 0, n: topDirectIp.shown, rate: topDirectIpBypassRate1 });
     }
 
-    const topUnsafeOU = unsafeOUs[0] || null;
+    const realUnsafeOUs = unsafeOUs.filter(o => isRealOu(o.ou));
+    const topUnsafeOU = realUnsafeOUs[0] || null;
     const radarTopOU1 = topUnsafeOU ? topUnsafeOU.ou : NR;
     const radarOUNarrative = topUnsafeOU
       ? T('deck.radar.unitEvents', { ou: radarTopOU1, n: Number(topUnsafeOU.count) || 0, total: unsafeAll, pct: topUnsafeOU.pct || '0.0%' })
@@ -1788,15 +1798,15 @@ var ExecutivePresentationEngine = {
     // 1. Hero split: shares of outbound AI transfers, the basis of the slide headline (sanctioned AI vs other tools,
     // including sanctioned tools used with non-corporate accounts). No AI activity renders as 0% / 0%.
     const benchmark = ctx._vShadowAiBenchmark || [];
-    const internalPct = (benchmark[0] && benchmark[0].pct) || 0;
-    const shadowPct = (benchmark[1] && benchmark[1].pct) || 0;
+    const internalPct = Math.max(0, Math.min(100, Math.round(Number(benchmark[0] && benchmark[0].pct) || 0)));
+    const shadowPct = Math.max(0, Math.min(100, Math.round(Number(benchmark[1] && benchmark[1].pct) || 0)));
 
-    // Clamping dynamic width between 130pt and 518pt out of 648pt total
+    // Clamping dynamic width between 130pt and 518pt out of 648pt total (always strictly positive)
     const totalHeroW = 648;
     const minCardW = 130;
     const maxCardW = totalHeroW - minCardW; // 518
     const rawW = totalHeroW * (internalPct / 100);
-    const dynamicW = Math.max(minCardW, Math.min(maxCardW, Math.round(rawW)));
+    const dynamicW = Math.max(minCardW, Math.min(maxCardW, Math.round(isFinite(rawW) ? rawW : 0)));
 
     // Hero Base Card (Shadow AI Container)
     this.addCard(slide, 36, 72, totalHeroW, 92, '#F1F5F9', '#FF7B00', 16);
@@ -1840,12 +1850,14 @@ var ExecutivePresentationEngine = {
     // Pillar 3: Platforms & Velocity Spikes (Amber)
     this.addCard(slide, 476, 233, 208, 108, '#FFFFFF', '#FDE68A', 4);
     // Busiest outbound day of the vector under the deck's peak rule (ceraVectorPeak) plus top unsanctioned tools
-    this.addLineBox(slide, ctx._vectors.shadowAi.peakTitle, 488, 239, 190, 18, 'Outfit', 9, 'bold', '#D97706', 'left');
-    const aiDests = (ctx._vectors && ctx._vectors.shadowAi && ctx._vectors.shadowAi.dests) || [];
+    const aiVec = (ctx._vectors && ctx._vectors.shadowAi) || {};
+    this.addLineBox(slide, aiVec.peakTitle || '', 488, 239, 190, 18, 'Outfit', 9, 'bold', '#D97706', 'left');
+    const aiDests = aiVec.dests || [];
+    const fmtAiAmt = typeof aiVec.amountOf === 'function' ? aiVec.amountOf : (b => this.fmtBytes(b));
     const aiTopTools = aiDests.length
-      ? ceraT('deck.ai.topTools', { list: aiDests.slice(0, 3).map(d => `${d.name} (${ctx._vectors.shadowAi.amountOf(d.bytes, d.count)})`).join(', ') }, ctx._lang) + '\n'
+      ? ceraT('deck.ai.topTools', { list: aiDests.slice(0, 3).map(d => `${d.name} (${fmtAiAmt(d.bytes, d.count)})`).join(', ') }, ctx._lang) + '\n'
       : '';
-    this.addTextBox(slide, aiTopTools + ctx._vectors.shadowAi.peakText, 488, 258, 190, 78, 'Roboto', 7.2, 'normal', '#334155', 'left');
+    this.addTextBox(slide, aiTopTools + (aiVec.peakText || ''), 488, 258, 190, 78, 'Roboto', 7.2, 'normal', '#334155', 'left');
 
     this.addRecommendation_(slide, ctx, ['shadowAi'], '#FAF5FF', '#DDD6FE');
   },
@@ -2018,9 +2030,18 @@ var ExecutivePresentationEngine = {
     }
     // Vector List: Password Target Domains List (Top Targeted Password Domains)
     {
-      const radar = (state && state.securityRadar) || {};
+      const radar = (state && ((state.vectors && state.vectors.securityRadar && state.vectors.securityRadar.signals) || state.securityRadar)) || {};
       const pwData = radar.passwordReuse || {};
-      const topPwDomains = (typeof countMapToArray === 'function' && pwData.domains) ? countMapToArray(pwData.domains).filter(d => this.isValidName(d.name)).slice(0, 3) : [];
+      const legacyPw = (state && state.securityRadar && state.securityRadar.passwordReuse) || {};
+      const rawPwDomains = (pwData.domains && Object.keys(pwData.domains).length) ? pwData.domains : (legacyPw.domains || {});
+      const normPwDomains = {};
+      Object.keys(rawPwDomains).forEach(k => {
+        const v = rawPwDomains[k];
+        const n = (v && typeof v === 'object') ? (Number(v.total) || 0) : (Number(v) || 0);
+        if (n > 0) normPwDomains[k] = n;
+      });
+      const pwInternalDomains = (pwData.internalDomains && Object.keys(pwData.internalDomains).length) ? pwData.internalDomains : (legacyPw.internalDomains || {});
+      const topPwDomains = (typeof countMapToArray === 'function') ? countMapToArray(normPwDomains).filter(d => this.isValidName(d.name)).slice(0, 3) : [];
       if (topPwDomains.length > 0) {
         topPwDomains.slice(0, 3).forEach((d, idx) => {
           const rowY = 177 + idx * 22.5;
@@ -2030,7 +2051,7 @@ var ExecutivePresentationEngine = {
           rPill.getBorder().setTransparent();
           this.addTextBox(slide, String(idx + 1), 48 - 1, rowY + 1, 24, 16, 'Roboto', 6.5, 'bold', idx === 0 ? '#FFFFFF' : (p.textMuted || '#64748B'), 'center');
           // Tagged by what the destination is: a browser page or local file is never an outside app
-          const kind = ctx._hostKind ? ctx._hostKind(d.name, pwData.internalDomains) : 'external';
+          const kind = ctx._hostKind ? ctx._hostKind(d.name, pwInternalDomains) : 'external';
           const displayName = this.destinationWithKind_(d.name, kind, ctx, 32);
           const isIp = kind === 'ip';
           const isInt = kind === 'corporate' || kind === 'internal' || kind === 'browser' || kind === 'local';
@@ -2056,7 +2077,7 @@ var ExecutivePresentationEngine = {
       const pwRecH = txt.length > 140 ? 28 : 32;
       this.addTextBox(slide, txt, 56, 265, 280, pwRecY - 266, 'Roboto', pwFont, 'normal', '#0F172A', 'left');
       // The action the recommendations slide lists for password reuse, or nothing
-      const rec = (ctx._recByTopic.password || [])[0];
+      const rec = ((ctx._recByTopic && ctx._recByTopic.password) || [])[0];
       let recTxt = rec ? '• ' + ceraT('deck.v.recommended', { rec: rec }, ctx._lang) : '';
       this.addTextBox(slide, recTxt, 56, pwRecY, 280, pwRecH, 'Roboto', pwFont, 'normal', '#0F172A', 'left');
     }
@@ -2137,7 +2158,7 @@ var ExecutivePresentationEngine = {
       const malRecH = txt.length > 140 ? 28 : 32;
       this.addTextBox(slide, txt, 387, 265, 280, malRecY - 266, 'Roboto', malFont, 'normal', '#0F172A', 'left');
       // The action the recommendations slide lists for potentially malicious files, or nothing
-      const rec = (ctx._recByTopic.malware || [])[0];
+      const rec = ((ctx._recByTopic && ctx._recByTopic.malware) || [])[0];
       let recTxt = rec ? '• ' + ceraT('deck.v.recommended', { rec: rec }, ctx._lang) : '';
       this.addTextBox(slide, recTxt, 387, malRecY, 280, malRecH, 'Roboto', malFont, 'normal', '#0F172A', 'left');
     }

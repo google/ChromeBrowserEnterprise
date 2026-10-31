@@ -23,6 +23,32 @@
  */
 
 /**
+ * Formats an Organizational Unit identifier for display in `lang`:
+ * - '/' (or slashes only) -> localized report.ou.root
+ * - blank, 'Unassigned OU', 'Unknown OU', 'OU not reported', 'N/A', '-' -> localized report.ou.notReported
+ * - leading '/' stripped from path OUs; domain-named OUs (e.g. 'example.com') preserved intact.
+ */
+function ceraFormatOuDisplay_(raw, lang) {
+  const l = (typeof ceraNormalizeLang_ === 'function') ? ceraNormalizeLang_(lang || 'en') : (lang || 'en');
+  const s = raw === null || raw === undefined ? '' : String(raw).trim();
+  if (!s) return ceraT('report.ou.notReported', null, l);
+  const path = s.replace(/^\/+/, '').trim();
+  if (!path) return ceraT('report.ou.root', null, l);
+  if ((typeof ceraIsUnreportedOu_ === 'function' && ceraIsUnreportedOu_(path)) ||
+      /^(null|undefined|n\/a|-|unassigned ou|ou not reported|unknown ou)$/i.test(path)) {
+    return ceraT('report.ou.notReported', null, l);
+  }
+  if (typeof CERA_I18N_MESSAGES !== 'undefined') {
+    const locales = Object.keys(CERA_I18N_MESSAGES);
+    for (let i = 0; i < locales.length; i++) {
+      const rootMsg = CERA_I18N_MESSAGES[locales[i]] && CERA_I18N_MESSAGES[locales[i]]['report.ou.root'];
+      if (rootMsg && path === rootMsg) return ceraT('report.ou.root', null, l);
+    }
+  }
+  return path;
+}
+
+/**
  * Computes behavioral outlier metrics from raw telemetry aggregations
  * - Daily Velocity Surges: Temporal bursts exceeding baseline mean
  * - Monolithic Funneling: HHI concentration score into a single external repository
@@ -33,6 +59,7 @@ function computeOutlierAnalytics(outliers, state) {
   // Every user action is counted before anything is measured, including actions still waiting for rows when the
   // caller read the rows itself (ActionAssembler.gs)
   if (state && typeof ceraFlushActions_ === 'function') ceraFlushActions_(state);
+  const lang = (state && state.reportLang) || 'en';
   if (!outliers) {
     return {
       peakDate: 'N/A',
@@ -119,7 +146,7 @@ function computeOutlierAnalytics(outliers, state) {
     if (topFunnelActor === 'N/A' || higherHHI || (sameHHI && act.totalBytes > funnelBytes)) {
       maxHHI = sumSquares;
       topFunnelActor = actor;
-      topFunnelOU = act.ou || 'Unknown OU';
+      topFunnelOU = ceraFormatOuDisplay_(act.ou, lang);
       topFunnelDomain = localMaxDomain;
       funnelBytes = act.totalBytes;
     }
@@ -127,7 +154,7 @@ function computeOutlierAnalytics(outliers, state) {
     if (domainKeys.length > maxScatterCount || (domainKeys.length === maxScatterCount && act.totalBytes > scatterBytes)) {
       maxScatterCount = domainKeys.length;
       topScatterActor = actor;
-      topScatterOU = act.ou || 'Unknown OU';
+      topScatterOU = ceraFormatOuDisplay_(act.ou, lang);
       scatterBytes = act.totalBytes;
     }
   });
@@ -273,8 +300,9 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
   const actors = [];
   Object.keys(outliers.actorEndpoints || {}).sort().forEach(u => {
     const a = outliers.actorEndpoints[u] || {};
-    const ou = a.ou || '';
-    if (!isValid(ou)) return;
+    const rawOu = a.ou || '';
+    if (!isValid(rawOu)) return;
+    const ou = ceraFormatOuDisplay_(rawOu, l);
     const totalBytes = Number(a.totalBytes) || 0;
     const domKeys = Object.keys(a.domains || {}).filter(isValid).sort();
     const domainCounts = a.domainCounts || {};
@@ -586,18 +614,30 @@ function computeVectorTimelineAnalytics(vectorTimeline, vectorActors, lang, boun
   const avgDailyEvents = sumEvents / dayCount;
 
   // 2. Velocity Spikes (Top 3 Days by Volume / Event Surges)
-  const sortedDaysByVol = [...timelineSeries].sort((a, b) => b.totalGb - a.totalGb);
+  const sortedDaysByVol = [...timelineSeries].sort((a, b) => b.totalGb - a.totalGb || b.totalEvents - a.totalEvents);
   const topSpikes = sortedDaysByVol.slice(0, 3).map(sp => {
-    const burstMultiple = avgDailyBytes > 0 ? ((sp.totalGb * (1024 ** 3)) / avgDailyBytes) : 1.0;
+    const burstMultiple = avgDailyBytes > 0
+      ? ((sp.totalGb * (1024 ** 3)) / avgDailyBytes)
+      : (avgDailyEvents > 0 ? (sp.totalEvents / avgDailyEvents) : 1.0);
     let dominantDir = 'upload';
-    let maxDirVal = sp.uploadGb;
-    if (sp.downloadGb > maxDirVal) {
-      dominantDir = 'download';
-      maxDirVal = sp.downloadGb;
-    }
-    if (sp.printGb > maxDirVal) {
-      dominantDir = 'print';
-      maxDirVal = sp.printGb;
+    if (sp.uploadGb > 0 || sp.downloadGb > 0 || sp.printGb > 0) {
+      let maxDirVal = sp.uploadGb;
+      if (sp.downloadGb > maxDirVal) {
+        dominantDir = 'download';
+        maxDirVal = sp.downloadGb;
+      }
+      if (sp.printGb > maxDirVal) {
+        dominantDir = 'print';
+      }
+    } else {
+      let maxDirCnt = sp.uploadCount || 0;
+      if ((sp.downloadCount || 0) > maxDirCnt) {
+        dominantDir = 'download';
+        maxDirCnt = sp.downloadCount || 0;
+      }
+      if ((sp.printCount || 0) > maxDirCnt) {
+        dominantDir = 'print';
+      }
     }
     return {
       date: sp.displayDate || sp.date,
@@ -612,14 +652,14 @@ function computeVectorTimelineAnalytics(vectorTimeline, vectorActors, lang, boun
     };
   });
 
-  // 3. User Actors Ranking (Top 10 by total volume, plus directional splits and OU)
+  // 3. User Actors Ranking (Top 10 by total volume, then events, plus directional splits and OU)
   const actorList = Object.values(vectorActors);
-  actorList.sort((a, b) => (b.totalBytes || 0) - (a.totalBytes || 0));
+  actorList.sort((a, b) => (b.totalBytes || 0) - (a.totalBytes || 0) || (b.totalEvents || 0) - (a.totalEvents || 0));
   const top10Actors = actorList.slice(0, 10).map((act, idx) => {
     return {
       rank: idx + 1,
       user: act.user || notRecorded,
-      ou: act.ou || notRecorded,
+      ou: act.ou ? ceraFormatOuDisplay_(act.ou, lang) : notRecorded,
       uploadGb: (act.uploadBytes || 0) / (1024 ** 3),
       downloadGb: (act.downloadBytes || 0) / (1024 ** 3),
       printGb: (act.printBytes || 0) / (1024 ** 3),
@@ -713,25 +753,33 @@ function computeSecurityRadarAnalytics(radar, lang, bounds) {
     };
   });
 
-  // 3. Top 10 Impacted Organizational Units
-  const ouEntries = Object.entries(radar.ous || {}).sort((a, b) => b[1] - a[1]);
-  const top10OUs = ouEntries.slice(0, 10).map((entry, idx) => {
-    const ouName = entry[0];
-    const totalHits = entry[1];
-    const unsafeHits = (radar.signals && radar.signals.unsafeSiteVisit && radar.signals.unsafeSiteVisit.ous[ouName]) || 0;
-    const pwdHits = (radar.signals && radar.signals.passwordReuse && radar.signals.passwordReuse.ous[ouName]) || 0;
-    const malHits = (radar.signals && radar.signals.malwareTransfer && radar.signals.malwareTransfer.ous[ouName]) || 0;
-    const pct = radar.totalIncidents > 0 ? ((totalHits / radar.totalIncidents) * 100).toFixed(1) + '%' : '0.0%';
-    return {
-      rank: idx + 1,
-      ou: ouName,
-      incidents: totalHits,
-      unsafe: unsafeHits,
-      password: pwdHits,
-      malware: malHits,
-      pctOfTotal: pct
-    };
+  // 3. Top 10 Impacted Organizational Units (normalized to report language)
+  const mergedRadarOus = {};
+  Object.entries(radar.ous || {}).forEach(entry => {
+    const rawKey = entry[0];
+    const dispOu = ceraFormatOuDisplay_(rawKey, lang);
+    if (!mergedRadarOus[dispOu]) mergedRadarOus[dispOu] = { ou: dispOu, incidents: 0, unsafe: 0, password: 0, malware: 0 };
+    mergedRadarOus[dispOu].incidents += (Number(entry[1]) || 0);
+    mergedRadarOus[dispOu].unsafe += Number((radar.signals && radar.signals.unsafeSiteVisit && radar.signals.unsafeSiteVisit.ous && radar.signals.unsafeSiteVisit.ous[rawKey]) || 0);
+    mergedRadarOus[dispOu].password += Number((radar.signals && radar.signals.passwordReuse && radar.signals.passwordReuse.ous && radar.signals.passwordReuse.ous[rawKey]) || 0);
+    mergedRadarOus[dispOu].malware += Number((radar.signals && radar.signals.malwareTransfer && radar.signals.malwareTransfer.ous && radar.signals.malwareTransfer.ous[rawKey]) || 0);
   });
+  const top10OUs = Object.values(mergedRadarOus)
+    .filter(item => item.incidents > 0)
+    .sort((a, b) => b.incidents - a.incidents || a.ou.localeCompare(b.ou))
+    .slice(0, 10)
+    .map((item, idx) => {
+      const pct = radar.totalIncidents > 0 ? ((item.incidents / radar.totalIncidents) * 100).toFixed(1) + '%' : '0.0%';
+      return {
+        rank: idx + 1,
+        ou: item.ou,
+        incidents: item.incidents,
+        unsafe: item.unsafe,
+        password: item.password,
+        malware: item.malware,
+        pctOfTotal: pct
+      };
+    });
 
   // 4. Top 10 Credential Exposure & High-Risk Endpoints
   const pwdDomains = (radar.signals && radar.signals.passwordReuse && radar.signals.passwordReuse.domains) || {};
@@ -772,7 +820,7 @@ function computeSecurityRadarAnalytics(radar, lang, bounds) {
     return {
       rank: idx + 1,
       user: act.user || notRecorded,
-      ou: act.ou || notRecorded,
+      ou: act.ou ? ceraFormatOuDisplay_(act.ou, lang) : notRecorded,
       unsafe: act.unsafe || 0,
       password: act.password || 0,
       malware: act.malware || 0,
@@ -818,11 +866,11 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang, bounds) {
   const actorList = Object.values(vector.actors);
   const isSecurity = vector.key === 'securityRadar';
 
-  // Sort actors descending by volume (for DLP) or incidents/events (for Security Radar)
+  // Sort actors descending by volume (then events) for DLP or incidents/events for Security Radar
   if (isSecurity) {
     actorList.sort((a, b) => (b.total || b.totalEvents || 0) - (a.total || a.totalEvents || 0));
   } else {
-    actorList.sort((a, b) => (b.totalBytes || 0) - (a.totalBytes || 0));
+    actorList.sort((a, b) => (b.totalBytes || 0) - (a.totalBytes || 0) || (b.totalEvents || 0) - (a.totalEvents || 0));
   }
 
   const top5 = actorList.slice(0, 5);
@@ -840,7 +888,7 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang, bounds) {
     let maxMetric = -1;
     vectorDates.forEach(dKey => {
       const vItem = (vector.timeline && vector.timeline[dKey]) || {};
-      const metric = vItem.totalBytes !== undefined ? vItem.totalBytes : (vItem.total || vItem.totalCount || 0);
+      const metric = (vItem.totalBytes || 0) > 0 ? vItem.totalBytes : (vItem.total || vItem.totalEvents || vItem.totalCount || 0);
       if (metric > maxMetric) {
         maxMetric = metric;
         peakDateStr = dKey;
@@ -848,7 +896,7 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang, bounds) {
     });
   }
 
-  // Build the outlier window (±7 days around peak day), clamped to [firstDayKey, lastDayKey] when bounds are provided
+  // Fallback outlier window (±7 days around vector peak day), clamped to [firstDayKey, lastDayKey] when bounds are provided
   const winSlots = buildOutlierContextWindow_(peakDateStr, 7, bounds);
   const windowDates = winSlots.length ? winSlots.map(s => s.dateStr) : vectorDates;
 
@@ -857,12 +905,14 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang, bounds) {
     let sumVol = 0;
     let sumEvts = 0;
     let peakDate = '-';
+    let actorPeakDateKey = '';
     let maxMetric = 0;
     // A signal (report.signal.*) or a direction (report.direction.*) of the peak day
     let dominantAction = '';
 
-    // Scan full actor timeline to find true peak date and dominant action
-    Object.keys(actTimeline).forEach(dKey => {
+    // Scan full actor timeline in chronological order to find true peak date and dominant action
+    const actorByCount = !isSecurity && !((act.totalBytes || 0) > 0);
+    Object.keys(actTimeline).sort().forEach(dKey => {
       const dayData = actTimeline[dKey] || {};
       const displayDate = typeof formatDisplayDate === 'function' ? formatDisplayDate(dKey, false, lang) : dKey;
       if (isSecurity) {
@@ -873,6 +923,7 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang, bounds) {
         if (total > maxMetric) {
           maxMetric = total;
           peakDate = displayDate;
+          actorPeakDateKey = dKey;
           if (unsafe >= password && unsafe >= malware) dominantAction = 'unsafe';
           else if (password >= unsafe && password >= malware) dominantAction = 'password';
           else dominantAction = 'malware';
@@ -882,22 +933,28 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang, bounds) {
         const downBytes = dayData.downloadBytes || 0;
         const printBytes = dayData.printBytes || 0;
         const totBytes = dayData.totalBytes || (upBytes + downBytes + printBytes) || 0;
-        const totGb = totBytes / (1024 ** 3);
-        if (totGb > maxMetric) {
-          maxMetric = totGb;
+        const totEvts = dayData.totalEvents || ((dayData.uploadCount || 0) + (dayData.downloadCount || 0) + (dayData.printCount || 0)) || 0;
+        const totMetric = actorByCount ? totEvts : (totBytes / (1024 ** 3));
+        if (totMetric > maxMetric) {
+          maxMetric = totMetric;
           peakDate = displayDate;
-          const upGb = upBytes / (1024 ** 3);
-          const downGb = downBytes / (1024 ** 3);
-          const printGb = printBytes / (1024 ** 3);
-          if (upGb >= downGb && upGb >= printGb) dominantAction = 'upload';
-          else if (downGb >= upGb && downGb >= printGb) dominantAction = 'download';
+          actorPeakDateKey = dKey;
+          const upVal = actorByCount ? (dayData.uploadCount || 0) : (upBytes / (1024 ** 3));
+          const downVal = actorByCount ? (dayData.downloadCount || 0) : (downBytes / (1024 ** 3));
+          const printVal = actorByCount ? (dayData.printCount || 0) : (printBytes / (1024 ** 3));
+          if (upVal >= downVal && upVal >= printVal) dominantAction = 'upload';
+          else if (downVal >= upVal && downVal >= printVal) dominantAction = 'download';
           else dominantAction = 'print';
         }
       }
     });
 
-    // Construct the continuous 15-day corridor rows [T_peak - 7, T_peak + 7]
-    const dailyRows = windowDates.map(dStr => {
+    // Center each actor's ±7-day corridor on their own peak day (clamped to observed bounds) so multi-week exports never hide their peak
+    const actorWinSlots = buildOutlierContextWindow_(actorPeakDateKey || peakDateStr, 7, bounds);
+    const actorWindowDates = actorWinSlots.length ? actorWinSlots.map(s => s.dateStr) : windowDates;
+
+    // Construct the continuous corridor rows [T_actor_peak - 7, T_actor_peak + 7]
+    const dailyRows = actorWindowDates.map(dStr => {
       const dayData = actTimeline[dStr] || {};
       const displayDate = typeof formatDisplayDate === 'function' ? formatDisplayDate(dStr, false, lang) : dStr;
 
@@ -959,16 +1016,16 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang, bounds) {
     const activeDays = Math.max(1, typeof ceraActorActiveDays_ === 'function'
       ? ceraActorActiveDays_(act, 'timeline')
       : (Object.keys(actTimeline).length || act._activeDays || 0));
-    const totalMetric = isSecurity ? (act.totalEvents || act.total || sumEvts) : ((act.totalBytes || 0) / (1024 ** 3));
+    const totalMetric = (isSecurity || actorByCount) ? (act.totalEvents || act.total || sumEvts) : ((act.totalBytes || 0) / (1024 ** 3));
     const avgDailyMetric = totalMetric / activeDays;
     const burstMultiple = avgDailyMetric > 0 ? (maxMetric / avgDailyMetric) : 1.0;
 
     const notRecorded = ceraT('deck.notRecorded', null, lang);
-    const firstDay = windowDates.length > 0 && typeof formatDisplayDate === 'function' ? formatDisplayDate(windowDates[0], false, lang) : (windowDates[0] || '-');
+    const firstDay = actorWindowDates.length > 0 && typeof formatDisplayDate === 'function' ? formatDisplayDate(actorWindowDates[0], false, lang) : (actorWindowDates[0] || '-');
     return {
       rank: idx + 1,
       user: act.user || notRecorded,
-      ou: act.ou || notRecorded,
+      ou: act.ou ? ceraFormatOuDisplay_(act.ou, lang) : notRecorded,
       totalGb: (act.totalBytes || 0) / (1024 ** 3),
       totalEvents: act.totalEvents || act.total || 0,
       peakDate: peakDate !== '-' ? peakDate : firstDay,
@@ -987,13 +1044,58 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang, bounds) {
  * 'ssl', 'phishing', 'malware', 'unwanted', 'unspecified', or 'other'.
  */
 function ceraSafeBrowsingReasonKey_(reason) {
-  const c = String(reason || '').trim().toUpperCase();
-  if (!c || c.indexOf('UNSPECIFIED') !== -1 || c === 'SECURITY_POLICY_TRIGGER') return 'unspecified';
-  if (c.indexOf('SSL') !== -1 || c.indexOf('CERT') !== -1) return 'ssl';
-  if (c.indexOf('SOCIAL_ENGINEERING') !== -1 || c.indexOf('PHISH') !== -1 || c.indexOf('DECEPTIVE') !== -1) return 'phishing';
-  if (c.indexOf('MALWARE') !== -1 || c.indexOf('MALICIOUS') !== -1) return 'malware';
-  if (c.indexOf('UNWANTED') !== -1 || c.indexOf('HARMFUL') !== -1) return 'unwanted';
+  const raw = String(reason || '').trim();
+  const c = raw.toUpperCase();
+  if (!c || c === '-' || c === 'N/A' || c === 'SECURITY_POLICY_TRIGGER' || c === 'UNSAFE_SITE_VISIT' ||
+      c.indexOf('UNSPECIFIED') !== -1 || c === 'UNKNOWN' || c === 'UNSAFE_SITE_VISIT_UNKNOWN') {
+    return 'unspecified';
+  }
+  if (c.indexOf('SSL') !== -1 || c.indexOf('TLS') !== -1 || c.indexOf('CERT') !== -1 ||
+      c.indexOf('SERTIFIKAT') !== -1 || c.indexOf('CHỨNG CHỈ') !== -1 ||
+      raw.indexOf('証明書') !== -1 || raw.indexOf('인증서') !== -1 || raw.indexOf('证书') !== -1) {
+    return 'ssl';
+  }
+  if (c.indexOf('SOCIAL_ENGINEERING') !== -1 || c.indexOf('PHISH') !== -1 || c.indexOf('DECEPTIVE') !== -1 ||
+      c.indexOf('BILLING') !== -1 || c.indexOf('REKAYASA SOSIAL') !== -1 || c.indexOf('GIẢ MẠO') !== -1 || c.indexOf('LỪA ĐẢO') !== -1 ||
+      raw.indexOf('フィッシング') !== -1 || raw.indexOf('ソーシャル') !== -1 || raw.indexOf('피싱') !== -1 ||
+      raw.indexOf('소셜') !== -1 || raw.indexOf('钓鱼') !== -1 || raw.indexOf('欺诈') !== -1) {
+    return 'phishing';
+  }
+  if (c.indexOf('MALWARE') !== -1 || c.indexOf('MALICIOUS') !== -1 || c.indexOf('DANGEROUS') !== -1 || c.indexOf('VIRUS') !== -1 ||
+      c.indexOf('BERBAHAYA') !== -1 || c.indexOf('ĐỘC HẠI') !== -1 ||
+      raw.indexOf('マルウェア') !== -1 || raw.indexOf('悪意') !== -1 || raw.indexOf('멀웨어') !== -1 ||
+      raw.indexOf('악성') !== -1 || raw.indexOf('恶意') !== -1) {
+    return 'malware';
+  }
+  if (c.indexOf('UNWANTED') !== -1 || c.indexOf('HARMFUL') !== -1 || c.indexOf('UNCOMMON') !== -1 ||
+      c.indexOf('TIDAK DIINGINKAN') !== -1 || c.indexOf('KHÔNG MONG MUỐN') !== -1 ||
+      raw.indexOf('望ましくない') !== -1 || raw.indexOf('원치 않는') !== -1 || raw.indexOf('유해') !== -1 ||
+      raw.indexOf('不需要') !== -1 || raw.indexOf('有害') !== -1) {
+    return 'unwanted';
+  }
   return 'other';
+}
+
+/**
+ * Classifies a Malware Transfer reason (API code or Console label) into a canonical catalog key:
+ * 'none', 'fileType', 'host', 'uncommon', 'unwanted', 'dangerous', or 'unknown'.
+ * Returns '' only when a non-enum human phrase should be preserved as logged.
+ */
+function ceraMalwareReasonKey_(reason) {
+  const raw = String(reason || '').trim();
+  const c = raw.toUpperCase().replace(/^MALWARE_TRANSFER_?/, '');
+  if (!c || c === '-' || c === 'N/A' || c === 'SECURITY_POLICY_TRIGGER' || c.indexOf('UNSPECIFIED') !== -1) return 'none';
+  if (c === 'DANGEROUS_FILE_TYPE' || c.indexOf('FILE_TYPE') !== -1 || c === 'DANGEROUS FILE TYPE') return 'fileType';
+  if (c === 'DANGEROUS_HOST' || c.indexOf('DANGEROUS HOST') !== -1 || c === 'HOST') return 'host';
+  if (c === 'UNCOMMON' || c === 'UNCOMMON_FILE' || c.indexOf('UNCOMMON') !== -1) return 'uncommon';
+  if (c === 'POTENTIALLY_UNWANTED' || c.indexOf('UNWANTED') !== -1 || c.indexOf('HARMFUL') !== -1) return 'unwanted';
+  if (c === 'DANGEROUS' || c.indexOf('DANGEROUS_') === 0 || c.indexOf('MALWARE') !== -1 ||
+      c.indexOf('MALICIOUS') !== -1 || c.indexOf('VIRUS') !== -1 || c.indexOf('PHISH') !== -1 ||
+      c.indexOf('SOCIAL_ENGINEERING') !== -1 || c === 'DANGEROUS FILE' || c === 'DANGEROUS URL') {
+    return 'dangerous';
+  }
+  if (c === 'UNKNOWN' || /^[A-Z0-9_]+$/.test(raw.toUpperCase())) return 'unknown';
+  return '';
 }
 
 /**
@@ -1053,10 +1155,15 @@ function computeDetailedSecurityRadarBreakdown(radar, lang) {
     };
   }).sort((a, b) => b.total - a.total);
 
-  const unsafeOUs = Object.entries(u.ous || {}).map(([ou, count]) => {
+  const mergedUnsafeOus = {};
+  Object.entries(u.ous || {}).forEach(([ou, count]) => {
+    const dispOu = ceraFormatOuDisplay_(ou, lang || 'en');
+    mergedUnsafeOus[dispOu] = (mergedUnsafeOus[dispOu] || 0) + (Number(count) || 0);
+  });
+  const unsafeOUs = Object.entries(mergedUnsafeOus).map(([ou, count]) => {
     const pct = u.total > 0 ? ((count / u.total) * 100).toFixed(1) + '%' : '0.0%';
     return { ou, count, pct };
-  }).sort((a, b) => b.count - a.count);
+  }).sort((a, b) => b.count - a.count || a.ou.localeCompare(b.ou));
 
   // 2. Password Reuse Breakdown
   const p = signals.passwordReuse || {};
@@ -1138,22 +1245,34 @@ function buildOutlierContextWindow_(peakDateStr, windowDays, bounds) {
   windowDays = windowDays || 7;
   const m = String(peakDateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return [];
-  const peakYear = parseInt(m[1], 10);
-  const peakMonth = parseInt(m[2], 10) - 1;
-  const peakDay = parseInt(m[3], 10);
-  const firstKey = (bounds && typeof bounds.firstDayKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(bounds.firstDayKey)) ? bounds.firstDayKey : '';
-  const lastKey = (bounds && typeof bounds.lastDayKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(bounds.lastDayKey)) ? bounds.lastDayKey : '';
+  const rawPeakStr = `${m[1]}-${m[2]}-${m[3]}`;
+  const rawPeakUtc = Date.UTC(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+  let firstKey = (bounds && typeof bounds.firstDayKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(bounds.firstDayKey)) ? bounds.firstDayKey : '';
+  let lastKey = (bounds && typeof bounds.lastDayKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(bounds.lastDayKey)) ? bounds.lastDayKey : '';
+  if (firstKey && lastKey && firstKey > lastKey) {
+    const tmp = firstKey;
+    firstKey = lastKey;
+    lastKey = tmp;
+  }
+  let anchorStr = rawPeakStr;
+  if (firstKey && anchorStr < firstKey) anchorStr = firstKey;
+  if (lastKey && anchorStr > lastKey) anchorStr = lastKey;
+  const am = anchorStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const anchorYear = parseInt(am[1], 10);
+  const anchorMonth = parseInt(am[2], 10) - 1;
+  const anchorDay = parseInt(am[3], 10);
   const all = [];
-  for (let offset = -windowDays; offset <= windowDays; offset++) {
-    const d = new Date(Date.UTC(peakYear, peakMonth, peakDay + offset));
+  for (let i = -windowDays; i <= windowDays; i++) {
+    const d = new Date(Date.UTC(anchorYear, anchorMonth, anchorDay + i));
     const yyyy = d.getUTCFullYear();
     const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(d.getUTCDate()).padStart(2, '0');
-    all.push({ dateStr: `${yyyy}-${mm}-${dd}`, offset: offset });
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    const offset = Math.round((d.getTime() - rawPeakUtc) / 86400000);
+    all.push({ dateStr: dateStr, offset: offset });
   }
   if (!firstKey && !lastKey) return all;
-  const clamped = all.filter(x => (!firstKey || x.dateStr >= firstKey) && (!lastKey || x.dateStr <= lastKey));
-  return clamped.length > 0 ? clamped : all;
+  return all.filter(x => (!firstKey || x.dateStr >= firstKey) && (!lastKey || x.dateStr <= lastKey));
 }
 
 /**
@@ -1249,6 +1368,12 @@ function computeCrossVectorOutlierTimeline(vectors, peakDateStr, windowDays, lan
       m = String(peakDateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
     }
   }
+  if (!m && bounds) {
+    const bAnchor = (typeof bounds.lastDayKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(bounds.lastDayKey))
+      ? bounds.lastDayKey
+      : ((typeof bounds.firstDayKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(bounds.firstDayKey)) ? bounds.firstDayKey : '');
+    if (bAnchor) peakDateStr = bAnchor;
+  }
 
   const slots = buildOutlierContextWindow_(peakDateStr, windowDays, bounds);
   if (!slots.length) return [];
@@ -1275,6 +1400,10 @@ function computeCrossVectorOutlierTimeline(vectors, peakDateStr, windowDays, lan
     const uGb = (uItem.totalBytes || 0) / (1024 ** 3);
     const mGb = (mItem.totalBytes || 0) / (1024 ** 3);
     const totalDlpGb = pGb + sGb + uGb + mGb;
+    const totalDlpEvents = (pItem.totalEvents || pItem.totalCount || 0)
+      + (sItem.totalEvents || sItem.totalCount || 0)
+      + (uItem.totalEvents || uItem.totalCount || 0)
+      + (mItem.totalEvents || mItem.totalCount || 0);
 
     const radarIncidents = rItem.total || ((rItem.unsafe || 0) + (rItem.password || 0) + (rItem.malware || 0)) || 0;
 
@@ -1286,6 +1415,7 @@ function computeCrossVectorOutlierTimeline(vectors, peakDateStr, windowDays, lan
       unmanagedGb: uGb,
       messagingGb: mGb,
       totalDlpGb: totalDlpGb,
+      totalDlpEvents: totalDlpEvents,
       radarIncidents: radarIncidents,
       isPeak: (offset === 0),
       offsetDays: offset

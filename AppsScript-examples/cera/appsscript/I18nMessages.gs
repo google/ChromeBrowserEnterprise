@@ -419,6 +419,7 @@ var CERA_I18N_MESSAGES = {
     "report.radar.sbCode.malware": "Malware",
     "report.radar.sbCode.unwanted": "Unwanted software",
     "report.radar.sbCode.unspecified": "Not reported",
+    "report.radar.sbCode.other": "Other Safe Browsing reason",
     "report.unknownDestinations": {
       "one": "Not in the vectors above: 1 transfer ({bytes}) had no recorded destination (blank, blob: or browser-extension URL); outbound: {out}.",
       "other": "Not in the vectors above: {n} transfers ({bytes}) had no recorded destination (blank, blob: or browser-extension URL); outbound: {out}."
@@ -426,6 +427,10 @@ var CERA_I18N_MESSAGES = {
     "report.sanctionedTransfers": {
       "one": "Not in the vectors above: 1 outbound transfer ({bytes}) went to sanctioned corporate or authorized AI destinations.",
       "other": "Not in the vectors above: {n} outbound transfers ({bytes}) went to sanctioned corporate or authorized AI destinations."
+    },
+    "report.copies": {
+      "one": "Not in the vectors above: 1 clipboard copy (not outbound).",
+      "other": "Not in the vectors above: {n} clipboard copies (not outbound)."
     },
     "report.printing": {
       "one": "Not in the vectors above: 1 print job by {people}.",
@@ -2105,6 +2110,7 @@ var CERA_I18N_MESSAGES = {
     "report.radar.sbCode.malware": "Perangkat lunak berbahaya",
     "report.radar.sbCode.unwanted": "Perangkat lunak tidak diinginkan",
     "report.radar.sbCode.unspecified": "Tidak dilaporkan",
+    "report.radar.sbCode.other": "Alasan Safe Browsing lainnya",
     "report.unknownDestinations": {
       "one": "Tidak termasuk vektor di atas: 1 transfer ({bytes}) tanpa tujuan yang tercatat (URL kosong, blob:, atau ekstensi browser); keluar: {out}.",
       "other": "Tidak termasuk vektor di atas: {n} transfer ({bytes}) tanpa tujuan yang tercatat (URL kosong, blob:, atau ekstensi browser); keluar: {out}."
@@ -2112,6 +2118,10 @@ var CERA_I18N_MESSAGES = {
     "report.sanctionedTransfers": {
       "one": "Tidak termasuk vektor di atas: 1 transfer keluar ({bytes}) ke tujuan korporat resmi atau AI yang disetujui.",
       "other": "Tidak termasuk vektor di atas: {n} transfer keluar ({bytes}) ke tujuan korporat resmi atau AI yang disetujui."
+    },
+    "report.copies": {
+      "one": "Tidak termasuk vektor di atas: 1 salinan clipboard (bukan transfer keluar).",
+      "other": "Tidak termasuk vektor di atas: {n} salinan clipboard (bukan transfer keluar)."
     },
     "report.printing": {
       "one": "Tidak termasuk vektor di atas: 1 tugas cetak oleh {people}.",
@@ -3791,6 +3801,7 @@ var CERA_I18N_MESSAGES = {
     "report.radar.sbCode.malware": "マルウェア",
     "report.radar.sbCode.unwanted": "望ましくないソフトウェア",
     "report.radar.sbCode.unspecified": "記録なし",
+    "report.radar.sbCode.other": "その他のセーフ ブラウジングの理由",
     "report.unknownDestinations": {
       "one": "上記のベクトルに含まれないもの：送信先が記録されていない転送 1 件（{bytes}、URL が空・blob:・ブラウザ拡張機能）、うち送信 {out} 件。",
       "other": "上記のベクトルに含まれないもの：送信先が記録されていない転送 {n} 件（{bytes}、URL が空・blob:・ブラウザ拡張機能）、うち送信 {out} 件。"
@@ -3798,6 +3809,10 @@ var CERA_I18N_MESSAGES = {
     "report.sanctionedTransfers": {
       "one": "上記のベクトルに含まれないもの：承認済みの社内または公認 AI の送信先への送信 1 件（{bytes}）。",
       "other": "上記のベクトルに含まれないもの：承認済みの社内または公認 AI の送信先への送信 {n} 件（{bytes}）。"
+    },
+    "report.copies": {
+      "one": "上記のベクトルに含まれないもの：クリップボードへのコピー 1 件（送信外）。",
+      "other": "上記のベクトルに含まれないもの：クリップボードへのコピー {n} 件（送信外）。"
     },
     "report.printing": {
       "one": "上記のベクトルに含まれないもの：{people}による印刷 1 件。",
@@ -5477,6 +5492,7 @@ var CERA_I18N_MESSAGES = {
     "report.radar.sbCode.malware": "멀웨어",
     "report.radar.sbCode.unwanted": "원치 않는 소프트웨어",
     "report.radar.sbCode.unspecified": "미보고",
+    "report.radar.sbCode.other": "기타 세이프 브라우징 사유",
     "report.unknownDestinations": {
       "one": "위 벡터에 포함되지 않음: 대상이 기록되지 않은 전송 1건({bytes}, 빈 URL·blob:·브라우저 확장 프로그램), 그중 외부 전송 {out}건.",
       "other": "위 벡터에 포함되지 않음: 대상이 기록되지 않은 전송 {n}건({bytes}, 빈 URL·blob:·브라우저 확장 프로그램), 그중 외부 전송 {out}건."
@@ -5484,6 +5500,10 @@ var CERA_I18N_MESSAGES = {
     "report.sanctionedTransfers": {
       "one": "위 벡터에 포함되지 않음: 승인된 사내 또는 공인 AI 대상으로의 외부 전송 1건({bytes}).",
       "other": "위 벡터에 포함되지 않음: 승인된 사내 또는 공인 AI 대상으로의 외부 전송 {n}건({bytes})."
+    },
+    "report.copies": {
+      "one": "위 벡터에 포함되지 않음: 클립보드 복사 1건(외부 전송 아님).",
+      "other": "위 벡터에 포함되지 않음: 클립보드 복사 {n}건(외부 전송 아님)."
     },
     "report.printing": {
       "one": "위 벡터에 포함되지 않음: {people}의 인쇄 1건.",
@@ -7163,6 +7183,7 @@ var CERA_I18N_MESSAGES = {
     "report.radar.sbCode.malware": "恶意软件",
     "report.radar.sbCode.unwanted": "不需要的软件",
     "report.radar.sbCode.unspecified": "未报告",
+    "report.radar.sbCode.other": "其他安全浏览原因",
     "report.unknownDestinations": {
       "one": "未计入上述向量：1 次传输（{bytes}）没有记录目标（URL 为空、blob: 或浏览器扩展程序），其中外发 {out} 次。",
       "other": "未计入上述向量：{n} 次传输（{bytes}）没有记录目标（URL 为空、blob: 或浏览器扩展程序），其中外发 {out} 次。"
@@ -7170,6 +7191,10 @@ var CERA_I18N_MESSAGES = {
     "report.sanctionedTransfers": {
       "one": "未计入上述向量：1 次外发传输（{bytes}）发往受认可的企业或授权 AI 目标。",
       "other": "未计入上述向量：{n} 次外发传输（{bytes}）发往受认可的企业或授权 AI 目标。"
+    },
+    "report.copies": {
+      "one": "未计入上述向量：1 次复制到剪贴板（非外发）。",
+      "other": "未计入上述向量：{n} 次复制到剪贴板（非外发）。"
     },
     "report.printing": {
       "one": "未计入上述向量：{people}的 1 次打印。",
@@ -8849,6 +8874,7 @@ var CERA_I18N_MESSAGES = {
     "report.radar.sbCode.malware": "Phần mềm độc hại",
     "report.radar.sbCode.unwanted": "Phần mềm không mong muốn",
     "report.radar.sbCode.unspecified": "Không được ghi nhận",
+    "report.radar.sbCode.other": "Lý do Duyệt web an toàn khác",
     "report.unknownDestinations": {
       "one": "Không thuộc các kênh trên: 1 lượt truyền ({bytes}) không có đích đến được ghi nhận (URL trống, blob: hoặc tiện ích mở rộng trình duyệt); chiều ra: {out}.",
       "other": "Không thuộc các kênh trên: {n} lượt truyền ({bytes}) không có đích đến được ghi nhận (URL trống, blob: hoặc tiện ích mở rộng trình duyệt); chiều ra: {out}."
@@ -8856,6 +8882,10 @@ var CERA_I18N_MESSAGES = {
     "report.sanctionedTransfers": {
       "one": "Không thuộc các kênh trên: 1 lượt truyền ra ngoài ({bytes}) tới đích đến doanh nghiệp hoặc AI được phê duyệt.",
       "other": "Không thuộc các kênh trên: {n} lượt truyền ra ngoài ({bytes}) tới đích đến doanh nghiệp hoặc AI được phê duyệt."
+    },
+    "report.copies": {
+      "one": "Không thuộc các kênh trên: 1 lượt sao chép vào bảng nhớ tạm (không phải chiều ra).",
+      "other": "Không thuộc các kênh trên: {n} lượt sao chép vào bảng nhớ tạm (không phải chiều ra)."
     },
     "report.printing": {
       "one": "Không thuộc các kênh trên: 1 lệnh in bởi {people}.",

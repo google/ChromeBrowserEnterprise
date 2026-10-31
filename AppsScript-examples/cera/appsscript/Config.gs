@@ -331,7 +331,7 @@ var CeraConfig = {
     // no-first-run, no-default-browser-check, user-data-dir and lang are left out: launchers, scripts and test tools set
     // them, Chrome does not.
     routine: ['no-startup-window', 'prefetch', 'startup-foreground-launch', 'profile-directory', 'restore-last-session',
-      'restart', 'flag-switches-*', 'enable-features', 'disable-features', 'force-fieldtrials', 'force-fieldtrial-params']
+      'restart', 'flag-switches-begin', 'flag-switches-end', 'enable-features', 'disable-features', 'force-fieldtrials', 'force-fieldtrial-params']
   },
   // Classes of the switches that are not routine, in the order the deck and the workbook list them when tied
   LAUNCH_CLASS_ORDER: ['automation', 'protectionsOff', 'extensionsFromDisk', 'trafficRedirected', 'other']

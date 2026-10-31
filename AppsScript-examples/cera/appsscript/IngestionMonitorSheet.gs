@@ -45,6 +45,19 @@ var IngestionMonitorSheet = {
    * Initializes sheet layout, column dimensions and freeze lines
    */
   initSheetStructure: function(sheet) {
+    if (typeof sheet.getMaxColumns === 'function' && typeof sheet.insertColumnsAfter === 'function') {
+      const curCols = sheet.getMaxColumns();
+      if (curCols < 8) sheet.insertColumnsAfter(Math.max(1, curCols), 8 - curCols);
+    }
+    if (typeof sheet.getMaxRows === 'function' && typeof sheet.insertRowsAfter === 'function') {
+      const curRows = sheet.getMaxRows();
+      if (curRows < 28) sheet.insertRowsAfter(Math.max(1, curRows), 28 - curRows);
+    }
+    if (typeof sheet.getMaxRows === 'function' && typeof sheet.getMaxColumns === 'function') {
+      try {
+        sheet.getRange(1, 1, Math.max(1, sheet.getMaxRows()), Math.max(1, sheet.getMaxColumns())).breakApart();
+      } catch (e) {}
+    }
     sheet.clear();
     if (typeof sheet.setHiddenGridlines === 'function') {
       sheet.setHiddenGridlines(true); // Executive styling: hide raw sheet gridlines
@@ -54,9 +67,10 @@ var IngestionMonitorSheet = {
     const colWidths = [180, 140, 160, 150, 170, 140, 150, 240];
     colWidths.forEach((w, idx) => sheet.setColumnWidth(idx + 1, w));
 
-    sheet.getRange('A1:H100').setFontFamily('Google Sans, Roboto, Arial, sans-serif');
-    if (SpreadsheetApp.WrapStrategy && SpreadsheetApp.WrapStrategy.CLIP && typeof sheet.getRange('A1:H100').setWrapStrategy === 'function') {
-      sheet.getRange('A1:H100').setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+    const initRows = typeof sheet.getMaxRows === 'function' ? Math.max(1, Math.min(100, sheet.getMaxRows())) : 100;
+    sheet.getRange(1, 1, initRows, 8).setFontFamily('Google Sans, Roboto, Arial, sans-serif');
+    if (SpreadsheetApp.WrapStrategy && SpreadsheetApp.WrapStrategy.CLIP && typeof sheet.getRange(1, 1, initRows, 8).setWrapStrategy === 'function') {
+      sheet.getRange(1, 1, initRows, 8).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
     }
   },
 
@@ -94,6 +108,24 @@ var IngestionMonitorSheet = {
    */
   updateDashboard: function(ss, state, partitions) {
     const sheet = this.getOrCreateSheet(ss);
+    let sheetMaxCols = typeof sheet.getMaxColumns === 'function' ? sheet.getMaxColumns() : 8;
+    let sheetMaxRows = typeof sheet.getMaxRows === 'function' ? sheet.getMaxRows() : 100;
+    const prevLastRow = typeof sheet.getLastRow === 'function' ? sheet.getLastRow() : 0;
+    const wasGridTrimmed = (sheetMaxCols < 8 || sheetMaxRows < 28);
+    if (sheetMaxCols < 8 && typeof sheet.insertColumnsAfter === 'function') {
+      sheet.insertColumnsAfter(Math.max(1, sheetMaxCols), 8 - sheetMaxCols);
+      sheetMaxCols = 8;
+      [180, 140, 160, 150, 170, 140, 150, 240].forEach((w, idx) => sheet.setColumnWidth(idx + 1, w));
+    }
+    if (sheetMaxRows < 28 && typeof sheet.insertRowsAfter === 'function') {
+      sheet.insertRowsAfter(Math.max(1, sheetMaxRows), 28 - sheetMaxRows);
+      sheetMaxRows = 28;
+    }
+    if (wasGridTrimmed && typeof sheet.getRange === 'function') {
+      const hdrRange = sheet.getRange(1, 1, Math.min(22, sheetMaxRows), 8);
+      if (typeof hdrRange.breakApart === 'function') hdrRange.breakApart();
+      if (typeof hdrRange.setFontFamily === 'function') hdrRange.setFontFamily('Google Sans, Roboto, Arial, sans-serif');
+    }
     state = state || {};
     partitions = partitions || [];
     const lang = ceraGetLanguage();
@@ -122,7 +154,12 @@ var IngestionMonitorSheet = {
     if (!logFolderUrl) logFolderUrl = folderUrl;
     const folderName = state.folderName || (isIdle ? T('common.na') : T('mon.folderDefault'));
     const fileIndex = state.fileIndex || partitions.length || 1;
-    const currentRows = isIdle ? 0 : Number(state.currentSheetRows || 1);
+    const lastPart = (partitions && partitions.length > 0) ? partitions[partitions.length - 1] : null;
+    const currentRows = isIdle
+      ? 0
+      : (lastPart && lastPart.rowCount !== undefined
+        ? Number(lastPart.rowCount || 0)
+        : (state.currentSheetRows !== undefined ? Math.max(0, Number(state.currentSheetRows) - 1) : 0));
     const rate = Number(state.rate || state.processingRate || 0);
     const etaSec = Number(state.etaSec || state.estimatedRemainingSec || 0);
     const lastUpdateStr = Utilities.formatDate(new Date(), ceraTimeZone(), 'yyyy-MM-dd HH:mm:ss');
@@ -240,7 +277,7 @@ var IngestionMonitorSheet = {
         .setFontSize(9).setFontColor('#0B57D0').setFontLine('underline').setBackground('#F0FDF4');
     } else {
       sheet.getRange('E6:F6').merge().setValue(T('mon.sheet.folder', { name: folderName }))
-        .setFontSize(9).setFontColor('#475569').setBackground('#F0FDF4');
+        .setFontSize(9).setFontColor('#475569').setFontLine('none').setBackground('#F0FDF4');
     }
 
     // Card 4: Estimated Completion & Watchdog (G4:H6)
@@ -368,7 +405,7 @@ var IngestionMonitorSheet = {
       });
     } else {
       partRows.push([
-        isIdle ? '--' : T('mon.part', { n: 1 }),
+        isIdle ? '--' : T('mon.part', { n: fileIndex }),
         state.currentFileName || (isIdle ? T('common.na') : T('mon.sheet.part.init')),
         num(currentRows),
         num(maxRows),
@@ -380,8 +417,13 @@ var IngestionMonitorSheet = {
     }
 
     const firstPartRow = partTitleRow + 2;
-    const sheetMaxRows = typeof sheet.getMaxRows === 'function' ? sheet.getMaxRows() : 100;
-    const dynClearRows = Math.max(1, Math.min(sheetMaxRows - firstPartRow + 1, Math.max(26, partRows.length + 10)));
+    const requiredRows = firstPartRow + partRows.length + 6;
+    if (requiredRows > sheetMaxRows && typeof sheet.insertRowsAfter === 'function') {
+      sheet.insertRowsAfter(Math.max(1, sheetMaxRows), requiredRows - sheetMaxRows);
+      sheetMaxRows = requiredRows;
+    }
+    const clearEndRow = Math.min(sheetMaxRows, Math.max(prevLastRow + 4, firstPartRow + partRows.length + 10, 55));
+    const dynClearRows = Math.max(1, clearEndRow - firstPartRow + 1);
     const dynRange = sheet.getRange(firstPartRow, 1, dynClearRows, 8);
     if (typeof dynRange.breakApart === 'function') dynRange.breakApart();
     if (typeof dynRange.clearContent === 'function') dynRange.clearContent();
@@ -398,6 +440,8 @@ var IngestionMonitorSheet = {
     // 7. Action Guidance & Error Box (Below tables)
     const nextRow = firstPartRow + 1 + partRows.length;
     sheet.setRowHeight(nextRow - 1, 14);
+    sheet.setRowHeight(nextRow, 21);
+    sheet.setRowHeight(nextRow + 1, 21);
 
     if (isQuotaWait) {
       sheet.getRange(nextRow, 1, 2, 8).merge()
@@ -451,5 +495,12 @@ var IngestionMonitorSheet = {
       .setHorizontalAlignment('center').setVerticalAlignment('middle')
       .setBorder(true, true, true, true, false, false, '#CBD5E1', SpreadsheetApp.BorderStyle.SOLID);
     sheet.setRowHeight(fbRow, 24);
+    if (clearEndRow > fbRow) {
+      if (typeof sheet.setRowHeights === 'function') {
+        sheet.setRowHeights(fbRow + 1, clearEndRow - fbRow, 21);
+      } else {
+        for (let cr = fbRow + 1; cr <= clearEndRow; cr++) sheet.setRowHeight(cr, 21);
+      }
+    }
   }
 };

@@ -41,6 +41,119 @@
  * switch without a value: a value can be a list itself (enable-features=FeatureA,FeatureB). Leading dashes, a leading
  * slash (/prefetch:5) and quotes are dropped; each switch is kept once, in the order given.
  */
+function ceraSplitCommandLineArgs_(str) {
+  const args = [];
+  let cur = '';
+  let quote = '';
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charAt(i);
+    if (quote) {
+      cur += ch;
+      if (ch === quote) quote = '';
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+      cur += ch;
+    } else if (/\s/.test(ch)) {
+      if (cur) {
+        args.push(cur);
+        cur = '';
+      }
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur) args.push(cur);
+  return args;
+}
+
+function ceraSplitUnquotedCommas_(str) {
+  const chunks = [];
+  let cur = '';
+  let quote = '';
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charAt(i);
+    if (quote) {
+      cur += ch;
+      if (ch === quote) quote = '';
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+      cur += ch;
+    } else if (ch === ',') {
+      chunks.push(cur);
+      cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  chunks.push(cur);
+  return chunks;
+}
+
+function ceraStripMatchingOuterQuotes_(str) {
+  const s = String(str || '').trim();
+  if (s.length >= 2 && ((s.charAt(0) === '"' && s.charAt(s.length - 1) === '"') || (s.charAt(0) === "'" && s.charAt(s.length - 1) === "'"))) {
+    return s.slice(1, -1).trim();
+  }
+  return s;
+}
+
+var CERA_BOOLEAN_LAUNCH_SWITCHES_ = {
+  'no-startup-window': true,
+  'startup-foreground-launch': true,
+  'restore-last-session': true,
+  'restart': true,
+  'flag-switches-begin': true,
+  'flag-switches-end': true,
+  'remote-debugging-pipe': true,
+  'headless': true,
+  'enable-automation': true,
+  'test-type': true,
+  'auto-open-devtools-for-tabs': true,
+  'no-sandbox': true,
+  'disable-web-security': true,
+  'ignore-certificate-errors': true,
+  'disable-site-isolation-trials': true,
+  'allow-running-insecure-content': true,
+  'disable-gpu-sandbox': true,
+  'disable-setuid-sandbox': true,
+  'disable-seccomp-filter-sandbox': true,
+  'single-process': true,
+  'use-fake-ui-for-media-stream': true,
+  'disable-client-side-phishing-detection': true,
+  'safebrowsing-disable-download-protection': true,
+  'disable-webrtc-encryption': true,
+  'no-first-run': true,
+  'no-default-browser-check': true,
+  'incognito': true,
+  'guest': true,
+  'kiosk': true,
+  'bwsi': true,
+  'allow-file-access-from-files': true,
+  'allow-insecure-localhost': true,
+  'unsafely-disable-devtools-self-xss-warnings': true,
+  'disable-extensions': true,
+  'extensions-on-chrome-urls': true,
+  'silent-debugger-extension-api': true,
+  'no-proxy-server': true,
+  'proxy-auto-detect': true
+};
+
+function ceraUnwrapCliSwitch_(raw) {
+  const outer = ceraStripMatchingOuterQuotes_(raw);
+  if (!outer) return null;
+  if (outer === '--') return { end: true };
+  const m = outer.match(/^(?:--+|-|\/(?=[^\/:=\s]+[:=]))(?:"([^"=\s:]+)"|'([^'=\s:]+)'|([a-z0-9][a-z0-9._-]*))(?=$|[=:\s])([\s\S]*)$/i);
+  if (!m) return null;
+  const swName = (m[1] || m[2] || m[3] || '').trim();
+  if (!/^[a-z0-9][a-z0-9._-]*$/i.test(swName)) return null;
+  const rest = m[4] || '';
+  return {
+    name: swName.toLowerCase(),
+    hasInlineValue: /^[=:\s]/.test(rest) && rest.trim().length > 0,
+    token: swName + rest
+  };
+}
+
 function ceraLaunchSwitches_(value) {
   if (value === null || value === undefined) return [];
   let parts = null;
@@ -56,39 +169,100 @@ function ceraLaunchSwitches_(value) {
       } catch (e) {}
     }
     if (!parts && /[\r\n]/.test(s)) parts = s.split(/\r?\n/);
-    if (!parts && /(^|\s)--[a-z0-9]/i.test(s) && !/,/.test(s.replace(/=[^\s]*/g, ''))) {
-      // A command line: the program path (if any) is not a switch
-      parts = s.split(/\s+(?=--?[a-z0-9]|\/[a-z])/i).filter(p => /^(--?|\/)[a-z0-9]/i.test(p));
+    if (!parts) {
+      const rawArgs = ceraSplitCommandLineArgs_(s);
+      let hasCliSwitch = false;
+      let hasSwitchComma = false;
+      for (let i = 0; i < rawArgs.length; i++) {
+        const arg = rawArgs[i];
+        const sw = ceraUnwrapCliSwitch_(arg);
+        if (sw && !sw.end) hasCliSwitch = true;
+        const commaChunks = ceraSplitUnquotedCommas_(arg);
+        if (commaChunks.length > 1) {
+          if (!commaChunks[commaChunks.length - 1].trim()) {
+            hasSwitchComma = true;
+          } else {
+            for (let k = 1; k < commaChunks.length; k++) {
+              if (/^\s*--[a-z0-9"']/i.test(commaChunks[k])) {
+                hasSwitchComma = true;
+                break;
+              }
+            }
+            if (!hasSwitchComma && sw && !sw.end && commaChunks[0].indexOf('=') === -1 && commaChunks[0].indexOf(':') === -1) {
+              hasSwitchComma = true;
+            }
+          }
+        }
+      }
+      if (hasCliSwitch && !hasSwitchComma) {
+        // A command line: the program path and trailing positional URLs are not switches; bare -- ends options
+        parts = [];
+        let seenSwitch = false;
+        let prevNeedsValue = false;
+        for (let i = 0; i < rawArgs.length; i++) {
+          const arg = rawArgs[i];
+          const sw = ceraUnwrapCliSwitch_(arg);
+          if (sw && sw.end) break;
+          if (sw) {
+            seenSwitch = true;
+            parts.push(sw.token);
+            prevNeedsValue = !sw.hasInlineValue && !CERA_BOOLEAN_LAUNCH_SWITCHES_[sw.name];
+          } else if (seenSwitch && prevNeedsValue && parts.length > 0) {
+            parts[parts.length - 1] = parts[parts.length - 1] + ' ' + arg;
+            prevNeedsValue = false;
+          } else {
+            prevNeedsValue = false;
+          }
+        }
+      }
     }
     if (!parts) {
       parts = [];
-      s.split(',').forEach((chunk, i) => {
-        const startsSwitch = /^\s*-{0,2}[a-z0-9][a-z0-9._-]*(?:[=:]|\s*$)/.test(chunk);
+      ceraSplitUnquotedCommas_(s).forEach((chunk, i) => {
+        const startsSwitch = /^\s*(?:--?|\/(?=[a-z0-9-]+[:=]))?(?:"[a-z0-9][a-z0-9._-]*"|'[a-z0-9][a-z0-9._-]*'|[a-z0-9][a-z0-9._-]*)(?:[=:]|\s*$)/i.test(chunk);
         const current = parts[parts.length - 1];
-        if (i > 0 && !(startsSwitch && (/^\s/.test(chunk) || current.indexOf('=') === -1))) parts[parts.length - 1] = current + ',' + chunk;
-        else parts.push(chunk);
+        if (i > 0 && !(startsSwitch && (/^\s/.test(chunk) || /^\s*--/.test(chunk) || current.indexOf('=') === -1))) {
+          parts[parts.length - 1] = current + ',' + chunk;
+        } else {
+          parts.push(chunk);
+        }
       });
     }
   }
   const out = [];
-  const flagSwitches = {};
+  const closedFlagTokens = Object.create(null);
+  const outsideTokens = Object.create(null);
   let pendingFlagBlock = null;
   parts.forEach(p => {
-    const t = String(p).trim().replace(/^["']+|["']+$/g, '').trim().replace(/^-+/, '').replace(/^\/(?=[a-z])/i, '').trim();
+    let t = ceraStripMatchingOuterQuotes_(p);
+    t = t.replace(/^-+/, '').replace(/^\/(?=[a-z0-9-]+[:=])/i, '').trim();
+    t = t.replace(/^(?:"([^"=\s:]+)"|'([^'=\s:]+)')(?=$|[=:\s])/, '$1$2').trim();
     if (!t) return;
-    const sep = t.search(/[=:]/);
-    const swName = (sep === -1 ? t : t.slice(0, sep)).trim().toLowerCase();
-    if (swName === 'flag-switches-begin') {
-      pendingFlagBlock = [];
-    } else if (swName === 'flag-switches-end') {
+    const sep = t.search(/[=:\s]/);
+    const swName = (sep === -1 ? t : t.slice(0, sep)).trim().replace(/^["']+|["']+$/g, '').toLowerCase();
+    if (swName === 'flag-switches-begin' && sep === -1) {
       if (pendingFlagBlock) {
-        for (let i = 0; i < pendingFlagBlock.length; i++) flagSwitches[pendingFlagBlock[i]] = true;
+        for (let i = 0; i < pendingFlagBlock.length; i++) outsideTokens[pendingFlagBlock[i].toLowerCase()] = true;
+      }
+      pendingFlagBlock = [];
+    } else if (swName === 'flag-switches-end' && sep === -1) {
+      if (pendingFlagBlock) {
+        for (let i = 0; i < pendingFlagBlock.length; i++) closedFlagTokens[pendingFlagBlock[i]] = true;
         pendingFlagBlock = null;
       }
     } else if (pendingFlagBlock) {
       pendingFlagBlock.push(t);
+    } else {
+      outsideTokens[t.toLowerCase()] = true;
     }
     if (out.indexOf(t) === -1) out.push(t);
+  });
+  if (pendingFlagBlock) {
+    for (let i = 0; i < pendingFlagBlock.length; i++) outsideTokens[pendingFlagBlock[i].toLowerCase()] = true;
+  }
+  const flagSwitches = {};
+  Object.keys(closedFlagTokens).forEach(tok => {
+    if (!outsideTokens[tok.toLowerCase()]) flagSwitches[tok] = true;
   });
   if (Object.keys(flagSwitches).length > 0) {
     Object.defineProperty(out, 'flagSwitches', { value: flagSwitches, enumerable: false });
@@ -121,9 +295,19 @@ function ceraLaunchSwitchTable_() {
  */
 function ceraLaunchSwitchClass_(token) {
   const t = String(token || '').trim();
-  const sep = t.search(/[=:]/);
-  const name = (sep === -1 ? t : t.slice(0, sep)).trim().toLowerCase();
-  const values = sep === -1 ? [] : t.slice(sep + 1).split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
+  const sep = t.search(/[=:\s]/);
+  const name = (sep === -1 ? t : t.slice(0, sep)).trim().replace(/^["']+|["']+$/g, '').toLowerCase();
+  const rawVal = sep === -1 ? '' : ceraStripMatchingOuterQuotes_(t.slice(sep + 1));
+  const values = [];
+  if (rawVal) {
+    rawVal.split(',').forEach(part => {
+      const v = part.trim().replace(/^["']+|["']+$/g, '').trim().toLowerCase();
+      if (!v) return;
+      if (values.indexOf(v) === -1) values.push(v);
+      const baseFeat = v.split(/[:<]/)[0].trim();
+      if (baseFeat && values.indexOf(baseFeat) === -1) values.push(baseFeat);
+    });
+  }
   const table = ceraLaunchSwitchTable_();
   for (let i = 0; i < table.valued.length; i++) {
     const e = table.valued[i];
@@ -146,11 +330,27 @@ var CERA_EXTERNAL_LAUNCH_SWITCHES_ = {
   'app': true,
   'load-extension': true,
   'disable-extensions-except': true,
+  'disable-extensions': true,
+  'extensions-on-chrome-urls': true,
+  'silent-debugger-extension-api': true,
   'no-first-run': true,
   'no-default-browser-check': true,
+  'lang': true,
+  'incognito': true,
+  'guest': true,
+  'kiosk': true,
+  'bwsi': true,
   'allow-file-access-from-files': true,
   'allow-insecure-localhost': true,
-  'unsafely-disable-devtools-self-xss-warnings': true
+  'ssl-key-log-file': true,
+  'log-net-log': true,
+  'unsafely-disable-devtools-self-xss-warnings': true,
+  'renderer-cmd-prefix': true,
+  'utility-cmd-prefix': true,
+  'gpu-launcher': true,
+  'browser-subprocess-path': true,
+  'no-proxy-server': true,
+  'proxy-auto-detect': true
 };
 
 /**
@@ -207,20 +407,13 @@ function ceraAddLaunchRow_(state, row) {
   store.events++;
   const switches = row.switches ? row.switches.slice().sort() : null;
   const rowFlags = row.flagSwitches || (row.switches && row.switches.flagSwitches) || null;
+  const flagKeys = rowFlags ? Object.keys(rowFlags).filter(k => rowFlags[k]).sort() : [];
   const identity = row.device ? 'd|' + row.device : (row.user ? 'u|' + row.user : (row.deviceUser ? 'w|' + row.deviceUser : ''));
-  const key = identity + '\u0000' + (switches ? switches.join('\n') : '\u0001');
+  const key = identity + '\u0000' + (switches ? switches.join('\n') : '\u0001') + (flagKeys.length ? '\u0000' + flagKeys.join('\n') : '');
   let entry = store.keys.get(key);
   if (!entry) {
-    const flagCopy = rowFlags ? Object.assign({}, rowFlags) : null;
+    const flagCopy = flagKeys.length ? Object.assign({}, rowFlags) : null;
     store.keys.set(key, entry = { device: row.device || '', switches: switches, flagSwitches: flagCopy, rows: [] });
-  } else if (entry.flagSwitches) {
-    if (!rowFlags) {
-      entry.flagSwitches = null;
-    } else {
-      Object.keys(entry.flagSwitches).forEach(k => {
-        if (!rowFlags[k]) delete entry.flagSwitches[k];
-      });
-    }
   }
   entry.rows.push(typeof row.t === 'number' && !isNaN(row.t) ? row.t : NaN, nameId(row.user), nameId(row.deviceUser));
 }

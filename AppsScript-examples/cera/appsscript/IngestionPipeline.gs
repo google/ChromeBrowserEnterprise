@@ -71,12 +71,28 @@ function ceraSerializeDedupeStore_(dedupeStore, keepSheetOcc) {
   };
 }
 
+function ceraAnalysisCpHistoryPropKey_() {
+  return 'CERA_ANALYSIS_CP_HISTORY';
+}
+
 function ceraRestoreDedupeStore_(state, rawDedupe) {
   if (!rawDedupe || !state) return null;
   const store = ceraDedupeStore_(state);
   store.eventIds = new Set(rawDedupe.eventIds || []);
   store.rowHashes = new Map(rawDedupe.rowHashes || []);
-  store.fileRanges = rawDedupe.fileRanges || {};
+  const restoredRanges = {};
+  const srcRanges = rawDedupe.fileRanges || {};
+  const rangeKeys = Object.keys(srcRanges);
+  for (let i = 0; i < rangeKeys.length; i++) {
+    const k = rangeKeys[i];
+    const r = srcRanges[k];
+    if (!r || typeof r !== 'object') continue;
+    restoredRanges[k] = Object.assign({}, r, {
+      minT: (typeof r.minT === 'number' && isFinite(r.minT)) ? r.minT : Infinity,
+      maxT: (typeof r.maxT === 'number' && isFinite(r.maxT)) ? r.maxT : -Infinity
+    });
+  }
+  store.fileRanges = restoredRanges;
   store._sheetOcc = new Map(rawDedupe._sheetOcc || []);
   store._sheetOccFileIdx = typeof rawDedupe._sheetOccFileIdx === 'number' ? rawDedupe._sheetOccFileIdx : -1;
   store.totalSheets = Number(rawDedupe.totalSheets) || 0;
@@ -109,6 +125,26 @@ function ceraSaveAnalysisBatch_(token, checkpoint) {
     // Q5-C: Sweep only provably complete action segments; never force-evict active day-slice rows down to 2,000
     ceraSweepActions_(state, false);
   }
+
+  let prevCheckpointFileId = '';
+  let prevCheckpointSeq = 0;
+  let prevHistoryEntries = [];
+  try {
+    const docPropsPre = (typeof PropertiesService !== 'undefined' && PropertiesService && PropertiesService.getDocumentProperties)
+      ? PropertiesService.getDocumentProperties()
+      : null;
+    if (docPropsPre) {
+      const rawPrevJob = docPropsPre.getProperty(ceraAnalysisJobPropKey_()) || '';
+      const prevJob = rawPrevJob ? JSON.parse(rawPrevJob) : null;
+      if (prevJob && prevJob.checkpointFileId) prevCheckpointFileId = String(prevJob.checkpointFileId);
+      if (prevJob && Number(prevJob.checkpointSeq) > 0) prevCheckpointSeq = Number(prevJob.checkpointSeq);
+      const rawHist = docPropsPre.getProperty(ceraAnalysisCpHistoryPropKey_()) || '';
+      const parsedHist = rawHist ? JSON.parse(rawHist) : null;
+      if (parsedHist && Array.isArray(parsedHist.entries)) prevHistoryEntries = parsedHist.entries;
+    }
+  } catch (pjErr) {}
+  const checkpointSeq = prevCheckpointSeq + 1;
+
   const asm = !isRenderPhase && state ? state._actionAssembly : null;
   const launchStore = !isRenderPhase && state ? state._launchRows : null;
   const dedupeStore = (!isRenderPhase && checkpoint.dedupeStore !== null && state) ? state._dedupeStore : null;
@@ -116,9 +152,11 @@ function ceraSaveAnalysisBatch_(token, checkpoint) {
   const payload = JSON.stringify({
     jobId: token,
     batchToken: token,
+    checkpointSeq: checkpointSeq,
     generation: checkpoint.generation || 1,
     hostSpreadsheetId: checkpoint.hostSpreadsheetId || '',
     folderId: checkpoint.folderId || '',
+    isSingleSheet: !!checkpoint.isSingleSheet,
     targetPresentationId: checkpoint.targetPresentationId || '',
     phase: phase,
     queue: checkpoint.queue,
@@ -160,27 +198,28 @@ function ceraSaveAnalysisBatch_(token, checkpoint) {
   const prefix = 'CERA_ANALYSIS_BATCH_' + token + '_';
   let wroteCache = false;
   if (cache) {
+    let oldCacheChunks = 0;
+    try {
+      const oldMetaRaw = cache.get(prefix + 'meta');
+      if (oldMetaRaw) oldCacheChunks = Number(JSON.parse(oldMetaRaw).chunks) || 0;
+      cache.remove(prefix + 'meta');
+    } catch (cmErr) {}
     try {
       for (let i = 0; i < chunks.length; i++) {
         cache.put(prefix + i, chunks[i], CERA_BATCH_CACHE_TTL_SEC);
       }
-      cache.put(prefix + 'meta', JSON.stringify({ chunks: chunks.length, savedAt: Date.now() }), CERA_BATCH_CACHE_TTL_SEC);
+      for (let i = chunks.length; i < oldCacheChunks; i++) {
+        cache.remove(prefix + i);
+      }
+      cache.put(prefix + 'meta', JSON.stringify({ chunks: chunks.length, checkpointSeq: checkpointSeq, savedAt: Date.now() }), CERA_BATCH_CACHE_TTL_SEC);
       wroteCache = true;
-    } catch (cErr) {}
+    } catch (cErr) {
+      try { cache.remove(prefix + 'meta'); } catch (crErr) {}
+    }
   }
 
   // Durable fallback in ScriptProperties / DocumentProperties + Drive checkpoint file so CacheService eviction never loses state
   let checkpointFileId = '';
-  let prevCheckpointFileId = '';
-  try {
-    const docPropsPre = (typeof PropertiesService !== 'undefined' && PropertiesService && PropertiesService.getDocumentProperties)
-      ? PropertiesService.getDocumentProperties()
-      : null;
-    const rawPrevJob = docPropsPre ? docPropsPre.getProperty(ceraAnalysisJobPropKey_()) : '';
-    const prevJob = rawPrevJob ? JSON.parse(rawPrevJob) : null;
-    if (prevJob && prevJob.checkpointFileId) prevCheckpointFileId = String(prevJob.checkpointFileId);
-  } catch (pjErr) {}
-
   try {
     const cpParentId = (typeof ceraEnsureRootFolder_ === 'function') ? ceraEnsureRootFolder_(false) : '';
     if (cpParentId && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.create === 'function') {
@@ -197,12 +236,27 @@ function ceraSaveAnalysisBatch_(token, checkpoint) {
       if (existing && existing.files && existing.files.length > 0) {
         checkpointFileId = existing.files[0].id;
         Drive.Files.update({ name: cpName, mimeType: 'text/plain' }, checkpointFileId, blob, { supportsAllDrives: true });
+        for (let dIdx = 1; dIdx < existing.files.length; dIdx++) {
+          if (existing.files[dIdx] && existing.files[dIdx].id && existing.files[dIdx].id !== checkpointFileId) {
+            ceraTrashDriveCheckpointFile_(existing.files[dIdx].id);
+          }
+        }
       } else {
         const created = Drive.Files.create({ name: cpName, mimeType: 'text/plain', parents: [cpParentId] }, blob, { supportsAllDrives: true });
         if (created && created.id) checkpointFileId = created.id;
       }
+      const trashedPrev = new Set();
       if (prevCheckpointFileId && checkpointFileId && prevCheckpointFileId !== checkpointFileId) {
         ceraTrashDriveCheckpointFile_(prevCheckpointFileId);
+        trashedPrev.add(prevCheckpointFileId);
+      }
+      for (let hIdx = 0; hIdx < prevHistoryEntries.length; hIdx++) {
+        const hEntry = prevHistoryEntries[hIdx];
+        const hId = hEntry && hEntry.fileId ? String(hEntry.fileId) : '';
+        if (hId && hId !== checkpointFileId && !trashedPrev.has(hId)) {
+          ceraTrashDriveCheckpointFile_(hId);
+          trashedPrev.add(hId);
+        }
       }
     }
   } catch (dErr) {}
@@ -211,21 +265,45 @@ function ceraSaveAnalysisBatch_(token, checkpoint) {
   try {
     if (typeof PropertiesService !== 'undefined' && PropertiesService) {
       const scriptProps = PropertiesService.getScriptProperties && PropertiesService.getScriptProperties();
-      if (scriptProps && payload.length < 400000) {
-        const propChunks = typeof ceraSliceUtf8Chunks_ === 'function' ? ceraSliceUtf8Chunks_(payload, 8000) : [payload];
-        for (let i = 0; i < propChunks.length; i++) {
-          scriptProps.setProperty(prefix + 'P_' + i, propChunks[i]);
+      if (scriptProps) {
+        let oldPropChunks = 0;
+        try {
+          const oldPMetaRaw = scriptProps.getProperty(prefix + 'P_meta');
+          if (oldPMetaRaw) oldPropChunks = Number(JSON.parse(oldPMetaRaw).chunks) || 0;
+          scriptProps.deleteProperty(prefix + 'P_meta');
+        } catch (pmErr) {}
+        if (payload.length < 400000) {
+          const propChunks = typeof ceraSliceUtf8Chunks_ === 'function' ? ceraSliceUtf8Chunks_(payload, 8000) : [payload];
+          try {
+            for (let i = 0; i < propChunks.length; i++) {
+              scriptProps.setProperty(prefix + 'P_' + i, propChunks[i]);
+            }
+            for (let i = propChunks.length; i < oldPropChunks; i++) {
+              scriptProps.deleteProperty(prefix + 'P_' + i);
+            }
+            scriptProps.setProperty(prefix + 'P_meta', JSON.stringify({ chunks: propChunks.length, checkpointSeq: checkpointSeq, savedAt: Date.now() }));
+            wrotePropFallback = true;
+          } catch (spWriteErr) {
+            for (let i = 0; i < Math.max(propChunks.length, oldPropChunks); i++) {
+              try { scriptProps.deleteProperty(prefix + 'P_' + i); } catch (delErr) {}
+            }
+            try { scriptProps.deleteProperty(prefix + 'P_meta'); } catch (delMetaErr) {}
+          }
+        } else {
+          for (let i = 0; i < oldPropChunks; i++) {
+            try { scriptProps.deleteProperty(prefix + 'P_' + i); } catch (delOldErr) {}
+          }
         }
-        scriptProps.setProperty(prefix + 'P_meta', JSON.stringify({ chunks: propChunks.length, savedAt: Date.now() }));
-        wrotePropFallback = true;
       }
       const docProps = PropertiesService.getDocumentProperties && PropertiesService.getDocumentProperties();
       if (docProps) {
         docProps.setProperty(ceraAnalysisJobPropKey_(), JSON.stringify({
           jobId: token,
           batchToken: token,
+          checkpointSeq: checkpointSeq,
           hostSpreadsheetId: checkpoint.hostSpreadsheetId || '',
           folderId: checkpoint.folderId || '',
+          isSingleSheet: !!checkpoint.isSingleSheet,
           checkpointFileId: checkpointFileId,
           generation: checkpoint.generation || 1,
           nextIndex: checkpoint.nextIndex || 0,
@@ -236,6 +314,10 @@ function ceraSaveAnalysisBatch_(token, checkpoint) {
           targetPresentationId: checkpoint.targetPresentationId || '',
           updatedAt: Date.now()
         }));
+        const nextEntries = checkpointFileId
+          ? [{ token: String(token), fileId: String(checkpointFileId) }]
+          : [];
+        docProps.setProperty(ceraAnalysisCpHistoryPropKey_(), JSON.stringify({ entries: nextEntries }));
       }
     }
   } catch (pErr) {}
@@ -249,30 +331,64 @@ function ceraLoadAnalysisBatch_(token, scope) {
   if (!token) return null;
   const cache = ceraAnalysisBatchCache_();
   const prefix = 'CERA_ANALYSIS_BATCH_' + token + '_';
-  let rawJson = '';
+  let jobMeta = null;
+  let histEntries = [];
+  try {
+    const docProps = (typeof PropertiesService !== 'undefined' && PropertiesService && PropertiesService.getDocumentProperties)
+      ? PropertiesService.getDocumentProperties()
+      : null;
+    if (docProps) {
+      const rawJob = docProps.getProperty(ceraAnalysisJobPropKey_()) || '';
+      if (rawJob) jobMeta = JSON.parse(rawJob);
+      const rawHist = docProps.getProperty(ceraAnalysisCpHistoryPropKey_()) || '';
+      if (rawHist) {
+        const parsedHist = JSON.parse(rawHist);
+        if (parsedHist && Array.isArray(parsedHist.entries)) histEntries = parsedHist.entries;
+      }
+    }
+  } catch (jmErr) {}
+
+  const minSeq = (jobMeta && (!jobMeta.batchToken || jobMeta.batchToken === token) && Number(jobMeta.checkpointSeq) > 0)
+    ? Number(jobMeta.checkpointSeq)
+    : 0;
+  const parseCandidate = candidateJson => {
+    if (typeof candidateJson !== 'string' || candidateJson.trim().charAt(0) !== '{') return null;
+    try {
+      const obj = JSON.parse(candidateJson);
+      if (!obj || typeof obj !== 'object') return null;
+      if (minSeq > 0 && Number(obj.checkpointSeq) > 0 && Number(obj.checkpointSeq) < minSeq) return null;
+      return obj;
+    } catch (parseErr) {
+      return null;
+    }
+  };
+
+  let saved = null;
 
   if (cache) {
     try {
       const metaRaw = cache.get(prefix + 'meta');
       if (metaRaw) {
         const meta = JSON.parse(metaRaw);
-        const parts = [];
-        let complete = true;
-        for (let i = 0; i < (meta.chunks || 0); i++) {
-          const part = cache.get(prefix + i);
-          if (part === null || part === undefined) {
-            complete = false;
-            break;
+        if (!(minSeq > 0 && Number(meta.checkpointSeq) > 0 && Number(meta.checkpointSeq) < minSeq)) {
+          const parts = [];
+          let complete = true;
+          for (let i = 0; i < (meta.chunks || 0); i++) {
+            const part = cache.get(prefix + i);
+            if (part === null || part === undefined) {
+              complete = false;
+              break;
+            }
+            parts.push(part);
           }
-          parts.push(part);
+          if (complete && parts.length > 0) saved = parseCandidate(parts.join(''));
         }
-        if (complete && parts.length > 0) rawJson = parts.join('');
       }
     } catch (cErr) {}
   }
 
   // Fallback 1: Durable ScriptProperties chunks when CacheService entry was evicted
-  if (!rawJson) {
+  if (!saved) {
     try {
       const scriptProps = (typeof PropertiesService !== 'undefined' && PropertiesService && PropertiesService.getScriptProperties)
         ? PropertiesService.getScriptProperties()
@@ -281,54 +397,57 @@ function ceraLoadAnalysisBatch_(token, scope) {
         const pMetaRaw = scriptProps.getProperty(prefix + 'P_meta');
         if (pMetaRaw) {
           const pMeta = JSON.parse(pMetaRaw);
-          const pParts = [];
-          let pComplete = true;
-          for (let i = 0; i < (pMeta.chunks || 0); i++) {
-            const pPart = scriptProps.getProperty(prefix + 'P_' + i);
-            if (pPart === null || pPart === undefined) {
-              pComplete = false;
-              break;
+          if (!(minSeq > 0 && Number(pMeta.checkpointSeq) > 0 && Number(pMeta.checkpointSeq) < minSeq)) {
+            const pParts = [];
+            let pComplete = true;
+            for (let i = 0; i < (pMeta.chunks || 0); i++) {
+              const pPart = scriptProps.getProperty(prefix + 'P_' + i);
+              if (pPart === null || pPart === undefined) {
+                pComplete = false;
+                break;
+              }
+              pParts.push(pPart);
             }
-            pParts.push(pPart);
+            if (pComplete && pParts.length > 0) saved = parseCandidate(pParts.join(''));
           }
-          if (pComplete && pParts.length > 0) rawJson = pParts.join('');
         }
       }
     } catch (pErr) {}
   }
 
   // Fallback 2: Durable Drive checkpoint file
-  if (!rawJson) {
+  if (!saved) {
     try {
-      const docProps = (typeof PropertiesService !== 'undefined' && PropertiesService && PropertiesService.getDocumentProperties)
-        ? PropertiesService.getDocumentProperties()
-        : null;
-      const rawJob = docProps ? docProps.getProperty(ceraAnalysisJobPropKey_()) : '';
-      const jobMeta = rawJob ? JSON.parse(rawJob) : null;
-      if (jobMeta && jobMeta.checkpointFileId) {
+      let cpFileId = (jobMeta && (!jobMeta.batchToken || jobMeta.batchToken === token) && jobMeta.checkpointFileId)
+        ? String(jobMeta.checkpointFileId)
+        : '';
+      if (!cpFileId && histEntries.length > 0) {
+        const hMatch = histEntries.find(e => e && e.token === token && e.fileId);
+        if (hMatch) cpFileId = String(hMatch.fileId);
+      }
+      if (cpFileId) {
         if (typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.get === 'function') {
           try {
-            const resp = Drive.Files.get(jobMeta.checkpointFileId, { alt: 'media', supportsAllDrives: true });
-            if (typeof resp === 'string' && resp.trim().charAt(0) === '{') {
-              rawJson = resp;
+            const resp = Drive.Files.get(cpFileId, { alt: 'media', supportsAllDrives: true });
+            if (typeof resp === 'string') {
+              saved = parseCandidate(resp);
             } else if (resp && typeof resp.getDataAsString === 'function') {
-              const str = resp.getDataAsString();
-              if (typeof str === 'string' && str.trim().charAt(0) === '{') rawJson = str;
-            } else if (resp && typeof resp.content === 'string' && resp.content.trim().charAt(0) === '{') {
-              rawJson = resp.content;
+              saved = parseCandidate(resp.getDataAsString());
+            } else if (resp && typeof resp.content === 'string') {
+              saved = parseCandidate(resp.content);
             }
           } catch (getErr) {}
         }
-        if (!rawJson && typeof UrlFetchApp !== 'undefined' && UrlFetchApp && typeof UrlFetchApp.fetch === 'function' &&
+        if (!saved && typeof UrlFetchApp !== 'undefined' && UrlFetchApp && typeof UrlFetchApp.fetch === 'function' &&
             typeof ScriptApp !== 'undefined' && ScriptApp && typeof ScriptApp.getOAuthToken === 'function') {
           try {
             const httpResp = UrlFetchApp.fetch(
-              'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(jobMeta.checkpointFileId) + '?alt=media&supportsAllDrives=true',
+              'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(cpFileId) + '?alt=media&supportsAllDrives=true',
               { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true }
             );
             if (httpResp && typeof httpResp.getResponseCode === 'function' && httpResp.getResponseCode() === 200) {
               const txt = typeof httpResp.getContentText === 'function' ? httpResp.getContentText() : '';
-              if (typeof txt === 'string' && txt.trim().charAt(0) === '{') rawJson = txt;
+              saved = parseCandidate(txt);
             }
           } catch (httpErr) {}
         }
@@ -336,8 +455,7 @@ function ceraLoadAnalysisBatch_(token, scope) {
     } catch (dErr) {}
   }
 
-  if (!rawJson) return null;
-  const saved = JSON.parse(rawJson);
+  if (!saved) return null;
   const state = saved.state;
   if (state) {
     if (state.minDate) state.minDate = new Date(state.minDate);
@@ -407,44 +525,86 @@ function ceraTrashDriveCheckpointFile_(fileId) {
 
 function ceraClearAnalysisBatch_(token) {
   try {
-    let effectiveToken = token || '';
+    const tokensToClear = new Set();
+    if (token) tokensToClear.add(String(token));
+    const trashedIds = new Set();
+    const trashOnce = id => {
+      const cleanId = id ? String(id) : '';
+      if (!cleanId || trashedIds.has(cleanId)) return;
+      trashedIds.add(cleanId);
+      ceraTrashDriveCheckpointFile_(cleanId);
+    };
+
     const docProps = (typeof PropertiesService !== 'undefined' && PropertiesService && PropertiesService.getDocumentProperties)
       ? PropertiesService.getDocumentProperties()
       : null;
     if (docProps) {
-      const rawJob = docProps.getProperty(ceraAnalysisJobPropKey_());
-      if (rawJob) {
-        const parsed = JSON.parse(rawJob);
-        if (!token || (parsed && parsed.batchToken === token)) {
-          if (!effectiveToken && parsed && parsed.batchToken) effectiveToken = String(parsed.batchToken);
-          if (parsed && parsed.checkpointFileId) {
-            ceraTrashDriveCheckpointFile_(parsed.checkpointFileId);
+      try {
+        const rawJob = docProps.getProperty(ceraAnalysisJobPropKey_());
+        if (rawJob) {
+          const parsed = JSON.parse(rawJob);
+          if (!token || (parsed && parsed.batchToken === token)) {
+            if (parsed && parsed.batchToken) tokensToClear.add(String(parsed.batchToken));
+            if (parsed && parsed.checkpointFileId) trashOnce(parsed.checkpointFileId);
+            docProps.deleteProperty(ceraAnalysisJobPropKey_());
           }
-          docProps.deleteProperty(ceraAnalysisJobPropKey_());
         }
-      }
+      } catch (jobCleanErr) {}
+
+      try {
+        const rawHist = docProps.getProperty(ceraAnalysisCpHistoryPropKey_());
+        if (rawHist) {
+          const parsedHist = JSON.parse(rawHist);
+          const entries = (parsedHist && Array.isArray(parsedHist.entries)) ? parsedHist.entries : [];
+          const kept = [];
+          for (let i = 0; i < entries.length; i++) {
+            const ent = entries[i];
+            if (!ent) continue;
+            if (!token || ent.token === token) {
+              if (ent.token) tokensToClear.add(String(ent.token));
+              if (ent.fileId) trashOnce(ent.fileId);
+            } else {
+              kept.push(ent);
+            }
+          }
+          if (kept.length > 0) {
+            docProps.setProperty(ceraAnalysisCpHistoryPropKey_(), JSON.stringify({ entries: kept }));
+          } else {
+            docProps.deleteProperty(ceraAnalysisCpHistoryPropKey_());
+          }
+        }
+      } catch (histCleanErr) {}
     }
+
     const cache = ceraAnalysisBatchCache_();
-    const prefix = 'CERA_ANALYSIS_BATCH_' + effectiveToken + '_';
-    if (cache && effectiveToken) {
-      const metaRaw = cache.get(prefix + 'meta');
-      if (metaRaw) {
-        const meta = JSON.parse(metaRaw);
-        for (let i = 0; i < (meta.chunks || 0); i++) cache.remove(prefix + i);
+    const scriptProps = (typeof PropertiesService !== 'undefined' && PropertiesService && PropertiesService.getScriptProperties)
+      ? PropertiesService.getScriptProperties()
+      : null;
+
+    tokensToClear.forEach(tok => {
+      if (!tok) return;
+      const prefix = 'CERA_ANALYSIS_BATCH_' + tok + '_';
+      if (cache) {
+        try {
+          const metaRaw = cache.get(prefix + 'meta');
+          if (metaRaw) {
+            const meta = JSON.parse(metaRaw);
+            for (let i = 0; i < (meta.chunks || 0); i++) cache.remove(prefix + i);
+          }
+          cache.remove(prefix + 'meta');
+        } catch (cRemErr) {}
       }
-      cache.remove(prefix + 'meta');
-    }
-    if (typeof PropertiesService !== 'undefined' && PropertiesService && effectiveToken) {
-      const scriptProps = PropertiesService.getScriptProperties && PropertiesService.getScriptProperties();
       if (scriptProps) {
-        const pMetaRaw = scriptProps.getProperty(prefix + 'P_meta');
-        if (pMetaRaw) {
-          const pMeta = JSON.parse(pMetaRaw);
-          for (let i = 0; i < (pMeta.chunks || 0); i++) scriptProps.deleteProperty(prefix + 'P_' + i);
-        }
-        scriptProps.deleteProperty(prefix + 'P_meta');
+        try {
+          const pMetaRaw = scriptProps.getProperty(prefix + 'P_meta');
+          if (pMetaRaw) {
+            const pMeta = JSON.parse(pMetaRaw);
+            for (let i = 0; i < (pMeta.chunks || 0); i++) scriptProps.deleteProperty(prefix + 'P_' + i);
+          }
+          scriptProps.deleteProperty(prefix + 'P_meta');
+        } catch (pRemErr) {}
       }
-    }
+    });
   } catch (e) {}
 }
 
@@ -877,22 +1037,30 @@ function executeDlpAnalysis(params) {
     const batchToken = params.batchToken ? String(params.batchToken) : (params.jobId ? String(params.jobId) : '');
 
     // Generation guard: reject stale continuation batch tokens superseded by a newer analysis run
+    const hasExplicitGen = params.generation !== undefined && params.generation !== null && params.generation !== '';
     let activeGeneration = Number(params.generation) || 1;
+    let storedLastGen = 0;
     try {
       const docProps = (typeof PropertiesService !== 'undefined' && PropertiesService && PropertiesService.getDocumentProperties)
         ? PropertiesService.getDocumentProperties()
         : null;
       if (docProps) {
+        const lastGen = Number(docProps.getProperty('CERA_ANALYSIS_LAST_GEN')) || 0;
+        storedLastGen = lastGen;
         const rawJob = docProps.getProperty(ceraAnalysisJobPropKey_());
-        if (rawJob) {
-          const existingJob = JSON.parse(rawJob);
-          if (batchToken && existingJob && existingJob.batchToken && existingJob.batchToken !== batchToken &&
-              Number(existingJob.generation) > activeGeneration) {
+        const existingJob = rawJob ? JSON.parse(rawJob) : null;
+        if (batchToken) {
+          if ((existingJob && existingJob.batchToken && existingJob.batchToken !== batchToken) ||
+              (hasExplicitGen && lastGen > activeGeneration && (!existingJob || existingJob.batchToken !== batchToken))) {
             throw new Error('Stale analysis batch token superseded by a newer run.');
           }
-          if (!batchToken && existingJob && Number(existingJob.generation) >= activeGeneration) {
-            activeGeneration = Number(existingJob.generation) + 1;
+        } else {
+          const prevGen = Math.max(lastGen, existingJob ? (Number(existingJob.generation) || 0) : 0);
+          if (prevGen >= activeGeneration) {
+            activeGeneration = prevGen + 1;
           }
+          ceraClearAnalysisBatch_('');
+          docProps.setProperty('CERA_ANALYSIS_LAST_GEN', String(activeGeneration));
         }
       }
     } catch (genErr) {
@@ -902,6 +1070,9 @@ function executeDlpAnalysis(params) {
     const resumed = batchToken ? ceraLoadAnalysisBatch_(batchToken, scope) : null;
     if (batchToken && !resumed) {
       throw new Error('Analysis batch checkpoint expired or could not be loaded for token: ' + batchToken);
+    }
+    if (batchToken && resumed && storedLastGen > (Number(resumed.generation) || 1)) {
+      throw new Error('Stale analysis batch token superseded by a newer run.');
     }
 
     const resolvedTz = typeof ceraSetReportTimeZone_ === 'function'
@@ -915,6 +1086,7 @@ function executeDlpAnalysis(params) {
     let queue;
     let nextIndex = 0;
     let rowCursor = 0;
+    let isSingleSheet = Boolean(resumed && resumed.isSingleSheet);
     let targetPresentationId = params.targetPresentationId || (resumed && resumed.targetPresentationId) || '';
     const targetInput = ((params && params.driveFolderInput) || (resumed && resumed.folderId) || '').trim();
     const targetId = extractFolderId(targetInput);
@@ -955,8 +1127,7 @@ function executeDlpAnalysis(params) {
       updateProgress(ceraT('prog.resolving', null, lang), '', 0, 1, errors);
 
       // Auto-detect whether target is a single Google Sheet or a Drive Folder
-      let isSingleSheet = false;
-      if (targetInput.includes('/spreadsheets/d/')) {
+      if (targetInput.includes('/spreadsheets/d/') || targetInput.includes('/file/d/')) {
         isSingleSheet = true;
       }
 
@@ -966,7 +1137,7 @@ function executeDlpAnalysis(params) {
       let targetErr = null;
       try {
         target = Drive.Files.get(targetId, { fields: 'id,name,mimeType', supportsAllDrives: true });
-        if (target.mimeType === MimeType.GOOGLE_SHEETS) {
+        if (target.mimeType === MimeType.GOOGLE_SHEETS || target.mimeType === 'application/vnd.google-apps.spreadsheet') {
           isSingleSheet = true;
         }
       } catch (e) {
@@ -1009,6 +1180,7 @@ function executeDlpAnalysis(params) {
         // Fallback: Drive cannot read the ID, so attempt opening it as a direct sheet
         try {
           const fallbackSs = SpreadsheetApp.openById(targetId);
+          isSingleSheet = true;
           queue.push({ isLocal: false, name: fallbackSs.getName(), id: targetId });
         } catch (fallbackErr) {
           errors.push(`Drive Access Error: ${targetErr.message}`);
@@ -1051,6 +1223,7 @@ function executeDlpAnalysis(params) {
           generation: activeGeneration,
           hostSpreadsheetId: currentSsId,
           folderId: targetId,
+          isSingleSheet: !!isSingleSheet,
           targetPresentationId: targetPresentationId,
           phase: 'ingest',
           queue: queue,
@@ -1126,6 +1299,7 @@ function executeDlpAnalysis(params) {
                 generation: activeGeneration,
                 hostSpreadsheetId: currentSsId,
                 folderId: targetId,
+                isSingleSheet: !!isSingleSheet,
                 targetPresentationId: targetPresentationId,
                 phase: 'ingest',
                 queue: queue,
@@ -1254,6 +1428,7 @@ function executeDlpAnalysis(params) {
                 generation: activeGeneration,
                 hostSpreadsheetId: currentSsId,
                 folderId: targetId,
+                isSingleSheet: !!isSingleSheet,
                 targetPresentationId: targetPresentationId,
                 phase: 'ingest',
                 queue: queue,
@@ -1345,8 +1520,11 @@ function executeDlpAnalysis(params) {
                   if (tMs > fMax) fMax = tMs;
                 }
               }
+              const prevRange = dedupeStore.fileRanges[q];
+              if (prevRange && isFinite(prevRange.minT) && prevRange.minT < fMin) fMin = prevRange.minT;
+              if (prevRange && isFinite(prevRange.maxT) && prevRange.maxT > fMax) fMax = prevRange.maxT;
               dedupeStore.fileRanges[q] = { minT: fMin, maxT: fMax, isPartition: isCeraPartition };
-            } else {
+            } else if (!dedupeStore.fileRanges[q]) {
               dedupeStore.fileRanges[q] = { minT: Infinity, maxT: -Infinity, isPartition: isCeraPartition };
             }
             ceraIndexFileRanges_(dedupeStore.fileRanges);
@@ -1360,6 +1538,7 @@ function executeDlpAnalysis(params) {
                 ceraNotifySheetStart_(state, dedupeStore.fileRanges[q]);
               }
             }
+            const fileRangeQ = dedupeStore.fileRanges[q];
             const endRow = MAX_ROWS_PER_BATCH_SLICE > 0 ? Math.min(data.length, startRow + MAX_ROWS_PER_BATCH_SLICE) : data.length;
             for (let i = startRow; i < endRow; i++) {
               const row = data[i];
@@ -1370,6 +1549,10 @@ function executeDlpAnalysis(params) {
               }
               coverage.rowsRead++;
               processRowStream(row, col, corpDomains, authorizedGenAi, sanctionedProd, webMessaging, state);
+              if (fileRangeQ && state._lastTsMs !== undefined && !isNaN(state._lastTsMs)) {
+                if (state._lastTsMs < fileRangeQ.minT) fileRangeQ.minT = state._lastTsMs;
+                if (state._lastTsMs > fileRangeQ.maxT) fileRangeQ.maxT = state._lastTsMs;
+              }
             }
 
             if (endRow < data.length && allowContinuation) {
@@ -1380,6 +1563,7 @@ function executeDlpAnalysis(params) {
                 generation: activeGeneration,
                 hostSpreadsheetId: currentSsId,
                 folderId: targetId,
+                isSingleSheet: !!isSingleSheet,
                 targetPresentationId: targetPresentationId,
                 phase: 'ingest',
                 queue: queue,
@@ -1405,6 +1589,7 @@ function executeDlpAnalysis(params) {
               };
             }
 
+            ceraIndexFileRanges_(dedupeStore.fileRanges);
             rowCursor = 0;
             sheetsProcessedCount++;
             // V8 Heap Memory Management: Free 2D array immediately
@@ -1424,7 +1609,7 @@ function executeDlpAnalysis(params) {
 
     // Fail closed if any partition sheet remained unreadable after retries (unless allowSkipUnreadable is set)
     if (unreadableSheets.length > 0 && !params.allowSkipUnreadable && sheetsProcessedCount > 0) {
-      if (batchToken) ceraClearAnalysisBatch_(batchToken);
+      ceraClearAnalysisBatch_(batchToken);
       const unreadErr = new Error(errors.join(' '));
       unreadErr.unreadableSheets = unreadableSheets;
       throw unreadErr;
@@ -1436,7 +1621,7 @@ function executeDlpAnalysis(params) {
     coverage.sheetsRead = sheetsProcessedCount;
 
     if (sheetsProcessedCount === 0) {
-      if (batchToken) ceraClearAnalysisBatch_(batchToken);
+      ceraClearAnalysisBatch_(batchToken);
       const detail = errors.length > 0 ? errors.join(' ') : ceraUnrecognizedSheetMessage_(queue[0] ? queue[0].name : 'Sheet1', [], lang);
       throw new Error(detail);
     }
@@ -1450,6 +1635,7 @@ function executeDlpAnalysis(params) {
         generation: activeGeneration,
         hostSpreadsheetId: currentSsId,
         folderId: targetId,
+        isSingleSheet: !!isSingleSheet,
         targetPresentationId: targetPresentationId,
         phase: 'render',
         queue: queue,
@@ -1507,6 +1693,7 @@ function executeDlpAnalysis(params) {
           generation: activeGeneration,
           hostSpreadsheetId: currentSsId,
           folderId: targetId,
+          isSingleSheet: !!isSingleSheet,
           targetPresentationId: targetPresentationId,
           phase: 'render_slides',
           queue: queue,
@@ -1590,7 +1777,12 @@ function executeDlpAnalysis(params) {
 
     try {
       if (typeof ceraRecordDiagAnalysisSummary_ === 'function') {
-        const diagFolderId = extractFolderId(((params && params.driveFolderInput) || (resumed && resumed.folderId) || '').trim());
+        const rawDiagSource = ((params && params.driveFolderInput) || (resumed && resumed.folderId) || '').trim();
+        const candidateDiagId = (!isSingleSheet && !/\/(spreadsheets|file)\/d\//i.test(rawDiagSource))
+          ? extractFolderId(rawDiagSource)
+          : '';
+        const isQueuedSheetId = Boolean(candidateDiagId && Array.isArray(queue) && queue.some(qItem => qItem && String(qItem.id) === String(candidateDiagId)));
+        const diagFolderId = (!isQueuedSheetId && candidateDiagId) ? candidateDiagId : '';
         if (diagFolderId) {
           ceraRecordDiagAnalysisSummary_(diagFolderId, {
             sheetsTotal: coverage.sheetsTotal,
@@ -1964,20 +2156,18 @@ function ceraNormalizeRow_(row, col, corpDomains, state) {
       if (!isNaN(ms)) {
         offsetMin = parsedTs.offsetMin;
         day = ceraLocalDayKey(ms, offsetMin);
-        if (typeof rawDate === 'string') {
-          if (!Object.prototype.hasOwnProperty.call(state, '_lastTsStr')) {
-            Object.defineProperty(state, '_lastTsStr', { value: '', enumerable: false, writable: true });
-            Object.defineProperty(state, '_lastTsOrder', { value: '', enumerable: false, writable: true });
-            Object.defineProperty(state, '_lastTsMs', { value: NaN, enumerable: false, writable: true });
-            Object.defineProperty(state, '_lastTsOffset', { value: null, enumerable: false, writable: true });
-            Object.defineProperty(state, '_lastTsDay', { value: '', enumerable: false, writable: true });
-          }
-          state._lastTsStr = rawDate;
-          state._lastTsOrder = dateOrder;
-          state._lastTsMs = ms;
-          state._lastTsOffset = offsetMin;
-          state._lastTsDay = day;
+        if (!Object.prototype.hasOwnProperty.call(state, '_lastTsStr')) {
+          Object.defineProperty(state, '_lastTsStr', { value: '', enumerable: false, writable: true });
+          Object.defineProperty(state, '_lastTsOrder', { value: '', enumerable: false, writable: true });
+          Object.defineProperty(state, '_lastTsMs', { value: NaN, enumerable: false, writable: true });
+          Object.defineProperty(state, '_lastTsOffset', { value: null, enumerable: false, writable: true });
+          Object.defineProperty(state, '_lastTsDay', { value: '', enumerable: false, writable: true });
         }
+        state._lastTsStr = typeof rawDate === 'string' ? rawDate : '';
+        state._lastTsOrder = dateOrder;
+        state._lastTsMs = ms;
+        state._lastTsOffset = offsetMin;
+        state._lastTsDay = day;
       }
     }
     if (!isNaN(ms)) {
@@ -2149,7 +2339,7 @@ function processRowStream(row, col, corpDomains, authorizedGenAi, sanctionedProd
 function ceraClassifyDestination_(rawUrl, rawTabUrl, account, userIdent, rawCategory, corpDomains, state) {
   const urlHost = extractHost(rawUrl);
   const tabHost = extractHost(rawTabUrl);
-  const isFile = (/^file:\/\//i.test(rawUrl) || /^file:\/\//i.test(rawTabUrl)) ? '1' : '0';
+  const isFile = /^file:\/\//i.test(rawUrl) ? '2' : (/^file:\/\//i.test(rawTabUrl) ? '1' : '0');
   const baseKey = urlHost + '|' + tabHost + '|' + (rawCategory || '') + '|' + isFile;
   if (state && !state._destCache) {
     Object.defineProperty(state, '_destCache', { value: Object.create(null), enumerable: false, writable: true });
@@ -2358,7 +2548,7 @@ function ceraAggregateAction_(a, scope, state) {
 
   // 5. Personal Account Ingress Detection: an action made with a consumer mailbox (gmail.com, outlook.com, ...) or with
   // an account of another organization (neither corporate nor a listed partner) is a personal-account action
-  const account = a.account;
+  const account = String(a.account || '').trim().toLowerCase();
   const accountDomain = account.includes('@') ? account.split('@').pop() : '';
   if (!state._accountClassCache) {
     Object.defineProperty(state, '_accountClassCache', { value: Object.create(null), enumerable: false, writable: true });
@@ -2408,7 +2598,12 @@ function ceraAggregateAction_(a, scope, state) {
 
   // 7. Mutex Primary Vector Classification Hierarchy (exact-or-suffix domain matching throughout)
   const isGoogleOrGmail = domScope.isGoogleOrGmail;
-  const isMessaging = !isGoogleOrGmail && (domScope.isMessagingDomain || (catLower.includes('messaging') && !catLower.includes('email') && !catLower.includes('mail')));
+  const isInternalDestination = domScope.isInternalDestination;
+  // Neither the URL nor the tab URL named a host (blank, blob:null, chrome-extension:// ...)
+  const isUnknownDestination = domain === (CeraConfig.UNKNOWN_DESTINATION || 'Unknown destination');
+  const isMessagingCategory = catLower.includes('messaging') && !catLower.includes('email') && !catLower.includes('mail');
+  const isMessaging = !isGoogleOrGmail && !isInternalCorpDomain && !isInternalDestination && !isUnknownDestination &&
+    (domScope.isMessagingDomain || (!domScope.isSanctionedDomain && !domScope.isAuthorizedGenAi && isMessagingCategory));
 
   let isSanctionedGoogle = false;
   if (isGoogleOrGmail) {
@@ -2422,10 +2617,6 @@ function ceraAggregateAction_(a, scope, state) {
   }
   const isSanctioned = isSanctionedGoogle || isInternalCorpDomain || domScope.isSanctionedDomain;
   const isShadowAi = isGenAiCategory && !isAuthorizedGenAi;
-
-  const isInternalDestination = domScope.isInternalDestination;
-  // Neither the URL nor the tab URL named a host (blank, blob:null, chrome-extension:// ...)
-  const isUnknownDestination = domain === (CeraConfig.UNKNOWN_DESTINATION || 'Unknown destination');
   let assignedVector = null;
   if (isPrint) {
     // A print job is in no channel
@@ -2461,7 +2652,7 @@ function ceraAggregateAction_(a, scope, state) {
   }
 
   // Sanctioned corporate, Google Workspace (corporate sign-in) and authorized GenAI transfers: outside the risk vectors
-  if (!isPrint && !assignedVector && !isInternalDestination && !isUnknownDestination) {
+  if (!isPrint && action !== 'other' && !assignedVector && !isInternalDestination && !isUnknownDestination) {
     if (!state.sanctionedTransfers) state.sanctionedTransfers = { count: 0, bytes: 0, egressCount: 0, egressBytes: 0 };
     const st = state.sanctionedTransfers;
     st.count++;

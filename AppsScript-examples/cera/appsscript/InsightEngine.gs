@@ -158,8 +158,10 @@ var InsightEngine = {
     }).filter(x => validOuName_(x.name)).sort((a, b) => b.size - a.size || b.count - a.count);
     const ai = (st.genAiBenchmark) || { sanctioned: { bytes: 0, count: 0 }, shadow: { bytes: 0, count: 0 } };
     // Sanctioned tools used from personal accounts: counted in the AI total, but neither sanctioned nor other tools
-    const aiPersonalCount = Number(ai.personalSanctioned && ai.personalSanctioned.count) || 0;
-    const aiTotal = (Number(ai.sanctioned && ai.sanctioned.count) || 0) + (Number(ai.shadow && ai.shadow.count) || 0) + aiPersonalCount;
+    const aiSanctionedCount = Math.max(0, Number(ai.sanctioned && ai.sanctioned.count) || 0);
+    const aiShadowCount = Math.max(0, Number(ai.shadow && ai.shadow.count) || 0);
+    const aiPersonalCount = Math.max(0, Number(ai.personalSanctioned && ai.personalSanctioned.count) || 0);
+    const aiTotal = aiSanctionedCount + aiShadowCount + aiPersonalCount;
     const radar = st.securityRadar || {};
     const unsafe = radar.unsafeSiteVisit || { total: 0, domains: {} };
     const unsafeInternal = Object.keys(unsafe.domains || {}).filter(d => isInternalHost(d)).reduce((s, d) => s + (unsafe.domains[d] || 0), 0);
@@ -200,8 +202,8 @@ var InsightEngine = {
       topPersonShare: users.length ? pct(users[0], byCount ? outboundCount : outboundBytes) : 0,
       topOu: ous[0] || null,
       ouCount: ous.length,
-      aiShadowCount: Number(ai.shadow && ai.shadow.count) || 0,
-      aiSanctionedCount: Number(ai.sanctioned && ai.sanctioned.count) || 0,
+      aiShadowCount: aiShadowCount,
+      aiSanctionedCount: aiSanctionedCount,
       aiPersonalCount: aiPersonalCount,
       aiTotal: aiTotal,
       // Busiest outbound day against the mean active day, and whether it qualifies as a peak (ceraPeakStats)

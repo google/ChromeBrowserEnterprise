@@ -610,7 +610,7 @@ function cleanAndNormalizeDomain(rawUrl, webAppAccount, corpDomains, rawTabUrl) 
   const tabTarget = isBlankDestination(rawTabUrl) ? '' : String(rawTabUrl).trim().replace(/^blob:/i, '');
   if (!target && !tabTarget) return UNKNOWN;
 
-  if (/^file:\/\//i.test(target) || /^file:\/\//i.test(tabTarget)) {
+  if (/^file:\/\//i.test(target)) {
     return 'Local File / PDF';
   }
 
@@ -619,6 +619,7 @@ function cleanAndNormalizeDomain(rawUrl, webAppAccount, corpDomains, rawTabUrl) 
   let host = extractHost(target);
   let usingTab = false;
   if (!host) {
+    if (/^file:\/\//i.test(tabTarget)) return 'Local File / PDF';
     host = tabHost;
     usingTab = true;
   }
@@ -883,21 +884,40 @@ var CERA_PSEUDO_TAB_HOSTS_ = {
   'about': true,
   'blob': true,
   'data': true,
+  'file': true,
+  'view-source': true,
   'chrome-extension': true,
   'chrome': true,
   'chrome-untrusted': true,
+  'chrome-search': true,
+  'chrome-error': true,
+  'chrome-native': true,
   'devtools': true,
   'javascript': true,
+  'filesystem': true,
+  'isolated-app': true,
+  'moz-extension': true,
+  'safari-extension': true,
+  'safari-web-extension': true,
+  'edge': true,
+  'brave': true,
+  'vivaldi': true,
+  'opera': true,
+  'mailto': true,
+  'tel': true,
+  'urn': true,
+  'local file': true,
+  'local file / pdf': true,
   'direct browser protocol': true
 };
 
 function ceraIsPseudoTabHost_(raw) {
   const s = String(raw === null || raw === undefined ? '' : raw).trim().toLowerCase();
-  if (!s || isBlankDestination(s) || CERA_PSEUDO_TAB_HOSTS_[s]) return true;
-  const scheme = s.match(/^([a-z][a-z0-9+.-]*):/);
-  if (scheme && scheme[1] !== 'http' && scheme[1] !== 'https' && CERA_PSEUDO_TAB_HOSTS_[scheme[1]]) return true;
+  if (!s || isBlankDestination(s) || CERA_PSEUDO_TAB_HOSTS_[s] || s.indexOf('local file') === 0) return true;
+  const scheme = s.match(/^([a-z][a-z0-9+.-]*):(?!\d+(?:\/|$))/);
+  if (scheme && scheme[1] !== 'http' && scheme[1] !== 'https') return true;
   const dom = extractMainDomain(s);
-  return !dom || isBlankDestination(dom) || !!CERA_PSEUDO_TAB_HOSTS_[dom];
+  return !dom || isBlankDestination(dom) || !!CERA_PSEUDO_TAB_HOSTS_[dom] || dom.indexOf('local file') === 0 || /\s/.test(dom);
 }
 
 /**
@@ -907,12 +927,20 @@ function formatUnspecifiedCategoryLabel(unspecifiedTabDomains) {
   if (!unspecifiedTabDomains || Object.keys(unspecifiedTabDomains).length === 0) {
     return 'Unspecified';
   }
-  const sorted = Object.entries(unspecifiedTabDomains)
-    .filter(entry => !ceraIsPseudoTabHost_(entry[0]) && Number(entry[1]) > 0)
-    .sort((a, b) => b[1] - a[1]);
+  const apexCounts = Object.create(null);
+  const entries = Object.entries(unspecifiedTabDomains);
+  for (let i = 0; i < entries.length; i++) {
+    const rawHost = entries[i][0];
+    const cnt = Number(entries[i][1]);
+    if (!(cnt > 0) || ceraIsPseudoTabHost_(rawHost)) continue;
+    const apex = extractMainDomain(rawHost);
+    if (!apex || ceraIsPseudoTabHost_(apex)) continue;
+    apexCounts[apex] = (apexCounts[apex] || 0) + cnt;
+  }
+  const sorted = Object.entries(apexCounts)
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   if (sorted.length === 0) return 'Unspecified';
-  const topDomain = extractMainDomain(sorted[0][0]);
-  return topDomain ? 'Unspecified (' + topDomain + ')' : 'Unspecified';
+  return 'Unspecified (' + sorted[0][0] + ')';
 }
 
 /**
@@ -959,6 +987,7 @@ function cleanMimeType(contentType, contentName) {
 
   // 7. Binary Executables & Installers
   if (type.includes('executable') || type.includes('x-msdownload') || type.includes('x-msdos-program') ||
+      type.includes('x-dosexec') || type.includes('x-msi') || type.includes('x-apple-diskimage') ||
       type.includes('octet-stream') && (name.endsWith('.exe') || name.endsWith('.dmg') || name.endsWith('.pkg') || name.endsWith('.msi')) ||
       name.endsWith('.exe') || name.endsWith('.msi') || name.endsWith('.dmg') || name.endsWith('.pkg') || name.endsWith('.deb') || name.endsWith('.rpm')) {
     return 'Executable / Binary Payload';

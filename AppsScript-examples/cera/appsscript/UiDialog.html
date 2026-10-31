@@ -3042,6 +3042,7 @@
               }
               const nextPayload = Object.assign({}, payload, { batchToken: res.batchToken });
               if (res.jobId) nextPayload.jobId = res.jobId;
+              if (res.generation) nextPayload.generation = res.generation;
               if (res.targetPresentationId) nextPayload.targetPresentationId = res.targetPresentationId;
               if (res.phase) nextPayload.phase = res.phase;
               runAnalysisBatch(nextPayload);
