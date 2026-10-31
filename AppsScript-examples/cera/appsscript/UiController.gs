@@ -472,6 +472,11 @@ function ceraVerifyWorkbookLicense_(ss, docProps, opts) {
       stampRaw = String(props.getProperty('CERA_LICENSE_STAMP') || '');
     } catch (e) {}
   }
+  if (!boundSheetId && props && typeof props.getProperty === 'function') {
+    try {
+      boundSheetId = String(props.getProperty('CERA_BOUND_SHEET_ID') || '');
+    } catch (e) {}
+  }
 
   // Unstamped bypass: preserve 100% compatibility for unstamped workbooks and existing tests
   if (!stampRaw && !boundSheetId) {
@@ -577,6 +582,14 @@ function ceraVerifyWorkbookLicense_(ss, docProps, opts) {
       ''
     ).trim().toLowerCase();
   } catch (e) {}
+  if (!callerEmail && typeof Drive !== 'undefined' && Drive.About && typeof Drive.About.get === 'function') {
+    try {
+      const about = Drive.About.get({ fields: 'user(emailAddress)' });
+      if (about && about.user && about.user.emailAddress) {
+        callerEmail = String(about.user.emailAddress).trim().toLowerCase();
+      }
+    } catch (aboutErr) {}
+  }
 
   const callerHash = callerEmail ? ceraComputeLicenseEmailHash_(callerEmail) : '';
   if (!callerEmail || callerHash !== payload.emailHash) {
@@ -684,7 +697,7 @@ function ceraVerifyWorkbookLicense_(ss, docProps, opts) {
           const files = (listRes && Array.isArray(listRes.files)) ? listRes.files : [];
           for (let fIdx = 0; fIdx < files.length; fIdx++) {
             const f = files[fIdx];
-            if (!f || !f.id || f.id === activeSheetId || f.id === String(payload.dispenserId)) continue;
+            if (!f || !f.id || f.id === activeSheetId || f.id === String(payload.dispenserId) || CERA_MASTER_TEMPLATE_IDS_.indexOf(f.id) !== -1) continue;
             const otherCreatedMs = f.createdTime ? Date.parse(String(f.createdTime)) : NaN;
             if (
               Number.isFinite(otherCreatedMs) &&
