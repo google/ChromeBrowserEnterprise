@@ -1013,10 +1013,50 @@ function executeDlpAnalysis(params) {
   try {
     const lang = ceraNormalizeLang_(params.lang || ceraGetLanguage());
     const currentSs = SpreadsheetApp.getActiveSpreadsheet();
-    if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
-      ceraAssertWorkbookAuthorized_(currentSs);
+    const currentSsId = (currentSs && typeof currentSs.getId === 'function' && currentSs.getId())
+      ? String(currentSs.getId())
+      : '';
+    const allowContinuation = !!params.allowContinuation;
+    const batchToken = params.batchToken ? String(params.batchToken).trim() : (params.jobId ? String(params.jobId).trim() : '');
+
+    let authGate = null;
+    if (!batchToken && typeof ceraAssertWorkbookSingleUseAvailable_ === 'function') {
+      authGate = ceraAssertWorkbookSingleUseAvailable_(currentSs);
+    } else if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+      authGate = ceraAssertWorkbookAuthorized_(currentSs);
+    } else if (typeof ceraVerifyWorkbookLicense_ === 'function') {
+      authGate = ceraVerifyWorkbookLicense_(currentSs);
     }
-    const currentSsId = currentSs.getId();
+
+    const gateInfo = authGate || (typeof ceraVerifyWorkbookLicense_ === 'function' ? ceraVerifyWorkbookLicense_(currentSs) : null);
+    const throwSingleUseConsumed_ = () => {
+      if (typeof ceraAssertWorkbookSingleUseAvailable_ === 'function') {
+        ceraAssertWorkbookSingleUseAvailable_(currentSs);
+      }
+      let suMsg = '';
+      if (typeof CERA_I18N_MESSAGES !== 'undefined' && CERA_I18N_MESSAGES && CERA_I18N_MESSAGES.en && CERA_I18N_MESSAGES.en['license.err.alreadyUsed']) {
+        suMsg = ceraT('license.err.alreadyUsed', { ref: (gateInfo && gateInfo.refCode) || 'CERA' }, lang);
+      } else {
+        suMsg = 'REPORT_ALREADY_USED: This single-use CERA workbook' +
+          (gateInfo && gateInfo.refCode ? ' (' + gateInfo.refCode + ')' : '') +
+          ' has already completed its authorized report execution. Please request a fresh official copy at https://cera.tools.';
+      }
+      const suErr = new Error(suMsg);
+      suErr.code = 'REPORT_ALREADY_USED';
+      suErr.reason = 'REPORT_ALREADY_USED';
+      throw suErr;
+    };
+
+    // Defense-in-depth server-side strict single-use lock on new analysis runs
+    if (!batchToken && gateInfo && gateInfo.strictSingleUse && currentSsId) {
+      const suProps = (typeof PropertiesService !== 'undefined' && PropertiesService && PropertiesService.getDocumentProperties)
+        ? PropertiesService.getDocumentProperties()
+        : null;
+      const repUsedSheetId = suProps ? String(suProps.getProperty('CERA_REPORT_USED_SHEET_ID') || '') : '';
+      if (repUsedSheetId && repUsedSheetId === currentSsId) {
+        throwSingleUseConsumed_();
+      }
+    }
 
     const corpDomains = parseDomains(params.corpDomains);
     const authorizedGenAi = parseDomains(params.authorizedGenAi);
@@ -1036,8 +1076,6 @@ function executeDlpAnalysis(params) {
     }
 
     const scope = { corpDomains: corpDomains, authorizedGenAi: authorizedGenAi, sanctionedProd: sanctionedProd, webMessaging: webMessaging };
-    const allowContinuation = !!params.allowContinuation;
-    const batchToken = params.batchToken ? String(params.batchToken) : (params.jobId ? String(params.jobId) : '');
 
     // Generation guard: reject stale continuation batch tokens superseded by a newer analysis run
     const hasExplicitGen = params.generation !== undefined && params.generation !== null && params.generation !== '';
@@ -1053,6 +1091,11 @@ function executeDlpAnalysis(params) {
         const rawJob = docProps.getProperty(ceraAnalysisJobPropKey_());
         const existingJob = rawJob ? JSON.parse(rawJob) : null;
         if (batchToken) {
+          const repUsedSheetId = currentSsId ? String(docProps.getProperty('CERA_REPORT_USED_SHEET_ID') || '') : '';
+          if (gateInfo && gateInfo.strictSingleUse && currentSsId && repUsedSheetId === currentSsId &&
+              (!existingJob || existingJob.batchToken !== batchToken)) {
+            throwSingleUseConsumed_();
+          }
           if ((existingJob && existingJob.batchToken && existingJob.batchToken !== batchToken) ||
               (hasExplicitGen && lastGen > activeGeneration && (!existingJob || existingJob.batchToken !== batchToken))) {
             throw new Error('Stale analysis batch token superseded by a newer run.');
@@ -1067,12 +1110,15 @@ function executeDlpAnalysis(params) {
         }
       }
     } catch (genErr) {
-      if (genErr && /Stale analysis batch token/.test(genErr.message)) throw genErr;
+      if (genErr && (genErr.code === 'REPORT_ALREADY_USED' || /REPORT_ALREADY_USED|Stale analysis batch token/.test(genErr.message))) throw genErr;
     }
 
     const resumed = batchToken ? ceraLoadAnalysisBatch_(batchToken, scope) : null;
     if (batchToken && !resumed) {
       throw new Error('Analysis batch checkpoint expired or could not be loaded for token: ' + batchToken);
+    }
+    if (batchToken && resumed && resumed.hostSpreadsheetId && currentSsId && String(resumed.hostSpreadsheetId) !== currentSsId) {
+      throw new Error('Analysis batch checkpoint belongs to a different spreadsheet.');
     }
     if (batchToken && resumed && storedLastGen > (Number(resumed.generation) || 1)) {
       throw new Error('Stale analysis batch token superseded by a newer run.');

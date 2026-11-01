@@ -247,8 +247,32 @@ function ceraEnsureRootFolder_(forceCreateNew) {
  * Optionally runs Batch #1 inline when runFirstBatchInline is true, and schedules subsequent batches in Google Apps Script background.
  */
 function engageCloudIngestion(dateRangeDays, runFirstBatchInline) {
+  let licenseGate = null;
   if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
-    ceraAssertWorkbookAuthorized_();
+    licenseGate = ceraAssertWorkbookAuthorized_();
+  }
+  if (typeof ceraAssertWorkbookSingleUseAvailable_ === 'function') {
+    licenseGate = ceraAssertWorkbookSingleUseAvailable_() || licenseGate;
+  } else if (!licenseGate && typeof ceraVerifyWorkbookLicense_ === 'function') {
+    licenseGate = ceraVerifyWorkbookLicense_();
+  }
+  if (licenseGate && licenseGate.strictSingleUse) {
+    let activeSsId = '';
+    let repUsedId = '';
+    try {
+      const currentSs = SpreadsheetApp.getActiveSpreadsheet();
+      activeSsId = (currentSs && typeof currentSs.getId === 'function' && currentSs.getId()) ? String(currentSs.getId()) : '';
+      const currentProps = PropertiesService.getDocumentProperties();
+      repUsedId = currentProps ? String(currentProps.getProperty('CERA_REPORT_USED_SHEET_ID') || '') : '';
+    } catch (suCheckErr) {}
+    if (activeSsId && repUsedId === activeSsId) {
+      const suErr = new Error(
+        (typeof ceraT === 'function' ? ceraT('license.err.alreadyUsed', { ref: licenseGate.refCode || 'CERA' }) : '') ||
+        ('REPORT_ALREADY_USED: Single-use workbook (' + (licenseGate.refCode || 'CERA') + ') has already completed its authorized analysis.')
+      );
+      suErr.code = 'REPORT_ALREADY_USED';
+      throw suErr;
+    }
   }
   const daysFilter = ceraRangeDays_(dateRangeDays);
   const nowMs = Date.now();
@@ -418,6 +442,9 @@ function engageCloudIngestion(dateRangeDays, runFirstBatchInline) {
  * Pauses active cloud ingestion and self-cleans background triggers
  */
 function pauseCloudIngestion() {
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    ceraAssertWorkbookAuthorized_();
+  }
   cleanupAllIngestionTriggers('USER_PAUSED');
 
   let state = getProgressUpdate();
@@ -437,6 +464,9 @@ function pauseCloudIngestion() {
  * extracted so far, allowing the user to proceed directly to CERA analysis without waiting for remaining slices.
  */
 function stopAndFinalizeCurrentIngestion() {
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    ceraAssertWorkbookAuthorized_();
+  }
   cleanupAllIngestionTriggers('STOPPED_EARLY_FOR_ANALYSIS');
 
   let state = getProgressUpdate();
@@ -483,6 +513,9 @@ function resumeCloudIngestion() {
   if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
     ceraAssertWorkbookAuthorized_();
   }
+  if (typeof ceraAssertWorkbookSingleUseAvailable_ === 'function') {
+    ceraAssertWorkbookSingleUseAvailable_();
+  }
   let state = getProgressUpdate();
   if (!state) {
     throw new Error(ceraT('err.noSession'));
@@ -515,6 +548,9 @@ function resumeCloudIngestion() {
  * Discards active session, cleans triggers and resets monitor sheet
  */
 function discardCloudIngestion() {
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    ceraAssertWorkbookAuthorized_();
+  }
   let activeActId = '';
   try {
     activeActId = PropertiesService.getDocumentProperties().getProperty('CERA_CURRENT_ACTIVITY_ID') || '';
@@ -3361,7 +3397,7 @@ function ceraBuildIncidentPacket_(passedState) {
     if (rawHot) hotTicks = JSON.parse(rawHot) || [];
   } catch (e) {}
 
-  const ver = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.12';
+  const ver = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.17';
   const status = state.status || ctl.status || 'IDLE';
   const errCode = ceraScrubText_(ctl.lastErrorCode || state.errorKey || 'NONE', 60);
   const errMsg = ceraScrubText_(ctl.lastErrorMsg || state.errorMessage || '', 120);
@@ -4012,7 +4048,7 @@ function ceraInitDiagnosticLog_(initialState, firstPartition) {
       : null;
     const diag = {
       schemaVersion: '1.0',
-      ceraVersion: (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.12',
+      ceraVersion: (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.17',
       privacyNotice: 'Zero-PII Diagnostic Log: Contains only execution metrics, partition counts, timing, and sanitized status codes. No user emails, domains, OUs, URLs, file names, or device names are recorded.',
       activityId: initialState.activityId || '',
       status: initialState.status || 'RUNNING',
@@ -4336,7 +4372,7 @@ function ceraRenderDiagnosticLogTxt_(diag) {
   const headerLines = [
     '================================================================================',
     `CERA (Chrome Egress Risk Analysis) — Direct Ingestion Diagnostic Log`,
-    `Version            : v${diag.ceraVersion || '2.0.12'} (Schema v${diag.schemaVersion || '1.0'})`,
+    `Version            : v${diag.ceraVersion || '2.0.17'} (Schema v${diag.schemaVersion || '1.0'})`,
     `Privacy Guarantee  : ZERO-PII / ZERO-SENSITIVE-DATA (Safe to inspect & share)`,
     '================================================================================',
     `Activity ID        : ${diag.activityId || 'N/A'}`,
@@ -4633,7 +4669,7 @@ function ceraWriteDiagAnalysisFallbackSummary_(summaryObj) {
     const fallbackFileName = 'cera-analysis-summary.txt';
     const ceraVer = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION)
       ? String(CeraConfig.VERSION).replace(/[^0-9A-Za-z._-]/g, '')
-      : '2.0.15';
+      : '2.0.17';
 
     const licFallback = (typeof ceraVerifyWorkbookLicense_ === 'function')
       ? ceraVerifyWorkbookLicense_(null, null, { skipDriveCheck: true })

@@ -651,7 +651,7 @@
   <!-- Version badge & Language picker (always visible) -->
   <div class="lang-bar">
     <div style="display: inline-flex; align-items: center; gap: 6px;">
-      <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.16</span>
+      <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.17</span>
       <span id="cera-instance-ref-badge" class="md3-badge badge-neutral" style="display: none;"></span>
     </div>
     <div class="lang-picker-group">
@@ -683,13 +683,21 @@
       <p id="license-gate-desc" class="step-desc"></p>
     </div>
 
+    <div id="license-gate-switch-card" style="display: none; background: #EFF6FF; border: 2px solid #93C5FD; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;">
+      <div id="license-gate-switch-title" data-i18n="license.gate.switchTitle" style="font-weight: 700; font-size: 13px; color: #1E3A8A; margin-bottom: 6px;">🔄 Switch to Your Registered Google Account</div>
+      <ol style="margin: 0; padding-left: 18px; font-size: 11.5px; color: #1E40AF; line-height: 1.5;">
+        <li id="license-gate-switch-s1" style="margin-bottom: 4px;"></li>
+        <li id="license-gate-switch-s2"></li>
+      </ol>
+    </div>
+
     <div id="license-gate-hero-card" style="background: #F0FDF4; border: 2px solid #86EFAC; border-radius: 12px; padding: 15px 16px; margin-bottom: 12px;">
       <div id="license-gate-rec-title" data-i18n="license.gate.recTitle" style="font-weight: 700; font-size: 13px; color: #14532D; margin-bottom: 6px;">✨ Get Your Own Official CERA Copy</div>
       <ul style="margin: 0 0 12px 18px; padding: 0; font-size: 11.5px; color: #166534; line-height: 1.45;">
-        <li id="license-gate-rec-b1" data-i18n="license.gate.recB1" style="margin-bottom: 3px;">Dedicated single-use instance: goo.gle/cera provisions an official CERA workbook registered to your Google Workspace account.</li>
+        <li id="license-gate-rec-b1" data-i18n="license.gate.recB1" style="margin-bottom: 3px;">Dedicated single-use instance: cera.tools (goo.gle/cera) provisions an official CERA workbook registered to your Google Workspace account.</li>
         <li id="license-gate-rec-b2" data-i18n="license.gate.recB2">Zero re-extraction needed: if Chrome logs are already exported to Google Drive, you can analyze that folder immediately via Manual Export in your new copy.</li>
       </ul>
-      <a id="btn-license-fresh-copy" data-i18n="license.gate.cta" href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer" class="btn-md3-filled" style="display: block; text-align: center; background: #16A34A; color: #FFFFFF; text-decoration: none; padding: 10px 18px; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open goo.gle/cera to Get Official Copy ↗</a>
+      <a id="btn-license-fresh-copy" data-i18n="license.gate.cta" href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer" class="btn-md3-filled" style="display: block; text-align: center; background: #15803D; color: #FFFFFF; text-decoration: none; padding: 10px 18px; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open cera.tools to Request Official Copy ↗</a>
     </div>
 
     <div class="dialog-footer">
@@ -709,7 +717,7 @@
     <div id="reuse-gate-slides-card" style="display: none; background: #FFFBEB; border: 2px solid #FCD34D; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; text-align: center;">
       <div id="reuse-gate-slides-title" data-i18n="reuse.gate.slidesTitle" style="font-weight: 700; font-size: 13.5px; color: #92400E; margin-bottom: 4px;">📊 Generated Executive Presentation Ready</div>
       <div id="reuse-gate-slides-summary" data-i18n="reuse.gate.slidesDesc" style="font-size: 11.5px; color: #B45309; line-height: 1.45; margin-bottom: 10px;">Your CERA presentation deck has already been generated from this workbook.</div>
-      <a id="btn-reuse-open-slides" data-i18n="reuse.gate.openSlides" href="#" target="_blank" rel="noopener noreferrer" class="btn-slides" style="display: inline-block; margin-top: 0; padding: 10px 20px; background: #D97706; color: #FFFFFF; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open Google Slides Presentation Deck ↗</a>
+      <a id="btn-reuse-open-slides" data-i18n="reuse.gate.openSlides" href="#" target="_blank" rel="noopener noreferrer" class="btn-slides" style="display: inline-block; margin-top: 0; padding: 10px 20px; background: #B45309; color: #FFFFFF; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open Google Slides Presentation Deck ↗</a>
     </div>
 
     <!-- Primary Hero Card: Make a Fresh Copy at goo.gle/cera -->
@@ -720,7 +728,7 @@
         <li id="reuse-gate-rec-b2" data-i18n="reuse.gate.recB2" style="margin-bottom: 3px;">Always latest version: making a fresh copy from goo.gle/cera automatically provisions the latest verified CERA release.</li>
         <li id="reuse-gate-rec-b3" data-i18n="reuse.gate.recB3">Zero re-extraction needed: if you already extracted logs to Google Drive, paste that Drive folder link into your new copy via Manual Export to analyze in seconds.</li>
       </ul>
-      <a id="btn-reuse-fresh-copy" data-i18n="reuse.gate.ctaFresh" href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer" class="btn-md3-filled" style="display: block; text-align: center; background: #16A34A; color: #FFFFFF; text-decoration: none; padding: 10px 18px; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open goo.gle/cera to Make a Fresh Copy (Recommended) ↗</a>
+      <a id="btn-reuse-fresh-copy" data-i18n="reuse.gate.ctaFresh" href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer" class="btn-md3-filled" style="display: block; text-align: center; background: #15803D; color: #FFFFFF; text-decoration: none; padding: 10px 18px; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open goo.gle/cera to Make a Fresh Copy (Recommended) ↗</a>
     </div>
 
     <div class="dialog-footer">
@@ -1779,7 +1787,7 @@
           lastReportSummary = String(data.lastReportSummary || '');
           lastCloudSession = data.cloudSession || null;
           resumableAnalysisJob = data.analysisJob || null;
-          currentLicenseGate = data.licenseGate || null;
+          currentLicenseGate = data.licenseGate || data.licenseStatus || null;
           strictSingleUse = Boolean(data.strictSingleUse || (currentLicenseGate && currentLicenseGate.strictSingleUse));
 
           const refTopBadge = document.getElementById('cera-instance-ref-badge');
@@ -1793,7 +1801,7 @@
           }
 
           // Local template freshness check (zero network calls)
-          const releaseDateStr = String(data.releaseDate || '2026-10-19');
+          const releaseDateStr = String(data.releaseDate || '2026-11-01');
           const warnDays = Number(data.freshnessWarnDays || 90);
           const relMs = Date.parse(releaseDateStr);
           const ageDays = Number.isFinite(relMs)
@@ -1878,16 +1886,49 @@
           refBadge.style.display = 'none';
         }
       }
+      const pillEl = document.getElementById('license-gate-pill');
+      const titleEl = document.getElementById('license-gate-title');
       const descEl = document.getElementById('license-gate-desc');
-      if (descEl) {
-        if (g.reason === 'UNAUTHORIZED_USER') {
-          setT(descEl, 'license.gate.descUser', { ref: refStr, email: emailStr });
-        } else if (g.reason === 'SECONDARY_COPY') {
-          setT(descEl, 'license.gate.descClone', { ref: refStr });
-        } else {
-          setT(descEl, 'license.gate.descTampered', { ref: refStr });
+      const switchCard = document.getElementById('license-gate-switch-card');
+      const recTitleEl = document.getElementById('license-gate-rec-title');
+
+      if (g.reason === 'UNAUTHORIZED_USER') {
+        if (pillEl) {
+          pillEl.style.background = '#FEF3C7';
+          pillEl.style.color = '#92400E';
+          pillEl.style.borderColor = '#FDE68A';
+          setT(pillEl, 'license.gate.pillUser');
         }
+        if (titleEl) setT(titleEl, 'license.gate.titleUser', { email: emailStr });
+        if (descEl) setT(descEl, 'license.gate.descUser', { ref: refStr, email: emailStr });
+        setT('license-gate-switch-s1', 'license.gate.switchS1', { email: emailStr });
+        setT('license-gate-switch-s2', 'license.gate.switchS2', { ref: refStr });
+        if (switchCard) switchCard.style.display = 'block';
+        if (recTitleEl) setT(recTitleEl, 'license.gate.recTitleUser');
+      } else if (g.reason === 'SECONDARY_COPY') {
+        if (pillEl) {
+          pillEl.style.background = '#FEE2E2';
+          pillEl.style.color = '#991B1B';
+          pillEl.style.borderColor = '#FECACA';
+          setT(pillEl, 'license.gate.pillClone');
+        }
+        if (titleEl) setT(titleEl, 'license.gate.titleClone');
+        if (descEl) setT(descEl, 'license.gate.descClone', { ref: refStr });
+        if (switchCard) switchCard.style.display = 'none';
+        if (recTitleEl) setT(recTitleEl, 'license.gate.recTitleClone');
+      } else {
+        if (pillEl) {
+          pillEl.style.background = '#FEE2E2';
+          pillEl.style.color = '#991B1B';
+          pillEl.style.borderColor = '#FECACA';
+          setT(pillEl, 'license.gate.pill');
+        }
+        if (titleEl) setT(titleEl, 'license.gate.title');
+        if (descEl) setT(descEl, 'license.gate.descTampered', { ref: refStr });
+        if (switchCard) switchCard.style.display = 'none';
+        if (recTitleEl) setT(recTitleEl, 'license.gate.recTitle');
       }
+
       const container = document.getElementById('license-gate-container');
       if (container) container.style.display = 'block';
     }
@@ -1921,6 +1962,15 @@
 
     function goToSingleUseGate() {
       hideAllContainers();
+      const reusePill = document.getElementById('reuse-gate-pill');
+      const reuseDesc = document.getElementById('reuse-gate-desc');
+      if (strictSingleUse && currentLicenseGate && currentLicenseGate.refCode) {
+        if (reusePill) setT(reusePill, 'reuse.gate.pillStamped');
+        if (reuseDesc) setT(reuseDesc, 'reuse.gate.descStamped', { ref: String(currentLicenseGate.refCode) });
+      } else {
+        if (reusePill) setT(reusePill, 'reuse.gate.pill');
+        if (reuseDesc) setT(reuseDesc, 'reuse.gate.desc');
+      }
       const slidesCard = document.getElementById('reuse-gate-slides-card');
       const slidesSummary = document.getElementById('reuse-gate-slides-summary');
       const slidesBtn = document.getElementById('btn-reuse-open-slides');

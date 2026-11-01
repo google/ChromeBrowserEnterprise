@@ -58,6 +58,12 @@ const PREFLIGHT_TRIMMED_FIELDS = 'nextPageToken,items(id(time,uniqueQualifier),a
  * Never throws for missing access: it returns recommendManual = true so the dialog can route to manual import.
  */
 function runIngestionPreflight(dateRangeDays) {
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    ceraAssertWorkbookAuthorized_();
+  }
+  if (typeof ceraAssertWorkbookSingleUseAvailable_ === 'function') {
+    ceraAssertWorkbookSingleUseAvailable_();
+  }
   const startedMs = Date.now();
   const days = ceraRangeDays_(dateRangeDays);
   const token = ScriptApp.getOAuthToken();
@@ -917,6 +923,9 @@ function _precheckEvaluatePolicyValue_(policyId, val) {
  * activity check when policies are configured on child OUs or when the Policy API is not enabled.
  */
 function runAdminPolicyPrecheck() {
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    ceraAssertWorkbookAuthorized_();
+  }
   const token = (typeof ScriptApp !== 'undefined' && ScriptApp.getOAuthToken) ? ScriptApp.getOAuthToken() : '';
   const rootOuId = _precheckResolveRootOuId_(token);
   let policyApiReachable = false;

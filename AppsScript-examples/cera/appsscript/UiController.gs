@@ -318,7 +318,12 @@ function ceraMaskEmailForLicense_(email) {
   const clean = String(email || '').trim().toLowerCase();
   const atIdx = clean.indexOf('@');
   if (atIdx <= 0 || atIdx === clean.length - 1) return '***';
-  return clean.charAt(0) + '***@' + clean.slice(atIdx + 1);
+  const local = clean.slice(0, atIdx);
+  const domain = clean.slice(atIdx + 1);
+  if (local.length >= 3) {
+    return local.charAt(0) + '***' + local.charAt(local.length - 1) + '@' + domain;
+  }
+  return (local.charAt(0) || '*') + '***@' + domain;
 }
 
 function ceraComputeLicenseEmailHash_(email) {
@@ -776,6 +781,30 @@ function ceraAssertWorkbookAuthorized_(ss, docProps) {
 }
 
 /**
+ * Asserts 4-layer workbook authorization AND single-use availability for starting a new ingestion or analysis run.
+ * Throws a structured `REPORT_ALREADY_USED` error if a stamped (`strictSingleUse`) workbook has already completed
+ * its report execution (`CERA_REPORT_USED_SHEET_ID === activeSheetId`). Unstamped workbooks remain unaffected.
+ */
+function ceraAssertWorkbookSingleUseAvailable_(ssOpt, docPropsOpt) {
+  const activeSs = ssOpt || (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.getActiveSpreadsheet ? SpreadsheetApp.getActiveSpreadsheet() : null);
+  const props = docPropsOpt || (typeof PropertiesService !== 'undefined' && PropertiesService.getDocumentProperties ? PropertiesService.getDocumentProperties() : null);
+  const gate = ceraAssertWorkbookAuthorized_(activeSs, props);
+  if (gate && gate.strictSingleUse) {
+    const activeSheetId = (activeSs && typeof activeSs.getId === 'function' && activeSs.getId()) ? String(activeSs.getId()) : '';
+    const repUsedId = (props && typeof props.getProperty === 'function') ? String(props.getProperty('CERA_REPORT_USED_SHEET_ID') || '') : '';
+    if (activeSheetId && repUsedId && repUsedId === activeSheetId) {
+      const err = new Error(ceraT('license.err.alreadyUsed', {
+        ref: gate.refCode || 'CERA'
+      }));
+      err.code = 'REPORT_ALREADY_USED';
+      err.reason = 'REPORT_ALREADY_USED';
+      throw err;
+    }
+  }
+  return gate;
+}
+
+/**
  * Returns whether the active spreadsheet (by its own spreadsheet ID, so File -> Make a copy starts clean)
  * has already been used for a Direct Ingestion run or a full Report Generation run.
  */
@@ -958,6 +987,53 @@ function menuResumeCloudIngestion() {
  * this spreadsheet is not offered as a source.
  */
 function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
+  // [P2-1] Verify 4-layer workbook license on line 1 BEFORE any Admin SDK, Policy, or Session calls
+  const activeSs = SpreadsheetApp.getActiveSpreadsheet();
+  const docProps = PropertiesService.getDocumentProperties();
+  const licenseGate = ceraVerifyWorkbookLicense_(activeSs, docProps);
+
+  // Local template freshness calculation (zero external network calls)
+  const releaseDate = (typeof CeraConfig !== 'undefined' && CeraConfig.RELEASE_DATE)
+    ? String(CeraConfig.RELEASE_DATE)
+    : '2026-11-01';
+  const freshnessWarnDays = (typeof CeraConfig !== 'undefined' && Number(CeraConfig.FRESHNESS_WARN_DAYS) > 0)
+    ? Number(CeraConfig.FRESHNESS_WARN_DAYS)
+    : 90;
+  const parsedReleaseMs = Date.parse(releaseDate);
+  const templateAgeDays = Number.isFinite(parsedReleaseMs)
+    ? Math.max(0, Math.floor((Date.now() - parsedReleaseMs) / 86400000))
+    : 0;
+  const isTemplateStale = templateAgeDays > freshnessWarnDays;
+
+  if (licenseGate && licenseGate.authorized === false) {
+    return {
+      primaryDomain: '',
+      detectedCorpDomain: '',
+      registeredDomains: [],
+      domains: [],
+      directoryDomainsCount: 0,
+      adminSdkAccess: false,
+      isAdmin: false,
+      policyPrecheck: null,
+      cloudSession: { hasExisting: false, status: 'IDLE' },
+      autoHealResult: null,
+      extractedFolderId: '',
+      extractedFolderName: '',
+      workbookAlreadyUsed: { ingestion: false, report: false },
+      currentSessionAnalyzed: false,
+      lastSlidesUrl: '',
+      lastReportSummary: '',
+      releaseDate: releaseDate,
+      freshnessWarnDays: freshnessWarnDays,
+      templateAgeDays: templateAgeDays,
+      isTemplateStale: isTemplateStale,
+      analysisJob: null,
+      licenseGate: licenseGate,
+      licenseStatus: licenseGate,
+      strictSingleUse: Boolean(licenseGate.strictSingleUse)
+    };
+  }
+
   let detectedDomains = [];
   let primaryDomain = '';
   let directoryDomainsCount = 0;
@@ -1023,13 +1099,9 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
     }
   }
 
-  const activeSs = SpreadsheetApp.getActiveSpreadsheet();
-  const docProps = PropertiesService.getDocumentProperties();
-  const licenseGate = ceraVerifyWorkbookLicense_(activeSs, docProps);
-
-  // Attempt owner auto-heal if a background ingestion session was interrupted (only when license is authorized)
+  // Attempt owner auto-heal if a background ingestion session was interrupted
   let autoHealResult = null;
-  if ((!licenseGate || licenseGate.authorized !== false) && typeof ceraMaybeAutoHealIngestionOnOpen_ === 'function') {
+  if (typeof ceraMaybeAutoHealIngestionOnOpen_ === 'function') {
     try {
       autoHealResult = ceraMaybeAutoHealIngestionOnOpen_('setup');
     } catch (healErr) {
@@ -1052,19 +1124,6 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
     activeExtractedFolderName = cloudSession.folderName || 'Admin SDK Export Folder';
   }
 
-  // Local template freshness calculation (zero external network calls)
-  const releaseDate = (typeof CeraConfig !== 'undefined' && CeraConfig.RELEASE_DATE)
-    ? String(CeraConfig.RELEASE_DATE)
-    : '2026-10-19';
-  const freshnessWarnDays = (typeof CeraConfig !== 'undefined' && Number(CeraConfig.FRESHNESS_WARN_DAYS) > 0)
-    ? Number(CeraConfig.FRESHNESS_WARN_DAYS)
-    : 90;
-  const parsedReleaseMs = Date.parse(releaseDate);
-  const templateAgeDays = Number.isFinite(parsedReleaseMs)
-    ? Math.max(0, Math.floor((Date.now() - parsedReleaseMs) / 86400000))
-    : 0;
-  const isTemplateStale = templateAgeDays > freshnessWarnDays;
-
   // Check for resumable multi-batch analysis job scoped to this spreadsheet
   let analysisJob = null;
   try {
@@ -1086,8 +1145,10 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
     primaryDomain: primaryDomain || (uniqueDomains.length > 0 ? uniqueDomains[0] : ''),
     detectedCorpDomain: detectedCorpDomain,
     registeredDomains: uniqueDomains,
+    domains: uniqueDomains,
     directoryDomainsCount: uniqueDomains.length || directoryDomainsCount,
     adminSdkAccess: adminSdkAccess,
+    isAdmin: adminSdkAccess,
     policyPrecheck: policyPrecheck,
     cloudSession: cloudSession,
     autoHealResult: autoHealResult,
@@ -1103,6 +1164,7 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
     isTemplateStale: isTemplateStale,
     analysisJob: analysisJob,
     licenseGate: licenseGate,
+    licenseStatus: licenseGate,
     strictSingleUse: Boolean(licenseGate && licenseGate.strictSingleUse)
   };
 }
@@ -1116,6 +1178,7 @@ function getInitialSetupContext(passedFolderId, passedFolderName) {
  * to discover corporate and subsidiary domains from User Profile, Account, and OU columns for Step 2.
  */
 function discoverManualSourceDomains(sourceInput) {
+  ceraAssertWorkbookAuthorized_();
   const empty = { domains: [], primaryDomain: '', counts: {} };
   try {
     const rawInput = String(sourceInput || '').trim();
@@ -1386,7 +1449,7 @@ function copyIngestionIncidentPacket() {
     }
     const fallbackLines = [
       'CERA Diagnostic Incident Summary (Zero-PII)',
-      'Version: v' + ((typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.12'),
+      'Version: v' + ((typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.17'),
       'Status: ' + ((session && session.status) || 'IDLE'),
       'Health: ' + ((session && session.healthState) || 'IDLE'),
       'Progress: ' + Number((session && session.timeSpanPct) || 0) + '% (' + Number((session && session.processedCount) || 0) + ' events)',
