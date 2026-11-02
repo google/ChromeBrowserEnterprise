@@ -360,7 +360,7 @@ Unlike standard Admin Console reports, this script cross-references multiple Goo
 
 ## Features
 
-* **Deep Hierarchy Extraction:** Accurately traverses the `devices -> browsers -> profiles -> extensions` hierarchy using the Admin SDK `v1.1beta1` endpoint.
+* **Deep Hierarchy Extraction:** Accurately traverses the `chromeBrowsers -> browsers -> profiles -> extensions` hierarchy using the Chrome Management API.
 * **Rich Extension Metadata:** Augments installation data with Web Store details (Permissions, Risk Level, Display Name) using the [Chrome Management API](https://developers.google.com/chrome/management).
 * **Flexible Authentication:** Supports both User OAuth 2.0 (for interactive administrative runs) and Service Accounts (for automated/cron jobs).
 * **Analyzable Output:** Choose between a grouped JSON output or a **flattened CSV** format perfect for pivot tables and filtering in Excel or Google Sheets.
@@ -369,7 +369,7 @@ Unlike standard Admin Console reports, this script cross-references multiple Goo
 
 1. **Python 3.8+**
 2. **Google Cloud Project** with the following APIs enabled:
-   * Admin SDK API
+  * Admin SDK API (for Organizational Units)
    * Chrome Management API
 3. **Required Python Packages:**
    ```bash
@@ -378,7 +378,7 @@ Unlike standard Admin Console reports, this script cross-references multiple Goo
 ## Required OAuth Scopes
 Your application/credentials will need the following scopes:
 
-- `https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly`
+- `https://www.googleapis.com/auth/chrome.management.browsers.readonly`
 - `https://www.googleapis.com/auth/admin.directory.orgunit.readonly`
 - `https://www.googleapis.com/auth/chrome.management.reports.readonly`
 - `https://www.googleapis.com/auth/chrome.management.appdetails.readonly`
@@ -416,11 +416,11 @@ python chrome_extension_inventory_exporter.py 03ph8a2z1en --format csv
 
 This script allows you to perform bulk moves of enrolled Chrome browsers to a specific Organizational Unit (OU) using a simple list of machine names.
 
-Because the Google Admin Console and APIs require backend `deviceId` UUIDs to move browsers, this script bridges the gap by automatically translating your human-readable machine names into the necessary IDs before executing the move safely in batches.
+The Chrome Management API requires browser permanent IDs to move browsers, so this script translates human-readable machine names before executing the move safely in batches.
 
 ## Key Features
 
-* **Smart Translation:** Automatically queries the `v1.1beta1` Directory API to translate `machine_name`s into Google `deviceId`s.
+* **Smart Translation:** Uses the Chrome Management API to translate `machine_name`s into `browserPermanentId`s.
 * **Pre-Flight Validation:** Validates the target Organizational Unit ID before running to prevent failed API calls.
 * **Safe Batching:** Automatically chunks move requests into batches of 600 to strictly adhere to API limits.
 * **Robust File Parsing:** Supports `.txt` and `.csv` files. Understands both vertical lists (one per line) and horizontal lists (comma-separated on the same line). Automatically filters out duplicate names.
@@ -431,13 +431,14 @@ Because the Google Admin Console and APIs require backend `deviceId` UUIDs to mo
 
 1. **Python 3.8+**
 2. **Google Cloud Project** with the following API enabled:
+  * Chrome Management API
    * Admin SDK API
 3. **Required Python Packages:**
    ```bash
    pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
    ```
 4. **Required OAuth Scopes:**
-   * `https://www.googleapis.com/auth/admin.directory.device.chromebrowsers`
+  * `https://www.googleapis.com/auth/chrome.management.browsers`
    * `https://www.googleapis.com/auth/admin.directory.orgunit.readonly`
 
 ## 🔧 Setup

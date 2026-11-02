@@ -43,7 +43,7 @@ function Get-GoogleToken
         $JsonFilePath = $scriptFolder + "\" + $SecretFile
         $scopes = New-Object -TypeName System.Collections.Generic.List[string]
         #add additional scope to the collection
-        $scopes.Add('https://www.googleapis.com/auth/admin.directory.device.chromebrowsers')
+        $scopes.Add('https://www.googleapis.com/auth/chrome.management.browsers')
  
         $googleCred = [Google.Apis.Auth.OAuth2.GoogleCredential]::FromFile($JsonFilePath)
         $googleCred = $googleCred.CreateScoped($scopes)

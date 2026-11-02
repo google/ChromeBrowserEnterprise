@@ -26,7 +26,7 @@ def ComputeExtensionsList(extensions_list, data):
     extensions_list: the extension list dictionary to fill.
     data: the data fetched from the Takeout API.
   """
-  for device in data['browsers']:
+  for device in data['chromeBrowsers']:
     if 'browsers' not in device:
       continue
     for browser in device['browsers']:
@@ -208,14 +208,14 @@ def main(args):
   service_credentials = Credentials.from_service_account_file(
       args.service_account_key_path,
       scopes=[
-          'https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly'
+          'https://www.googleapis.com/auth/chrome.management.browsers.readonly'
       ],
       subject=args.admin_email)
 
   try:
     http = google_auth_httplib2.AuthorizedHttp(service_credentials, http=Http())
     extensions_list = {}
-    base_request_url = 'https://admin.googleapis.com/admin/directory/v1.1beta1/customer/my_customer/devices/chromebrowsers'
+    base_request_url = 'https://chromemanagement.googleapis.com/v1/customers/my_customer/chromeBrowsers'
     request_parameters = ''
     browsers_processed = 0
     while True:
@@ -225,14 +225,14 @@ def main(args):
         data = json.loads(
             http.request(base_request_url + '?' + request_parameters, 'GET')[1])
 
-        if 'browsers' not in data:
+        if 'chromeBrowsers' not in data:
           print('Response error, retrying...')
           time.sleep(3)
           retrycount += 1
         else:
           break
 
-      browsers_in_data = len(data['browsers'])
+      browsers_in_data = len(data['chromeBrowsers'])
       print('Request returned %s results, analyzing ...' % (browsers_in_data))
       ComputeExtensionsList(extensions_list, data)
       browsers_processed += browsers_in_data

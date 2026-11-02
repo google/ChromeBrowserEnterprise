@@ -30,7 +30,7 @@ from googleapiclient.errors import HttpError
 
 # Scopes required
 SCOPES = [
-    "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly",
+    "https://www.googleapis.com/auth/chrome.management.browsers.readonly",
     "https://www.googleapis.com/auth/admin.directory.orgunit.readonly", 
     "https://www.googleapis.com/auth/chrome.management.reports.readonly",
     "https://www.googleapis.com/auth/chrome.management.appdetails.readonly"
@@ -120,11 +120,10 @@ def get_browser_extensions(session, raw_customer_id, org_unit_path):
     page_token = ""
     
     while True:
-        url = f"https://www.googleapis.com/admin/directory/v1.1beta1/customer/{raw_customer_id}/devices/chromebrowsers"
+        url = f"https://chromemanagement.googleapis.com/v1/customers/{raw_customer_id}/chromeBrowsers"
         params = {
-            "projection": "FULL",
-            "orgUnitPath": org_unit_path,
-            "maxResults": 100
+            "filter": f'org_unit_path:"{org_unit_path}"',
+            "pageSize": 100
         }
         if page_token:
             params["pageToken"] = page_token
@@ -139,7 +138,7 @@ def get_browser_extensions(session, raw_customer_id, org_unit_path):
                 
             data = response.json()
             
-            devices = data.get('browsers', [])
+            devices = data.get('chromeBrowsers', [])
             for device in devices:
                 machine_name = device.get('machineName', 'Unknown_Machine')
                 os_platform = device.get('osPlatform', 'Unknown')

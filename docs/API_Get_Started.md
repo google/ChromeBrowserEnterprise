@@ -15,7 +15,7 @@ Before any script can run, the specific Google Cloud APIs must be enabled within
 2.  Select (or create) your project.
 3.  Navigate to **APIs & Services > Library**.
 4.  Search for and **Enable** the following APIs:
-    * **[Chrome Management API](https://developers.google.com/chrome/management)**: For browser reporting, telemetry, and app management.
+    * **[Chrome Management API](https://developers.google.com/chrome/management)**: For browser operations, enrollment, reporting, telemetry, and app management.
     * **[Chrome Policy API](https://developers.google.com/chrome/policy)**: For managing browser policies programmatically.
     * **[Admin SDK API](https://support.google.com/chrome/a/answer/9681204?ref_topic=9301744&hl=en)**: For managing Organizational Units (OUs) and Directory settings.
     * **[Cloud Identity API](https://docs.cloud.google.com/identity/docs/reference/rest)**: For provisioning and managing identity resources.
@@ -30,9 +30,9 @@ Scopes define the level of access a script has. The tools in the `/Python` folde
 
 | Service | Scope URL | 
 | :--- | :--- | 
-| **Chrome Management** | `https://www.googleapis.com/auth/chrome.management.appdetails.readonly`, `https://www.googleapis.com/auth/chrome.management.profiles`, `https://www.googleapis.com/auth/chrome.management.reports.readonly` | 
+| **Chrome Management** | `https://www.googleapis.com/auth/chrome.management.appdetails.readonly`, `https://www.googleapis.com/auth/chrome.management.browsers`, `https://www.googleapis.com/auth/chrome.management.browsers.readonly`, `https://www.googleapis.com/auth/chrome.management.profiles`, `https://www.googleapis.com/auth/chrome.management.reports.readonly` |
 | **Chrome Policy** | `https://www.googleapis.com/auth/chrome.management.policy`, `https://www.googleapis.com/auth/chrome.management.policy.readonly` | 
-| **Admin SDK** | `https://www.googleapis.com/auth/admin.directory.device.chromebrowsers`, `https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly`, `https://www.googleapis.com/auth/admin.directory.orgunit.readonly`, `https://www.googleapis.com/auth/admin.reports.audit.readonly` | 
+| **Admin SDK** | `https://www.googleapis.com/auth/admin.directory.orgunit.readonly`, `https://www.googleapis.com/auth/admin.reports.audit.readonly` |
 | **Cloud Identity API** | `https://www.googleapis.com/auth/cloud-identity.groups`, `https://cloudidentity.googleapis.com/v1/policies`, `https://cloudidentity.googleapis.com/v1beta1/policies` | 
 | **Access Context Manager API** | `https://accesscontextmanager.googleapis.com/v1` |
 | **BeyondCorp API** | `https://beyondcorp.googleapis.com/v1` |

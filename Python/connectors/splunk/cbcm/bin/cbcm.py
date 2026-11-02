@@ -18,6 +18,22 @@ def setup_logger(level):
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
     return logger
+
+def get_org_unit_id(session, customer_id, org_unit_path):
+    url = 'https://admin.googleapis.com/admin/directory/v1/customer/{0}/orgunits'.format(customer_id)
+    params = {'type': 'all', 'maxResults': 200}
+    normalized_org_unit_path = org_unit_path if org_unit_path.startswith('/') else '/' + org_unit_path
+    while True:
+        response = session.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        for org_unit in data.get('organizationUnits', []):
+            if org_unit.get('orgUnitPath') == normalized_org_unit_path:
+                return org_unit.get('orgUnitId')
+        page_token = data.get('nextPageToken')
+        if not page_token:
+            return None
+        params['pageToken'] = page_token
     
 logger = setup_logger(logging.INFO)
 
@@ -28,11 +44,18 @@ def move2ouMB(config, device_id):
     servicekey = json.loads(config.get('servicekey'))
     credentials = service_account.Credentials.from_service_account_info(servicekey)
     credentials = with_scopes_if_required(credentials,\
-					["https://www.googleapis.com/auth/admin.directory.device.chromebrowsers"],)
-    response = AuthorizedSession(credentials).request("POST",
-            	'https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/moveChromeBrowsersToOu'.format(custid),\
-		data=json.dumps({"org_unit_path": oupath,\
-		"resource_ids": [device_id]}))
+                    ["https://www.googleapis.com/auth/chrome.management.browsers",
+                     "https://www.googleapis.com/auth/admin.directory.orgunit.readonly"],)
+    session = AuthorizedSession(credentials)
+    org_unit_id = get_org_unit_id(session, custid, oupath)
+    if not org_unit_id:
+        logger.error("Unable to resolve destination OU path: {0}".format(oupath))
+        return
+    response = session.request(
+        "POST",
+        'https://chromemanagement.googleapis.com/v1/customers/{0}/chromeBrowsers:move'.format(custid),
+        json={"destinationOrgUnitId": org_unit_id, "resourceIds": [device_id]},
+    )
     logger.info("response code: {0}".format(response.status_code))
     logger.info("response: {0}".format(response._content.decode("utf-8")))
 
@@ -42,18 +65,24 @@ def move2ouMD(config, device_user, profile_user):
     custid = config.get('custid')
     servicekey = json.loads(config.get('servicekey'))
     credentials = service_account.Credentials.from_service_account_info(servicekey)
-    credentials = with_scopes_if_required(credentials,\
-					["https://www.googleapis.com/auth/admin.directory.user"],)
+    credentials = with_scopes_if_required(
+        credentials,
+        ["https://www.googleapis.com/auth/admin.directory.user"],
+    )
     if device_user != "":
-    	logger.info("Moving Chrome device user to Quarantine OU")
-    	response = AuthorizedSession(credentials).request("PUT",
-            	'https://admin.googleapis.com/admin/directory/v1/users/{0}'.format(device_user),\
-		data=json.dumps({"orgUnitPath": oupath}))
+        logger.info("Moving Chrome device user to Quarantine OU")
+        response = AuthorizedSession(credentials).request(
+            "PUT",
+            'https://admin.googleapis.com/admin/directory/v1/users/{0}'.format(device_user),
+            data=json.dumps({"orgUnitPath": oupath}),
+        )
     if profile_user != "" and device_user != profile_user:
-    	logger.info("Moving Chrome profile user to Quarantine OU")
-    	response = AuthorizedSession(credentials).request("PUT",
-            	'https://admin.googleapis.com/admin/directory/v1/users/{0}'.format(profile_user),\
-		data=json.dumps({"orgUnitPath": oupath}))
+        logger.info("Moving Chrome profile user to Quarantine OU")
+        response = AuthorizedSession(credentials).request(
+            "PUT",
+            'https://admin.googleapis.com/admin/directory/v1/users/{0}'.format(profile_user),
+            data=json.dumps({"orgUnitPath": oupath}),
+        )
     logger.info("response code: {0}".format(response.status_code))
     logger.info("response: {0}".format(response._content.decode("utf-8")))
 
@@ -63,11 +92,15 @@ def move2ouMP(config, profile_user):
     custid = config.get('custid')
     servicekey = json.loads(config.get('servicekey'))
     credentials = service_account.Credentials.from_service_account_info(servicekey)
-    credentials = with_scopes_if_required(credentials,\
-					["https://www.googleapis.com/auth/admin.directory.user"],)
-    response = AuthorizedSession(credentials).request("PUT",
-            	'https://admin.googleapis.com/admin/directory/v1/users/{0}'.format(profile_user),\
-		data=json.dumps({"orgUnitPath": oupath}))
+    credentials = with_scopes_if_required(
+        credentials,
+        ["https://www.googleapis.com/auth/admin.directory.user"],
+    )
+    response = AuthorizedSession(credentials).request(
+        "PUT",
+        'https://admin.googleapis.com/admin/directory/v1/users/{0}'.format(profile_user),
+        data=json.dumps({"orgUnitPath": oupath}),
+    )
     logger.info("response code: {0}".format(response.status_code))
     logger.info("response: {0}".format(response._content.decode("utf-8")))
 
@@ -80,7 +113,8 @@ def main():
         event = payload.get('result')
         if event.get('client_type') == 'CHROME_BROWSER':
             logger.info("Moving Chrome Browser to Quarantine OU")
-            move2ouMB(config, event.get('directory_device_id')) 
+            browser_id = event.get('browser_permanent_id') or event.get('directory_device_id')
+            move2ouMB(config, browser_id)
         elif event.get('client_type') == 'CHROME_OS_DEVICE':
             move2ouMD(config, event.get('device_user'), event.get('profile_user'))
         elif event.get('client_type') == 'CHROME_BROWSER_PROFILE':
