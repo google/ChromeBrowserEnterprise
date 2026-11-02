@@ -70,9 +70,16 @@ function Set-EnrolledBrowser
         $headers.Add("Authorization", [string]::Format(“{0}”, $bearerToken))
         $headers.Add("Content-Type", "application/json")
 
-        $body = "{`"org_unit_path`":`"$OrgUnitPath`",`"resource_ids`":[`"$deviceId`"]}"
+        $orgUnitId = Get-OrgUnitId -Token $bearerToken -CustomerId $CustomerId -OrgUnitPath $OrgUnitPath
+        if (-not $orgUnitId) {
+            throw "Unable to resolve destination OU path: $OrgUnitPath"
+        }
+        $body = @{
+            destinationOrgUnitId = $orgUnitId
+            resourceIds = @($deviceId)
+        } | ConvertTo-Json -Compress
 
-        [string]$requestURL = [string]::Format(“https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/moveChromeBrowsersToOu”,$CustomerId)
+        [string]$requestURL = [string]::Format("https://chromemanagement.googleapis.com/v1/customers/{0}/chromeBrowsers:move", $CustomerId)
 
         $response = Invoke-RestMethod $requestURL -Method 'POST' -Headers $headers -Body $body
         $response | ConvertTo-Json
@@ -103,6 +110,36 @@ function Get-IsWindowsLTSC
 }
 
 
+function Get-OrgUnitId
+{
+    param (
+        [Parameter(Mandatory)] [string]$Token,
+        [Parameter(Mandatory)] [string]$CustomerId,
+        [Parameter(Mandatory)] [string]$OrgUnitPath
+    )
+
+    $headers = @{ Authorization = $Token }
+    $path = $OrgUnitPath
+    if (-not $path.StartsWith('/')) {
+        $path = "/$path"
+    }
+    $nextPageToken = $null
+    do {
+        $requestURL = "https://admin.googleapis.com/admin/directory/v1/customer/$CustomerId/orgunits?type=all&maxResults=200"
+        if ($nextPageToken) {
+            $requestURL += "&pageToken=$([uri]::EscapeDataString($nextPageToken))"
+        }
+        $response = Invoke-RestMethod $requestURL -Method 'GET' -Headers $headers
+        $orgUnit = $response.organizationUnits | Where-Object { $_.orgUnitPath -eq $path } | Select-Object -First 1
+        if ($orgUnit) {
+            return $orgUnit.orgUnitId
+        }
+        $nextPageToken = $response.nextPageToken
+    } while ($nextPageToken)
+
+    return $null
+}
+
 #/******* Get the device Id from the enrolled browser *******/
 function Get-EnrolledBrowser 
 { 
@@ -119,11 +156,12 @@ function Get-EnrolledBrowser
 
         $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
         $headers.Add("Authorization", [string]::Format(“{0}”, $Token))
-        [string]$requestURL = [string]::Format(“https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?query=machine_name:{1}&projection=BASIC”,$CustomerId, $MachineName)
+        $filter = [uri]::EscapeDataString("machine_name:$MachineName")
+        [string]$requestURL = [string]::Format("https://chromemanagement.googleapis.com/v1/customers/{0}/chromeBrowsers?filter={1}", $CustomerId, $filter)
 
         $response = Invoke-RestMethod $requestURL -Method 'GET' -Headers $headers
 
-        $deviceId = $response.browsers[0].deviceId
+        $deviceId = $response.chromeBrowsers[0].browserPermanentId
         Copy-WriteToLog -logString "The device ID is $($deviceId)"
     }
     catch
@@ -148,7 +186,8 @@ function Get-GoogleToken
         $JsonFilePath = $SecretFile
         $scopes = New-Object -TypeName System.Collections.Generic.List[string]
         #add additional scope to the collection
-        $scopes.Add('https://www.googleapis.com/auth/admin.directory.device.chromebrowsers')
+        $scopes.Add('https://www.googleapis.com/auth/chrome.management.browsers')
+        $scopes.Add('https://www.googleapis.com/auth/admin.directory.orgunit.readonly')
  
         $googleCred = [Google.Apis.Auth.OAuth2.GoogleCredential]::FromFile($JsonFilePath)
         $googleCred = $googleCred.CreateScoped($scopes)

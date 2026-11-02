@@ -35,7 +35,7 @@ CUSTOMER_ID = "customers/C0xxxxxxx"
 RAW_CUSTOMER_ID = CUSTOMER_ID.replace('customers/', '') if str(CUSTOMER_ID).startswith('customers/') else CUSTOMER_ID
 
 SCOPES = [
-    "https://www.googleapis.com/auth/admin.directory.device.chromebrowsers.readonly", 
+    "https://www.googleapis.com/auth/chrome.management.browsers.readonly",
     "https://www.googleapis.com/auth/cloud-identity.groups"       
 ]
 
@@ -121,18 +121,18 @@ def fetch_device_ids(session, machine_names):
 
     for name in machine_names:
         query = f"machine_name:{name}"
-        url = f"https://www.googleapis.com/admin/directory/v1.1beta1/customer/{RAW_CUSTOMER_ID}/devices/chromebrowsers"
+        url = f"https://chromemanagement.googleapis.com/v1/customers/{RAW_CUSTOMER_ID}/chromeBrowsers"
         params = {
-            "query": query,
-            "projection": "BASIC"
+            "filter": query,
         }
         
         response = session.get(url, params=params)
         
         if response.status_code == 200:
             data = response.json()
-            if 'browsers' in data and len(data['browsers']) > 0:
-                dev_id = data['browsers'][0].get('deviceId')
+            browsers = data.get('chromeBrowsers', [])
+            if browsers:
+                dev_id = browsers[0].get('browserPermanentId')
                 device_ids.append(dev_id)
             else:
                 not_found.append(name)

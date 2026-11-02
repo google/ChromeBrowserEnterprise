@@ -55,7 +55,7 @@ function Clear-EnrolledBrowser
         $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
         $headers.Add("Authorization", [string]::Format(“{0}”, $bearerToken))
 
-        [string]$requestURL = [string]::Format(“https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers/{1}”,$CustomerId, $deviceId)
+        [string]$requestURL = [string]::Format("https://chromemanagement.googleapis.com/v1/customers/{0}/chromeBrowsers/{1}", $CustomerId, $deviceId)
 
         $response = Invoke-RestMethod $requestURL -Method 'DELETE' -Headers $headers
         $response | ConvertTo-Json
@@ -86,11 +86,12 @@ function Get-EnrolledBrowser
 
         $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
         $headers.Add("Authorization", [string]::Format(“{0}”, $Token))
-        [string]$requestURL = [string]::Format(“https://www.googleapis.com/admin/directory/v1.1beta1/customer/{0}/devices/chromebrowsers?query=machine_name:{1}&projection=BASIC”,$CustomerId, $MachineName)
+        $filter = [uri]::EscapeDataString("machine_name:$MachineName")
+        [string]$requestURL = [string]::Format("https://chromemanagement.googleapis.com/v1/customers/{0}/chromeBrowsers?filter={1}", $CustomerId, $filter)
 
         $response = Invoke-RestMethod $requestURL -Method 'GET' -Headers $headers
 
-        $deviceId = $response.browsers[0].deviceId
+        $deviceId = $response.chromeBrowsers[0].browserPermanentId
         Copy-WriteToLog -logString "The device ID is $($deviceId)"
     }
     catch
@@ -115,7 +116,7 @@ function Get-GoogleToken
         $JsonFilePath = $SecretFile
         $scopes = New-Object -TypeName System.Collections.Generic.List[string]
         #add additional scope to the collection
-        $scopes.Add('https://www.googleapis.com/auth/admin.directory.device.chromebrowsers')
+        $scopes.Add('https://www.googleapis.com/auth/chrome.management.browsers')
  
         $googleCred = [Google.Apis.Auth.OAuth2.GoogleCredential]::FromFile($JsonFilePath)
         $googleCred = $googleCred.CreateScoped($scopes)

@@ -17,7 +17,6 @@ EXCEPTION_EXTENSION_IDs = ['callobklhcbilhphinckomhgkigmfocg']
 # #/******* END: Customer to modify this section *******/
 
 SCOPES = [
-    'https://www.googleapis.com/auth/admin.directory.device.chromebrowsers',
     'https://www.googleapis.com/auth/chrome.management.reports.readonly',
     'https://www.googleapis.com/auth/chrome.management.appdetails.readonly',
     'https://www.googleapis.com/auth/chrome.management.policy',

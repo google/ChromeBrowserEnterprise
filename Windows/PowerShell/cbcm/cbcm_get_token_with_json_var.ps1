@@ -42,7 +42,7 @@ function Get-GoogleToken
         
         #Add necessary scopes
         $scopes = New-Object -TypeName System.Collections.Generic.List[string]
-        $scopes.Add(https://www.googleapis.com/auth/admin.directory.device.chromebrowsers)
+        $scopes.Add('https://www.googleapis.com/auth/chrome.management.browsers')
         
         #Create the credential and get token
         $googleCred = [Google.Apis.Auth.OAuth2.GoogleCredential]::FromJson($jsonCert)
