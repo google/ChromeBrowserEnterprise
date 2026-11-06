@@ -43,6 +43,13 @@ export const metadata: Metadata = {
     "Investigate user activity and chat with an AI-powered admin assistant.",
 };
 
+/**
+ * Enforce dynamic server rendering app-wide.
+ * Pocket CEP is an authenticated admin portal where all routes depend on runtime
+ * environment variables (AUTH_MODE), cookies, and sessions injected at container startup.
+ */
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{
