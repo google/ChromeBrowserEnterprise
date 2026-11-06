@@ -39,6 +39,12 @@ function createAuth() {
   return betterAuth({
     secret: config.BETTER_AUTH_SECRET,
     baseURL: config.BETTER_AUTH_URL,
+    account: {
+      storeAccountCookie: true,
+    },
+    advanced: {
+      trustedProxyHeaders: true,
+    },
 
     /**
      * In service_account mode, no social providers are registered —
@@ -51,7 +57,7 @@ function createAuth() {
             clientId: config.GOOGLE_CLIENT_ID,
             clientSecret: config.GOOGLE_CLIENT_SECRET,
             scope: ADMIN_SCOPES,
-            prompt: "consent",
+            prompt: "consent select_account",
             accessType: "offline",
           },
         },

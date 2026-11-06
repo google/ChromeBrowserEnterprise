@@ -16,5 +16,12 @@
  * classification later (single point of change).
  */
 export function getErrorMessage(error: unknown, fallback = "Unknown error"): string {
-  return error instanceof Error ? error.message : fallback;
+  if (error instanceof Error) {
+    let causeText = "";
+    if (error.cause) {
+      causeText = ` (cause: ${error.cause instanceof Error ? error.cause.message : String(error.cause)})`;
+    }
+    return `${error.message}${causeText}`;
+  }
+  return fallback;
 }
