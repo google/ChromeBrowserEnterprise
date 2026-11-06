@@ -30,6 +30,8 @@ import { getSessionCookie } from "better-auth/cookies";
 import { getEnv, isEnvValidationError } from "@/lib/env";
 import { renderEnvErrorHtml, renderMcpUnreachableHtml } from "@/lib/env-error-page";
 import { probeMcpServer } from "@/lib/doctor-checks";
+import { COOKIE_SA_SESSION } from "@/lib/sa-session";
+import { verifyJwt } from "@/lib/jwt";
 
 /**
  * Cached "ok" results for the MCP reachability check. The dashboard
@@ -97,10 +99,14 @@ export async function proxy(request: NextRequest) {
     if (pathname === "/") {
       return NextResponse.redirect(new URL("/sa-setup", request.url));
     }
-    const hasSaCustomer = Boolean(
-      request.cookies.get("cep_sa_customer_id")?.value?.trim() ||
-      process.env.CEP_CUSTOMER_ID?.trim(),
-    );
+    const sessionCookieVal = request.cookies.get(COOKIE_SA_SESSION)?.value;
+    let hasSaCustomer = Boolean(env.CEP_CUSTOMER_ID?.trim());
+    if (sessionCookieVal) {
+      const payload = verifyJwt(sessionCookieVal, env.BETTER_AUTH_SECRET);
+      if (payload && typeof payload.customerId === "string" && payload.customerId.trim()) {
+        hasSaCustomer = true;
+      }
+    }
     if (pathname.startsWith("/dashboard") && !hasSaCustomer) {
       return NextResponse.redirect(new URL("/sa-setup", request.url));
     }
