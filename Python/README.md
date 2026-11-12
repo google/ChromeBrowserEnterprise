@@ -592,3 +592,134 @@ The script runs quietly during the translation phase and outputs a clean summary
 2026-03-19 11:10:11 [INFO]   • unknown-machine-01
 2026-03-19 11:10:11 [INFO] ==================================================
 ```
+
+# Chrome Enterprise Browser Wake Utility
+
+A standalone, cross-platform Python utility ([`wake_browser.py`](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/wake_browser.py)) designed to silently "wake" system-installed Google Chrome browsers on **Windows, macOS, and Linux** endpoints so they enroll in **Chrome Enterprise Core (CEC / CBCM)**, fetch cloud policies, and upload device/extension telemetry.
+
+## The Challenge
+Deploying a `CloudManagementEnrollmentToken` via GPO, Registry, Configuration Profile (MDM), or Linux JSON policy does not immediately register a device in the Google Admin Console—Chrome must actually launch at least once to read the token, request a `DMToken` from Google's device management servers, and report initial status. On newly imaged workstations, VDI golden/session hosts, or unattended machines where no user has opened Chrome yet, devices remain invisible in the Admin Console.
+
+Unlike legacy OS-specific scripts that rely on fragile username regex matching or hardcoded `C:\temp` folders, `wake_browser.py` uses **100% Python Standard Library** (zero `pip` dependencies) with strict security, binary signature, and process-isolation safeguards across all three desktop operating systems.
+
+## Features
+* **Cross-Platform & Zero Dependencies:** Runs out-of-the-box on **Windows**, **macOS**, and **Linux** using only the Python 3.8+ standard library—no `pip install` required on managed endpoints.
+* **System-Level Installation Enforcement:** Strictly resolves Chrome from OS system application directories (`Program Files` / `Program Files (x86)` on Windows, `/Applications/Google Chrome.app` on macOS, and `/opt/google/chrome` or `/usr/bin` on Linux):
+  * Explicitly rejects user-profile Chrome installations (`%LOCALAPPDATA%`, `~/Applications`, `/home`) and blocks symlink/junction redirection into user space.
+  * Verifies Google Authenticode signatures on Windows, `codesign` signatures on macOS, and `root` (`uid=0`) file ownership on Linux before execution.
+* **Same-User Process Protection (Exact SID / UID):** Inspects running Chrome processes using exact Windows Security Identifiers via native Win32 APIs (e.g., `S-1-5-18` for `NT AUTHORITY\SYSTEM` or the user's Entra/AD SID) and numeric POSIX UIDs on macOS/Linux. If Chrome is already running under the **same user** executing the script, it skips launching cleanly without disrupting active sessions or tripping over localized OS account names.
+* **Enrollment Token Auditing & Live DMToken Detection:** Checks standard machine policy locations across 32-bit and 64-bit Windows `HKLM` registry views, macOS Managed Preferences/token files, and Linux managed policy JSONs:
+  * **Flags Missing Tokens Without Skipping:** Logs an explicit `WARNING` (`FLAG: No CloudManagementEnrollmentToken was found...`) if no enrollment token is present on the host, while still launching Chrome so previously enrolled browsers can sync policies and telemetry.
+  * Monitors for newly generated `DMToken` artifacts during the wake window to confirm first-time cloud enrollment in the logs.
+* **Windows UAC De-Elevation Guard:** Automatically passes `--do-not-de-elevate` on Windows so running from an elevated Administrator context does not trigger Chromium's `RunDeElevated` relaunch via `explorer.exe` (which would otherwise orphan a browser process and exit the tracked PID prematurely).
+* **Scoped Process-Tree Termination & Secure Cleanup:** Launches Chrome inside a `0700`-permissioned temporary profile directory (`tempfile.mkdtemp`), terminates **only** the exact spawned process tree (`taskkill /PID <pid> /T` on Windows; dedicated process group `os.killpg` on macOS/Linux), and removes temporary files in a guaranteed `finally` block with file-lock retries.
+* **MDM-Ready Logging & Exit Codes:** Writes structured logs to both `stdout` and `wake_browser.log` (automatically falling back to the OS temp directory if the working directory is read-only) and returns distinct exit codes for Intune, SCCM, Jamf, Workspace ONE, or Ansible detection rules.
+
+---
+
+## ⚙️ Prerequisites
+
+1. **Python 3.8+** installed on the target endpoint.
+2. **System-Level Google Chrome** installed in the standard OS application folder:
+   * **Windows:** `C:\Program Files\Google\Chrome\Application\chrome.exe` (or `Program Files (x86)`) — Enterprise MSI recommended.
+   * **macOS:** `/Applications/Google Chrome.app` — Enterprise PKG recommended.
+   * **Linux:** `/opt/google/chrome/chrome` or `/usr/bin/google-chrome-stable`.
+3. **External Python Packages:** **None** (uses Python Standard Library only).
+
+---
+
+## 🔧 Setup
+
+1. Download [`wake_browser.py`](https://github.com/google/ChromeBrowserEnterprise/blob/main/Python/wake_browser.py).
+2. *(Recommended)* Ensure your `CloudManagementEnrollmentToken` policy is deployed to the machine via Group Policy, Intune, Jamf Configuration Profile, or `/etc/opt/chrome/policies/managed/`.
+3. Deploy and execute `wake_browser.py` via your endpoint management tool (e.g., as `NT AUTHORITY\SYSTEM` in Intune/SCCM, `root` via Jamf/LaunchDaemon/cron, or in user context).
+
+---
+
+## :factory: Usage
+
+Use `python3 wake_browser.py --help` to view all command-line options:
+
+```text
+options:
+  --wait-seconds WAIT_SECONDS
+                        Seconds to keep Chrome running for enrollment & telemetry upload (default: 45).
+  --shutdown-grace-seconds SHUTDOWN_GRACE_SECONDS
+                        Seconds to wait for graceful browser exit before force-killing (default: 10).
+  --profile-name PROFILE_NAME
+                        Temporary Chrome profile directory name (default: CECProfile).
+  --headless            Pass --headless=new to Chrome (optional; auto-enabled on GUI-less Linux).
+  --skip-signature-check
+                        Skip OS binary signature verification on Chrome executable.
+  --dry-run             Run all pre-flight checks (system install, same-user process, token) without launching Chrome.
+  --log-file LOG_FILE   Path to log file (default: ./wake_browser.log, falling back to system temp dir).
+  --verbose             Enable verbose DEBUG logging to stdout.
+```
+
+### 1. Standard Run (MDM / Unattended Wake)
+Launches system Chrome in an isolated temporary profile, waits 45 seconds for CEC enrollment and telemetry reporting, terminates the spawned browser tree, and deletes the temporary profile:
+
+```bash
+# macOS / Linux
+python3 wake_browser.py
+
+# Windows
+python wake_browser.py
+```
+
+### 2. Pre-Flight Validation Only (`--dry-run`)
+Verifies the system-level Chrome binary, digital signature, `CloudManagementEnrollmentToken` presence, existing `DMToken` state, and same-user running Chrome processes without opening Chrome:
+
+```bash
+python3 wake_browser.py --dry-run --verbose
+```
+
+### 3. Silent / Headless Execution & Custom Duration
+Suppresses visible browser windows when testing interactively or running on headless servers, with a custom wake duration and log location:
+
+```bash
+python3 wake_browser.py --headless --wait-seconds 60 --log-file /var/log/wake_browser.log
+```
+
+### 4. Windows `SYSTEM` Simulation (Testing Intune / SCCM Behavior)
+Using Sysinternals `PsExec` to simulate unattended `NT AUTHORITY\SYSTEM` (`S-1-5-18`) execution:
+
+```powershell
+psexec -s python C:\Scripts\wake_browser.py --verbose
+```
+
+### Output Example
+
+```text
+2026-11-12 21:07:21,805 - INFO - Starting Chrome Wake check on Windows (11)...
+2026-11-12 21:07:25,648 - DEBUG - Verified valid Google Authenticode signature on C:\Program Files\Google\Chrome\Application\chrome.exe
+2026-11-12 21:07:25,650 - INFO - Verified system-level Chrome binary: C:\Program Files\Google\Chrome\Application\chrome.exe
+2026-11-12 21:07:25,651 - INFO - Detected CloudManagementEnrollmentToken at 'HKLM\SOFTWARE\Policies\Google\Chrome\CloudManagementEnrollmentToken' (92b9...7fb3).
+2026-11-12 21:07:25,669 - INFO - No existing Chrome processes detected for current user (S-1-5-18).
+2026-11-12 21:07:25,676 - INFO - Launching Chrome with temporary profile 'C:\Windows\Temp\cec_wake_profile_f7fuxkwv' (waiting 45s)...
+2026-11-12 21:07:31,910 - INFO - New Chrome Enterprise Core DMToken detected after 6.2s! Continuing wake window so initial policy & telemetry sync completes.
+2026-11-12 21:08:10,702 - INFO - Wake duration (45s) completed.
+2026-11-12 21:08:10,703 - INFO - Stopping temporary Chrome instance (root PID 10236)...
+2026-11-12 21:08:13,115 - INFO - Cleaned up temporary Chrome profile directory: C:\Windows\Temp\cec_wake_profile_f7fuxkwv
+```
+
+---
+
+## 📊 Exit Codes
+
+| Exit Code | Status | Description |
+| :--- | :--- | :--- |
+| `0` | **Success / Skipped** | Browser wake cycle completed cleanly, `--dry-run` succeeded, **or** launch was skipped because Chrome is already running under the same user (SID/UID). |
+| `2` | **No System Chrome** | System-level Google Chrome was not found (e.g., missing, installed only in a disallowed user folder like `%LOCALAPPDATA%` or `~/Applications`, or failed signature/ownership verification). |
+| `3` | **Pre-Flight Error** | Unsupported operating system or failed current-user process/identity inspection. |
+| `4` | **Launch Failure** | Chrome failed to start or exited unexpectedly before completing the wake window. |
+
+---
+
+## 📝 Logging & Debugging
+
+* **`WARNING - FLAG: No CloudManagementEnrollmentToken was found in machine policy locations!`:** Indicates that no enrollment token was detected in `HKLM` (Windows), `/Library/Managed Preferences` or `/Library/Google/Chrome` (macOS), or `/etc/opt/chrome/policies` (Linux). By design, the script **still launches Chrome** so already-enrolled machines can refresh policies and report telemetry, while surfacing the missing policy in your MDM logs.
+* **Exit Code `2` (`Detected user-level Chrome installation... which is disallowed`):** Chrome is installed in user space (`%LOCALAPPDATA%\Google\Chrome` or `~/Applications/Google Chrome.app`) rather than system-wide. Deploy the official Chrome Enterprise MSI (Windows) or PKG (macOS) to install Chrome at the machine level.
+* **Skipping Launch When Chrome Is Already Open:** If you test the script interactively while your own Chrome browser is open, the script detects your matching UID/SID and exits `0` immediately without launching a second instance. Close Chrome or run the script under `SYSTEM` / `root` to execute a background wake cycle.
+* **Log File Location:** Detailed `DEBUG` logs are written to `./wake_browser.log` by default. When launched by an MDM agent from a read-only working directory (such as `C:\Windows\System32` or `/`), the script automatically falls back to `<SystemTemp>/wake_browser.log` unless overridden with `--log-file`.
+
