@@ -1,10 +1,4 @@
 # Random Scripts
-## Wake Browser
-Consider using the [wake browser script](/Windows/PowerShell/WakeBrowser.ps1) to run Chrome silently under the System context to allow version data to update to the Windows registry. 
-
-```
-.\WakeBrowser.ps1
-```
 
 ## Force Update
 You can force an update to the browser and run Chrome silently under the System context to allow version data to update to the Windows registry. 
