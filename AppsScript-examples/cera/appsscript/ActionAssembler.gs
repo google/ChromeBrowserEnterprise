@@ -707,7 +707,7 @@ function ceraFinalizeActionRows_(state, asm, rows) {
 function ceraRowJoinsAction_(action, r) {
   if (r.direction === 'copy') return r.t - action.last <= (CeraConfig.ACTION_COPY_GAP_MS || 1000);
   const bypass = ceraBypassFollows_(r, action.warnAt);
-  if (!bypass && (r.t - action.t0 > (CeraConfig.ACTION_WINDOW_MS || 10000) || action.sigs[r.sig])) return false;
+  if (!bypass && (r.t - action.t0 > (CeraConfig.ACTION_WINDOW_MS || 10000) || Object.prototype.hasOwnProperty.call(action.sigs, r.sig))) return false;
   if (r.direction === 'download' && r.sizeBytes && action.size) {
     return Math.abs(r.sizeBytes - action.size) <= (CeraConfig.ACTION_SIZE_TOLERANCE_BYTES || 2048);
   }
@@ -806,8 +806,12 @@ function ceraRowIsSensitive_(r) {
  * verdict rows about 1 KB more; a print's size is on its detector row only). A copy takes the largest of its formats.
  */
 function ceraActionSize_(rows) {
-  if (rows[0].direction === 'copy') return rows.reduce((m, r) => Math.max(m, r.sizeBytes || 0), 0);
-  return rows.reduce((m, r) => (r.sizeBytes && (!m || r.sizeBytes < m) ? r.sizeBytes : m), 0);
+  const safeBytes = r => (typeof r.sizeBytes === 'number' && isFinite(r.sizeBytes) && r.sizeBytes > 0) ? r.sizeBytes : 0;
+  if (rows[0].direction === 'copy') return rows.reduce((m, r) => Math.max(m, safeBytes(r)), 0);
+  return rows.reduce((m, r) => {
+    const b = safeBytes(r);
+    return b && (!m || b < m) ? b : m;
+  }, 0);
 }
 
 /**

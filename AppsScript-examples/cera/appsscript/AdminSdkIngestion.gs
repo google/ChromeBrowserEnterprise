@@ -247,6 +247,33 @@ function ceraEnsureRootFolder_(forceCreateNew) {
  * Optionally runs Batch #1 inline when runFirstBatchInline is true, and schedules subsequent batches in Google Apps Script background.
  */
 function engageCloudIngestion(dateRangeDays, runFirstBatchInline) {
+  let licenseGate = null;
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    licenseGate = ceraAssertWorkbookAuthorized_();
+  }
+  if (typeof ceraAssertWorkbookSingleUseAvailable_ === 'function') {
+    licenseGate = ceraAssertWorkbookSingleUseAvailable_() || licenseGate;
+  } else if (!licenseGate && typeof ceraVerifyWorkbookLicense_ === 'function') {
+    licenseGate = ceraVerifyWorkbookLicense_();
+  }
+  if (licenseGate && licenseGate.strictSingleUse) {
+    let activeSsId = '';
+    let repUsedId = '';
+    try {
+      const currentSs = SpreadsheetApp.getActiveSpreadsheet();
+      activeSsId = (currentSs && typeof currentSs.getId === 'function' && currentSs.getId()) ? String(currentSs.getId()) : '';
+      const currentProps = PropertiesService.getDocumentProperties();
+      repUsedId = currentProps ? String(currentProps.getProperty('CERA_REPORT_USED_SHEET_ID') || '') : '';
+    } catch (suCheckErr) {}
+    if (activeSsId && repUsedId === activeSsId) {
+      const suErr = new Error(
+        (typeof ceraT === 'function' ? ceraT('license.err.alreadyUsed', { ref: licenseGate.refCode || 'CERA' }) : '') ||
+        ('REPORT_ALREADY_USED: Single-use workbook (' + (licenseGate.refCode || 'CERA') + ') has already completed its authorized analysis.')
+      );
+      suErr.code = 'REPORT_ALREADY_USED';
+      throw suErr;
+    }
+  }
   const daysFilter = ceraRangeDays_(dateRangeDays);
   const nowMs = Date.now();
   const windowStartMs = nowMs - (daysFilter * 86400000);
@@ -415,6 +442,9 @@ function engageCloudIngestion(dateRangeDays, runFirstBatchInline) {
  * Pauses active cloud ingestion and self-cleans background triggers
  */
 function pauseCloudIngestion() {
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    ceraAssertWorkbookAuthorized_();
+  }
   cleanupAllIngestionTriggers('USER_PAUSED');
 
   let state = getProgressUpdate();
@@ -434,6 +464,9 @@ function pauseCloudIngestion() {
  * extracted so far, allowing the user to proceed directly to CERA analysis without waiting for remaining slices.
  */
 function stopAndFinalizeCurrentIngestion() {
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    ceraAssertWorkbookAuthorized_();
+  }
   cleanupAllIngestionTriggers('STOPPED_EARLY_FOR_ANALYSIS');
 
   let state = getProgressUpdate();
@@ -477,6 +510,12 @@ function stopAndFinalizeCurrentIngestion() {
  * Resumes a paused or interrupted cloud ingestion from its last saved checkpoint
  */
 function resumeCloudIngestion() {
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    ceraAssertWorkbookAuthorized_();
+  }
+  if (typeof ceraAssertWorkbookSingleUseAvailable_ === 'function') {
+    ceraAssertWorkbookSingleUseAvailable_();
+  }
   let state = getProgressUpdate();
   if (!state) {
     throw new Error(ceraT('err.noSession'));
@@ -509,6 +548,9 @@ function resumeCloudIngestion() {
  * Discards active session, cleans triggers and resets monitor sheet
  */
 function discardCloudIngestion() {
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    ceraAssertWorkbookAuthorized_();
+  }
   let activeActId = '';
   try {
     activeActId = PropertiesService.getDocumentProperties().getProperty('CERA_CURRENT_ACTIVITY_ID') || '';
@@ -578,244 +620,283 @@ function processCloudIngestionBatch() {
     return;
   }
 
-  const executionStartTime = Date.now();
-  let state = getProgressUpdate();
-
-  // Tri-state read guard (BP-01 / Q2-B): NEVER delete triggers on a transient property read error!
-  if (state && (state.status === 'TRANSIENT_READ_ERROR' || state.readState === 'UNREADABLE')) {
-    console.warn('[Liveness] Transient DocumentProperties read error during tick; keeping background trigger alive.');
-    ceraRecordTransientReadStrike_();
-    lock.releaseLock();
-    return;
-  }
-
-  // If job is no longer running or in active quota sleep, self-destruct trigger with explicit reason and exit
-  if (!state || (state.status !== 'RUNNING' && state.status !== 'QUOTA_PAUSED')) {
-    cleanupAllIngestionTriggers('STATUS_' + (state && state.status || 'IDLE'));
-    lock.releaseLock();
-    return;
-  }
-
-  // Check if in active quota sleep with a future resume timestamp
-  if (state.status === 'QUOTA_PAUSED' && Number(state.quotaResumeAtMs) > executionStartTime) {
-    ceraAppendBeat_('Q');
-    lock.releaseLock();
-    return;
-  }
-
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  // Views never change state (d2 §2.4): if '⚡ Ingestion Monitor' tab was accidentally deleted, recreate it instead of wiping the session
-  if (ss && !ss.getSheetByName('⚡ Ingestion Monitor')) {
-    Logger.log("'⚡ Ingestion Monitor' tab missing during active job; recreating monitor sheet without wiping session.");
-    safeUpdateDashboard(ss, state, state.partitions || []);
-  }
-
-  ceraAcquireTickLease_(state, executionStartTime);
-
-  let totalLogsProcessed = Number(state.processedCount || 0);
-  let totalScanned = Number(state.scannedCount || 0);
-  let fileIndex = state.fileIndex || 1;
-  let currentFileId = state.currentFileId;
-  let currentFileName = state.currentFileName || '';
-  let currentSheetRows = state.currentSheetRows || 1;
-  let folderId = state.folderId;
-  let folderUrl = state.folderUrl;
-  let folderName = state.folderName;
-  let windowStartMs = state.windowStartMs;
-  let targetEndMs = state.targetEndMs;
-  let currentCursorMs = state.currentCursorMs || windowStartMs;
-  const cursorAtTickStartMs = currentCursorMs;
-  let totalLogSpanMs = Math.max(1, targetEndMs - windowStartMs);
-  let totalRealTimeElapsedMs = state.totalRealTimeElapsedMs || 0;
-  let eventStreams = state.eventStreams || {};
-  let partitions = state.partitions || [];
-  let daysFilter = state.dateRangeDays || CERA_DEFAULT_RANGE_DAYS;
-
-  // Rows read but not appended yet, with the uniqueQualifier of each
-  let buffer = [];
-  let bufferIds = [];
-  // The pages in the buffer: their stream, where their rows sit in the buffer, and the read position (cursor and
-  // streams) before each was read. Streams move past a page as soon as it is read, so after a failed append the
-  // read position goes back to the first page that did not reach a partition: the next tick reads exactly the
-  // rows that were not written, and none twice.
-  let pages = [];
-  // Rows of the buffer appended by the flush in progress, including those of an append that failed part way
-  let pendingWrite = null;
-  let lastBatchWallClockMs = Date.now();
-  // What this tick did and what it cost, for the remaining-work estimate
-  const work = { requests: 0, requestMs: 0, rows: 0, writeMs: 0 };
-  const tickDiag = {
-    startedAtMs: executionStartTime,
-    cursorStartMs: cursorAtTickStartMs,
-    cursorEndMs: currentCursorMs,
-    quietWeeksSkipped: 0,
-    completedSlices: [],
-    newPartitions: [],
-    recoveredPartitions: 0,
-    adaptiveSplits: 0,
-    tokenFallbacks: 0,
-    rewinds: 0,
-    sleepMs: 0,
-    streamPages: {},
-    streamTokenFallbacks: {},
-    streamSchema: {},
-    anomalies: []
-  };
-
-  const readPosition = () => JSON.stringify({
-    cursor: currentCursorMs, streams: eventStreams, scanned: totalScanned, sliceChecked: state.sliceChecked,
-    activeUntilMs: state.activeUntilMs, recentDays: state.recentDays, calib: state.calib
-  });
-  const restorePosition = saved => {
-    const p = JSON.parse(saved);
-    currentCursorMs = p.cursor;
-    eventStreams = p.streams;
-    totalScanned = p.scanned;
-    state.sliceChecked = p.sliceChecked;
-    state.activeUntilMs = p.activeUntilMs;
-    state.recentDays = p.recentDays;
-    state.calib = p.calib;
-  };
-  const countWritten = rows => {
-    totalLogsProcessed += rows;
-    currentSheetRows += rows;
-    if (partitions.length > 0) {
-      partitions[partitions.length - 1].rowCount = currentSheetRows - 1;
-    }
-    ceraUpdatePartitionRows_(folderId, fileIndex, currentFileId, currentFileName, currentSheetRows, 'IN_PROGRESS');
-  };
-  const openPartition = () => {
-    ceraUpdatePartitionRows_(folderId, fileIndex, currentFileId, currentFileName, currentSheetRows, 'COMPLETED');
-    fileIndex++;
-    const nextPart = createTargetSheetFile(folderId, state.startStr, state.endStr, fileIndex);
-    currentFileId = nextPart.fileId;
-    currentFileName = nextPart.fileName;
-    currentSheetRows = 1;
-    ceraRegisterPartition_(folderId, fileIndex, nextPart.fileId, nextPart.fileName, 'IN_PROGRESS', 1);
-    partitions.push({
-      fileIndex: fileIndex,
-      fileName: nextPart.fileName,
-      fileId: nextPart.fileId,
-      rowCount: 0,
-      status: 'IN_PROGRESS'
-    });
-    tickDiag.newPartitions.push({
-      part: fileIndex,
-      rows: 0,
-      status: 'IN_PROGRESS',
-      createdAtUtc: new Date().toISOString()
-    });
-    // Sliding Window: Keep maximum 10 active/recent partitions in state to prevent memory and storage bloat
-    if (partitions.length > 10) {
-      partitions = partitions.slice(-10);
-    }
-  };
-
-  // Safe writer with auto-regeneration if active partition sheet was deleted in Drive (404)
-  const writeBufferSafely = (targetFileId, rows, progress) => {
-    const writeStartMs = Date.now();
-    try {
-      return appendWithRecovery(targetFileId, rows, progress);
-    } finally {
-      work.writeMs += Date.now() - writeStartMs;
-      work.rows += rows.length;
-    }
-  };
-  const appendWithRecovery = (targetFileId, rows, progress) => {
-    try {
-      return flushBufferWithRetry(targetFileId, rows, 0, progress, currentSheetRows + 1);
-    } catch (appendErr) {
-      const errStr = (appendErr.message || String(appendErr)).toLowerCase();
-      if (errStr.includes('404') || errStr.includes('not found')) {
-        console.warn(`[Auto-Recovery] Active partition file (${targetFileId}) missing or deleted. Auto-generating fresh partition...`);
-        tickDiag.recoveredPartitions++;
-        tickDiag.anomalies.push({
-          atUtc: new Date().toISOString(),
-          phase: 'SHEETS_APPEND',
-          code: 'PARTITION_404_AUTO_RECOVERED',
-          action: 'OPENED_NEW_PARTITION',
-          detail: 'Active partition sheet was missing or deleted; auto-generated replacement partition.'
-        });
-        ceraAppendFlightIncident_('PARTITION_RECOVERED', 'Active partition missing (404); opened replacement partition');
-        // Rows that reached the deleted file went with it: all of them go to the new partition
-        progress.written = 0;
-        openPartition();
-        return flushBufferWithRetry(currentFileId, rows, 0, progress, currentSheetRows + 1);
-      }
-      throw appendErr;
-    }
-  };
-
-  // Appends the buffered pages, filling the current partition up to MAX_ROWS_PER_SHEET rows before opening the next
-  const flushBuffer = () => {
-    pendingWrite = { done: 0, written: 0, splits: 0 };
-    while (pendingWrite.done < buffer.length) {
-      if (currentSheetRows - 1 >= MAX_ROWS_PER_SHEET) {
-        if (partitions.length > 0) {
-          partitions[partitions.length - 1].status = 'COMPLETED';
-        }
-        openPartition();
-      }
-      const chunk = buffer.slice(pendingWrite.done, pendingWrite.done + MAX_ROWS_PER_SHEET - (currentSheetRows - 1));
-      writeBufferSafely(currentFileId, chunk, pendingWrite);
-      countWritten(chunk.length);
-      pendingWrite.done += chunk.length;
-      pendingWrite.written = 0;
-    }
-    tickDiag.adaptiveSplits += Number(pendingWrite.splits || 0);
-    pendingWrite = null;
-    buffer = [];
-    bufferIds = [];
-    pages = [];
-    state.consecutiveFailures = 0; // Successful append resets failure strike count
-  };
-
-  // After an error: rows that a failed append did write count as written, and the read position goes back to just
-  // after the last row that reached a partition
-  const rewindToWrittenRows = () => {
-    let written = 0;
-    if (pendingWrite) {
-      countWritten(pendingWrite.written);
-      written = pendingWrite.done + pendingWrite.written;
-      tickDiag.adaptiveSplits += Number(pendingWrite.splits || 0);
-    }
-    let p = 0;
-    while (p < pages.length && pages[p].end <= written) p++;
-    if (p === pages.length) return; // nothing unwritten
-    tickDiag.rewinds++;
-    restorePosition(pages[p].before);
-    if (written > pages[p].start) {
-      // The append stopped inside this page: its stream resumes after the last row written (see ceraExtendEdge_)
-      const stream = eventStreams[pages[p].ev];
-      stream.pageToken = null;
-      stream.completed = false;
-      for (let r = pages[p].start; r < written; r++) ceraExtendEdge_(stream, Date.parse(buffer[r][0]), bufferIds[r]);
-      const rows = written - pages[p].start;
-      stream.dayRows = (stream.dayRows || 0) + rows;
-      stream.count = (stream.count || 0) + rows;
-      totalScanned += rows;
-    }
-  };
-
   try {
-    let jobComplete = false;
-    let jobGone = false;
+    const executionStartTime = Date.now();
+    let state = getProgressUpdate();
 
-    // Chronological day-by-day sliding window: first day of the range up to Day 0
-    const DAY_MS = 86400000;
-    while (Date.now() - executionStartTime < TIME_BUDGET_MS) {
+    // Tri-state read guard (BP-01 / Q2-B): NEVER delete triggers on a transient property read error!
+    if (state && (state.status === 'TRANSIENT_READ_ERROR' || state.readState === 'UNREADABLE')) {
+      console.warn('[Liveness] Transient DocumentProperties read error during tick; keeping background trigger alive.');
+      ceraRecordTransientReadStrike_();
+      return;
+    }
 
-      // Check if user paused, stopped, finalized early, or reset the job
-      const storedStatus = ceraStoredJobStatus_(state.activityId);
-      if (storedStatus === 'GONE') {
-        jobGone = true;
-        break;
+    // If job is no longer running or in active quota sleep, self-destruct trigger with explicit reason and exit
+    if (!state || (state.status !== 'RUNNING' && state.status !== 'QUOTA_PAUSED')) {
+      const liveStatus = ceraStoredJobStatus_();
+      if (liveStatus === 'RUNNING' || liveStatus === 'QUOTA_PAUSED') {
+        return;
       }
-      if (storedStatus === 'PAUSED' || storedStatus === 'STOPPED' || storedStatus === 'COMPLETED') {
-        cleanupAllIngestionTriggers('STATUS_' + storedStatus);
-        break;
+      cleanupAllIngestionTriggers('STATUS_' + (state && state.status || 'IDLE'));
+      return;
+    }
+
+    // Check if in active quota sleep with a future resume timestamp
+    if (state.status === 'QUOTA_PAUSED' && Number(state.quotaResumeAtMs) > executionStartTime) {
+      ceraAppendBeat_('Q');
+      return;
+    }
+
+    let ss = null;
+    try {
+      ss = SpreadsheetApp.getActiveSpreadsheet();
+      // Views never change state (d2 §2.4): if '⚡ Ingestion Monitor' tab was accidentally deleted, recreate it instead of wiping the session
+      if (ss && !ss.getSheetByName('⚡ Ingestion Monitor')) {
+        Logger.log("'⚡ Ingestion Monitor' tab missing during active job; recreating monitor sheet without wiping session.");
+        safeUpdateDashboard(ss, state, state.partitions || []);
       }
+    } catch (monTabErr) {
+      console.warn('Ingestion Monitor check non-fatal notice: ' + (monTabErr.message || monTabErr));
+    }
+
+    const lease = ceraAcquireTickLease_(state, executionStartTime);
+    if (!lease || !lease.acquired) {
+      const skipReason = (lease && lease.reason) || 'LEASE_ACTIVE';
+      console.warn('[Liveness] Skipping concurrent worker tick: lease not acquired (' + skipReason + ').');
+      ceraAppendBeat_({ t: Date.now(), kind: 'SKIP_LEASE', reason: skipReason });
+      return;
+    }
+
+    const initialProcessedCount = Number(state.processedCount || 0);
+    const initialFileIndex = Number(state.fileIndex || 1);
+    let totalLogsProcessed = initialProcessedCount;
+    let totalScanned = Number(state.scannedCount || 0);
+    let fileIndex = initialFileIndex;
+    let currentFileId = state.currentFileId;
+    let currentFileName = state.currentFileName || '';
+    let currentSheetRows = state.currentSheetRows || 1;
+    let folderId = state.folderId;
+    let folderUrl = state.folderUrl;
+    let folderName = state.folderName;
+    let windowStartMs = state.windowStartMs;
+    let targetEndMs = state.targetEndMs;
+    let currentCursorMs = state.currentCursorMs || windowStartMs;
+    const cursorAtTickStartMs = currentCursorMs;
+    let totalLogSpanMs = Math.max(1, targetEndMs - windowStartMs);
+    let totalRealTimeElapsedMs = state.totalRealTimeElapsedMs || 0;
+    let eventStreams = state.eventStreams || {};
+    let partitions = Array.isArray(state.partitions) && state.partitions.length > 0
+      ? state.partitions
+      : (currentFileId ? [{
+          fileIndex: fileIndex,
+          fileName: currentFileName,
+          fileId: currentFileId,
+          rowCount: Math.max(0, currentSheetRows - 1),
+          status: 'IN_PROGRESS'
+        }] : []);
+    let daysFilter = state.dateRangeDays || CERA_DEFAULT_RANGE_DAYS;
+
+    // Rows read but not appended yet, with the uniqueQualifier of each
+    let buffer = [];
+    let bufferIds = [];
+    // The pages in the buffer: their stream, where their rows sit in the buffer, and the read position (cursor and
+    // streams) before each was read. Streams move past a page as soon as it is read, so after a failed append the
+    // read position goes back to the first page that did not reach a partition: the next tick reads exactly the
+    // rows that were not written, and none twice.
+    let pages = [];
+    // Rows of the buffer appended by the flush in progress, including those of an append that failed part way
+    let pendingWrite = null;
+    let lastBatchWallClockMs = Date.now();
+    // What this tick did and what it cost, for the remaining-work estimate
+    const work = { requests: 0, requestMs: 0, rows: 0, writeMs: 0 };
+    const tickDiag = {
+      startedAtMs: executionStartTime,
+      cursorStartMs: cursorAtTickStartMs,
+      cursorEndMs: currentCursorMs,
+      quietWeeksSkipped: 0,
+      completedSlices: [],
+      newPartitions: [],
+      recoveredPartitions: 0,
+      adaptiveSplits: 0,
+      tokenFallbacks: 0,
+      rewinds: 0,
+      sleepMs: 0,
+      streamPages: Object.create(null),
+      streamTokenFallbacks: Object.create(null),
+      streamSchema: Object.create(null),
+      anomalies: []
+    };
+
+    const readPosition = () => JSON.stringify({
+      cursor: currentCursorMs, streams: eventStreams, scanned: totalScanned, sliceChecked: state.sliceChecked,
+      activeUntilMs: state.activeUntilMs, recentDays: state.recentDays, calib: state.calib
+    });
+    const restorePosition = saved => {
+      const p = JSON.parse(saved);
+      currentCursorMs = p.cursor;
+      eventStreams = p.streams;
+      totalScanned = p.scanned;
+      state.sliceChecked = p.sliceChecked;
+      state.activeUntilMs = p.activeUntilMs;
+      state.recentDays = p.recentDays;
+      state.calib = p.calib;
+    };
+    const countWritten = (rows, skipRegSync) => {
+      if (!rows || rows <= 0) return;
+      totalLogsProcessed += rows;
+      currentSheetRows += rows;
+      if (partitions.length > 0) {
+        partitions[partitions.length - 1].rowCount = currentSheetRows - 1;
+      }
+      if (!skipRegSync) {
+        ceraUpdatePartitionRows_(folderId, fileIndex, currentFileId, currentFileName, currentSheetRows, 'IN_PROGRESS');
+      }
+    };
+    const openPartition = () => {
+      ceraAssertWorkerLease_(lease.token, state.activityId);
+      const nextFileIndex = fileIndex + 1;
+      const nextPart = createTargetSheetFile(folderId, state.startStr, state.endStr, nextFileIndex, lease.token, state.activityId);
+      if (partitions.length > 0) {
+        partitions[partitions.length - 1].status = 'COMPLETED';
+      }
+      ceraUpdatePartitionRows_(folderId, fileIndex, currentFileId, currentFileName, currentSheetRows, 'COMPLETED');
+      fileIndex = nextFileIndex;
+      currentFileId = nextPart.fileId;
+      currentFileName = nextPart.fileName;
+      currentSheetRows = 1;
+      ceraRegisterPartition_(folderId, fileIndex, nextPart.fileId, nextPart.fileName, 'IN_PROGRESS', 1);
+      partitions.push({
+        fileIndex: fileIndex,
+        fileName: nextPart.fileName,
+        fileId: nextPart.fileId,
+        rowCount: 0,
+        status: 'IN_PROGRESS'
+      });
+      tickDiag.newPartitions.push({
+        part: fileIndex,
+        rows: 0,
+        status: 'IN_PROGRESS',
+        createdAtUtc: new Date().toISOString()
+      });
+      // Sliding Window: Keep maximum 10 active/recent partitions in state to prevent memory and storage bloat
+      if (partitions.length > 10) {
+        partitions = partitions.slice(-10);
+      }
+    };
+
+    // Safe writer with auto-regeneration if active partition sheet was deleted in Drive (404)
+    const writeBufferSafely = (targetFileId, rows, progress) => {
+      const writeStartMs = Date.now();
+      const writtenBefore = Number((progress && progress.written) || 0);
+      try {
+        const res = appendWithRecovery(targetFileId, rows, progress);
+        work.rows += rows.length;
+        return res;
+      } catch (err) {
+        const newlyWritten = Math.max(0, Number((progress && progress.written) || 0) - writtenBefore);
+        work.rows += newlyWritten;
+        throw err;
+      } finally {
+        work.writeMs += Date.now() - writeStartMs;
+      }
+    };
+    const appendWithRecovery = (targetFileId, rows, progress) => {
+      try {
+        return flushBufferWithRetry(targetFileId, rows, 0, progress, currentSheetRows + 1, lease.token, state.activityId);
+      } catch (appendErr) {
+        if (appendErr && appendErr.code === 'CERA_LEASE_PREEMPTED') throw appendErr;
+        const errStr = (appendErr.message || String(appendErr)).toLowerCase();
+        if (errStr.includes('404') || errStr.includes('not found')) {
+          console.warn(`[Auto-Recovery] Active partition file (${targetFileId}) missing or deleted. Auto-generating fresh partition...`);
+          tickDiag.recoveredPartitions++;
+          tickDiag.anomalies.push({
+            atUtc: new Date().toISOString(),
+            phase: 'SHEETS_APPEND',
+            code: 'PARTITION_404_AUTO_RECOVERED',
+            action: 'OPENED_NEW_PARTITION',
+            detail: 'Active partition sheet was missing or deleted; auto-generated replacement partition.'
+          });
+          ceraAppendFlightIncident_('PARTITION_RECOVERED', 'Active partition missing (404); opened replacement partition');
+          // Rows that reached the deleted file went with it: all of them go to the new partition
+          progress.written = 0;
+          openPartition();
+          return flushBufferWithRetry(currentFileId, rows, 0, progress, currentSheetRows + 1, lease.token, state.activityId);
+        }
+        throw appendErr;
+      }
+    };
+
+    // Appends the buffered pages, filling the current partition up to MAX_ROWS_PER_SHEET rows before opening the next
+    const flushBuffer = () => {
+      ceraAssertWorkerLease_(lease.token, state.activityId);
+      pendingWrite = { done: 0, written: 0, splits: 0 };
+      while (pendingWrite.done < buffer.length) {
+        ceraAssertWorkerLease_(lease.token, state.activityId);
+        if (currentSheetRows - 1 >= MAX_ROWS_PER_SHEET) {
+          openPartition();
+        }
+        const chunk = buffer.slice(pendingWrite.done, pendingWrite.done + MAX_ROWS_PER_SHEET - (currentSheetRows - 1));
+        writeBufferSafely(currentFileId, chunk, pendingWrite);
+        countWritten(chunk.length, false);
+        pendingWrite.done += chunk.length;
+        pendingWrite.written = 0;
+      }
+      tickDiag.adaptiveSplits += Number(pendingWrite.splits || 0);
+      pendingWrite = null;
+      buffer = [];
+      bufferIds = [];
+      pages = [];
+      state.consecutiveFailures = 0; // Successful append resets failure strike count
+    };
+
+    // After an error: rows that a failed append did write count as written, and the read position goes back to just
+    // after the last row that reached a partition
+    const rewindToWrittenRows = skipRegSync => {
+      let written = 0;
+      if (pendingWrite) {
+        countWritten(pendingWrite.written, skipRegSync);
+        written = pendingWrite.done + pendingWrite.written;
+        tickDiag.adaptiveSplits += Number(pendingWrite.splits || 0);
+      }
+      let p = 0;
+      while (p < pages.length && pages[p].end <= written) p++;
+      if (p === pages.length) return; // nothing unwritten
+      tickDiag.rewinds++;
+      restorePosition(pages[p].before);
+      if (written > pages[p].start) {
+        // The append stopped inside this page: its stream resumes after the last row written (see ceraExtendEdge_)
+        const stream = eventStreams[pages[p].ev];
+        stream.pageToken = null;
+        stream.completed = false;
+        for (let r = pages[p].start; r < written; r++) ceraExtendEdge_(stream, Date.parse(buffer[r][0]), bufferIds[r]);
+        const rows = written - pages[p].start;
+        stream.dayRows = (stream.dayRows || 0) + rows;
+        stream.count = (stream.count || 0) + rows;
+        totalScanned += rows;
+      }
+    };
+
+    try {
+      // Reconcile any uncommitted partition rows/files left behind if a previous tick crashed or was preempted mid-tick
+      ceraReconcileUncommittedPartitionWrites_(state, lease);
+      partitions = state.partitions || partitions;
+      currentSheetRows = state.currentSheetRows || currentSheetRows;
+
+      let jobComplete = false;
+      let jobGone = false;
+
+      // Chronological day-by-day sliding window: first day of the range up to Day 0
+      const DAY_MS = 86400000;
+      while (Date.now() - executionStartTime < TIME_BUDGET_MS) {
+
+        // Check if user paused, stopped, finalized early, or reset the job, or if worker lease was preempted
+        const storedStatus = ceraStoredJobStatus_(state.activityId);
+        if (storedStatus === 'GONE') {
+          ceraAssertWorkerLease_(lease.token, state.activityId);
+          jobGone = true;
+          break;
+        }
+        ceraAssertWorkerLease_(lease.token, state.activityId);
 
       if (currentCursorMs >= targetEndMs) {
         jobComplete = true;
@@ -996,6 +1077,7 @@ function processCloudIngestionBatch() {
 
         // Periodic buffer flush directly to Drive partition, between pages so every stream stands at a page boundary
         if (buffer.length >= BATCH_FLUSH_SIZE) {
+          ceraAssertWorkerLease_(lease.token, state.activityId);
           flushBuffer();
         }
 
@@ -1014,6 +1096,7 @@ function processCloudIngestionBatch() {
 
     // Flush remaining buffer
     if (buffer.length > 0) {
+      ceraAssertWorkerLease_(lease.token, state.activityId);
       flushBuffer();
     }
 
@@ -1116,134 +1199,162 @@ function processCloudIngestionBatch() {
     if (livelockTripped) {
       state.errorKey = 'mon.err.noProgressLivelock';
       state.errorMessage = ceraT('mon.err.noProgressLivelock');
-      cleanupAllIngestionTriggers('NO_PROGRESS_LIVELOCK');
     } else {
       state.errorMessage = '';
       state.errorKey = '';
     }
     delete state.quotaResumeAtMs;
 
+    // Enforce worker lease before persisting checkpoint or deleting triggers: if lease was stolen or UI paused/stopped/reset,
+    // ceraAssertWorkerLease_ throws CERA_LEASE_PREEMPTED and catch reconciles or aborts cleanly.
+    ceraAssertWorkerLease_(lease.token, state.activityId);
     if (jobComplete && partitions.length > 0) {
       partitions[partitions.length - 1].status = 'COMPLETED';
       ceraUpdatePartitionRows_(folderId, fileIndex, currentFileId, currentFileName, currentSheetRows, 'COMPLETED');
     }
 
-    // Pause, early finalize, and reset do not wait for this tick's lock: read the session again right before writing it back.
-    // A job reset meanwhile stays gone; one paused, stopped, or finalized early keeps that status with this tick's progress.
-    const storedStatus = ceraStoredJobStatus_(state.activityId);
-    if (storedStatus === 'GONE') {
-      Logger.log('Ingestion job was reset during this tick. Its progress is discarded.');
-      return;
-    }
-    if (storedStatus === 'COMPLETED') {
-      state.status = 'COMPLETED';
-      state.isCompleted = true;
-      state.timeSpanPct = 100;
-      state.etaSec = 0;
-      state.estimatedRemainingSec = 0;
-      if (partitions.length > 0) {
-        partitions[partitions.length - 1].status = 'COMPLETED';
+    saveStateToStorage(state, { expectedLeaseToken: lease.token, expectedActivityId: state.activityId });
+    if (livelockTripped || state.status === 'FAILED') {
+      const postSaveSt = ceraStoredJobStatus_(state.activityId);
+      if (postSaveSt !== 'GONE' && postSaveSt !== 'RUNNING' && postSaveSt !== 'QUOTA_PAUSED') {
+        cleanupAllIngestionTriggers(livelockTripped ? 'NO_PROGRESS_LIVELOCK' : 'STATE_TOO_LARGE');
       }
-      cleanupAllIngestionTriggers('STOPPED_EARLY_FOR_ANALYSIS');
-    } else if (storedStatus === 'PAUSED' || storedStatus === 'STOPPED') {
-      state.status = storedStatus;
     } else if (jobComplete) {
-      cleanupAllIngestionTriggers('JOB_COMPLETED'); // AUTO SELF-DESTRUCT!
+      const postSaveSt = ceraStoredJobStatus_(state.activityId);
+      if (postSaveSt !== 'GONE' && postSaveSt !== 'RUNNING' && postSaveSt !== 'QUOTA_PAUSED') {
+        cleanupAllIngestionTriggers('JOB_COMPLETED'); // AUTO SELF-DESTRUCT!
+      }
     }
-
-    saveStateToStorage(state);
-    ceraFinalizeTickCtl_(state, executionStartTime, state.status, work.rows, work.requests, state.errorKey || '');
-    safeUpdateDashboard(ss, state, partitions);
+    ceraFinalizeTickCtl_(state, lease.token, state.status, work.rows, work.requests, state.errorKey || '');
+    safeUpdateDashboard(ss, state, state.partitions || partitions);
     tickDiag.cursorEndMs = currentCursorMs;
     ceraRecordDiagTick_(state, work, tickDiag, state.status === 'FAILED' ? (livelockTripped ? 'FAILED_NO_PROGRESS_LIVELOCK' : 'FAILED_STATE_OVERSIZE') : ((jobComplete || state.status === 'COMPLETED') ? 'COMPLETED' : 'OK'), state.errorMessage || '');
 
-  } catch (err) {
-    console.error('Autonomous batch execution error: ' + err.stack);
-    const rawErrMsg = err.message || String(err);
-    const errMsgLower = rawErrMsg.toLowerCase();
-    const classifiedErr = ceraClassifyIngestionError_(err);
+    } catch (err) {
+      const isPreempt = Boolean(err && err.code === 'CERA_LEASE_PREEMPTED');
+      // Rows read but not written are read again next tick, from just after the last row that reached a partition.
+      // Skip writing to CERA_PART_REG during rewind until lease ownership is verified.
+      const pendingPartialWritten = Number((pendingWrite && pendingWrite.written) || 0);
+      rewindToWrittenRows(true);
+      tickDiag.cursorEndMs = currentCursorMs;
+      const hadCommittedProgress = (totalLogsProcessed > initialProcessedCount) || (fileIndex > initialFileIndex);
+      const committedSnapshot = {
+        totalLogsProcessed: totalLogsProcessed,
+        totalScanned: totalScanned,
+        currentCursorMs: currentCursorMs,
+        fileIndex: fileIndex,
+        currentFileId: currentFileId,
+        currentFileName: currentFileName,
+        currentSheetRows: currentSheetRows,
+        eventStreams: eventStreams,
+        partitions: partitions,
+        sliceChecked: state.sliceChecked,
+        activeUntilMs: state.activeUntilMs,
+        recentDays: state.recentDays,
+        calib: state.calib,
+        windowStartMs: windowStartMs,
+        targetEndMs: targetEndMs,
+        totalLogSpanMs: totalLogSpanMs,
+        daysFilter: daysFilter,
+        startDateStr: state.startDateStr
+      };
 
-    // Check for Google Apps Script Daily Runtime Quota (6 Hours / Day for Workspace) across supported locales
-    const isDailyQuota = classifiedErr.isDailyQuota || ceraIsDailyQuotaError_(rawErrMsg);
-    // A Reports or Sheets API rate limit that outlasted the retries clears within a minute: wait like for the quota
-    const isRateLimit = !isDailyQuota && (classifiedErr.isRateLimit || ceraIsRateLimitError_(errMsgLower));
-
-    // Rows read but not written are read again next tick, from just after the last row that reached a partition
-    rewindToWrittenRows();
-
-    // Synchronize latest in-flight metrics to prevent loss of progress
-    state.processedCount = totalLogsProcessed;
-    state.scannedCount = totalScanned;
-    state.currentCursorMs = currentCursorMs;
-    state.fileIndex = fileIndex;
-    state.currentFileId = currentFileId;
-    state.currentFileName = currentFileName;
-    state.currentSheetRows = currentSheetRows;
-    state.eventStreams = eventStreams;
-    state.partitions = partitions;
-    state.lastUpdateMs = Date.now();
-    tickDiag.cursorEndMs = currentCursorMs;
-
-    // As above: a job reset meanwhile stays gone, a paused, stopped, or finalized one keeps its status (and this tick's progress)
-    const storedStatus = ceraStoredJobStatus_(state.activityId);
-    if (storedStatus === 'GONE') {
-      Logger.log('Ingestion job was reset during this tick. Its progress is discarded.');
-      return;
-    }
-    if (storedStatus === 'PAUSED' || storedStatus === 'STOPPED' || storedStatus === 'COMPLETED') {
-      state.status = storedStatus;
-      if (storedStatus === 'COMPLETED') {
-        state.isCompleted = true;
-        state.timeSpanPct = 100;
-        state.etaSec = 0;
-        state.estimatedRemainingSec = 0;
-        if (partitions.length > 0) {
-          partitions[partitions.length - 1].status = 'COMPLETED';
-        }
+      if (isPreempt) {
+        ceraHandlePreemptedWorkerTick_(ss, state, lease.token, hadCommittedProgress, work, tickDiag, committedSnapshot, '');
+        return;
       }
-      saveStateToStorage(state);
-      ceraFinalizeTickCtl_(state, executionStartTime, state.status, work.rows, work.requests, rawErrMsg);
-      safeUpdateDashboard(ss, state, partitions);
-      ceraRecordDiagTick_(state, work, tickDiag, storedStatus, rawErrMsg);
-      return;
-    }
 
-    if (isDailyQuota || isRateLimit) {
-      // ⏳ Daily Apps Script Quota or API Rate Limit hit: Enter Quota Sleep without failure penalty
-      console.warn(`[Quota Sleep] ${isDailyQuota ? 'Google Apps Script daily runtime limit' : 'Google API rate limit'} reached: ${rawErrMsg}. Preserving state and trigger for auto-resume.`);
-      state.status = 'QUOTA_PAUSED';
-      // Shown in the dialog in the viewer's language; the raw reason stays in the logs
-      state.errorMessage = '';
-      state.errorKey = isDailyQuota ? 'mon.quotaDefault' : 'mon.err.rateLimit';
-      state.consecutiveFailures = 0;
-      ceraAppendFlightIncident_(isDailyQuota ? 'DAILY_QUOTA_SLEEP' : 'RATE_LIMIT_PAUSE', rawErrMsg);
-      saveStateToStorage(state);
-      ceraFinalizeTickCtl_(state, executionStartTime, state.status, work.rows, work.requests, state.errorKey);
-      safeUpdateDashboard(ss, state, partitions);
-      ceraRecordDiagTick_(state, work, tickDiag, isDailyQuota ? 'DAILY_QUOTA_SLEEP' : 'RATE_LIMIT_PAUSE', rawErrMsg);
-    } else {
-      const failCount = (Number(state.consecutiveFailures) || 0) + 1;
-      state.consecutiveFailures = failCount;
-      state.errorMessage = rawErrMsg;
-      state.errorKey = '';
-      ceraAppendFlightIncident_('TICK_ERROR', rawErrMsg);
+      console.error('Autonomous batch execution error: ' + err.stack);
+      const rawErrMsg = err.message || String(err);
+      const errMsgLower = rawErrMsg.toLowerCase();
+      const classifiedErr = ceraClassifyIngestionError_(err);
 
-      if (failCount < 10) {
-        // Self-healing: keep trigger alive for next scheduled tick (allow up to 9 transient strikes)
-        console.warn(`Transient batch notice (Strike ${failCount}/10). Preserving trigger for next tick: ${rawErrMsg}`);
-        state.status = 'RUNNING';
-        saveStateToStorage(state);
-        ceraFinalizeTickCtl_(state, executionStartTime, state.status, work.rows, work.requests, rawErrMsg);
-        safeUpdateDashboard(ss, state, partitions);
-        ceraRecordDiagTick_(state, work, tickDiag, 'TRANSIENT_STRIKE_' + failCount, rawErrMsg);
-      } else {
-        // 10 consecutive failures: Safely pause triggers and notify user
-        state.status = 'FAILED';
-        cleanupAllIngestionTriggers('FAILED_MAX_STRIKES');
-        saveStateToStorage(state);
-        ceraFinalizeTickCtl_(state, executionStartTime, state.status, work.rows, work.requests, rawErrMsg);
-        safeUpdateDashboard(ss, state, partitions);
-        ceraRecordDiagTick_(state, work, tickDiag, 'FAILED_MAX_STRIKES', rawErrMsg);
+      // If lease was stolen or UI changed status while an API call failed, do not overwrite UI/newer-worker state
+      try {
+        ceraAssertWorkerLease_(lease.token, state.activityId);
+      } catch (preemptErr) {
+        if (preemptErr && preemptErr.code === 'CERA_LEASE_PREEMPTED') {
+          ceraHandlePreemptedWorkerTick_(ss, state, lease.token, hadCommittedProgress, work, tickDiag, committedSnapshot, rawErrMsg);
+          return;
+        }
+        throw preemptErr;
+      }
+
+      const storedStatus = ceraStoredJobStatus_(state.activityId);
+      if (storedStatus === 'GONE') {
+        Logger.log('Ingestion job was reset during this tick. Its progress is discarded.');
+        return;
+      }
+
+      if (pendingPartialWritten > 0) {
+        ceraUpdatePartitionRows_(folderId, fileIndex, currentFileId, currentFileName, currentSheetRows, 'IN_PROGRESS');
+      }
+
+      // Check for Google Apps Script Daily Runtime Quota (6 Hours / Day for Workspace) across supported locales
+      const isDailyQuota = classifiedErr.isDailyQuota || ceraIsDailyQuotaError_(rawErrMsg);
+      // A Reports or Sheets API rate limit that outlasted the retries clears within a minute: wait like for the quota
+      const isRateLimit = !isDailyQuota && (classifiedErr.isRateLimit || ceraIsRateLimitError_(errMsgLower));
+
+      // Synchronize latest in-flight metrics to prevent loss of progress
+      state.processedCount = totalLogsProcessed;
+      state.scannedCount = totalScanned;
+      state.currentCursorMs = currentCursorMs;
+      state.fileIndex = fileIndex;
+      state.currentFileId = currentFileId;
+      state.currentFileName = currentFileName;
+      state.currentSheetRows = currentSheetRows;
+      state.eventStreams = eventStreams;
+      state.partitions = partitions;
+      state.lastUpdateMs = Date.now();
+
+      try {
+        if (isDailyQuota || isRateLimit) {
+          // ⏳ Daily Apps Script Quota or API Rate Limit hit: Enter Quota Sleep without failure penalty
+          console.warn(`[Quota Sleep] ${isDailyQuota ? 'Google Apps Script daily runtime limit' : 'Google API rate limit'} reached: ${rawErrMsg}. Preserving state and trigger for auto-resume.`);
+          state.status = 'QUOTA_PAUSED';
+          // Shown in the dialog in the viewer's language; the raw reason stays in the logs
+          state.errorMessage = '';
+          state.errorKey = isDailyQuota ? 'mon.quotaDefault' : 'mon.err.rateLimit';
+          state.consecutiveFailures = 0;
+          ceraAppendFlightIncident_(isDailyQuota ? 'DAILY_QUOTA_SLEEP' : 'RATE_LIMIT_PAUSE', rawErrMsg);
+          saveStateToStorage(state, { expectedLeaseToken: lease.token, expectedActivityId: state.activityId });
+          ceraFinalizeTickCtl_(state, lease.token, state.status, work.rows, work.requests, state.errorKey);
+          safeUpdateDashboard(ss, state, state.partitions || partitions);
+          ceraRecordDiagTick_(state, work, tickDiag, isDailyQuota ? 'DAILY_QUOTA_SLEEP' : 'RATE_LIMIT_PAUSE', rawErrMsg);
+        } else {
+          const failCount = (Number(state.consecutiveFailures) || 0) + 1;
+          state.consecutiveFailures = failCount;
+          state.errorMessage = ceraRedactSensitiveTokens_(rawErrMsg);
+          state.errorKey = '';
+          ceraAppendFlightIncident_('TICK_ERROR', rawErrMsg);
+
+          if (failCount < 10) {
+            // Self-healing: keep trigger alive for next scheduled tick (allow up to 9 transient strikes)
+            console.warn(`Transient batch notice (Strike ${failCount}/10). Preserving trigger for next tick: ${rawErrMsg}`);
+            state.status = 'RUNNING';
+            saveStateToStorage(state, { expectedLeaseToken: lease.token, expectedActivityId: state.activityId });
+            ceraFinalizeTickCtl_(state, lease.token, state.status, work.rows, work.requests, rawErrMsg);
+            safeUpdateDashboard(ss, state, state.partitions || partitions);
+            ceraRecordDiagTick_(state, work, tickDiag, 'TRANSIENT_STRIKE_' + failCount, rawErrMsg);
+          } else {
+            // 10 consecutive failures: Safely pause triggers and notify user
+            state.status = 'FAILED';
+            saveStateToStorage(state, { expectedLeaseToken: lease.token, expectedActivityId: state.activityId });
+            const postFailSt = ceraStoredJobStatus_(state.activityId);
+            if (postFailSt !== 'GONE' && postFailSt !== 'RUNNING' && postFailSt !== 'QUOTA_PAUSED') {
+              cleanupAllIngestionTriggers('FAILED_MAX_STRIKES');
+            }
+            ceraFinalizeTickCtl_(state, lease.token, state.status, work.rows, work.requests, rawErrMsg);
+            safeUpdateDashboard(ss, state, state.partitions || partitions);
+            ceraRecordDiagTick_(state, work, tickDiag, 'FAILED_MAX_STRIKES', rawErrMsg);
+          }
+        }
+      } catch (savePreemptErr) {
+        if (savePreemptErr && savePreemptErr.code === 'CERA_LEASE_PREEMPTED') {
+          ceraHandlePreemptedWorkerTick_(ss, state, lease.token, hadCommittedProgress, work, tickDiag, committedSnapshot, rawErrMsg);
+          return;
+        }
+        throw savePreemptErr;
       }
     }
   } finally {
@@ -1996,7 +2107,7 @@ function parseEventToRow(event, queryEventName) {
 /**
  * Creates partition spreadsheet file inside target Drive folder (PARTITION_HEADERS, one grid column each)
  */
-function createTargetSheetFile(folderId, startStr, endStr, index) {
+function createTargetSheetFile(folderId, startStr, endStr, index, leaseToken, activityId) {
   const fileName = `chrome_security_logs_${startStr}_to_${endStr}_part_${String(index).padStart(3, '0')}`;
   // Created in the job folder through the Drive API: CERA created the folder, so drive.file covers creating in it,
   // and nothing has to be moved afterwards
@@ -2006,10 +2117,12 @@ function createTargetSheetFile(folderId, startStr, endStr, index) {
   const maxAttempts = 5;
   let delayMs = 1500;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (leaseToken) ceraAssertWorkerLease_(leaseToken, activityId);
     try {
       newFile = Drive.Files.create(resource);
       break;
     } catch (e) {
+      if (e && e.code === 'CERA_LEASE_PREEMPTED') throw e;
       if (attempt < maxAttempts) {
         console.warn(`Drive.Files.create retry attempt ${attempt}/${maxAttempts}: ${e.message}`);
         Utilities.sleep(delayMs);
@@ -2021,35 +2134,50 @@ function createTargetSheetFile(folderId, startStr, endStr, index) {
   }
 
   const fileId = newFile.id;
-  // The new spreadsheet has one sheet (sheetId 0) titled in the user's language: name it Sheet1, where positional
-  // updates write, pre-sized to MAX_ROWS_PER_SHEET + 1 rows and one column per header (Q3a-C). Retried like the
-  // creation, so a transient error does not fail the run and leave an unnamed partition behind.
-  const initialGridRows = Math.max(2, (Number(MAX_ROWS_PER_SHEET) || 50000) + 1);
-  const sheetSetup = {
-    requests: [{
-      updateSheetProperties: {
-        properties: { sheetId: 0, title: 'Sheet1', gridProperties: { rowCount: initialGridRows, columnCount: PARTITION_HEADERS.length } },
-        fields: 'title,gridProperties.rowCount,gridProperties.columnCount'
-      }
-    }]
-  };
-  delayMs = 1500;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      Sheets.Spreadsheets.batchUpdate(sheetSetup, fileId);
-      break;
-    } catch (e) {
-      if (attempt < maxAttempts) {
-        console.warn(`Sheets.Spreadsheets.batchUpdate retry attempt ${attempt}/${maxAttempts}: ${e.message}`);
-        Utilities.sleep(delayMs);
-        delayMs *= 2;
-      } else {
-        throw e;
+  try {
+    if (leaseToken) {
+      ceraAssertWorkerLease_(leaseToken, activityId);
+      ceraRegisterPartition_(folderId, index, fileId, fileName, 'IN_PROGRESS', 1);
+    }
+    // The new spreadsheet has one sheet (sheetId 0) titled in the user's language: name it Sheet1, where positional
+    // updates write, pre-sized to MAX_ROWS_PER_SHEET + 1 rows and one column per header (Q3a-C). Retried like the
+    // creation, so a transient error does not fail the run and leave an unnamed partition behind.
+    const initialGridRows = Math.max(2, (Number(MAX_ROWS_PER_SHEET) || 50000) + 1);
+    const sheetSetup = {
+      requests: [{
+        updateSheetProperties: {
+          properties: { sheetId: 0, title: 'Sheet1', gridProperties: { rowCount: initialGridRows, columnCount: PARTITION_HEADERS.length } },
+          fields: 'title,gridProperties.rowCount,gridProperties.columnCount'
+        }
+      }]
+    };
+    delayMs = 1500;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (leaseToken) ceraAssertWorkerLease_(leaseToken, activityId);
+      try {
+        Sheets.Spreadsheets.batchUpdate(sheetSetup, fileId);
+        break;
+      } catch (e) {
+        if (e && e.code === 'CERA_LEASE_PREEMPTED') throw e;
+        if (attempt < maxAttempts) {
+          console.warn(`Sheets.Spreadsheets.batchUpdate retry attempt ${attempt}/${maxAttempts}: ${e.message}`);
+          Utilities.sleep(delayMs);
+          delayMs *= 2;
+        } else {
+          throw e;
+        }
       }
     }
-  }
 
-  flushBufferWithRetry(fileId, [PARTITION_HEADERS.slice()], 0, null, 1);
+    flushBufferWithRetry(fileId, [PARTITION_HEADERS.slice()], 0, null, 1, leaseToken, activityId);
+  } catch (setupErr) {
+    try {
+      if (typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.update === 'function') {
+        Drive.Files.update({ trashed: true }, fileId, null, { supportsAllDrives: true });
+      }
+    } catch (trashErr) {}
+    throw setupErr;
+  }
 
   return { fileId: fileId, fileName: fileName };
 }
@@ -2061,7 +2189,7 @@ function createTargetSheetFile(folderId, startStr, endStr, index) {
  * progress.written (optional) counts the rows appended so far, in order, so a caller knows how far a split
  * batch got when a later half fails
  */
-function flushBufferWithRetry(fileId, dataRows, depth, progress, startRowOffset) {
+function flushBufferWithRetry(fileId, dataRows, depth, progress, startRowOffset, leaseToken, activityId) {
   if (!dataRows || dataRows.length === 0) return 0;
   depth = depth || 0;
 
@@ -2081,6 +2209,7 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress, startRowOffset)
   let delayMs = 1200;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (leaseToken) ceraAssertWorkerLease_(leaseToken, activityId);
     try {
       if (startRowOffset >= 1 && typeof Sheets !== 'undefined' && Sheets.Spreadsheets && Sheets.Spreadsheets.Values && typeof Sheets.Spreadsheets.Values.update === 'function') {
         const endRowOffset = startRowOffset + sanitizedRows.length - 1;
@@ -2102,6 +2231,7 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress, startRowOffset)
       if (progress) progress.written += sanitizedRows.length;
       return sanitizedRows.length;
     } catch (e) {
+      if (e && e.code === 'CERA_LEASE_PREEMPTED') throw e;
       const classified = ceraClassifyIngestionError_(e);
       const errMsg = (e.message || String(e)).toLowerCase();
 
@@ -2111,6 +2241,7 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress, startRowOffset)
           typeof Sheets !== 'undefined' && Sheets.Spreadsheets && typeof Sheets.Spreadsheets.batchUpdate === 'function' &&
           Sheets.Spreadsheets.Values && typeof Sheets.Spreadsheets.Values.update === 'function') {
         try {
+          if (leaseToken) ceraAssertWorkerLease_(leaseToken, activityId);
           const endRowOffset = startRowOffset + sanitizedRows.length - 1;
           const targetGridRows = Math.max(endRowOffset + 1000, (Number(MAX_ROWS_PER_SHEET) || 50000) + 1);
           console.warn(`[Self-Healing Grid] Expanding Sheet1 grid of ${fileId} to ${targetGridRows} rows after grid-limit notice...`);
@@ -2135,6 +2266,7 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress, startRowOffset)
           if (progress) progress.written += sanitizedRows.length;
           return sanitizedRows.length;
         } catch (expandErr) {
+          if (expandErr && expandErr.code === 'CERA_LEASE_PREEMPTED') throw expandErr;
           console.warn(`[Self-Healing Grid] Grid expansion retry notice: ${expandErr.message || expandErr}`);
         }
       }
@@ -2165,8 +2297,8 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress, startRowOffset)
         const part1 = sanitizedRows.slice(0, mid);
         const part2 = sanitizedRows.slice(mid);
         const nextOffset2 = startRowOffset >= 1 ? startRowOffset + part1.length : undefined;
-        const written1 = flushBufferWithRetry(fileId, part1, depth + 1, progress, startRowOffset);
-        const written2 = flushBufferWithRetry(fileId, part2, depth + 1, progress, nextOffset2);
+        const written1 = flushBufferWithRetry(fileId, part1, depth + 1, progress, startRowOffset, leaseToken, activityId);
+        const written2 = flushBufferWithRetry(fileId, part2, depth + 1, progress, nextOffset2, leaseToken, activityId);
         return written1 + written2;
       }
 
@@ -2185,8 +2317,8 @@ function flushBufferWithRetry(fileId, dataRows, depth, progress, startRowOffset)
           const part1 = sanitizedRows.slice(0, mid);
           const part2 = sanitizedRows.slice(mid);
           const nextOffset2 = startRowOffset >= 1 ? startRowOffset + part1.length : undefined;
-          const written1 = flushBufferWithRetry(fileId, part1, depth + 1, progress, startRowOffset);
-          const written2 = flushBufferWithRetry(fileId, part2, depth + 1, progress, nextOffset2);
+          const written1 = flushBufferWithRetry(fileId, part1, depth + 1, progress, startRowOffset, leaseToken, activityId);
+          const written2 = flushBufferWithRetry(fileId, part2, depth + 1, progress, nextOffset2, leaseToken, activityId);
           return written1 + written2;
         }
         throw e;
@@ -2238,11 +2370,19 @@ const CERA_ERROR_MESSAGE_MAX_CHARS = 500;
  * ETA's recent ticks and days, then the pre-flight plan (progress and ETA then follow calendar coverage). A session
  * that still does not fit stops the job with an explicit error.
  */
-function saveStateToStorage(state) {
+function saveStateToStorage(state, options) {
   if (!state) return;
+  if (options && options.expectedLeaseToken) {
+    ceraAssertWorkerLease_(options.expectedLeaseToken, options.expectedActivityId || state.activityId);
+  }
   try {
     if (state.errorMessage && String(state.errorMessage).length > CERA_ERROR_MESSAGE_MAX_CHARS) {
-      state.errorMessage = String(state.errorMessage).slice(0, CERA_ERROR_MESSAGE_MAX_CHARS - 1) + '…';
+      let errCut = CERA_ERROR_MESSAGE_MAX_CHARS - 1;
+      const rawErrStr = String(state.errorMessage);
+      if (errCut > 1 && rawErrStr.charCodeAt(errCut - 1) >= 0xD800 && rawErrStr.charCodeAt(errCut - 1) <= 0xDBFF) {
+        errCut--;
+      }
+      state.errorMessage = rawErrStr.slice(0, errCut) + '…';
     }
     if (state.partitions && state.partitions.length > 10) {
       state.partitions = state.partitions.slice(-10);
@@ -2431,6 +2571,17 @@ function ceraUpdateJobCtlStatus_(state, status, reasonCode) {
     ctl.heartbeatMs = nowMs;
     ctl.lastHeartbeatMs = nowMs;
     if (reasonCode) ctl.lastReason = String(reasonCode);
+    if (status === 'RUNNING' && reasonCode === 'USER_RESUMED') {
+      // Preserve knowledge of any unfinalized pre-pause worker run so the resumed worker reconciles uncommitted rows,
+      // while setting a fresh non-worker marker so any zombie pre-pause worker still gets preempted immediately.
+      if ((ctl.leaseHolder && !String(ctl.leaseHolder).startsWith('resumed_')) || (ctl.runStartMs > 0 && ctl.runEndMs < ctl.runStartMs)) {
+        ctl.hadUnfinalizedRun = true;
+      }
+      ctl.leaseHolder = 'resumed_' + nowMs;
+      ctl.leaseUntilMs = 0;
+      ctl.runStartMs = 0;
+      ctl.runEndMs = 0;
+    }
     if (state && state.quotaResumeAtIso) {
       const qMs = Date.parse(state.quotaResumeAtIso);
       if (Number.isFinite(qMs)) ctl.quotaResumeAtMs = qMs;
@@ -2446,9 +2597,14 @@ function ceraUpdateJobCtlStatus_(state, status, reasonCode) {
  */
 function ceraAcquireTickLease_(state, runId) {
   const nowMs = Date.now();
+  const token = (typeof runId === 'string' && runId)
+    ? runId
+    : ('tick_' + String(runId || nowMs) + '_' + (typeof Utilities !== 'undefined' && Utilities.getUuid
+      ? Utilities.getUuid().replace(/-/g, '').slice(0, 8)
+      : Math.random().toString(36).slice(2, 10)));
   let ctl = ceraLoadJobCtl_();
   if (!ctl) ctl = ceraInitJobCtl_(state);
-  if (!ctl) return { acquired: true, killedPrevious: false };
+  if (!ctl) return { acquired: true, token: token, killedPrevious: false };
 
   // Foreign-owner guard: if another user's trigger fires on a session owned by a different user, do not interleave writes
   let effEmail = '';
@@ -2457,27 +2613,368 @@ function ceraAcquireTickLease_(state, runId) {
   } catch (e) {}
   if (ctl.ownerEmail && effEmail && ctl.ownerEmail.toLowerCase() !== effEmail.toLowerCase()) {
     ceraAppendFlightIncident_('FOREIGN_OWNER_SKIPPED', 'Tick skipped due to owner mismatch.');
-    return { acquired: false, reason: 'FOREIGN_OWNER', killedPrevious: false };
+    return { acquired: false, token: '', reason: 'FOREIGN_OWNER', killedPrevious: false };
+  }
+
+  // Active lease guard: block overlapping trigger ticks whenever an unexpired lease is held by another worker
+  if (ctl.leaseHolder && String(ctl.leaseHolder) !== token && Number(ctl.leaseUntilMs) > nowMs) {
+    return { acquired: false, token: '', reason: 'LEASE_ACTIVE', killedPrevious: false };
   }
 
   let killedPrevious = false;
-  if (ctl.runStartMs > 0 && ctl.runEndMs < ctl.runStartMs) {
-    if (ctl.leaseUntilMs > nowMs && ctl.leaseHolder && ctl.leaseHolder !== runId) {
-      return { acquired: false, reason: 'LEASE_ACTIVE', killedPrevious: false };
-    }
+  const expiredWorkerHolder = ctl.leaseHolder && !String(ctl.leaseHolder).startsWith('resumed_') && Number(ctl.leaseUntilMs) <= nowMs;
+  if (expiredWorkerHolder || (ctl.runStartMs > 0 && ctl.runEndMs < ctl.runStartMs) || ctl.hadUnfinalizedRun) {
     killedPrevious = true;
-    ctl.killedTicks = (Number(ctl.killedTicks) || 0) + 1;
-    ceraAppendFlightIncident_('TICK_KILLED', 'Previous tick exceeded runtime limit without clean finalize.');
+    if (!ctl.hadUnfinalizedRun) {
+      ctl.killedTicks = (Number(ctl.killedTicks) || 0) + 1;
+      ceraAppendFlightIncident_('TICK_KILLED', 'Previous tick exceeded runtime limit without clean finalize.');
+    }
+    ctl.hadUnfinalizedRun = false;
   }
 
-  ctl.leaseHolder = String(runId || 'tick');
+  ctl.leaseHolder = token;
   ctl.leaseUntilMs = nowMs + CERA_EXTRACTION_LEASE_MS;
   ctl.runStartMs = nowMs;
   ctl.heartbeatMs = nowMs;
   ctl.lastHeartbeatMs = nowMs;
   ctl.status = (state && state.status) || ctl.status || 'RUNNING';
   ceraSaveJobCtl_(ctl);
-  return { acquired: true, killedPrevious: killedPrevious };
+  return { acquired: true, token: token, killedPrevious: killedPrevious };
+}
+
+/**
+ * Verifies that the active background worker still owns `expectedToken` and that the session status
+ * was not externally transitioned by UI controls (`PAUSED`, `FINALIZING_STOP`, `IDLE`, `DISCARDED`, `STOPPED`, `COMPLETED`).
+ * Throws a sentinel error (`err.code = 'CERA_LEASE_PREEMPTED'`) when preempted; no-op when `expectedToken` is omitted/empty.
+ */
+function ceraAssertWorkerLease_(expectedToken, expectedActivityId) {
+  if (!expectedToken) return true;
+  const expected = String(expectedToken);
+  const docProps = typeof PropertiesService !== 'undefined' ? PropertiesService.getDocumentProperties() : null;
+  const ctl = ceraLoadJobCtl_();
+  const sessionRes = ceraReadPropTriState_(docProps, 'SIERRA_SESSION');
+  let storedSession = null;
+  if (sessionRes.status === 'PRESENT' && sessionRes.value) {
+    try {
+      storedSession = JSON.parse(sessionRes.value);
+    } catch (e) {}
+  }
+
+  const throwPreempt = (reason, extSt) => {
+    const err = new Error('Worker lease preempted (' + reason + (extSt ? ':' + extSt : '') + ')');
+    err.code = 'CERA_LEASE_PREEMPTED';
+    err.preemptReason = reason;
+    err.externalStatus = extSt || '';
+    throw err;
+  };
+
+  if (expectedActivityId) {
+    if ((ctl && ctl.activityId && String(ctl.activityId) !== String(expectedActivityId)) ||
+        (storedSession && storedSession.activityId && String(storedSession.activityId) !== String(expectedActivityId))) {
+      throwPreempt('ACTIVITY_MISMATCH', 'IDLE');
+    }
+  }
+
+  if (ctl && storedSession && ctl.activityId && storedSession.activityId && ctl.activityId !== storedSession.activityId) {
+    throwPreempt('ACTIVITY_MISMATCH', 'IDLE');
+  }
+
+  const stoppedStatuses = {
+    PAUSED: true,
+    FINALIZING_STOP: true,
+    IDLE: true,
+    DISCARDED: true,
+    STOPPED: true,
+    COMPLETED: true
+  };
+  const ctlStatus = (ctl && ctl.status) ? String(ctl.status) : '';
+  const sessStatus = (storedSession && storedSession.status) ? String(storedSession.status) : '';
+  if (ctlStatus && stoppedStatuses[ctlStatus]) {
+    throwPreempt('EXTERNAL_STATUS', ctlStatus);
+  }
+  if (sessStatus && stoppedStatuses[sessStatus]) {
+    throwPreempt('EXTERNAL_STATUS', sessStatus);
+  }
+
+  const ctlHolder = (ctl && ctl.leaseHolder) ? String(ctl.leaseHolder) : '';
+  const sessHolder = (storedSession && storedSession.leaseHolder) ? String(storedSession.leaseHolder) : '';
+  if ((ctl && ctlHolder !== expected) || (sessHolder && sessHolder !== expected)) {
+    throwPreempt('LEASE_MISMATCH', ctlStatus || sessStatus);
+  }
+
+  if (sessionRes.status === 'MISSING' && !(ctl && (ctl.status === 'RUNNING' || ctl.status === 'QUOTA_PAUSED') && ctlHolder === expected)) {
+    throwPreempt('SESSION_MISSING', 'IDLE');
+  }
+  return true;
+}
+
+/**
+ * Reconciles partition sheets and `CERA_PART_REG` against the authoritative `SIERRA_SESSION` checkpoint
+ * at the start of a worker tick whenever a previous worker tick exited without finalizing (`lease.killedPrevious`)
+ * or wrote rows/partitions ahead of `SIERRA_SESSION` before being preempted.
+ */
+function ceraReconcileUncommittedPartitionWrites_(state, lease) {
+  if (!state || !state.folderId || !lease || !lease.token) return;
+  const expectedFileIndex = Math.max(1, Number(state.fileIndex || 1));
+  const expectedSheetRows = Math.max(1, Number(state.currentSheetRows || 1));
+  const reg = ceraGetPartitionRegistry_(state.folderId);
+  const regList = (reg && Array.isArray(reg.partitions)) ? reg.partitions : [];
+
+  const orphanEntries = regList.filter(p => Number(p && p.index) > expectedFileIndex);
+  const activeEntry = regList.find(p => Number(p && p.index) === expectedFileIndex || (state.currentFileId && p && p.fileId === state.currentFileId));
+  const regRowsAhead = Boolean(activeEntry && Number(activeEntry.rows || 0) > expectedSheetRows);
+
+  if (!lease.killedPrevious && orphanEntries.length === 0 && !regRowsAhead) {
+    return;
+  }
+
+  ceraAssertWorkerLease_(lease.token, state.activityId);
+
+  if (lease.killedPrevious && ceraIsSafeDriveId_(state.folderId) && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.list === 'function') {
+    try {
+      const listRes = Drive.Files.list({
+        q: `'${state.folderId}' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`,
+        pageSize: 100,
+        fields: 'files(id,name,trashed)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
+      });
+      const folderFiles = (listRes && Array.isArray(listRes.files)) ? listRes.files : [];
+      folderFiles.forEach(f => {
+        if (!f || !f.id || f.trashed || f.id === state.currentFileId) return;
+        const m = /^chrome_security_logs_.*_part_(\d+)$/.exec(String(f.name || ''));
+        if (!m) return;
+        const partNum = Number(m[1]);
+        if (partNum > expectedFileIndex || (partNum === expectedFileIndex && state.currentFileId && f.id !== state.currentFileId)) {
+          if (!orphanEntries.some(o => o && o.fileId === f.id)) {
+            orphanEntries.push({ index: partNum, fileId: f.id, fileName: f.name || '', rows: 0, status: 'IN_PROGRESS' });
+          }
+        }
+      });
+    } catch (listOrphanErr) {}
+  }
+
+  const endColLetter = String.fromCharCode(64 + PARTITION_HEADERS.length);
+  const retryReconcileOp = fn => {
+    let delayMs = 500;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      ceraAssertWorkerLease_(lease.token, state.activityId);
+      try {
+        return fn();
+      } catch (opErr) {
+        if (opErr && opErr.code === 'CERA_LEASE_PREEMPTED') throw opErr;
+        const msg = String((opErr && opErr.message) || opErr || '').toLowerCase();
+        if (msg.includes('404') || msg.includes('not found')) return null;
+        if (attempt < 3) {
+          Utilities.sleep(delayMs);
+          delayMs *= 2;
+        } else {
+          throw opErr;
+        }
+      }
+    }
+    return null;
+  };
+
+  let maxRowToClear = activeEntry ? Number(activeEntry.rows || 0) : 0;
+  if (state.currentFileId && (lease.killedPrevious || orphanEntries.length > 0)) {
+    try {
+      if (typeof Sheets !== 'undefined' && Sheets.Spreadsheets && typeof Sheets.Spreadsheets.get === 'function') {
+        const meta = Sheets.Spreadsheets.get(state.currentFileId);
+        const sh0 = meta && Array.isArray(meta.sheets) && (
+          meta.sheets.find(s => s && s.properties && (s.properties.title === 'Sheet1' || s.properties.sheetId === 0)) || meta.sheets[0]
+        );
+        const gridRows = Number(sh0 && sh0.properties && sh0.properties.gridProperties && sh0.properties.gridProperties.rowCount) || 0;
+        if (gridRows > maxRowToClear) maxRowToClear = gridRows;
+      }
+    } catch (metaErr) {}
+  }
+
+  // Persist pending reconciliation markers first so if clear/trash fails after retries, the next tick retries cleanly
+  if (orphanEntries.length > 0 || maxRowToClear > expectedSheetRows) {
+    try {
+      const pendingReg = {
+        folderId: state.folderId,
+        partitions: regList.filter(p => Number(p && p.index) <= expectedFileIndex)
+      };
+      let pendActive = pendingReg.partitions.find(p => Number(p && p.index) === expectedFileIndex || (state.currentFileId && p && p.fileId === state.currentFileId));
+      if (!pendActive && state.currentFileId) {
+        pendActive = { index: expectedFileIndex, fileId: state.currentFileId, fileName: state.currentFileName || '', rows: expectedSheetRows, status: 'IN_PROGRESS' };
+        pendingReg.partitions.push(pendActive);
+      }
+      if (pendActive && maxRowToClear > expectedSheetRows) {
+        pendActive.rows = maxRowToClear;
+      }
+      orphanEntries.forEach(o => {
+        if (o && o.fileId && !pendingReg.partitions.some(p => p && p.fileId === o.fileId)) {
+          pendingReg.partitions.push({ index: Math.max(expectedFileIndex + 1, Number(o.index || 0)), fileId: o.fileId, fileName: o.fileName || '', rows: Number(o.rows || 0), status: 'IN_PROGRESS' });
+        }
+      });
+      if (pendingReg.partitions.length > 60) pendingReg.partitions = pendingReg.partitions.slice(-60);
+      PropertiesService.getDocumentProperties().setProperty('CERA_PART_REG', JSON.stringify(pendingReg));
+    } catch (pendRegErr) {}
+  }
+
+  for (let i = 0; i < orphanEntries.length; i++) {
+    const orphan = orphanEntries[i];
+    if (!orphan || !orphan.fileId || orphan.fileId === state.currentFileId) continue;
+    if (typeof Sheets !== 'undefined' && Sheets.Spreadsheets && Sheets.Spreadsheets.Values && typeof Sheets.Spreadsheets.Values.clear === 'function') {
+      try {
+        const orphanRows = Math.max(2, Number(orphan.rows || 0), (Number(MAX_ROWS_PER_SHEET) || 50000) + 1);
+        retryReconcileOp(() => Sheets.Spreadsheets.Values.clear({}, orphan.fileId, `Sheet1!A2:${endColLetter}${orphanRows}`));
+      } catch (clrOrphanErr) {
+        if (clrOrphanErr && clrOrphanErr.code === 'CERA_LEASE_PREEMPTED') throw clrOrphanErr;
+      }
+    }
+    if (typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.update === 'function') {
+      retryReconcileOp(() => Drive.Files.update({ trashed: true }, orphan.fileId, null, { supportsAllDrives: true }));
+    }
+  }
+
+  if (state.currentFileId && maxRowToClear > expectedSheetRows && typeof Sheets !== 'undefined' && Sheets.Spreadsheets && Sheets.Spreadsheets.Values && typeof Sheets.Spreadsheets.Values.clear === 'function') {
+    retryReconcileOp(() => Sheets.Spreadsheets.Values.clear({}, state.currentFileId, `Sheet1!A${expectedSheetRows + 1}:${endColLetter}${maxRowToClear}`));
+  }
+
+  try {
+    reg.folderId = state.folderId;
+    reg.partitions = regList.filter(p => Number(p && p.index) <= expectedFileIndex && (!p.fileId || p.index !== expectedFileIndex || !state.currentFileId || p.fileId === state.currentFileId));
+    const syncActive = reg.partitions.find(p => Number(p && p.index) === expectedFileIndex || (state.currentFileId && p && p.fileId === state.currentFileId));
+    if (syncActive) {
+      syncActive.rows = expectedSheetRows;
+      syncActive.status = 'IN_PROGRESS';
+      if (state.currentFileId) syncActive.fileId = state.currentFileId;
+      if (state.currentFileName) syncActive.fileName = state.currentFileName;
+    } else if (state.currentFileId) {
+      reg.partitions.push({
+        index: expectedFileIndex,
+        fileId: state.currentFileId,
+        fileName: state.currentFileName || '',
+        rows: expectedSheetRows,
+        status: 'IN_PROGRESS'
+      });
+    }
+    PropertiesService.getDocumentProperties().setProperty('CERA_PART_REG', JSON.stringify(reg));
+  } catch (regErr) {}
+
+  if (Array.isArray(state.partitions) && state.partitions.length > 0) {
+    state.partitions = state.partitions.filter(p => Number((p && (p.fileIndex || p.index)) || 0) <= expectedFileIndex);
+    const lastPart = state.partitions[state.partitions.length - 1];
+    if (lastPart && Number(lastPart.fileIndex || lastPart.index || expectedFileIndex) === expectedFileIndex) {
+      lastPart.rowCount = Math.max(0, expectedSheetRows - 1);
+      lastPart.status = 'IN_PROGRESS';
+    }
+  }
+}
+
+/**
+ * Handles a preempted background worker tick cleanly:
+ * - Never writes anything if the lease was stolen or the session was reset/discarded (`IDLE` / `DISCARDED` / missing).
+ * - Never writes `SIERRA_SESSION` if UI paused/stopped the job and this tick committed 0 rows to Drive.
+ * - If this worker legitimately held the sole lease and already committed rows to Drive earlier in the tick before
+ *   UI clicked Pause/Stop, reconciles only the committed Drive checkpoint fields while preserving UI's status.
+ */
+function ceraHandlePreemptedWorkerTick_(ss, state, leaseToken, hadCommittedProgress, work, tickDiag, committed, rawErrMsg) {
+  const docProps = typeof PropertiesService !== 'undefined' ? PropertiesService.getDocumentProperties() : null;
+  const ctlNow = ceraLoadJobCtl_();
+  const sessionRes = ceraReadPropTriState_(docProps, 'SIERRA_SESSION');
+  let storedObj = null;
+  if (sessionRes.status === 'PRESENT' && sessionRes.value) {
+    try {
+      storedObj = JSON.parse(sessionRes.value);
+    } catch (e) {}
+  }
+
+  const actId = (state && state.activityId) || '';
+  const ctlMatchesAct = !ctlNow || !actId || !ctlNow.activityId || ctlNow.activityId === actId;
+  const sessMatchesAct = !storedObj || !actId || !storedObj.activityId || storedObj.activityId === actId;
+  const leaseStillOurs = Boolean(
+    ctlMatchesAct && sessMatchesAct &&
+    (!ctlNow || String(ctlNow.leaseHolder || '') === String(leaseToken)) &&
+    (!storedObj || !storedObj.leaseHolder || String(storedObj.leaseHolder) === String(leaseToken))
+  );
+
+  const ctlSt = (ctlNow && ctlNow.status) ? String(ctlNow.status) : '';
+  const sessSt = (storedObj && storedObj.status) ? String(storedObj.status) : '';
+  const isStoppedSt = st => st === 'PAUSED' || st === 'FINALIZING_STOP' || st === 'STOPPED' || st === 'COMPLETED' || st === 'IDLE' || st === 'DISCARDED';
+  const extStatus = isStoppedSt(sessSt) ? sessSt : (isStoppedSt(ctlSt) ? ctlSt : (sessSt || ctlSt));
+
+  if (!leaseStillOurs || !storedObj || !isStoppedSt(extStatus) || extStatus === 'IDLE' || extStatus === 'DISCARDED' ||
+      (ctlNow && (ctlNow.status === 'IDLE' || ctlNow.status === 'DISCARDED'))) {
+    console.warn('[Liveness] Worker tick preempted (' + (extStatus || 'LEASE_PREEMPTED') + '); aborting without state overwrite.');
+    return;
+  }
+
+  if (!hadCommittedProgress) {
+    console.warn('[Liveness] Worker tick halted cleanly after external status ' + extStatus + ' (0 uncommitted rows).');
+    if (ctlNow && String(ctlNow.leaseHolder || '') === String(leaseToken)) {
+      ctlNow.leaseHolder = '';
+      ctlNow.leaseUntilMs = 0;
+      ctlNow.hadUnfinalizedRun = false;
+      ctlNow.runEndMs = Date.now();
+      ceraSaveJobCtl_(ctlNow);
+    }
+    return;
+  }
+
+  // Reconcile rows already written to Drive while preserving the UI's target status & flags
+  storedObj.processedCount = committed.totalLogsProcessed;
+  storedObj.scannedCount = committed.totalScanned;
+  storedObj.currentCursorMs = committed.currentCursorMs;
+  storedObj.fileIndex = committed.fileIndex;
+  storedObj.currentFileId = committed.currentFileId;
+  storedObj.currentFileName = committed.currentFileName;
+  storedObj.currentSheetRows = committed.currentSheetRows;
+  storedObj.eventStreams = committed.eventStreams;
+  storedObj.partitions = committed.partitions;
+  if (committed.sliceChecked !== undefined) storedObj.sliceChecked = committed.sliceChecked;
+  if (committed.activeUntilMs !== undefined) storedObj.activeUntilMs = committed.activeUntilMs;
+  if (committed.recentDays !== undefined) storedObj.recentDays = committed.recentDays;
+  if (committed.calib !== undefined) storedObj.calib = committed.calib;
+  storedObj.lastUpdateMs = Date.now();
+
+  if (extStatus === 'COMPLETED') {
+    storedObj.status = 'COMPLETED';
+    storedObj.isCompleted = true;
+    storedObj.timeSpanPct = 100;
+    storedObj.etaSec = 0;
+    storedObj.estimatedRemainingSec = 0;
+    if (Array.isArray(storedObj.partitions) && storedObj.partitions.length > 0) {
+      storedObj.partitions[storedObj.partitions.length - 1].status = 'COMPLETED';
+    }
+    ceraUpdatePartitionRows_(storedObj.folderId, committed.fileIndex, committed.currentFileId, committed.currentFileName, committed.currentSheetRows, 'COMPLETED');
+  } else {
+    storedObj.status = extStatus;
+    const winStart = Number(committed.windowStartMs || storedObj.windowStartMs || 0);
+    const spanMs = Math.max(1, Number(committed.totalLogSpanMs || storedObj.totalLogSpanMs || 1));
+    const dFilter = Number(committed.daysFilter || storedObj.dateRangeDays || CERA_DEFAULT_RANGE_DAYS);
+    const covMs = Math.max(0, Number(committed.currentCursorMs || winStart) - winStart);
+    const covPct = Math.min(99.9, Math.max(0.1, Math.round(Math.min(1.0, covMs / spanMs) * 1000) / 10));
+    storedObj.timeSpanPct = Math.max(Number(storedObj.timeSpanPct || 0), covPct);
+    storedObj.currentDay = Math.min(dFilter, Math.max(1, Math.floor(covMs / 86400000) + 1));
+    if (committed.currentCursorMs > 0) {
+      storedObj.currentLogDateStr = Utilities.formatDate(new Date(committed.currentCursorMs), ceraTimeZone(), 'yyyy-MM-dd HH:mm');
+    }
+    ceraUpdatePartitionRows_(storedObj.folderId, committed.fileIndex, committed.currentFileId, committed.currentFileName, committed.currentSheetRows, 'IN_PROGRESS');
+  }
+
+  const ctlBeforeSave = ceraLoadJobCtl_();
+  const sessBeforeSave = ceraReadPropTriState_(docProps, 'SIERRA_SESSION');
+  let sessBeforeObj = null;
+  if (sessBeforeSave.status === 'PRESENT' && sessBeforeSave.value) {
+    try { sessBeforeObj = JSON.parse(sessBeforeSave.value); } catch (e) {}
+  }
+  if (!ctlBeforeSave || ctlBeforeSave.status === 'IDLE' || ctlBeforeSave.status === 'DISCARDED' ||
+      (actId && ctlBeforeSave.activityId && ctlBeforeSave.activityId !== actId) ||
+      String(ctlBeforeSave.leaseHolder || '') !== String(leaseToken) ||
+      !sessBeforeObj || sessBeforeObj.status === 'IDLE' || sessBeforeObj.status === 'DISCARDED' ||
+      (actId && sessBeforeObj.activityId && sessBeforeObj.activityId !== actId)) {
+    return;
+  }
+
+  saveStateToStorage(storedObj);
+  ceraFinalizeTickCtl_(storedObj, leaseToken, storedObj.status, work.rows, work.requests, rawErrMsg || '');
+  safeUpdateDashboard(ss, storedObj, storedObj.partitions);
+  ceraRecordDiagTick_(storedObj, work, tickDiag, storedObj.status, rawErrMsg || '');
 }
 
 /**
@@ -2489,9 +2986,13 @@ function ceraFinalizeTickCtl_(state, runId, status, rowsWritten, apiCalls, error
     let ctl = ceraLoadJobCtl_();
     if (!ctl && state) ctl = ceraInitJobCtl_(state);
     if (!ctl) return;
+    if (ctl.leaseHolder && typeof runId === 'string' && runId && String(ctl.leaseHolder) !== runId) {
+      return;
+    }
     const durMs = ctl.runStartMs > 0 ? Math.max(0, nowMs - ctl.runStartMs) : 0;
     ctl.leaseHolder = '';
     ctl.leaseUntilMs = 0;
+    ctl.hadUnfinalizedRun = false;
     ctl.runEndMs = nowMs;
     ctl.heartbeatMs = nowMs;
     ctl.lastHeartbeatMs = nowMs;
@@ -2812,6 +3313,12 @@ function ceraComputeJobHealth_(state, ctl) {
 function ceraMaybeAutoHealIngestionOnOpen_(source) {
   try {
     const docProps = PropertiesService.getDocumentProperties();
+    if (typeof ceraVerifyWorkbookLicense_ === 'function') {
+      const licGate = ceraVerifyWorkbookLicense_(null, docProps, { skipDriveCheck: true });
+      if (licGate && licGate.authorized === false) {
+        return { checked: true, healed: false, reason: 'UNAUTHORIZED_LICENSE', ownerMatch: false };
+      }
+    }
     const readRes = ceraReadPropTriState_(docProps, 'SIERRA_SESSION');
     if (readRes.status !== 'PRESENT' || !readRes.value) {
       return { checked: true, healed: false, reason: readRes.status };
@@ -2851,16 +3358,20 @@ function ceraMaybeAutoHealIngestionOnOpen_(source) {
     }
 
     registerCloudIngestionTrigger(CERA_EXTRACTION_TRIGGER_MINUTES);
-    state.lastUpdateMs = nowMs;
-    saveStateToStorage(state);
-    if (ctl) {
+    const activeWorkerLease = Boolean(ctl && ctl.leaseHolder && !String(ctl.leaseHolder).startsWith('resumed_') && Number(ctl.leaseUntilMs) > nowMs);
+    if (!activeWorkerLease) {
+      state.lastUpdateMs = nowMs;
+      saveStateToStorage(state);
+    }
+    const targetCtl = ctl || ceraInitJobCtl_(state);
+    if (targetCtl) {
       const nextHeals = healsSoFar + 1;
-      ctl.healCount = nextHeals;
-      ctl.resumeCount = nextHeals;
-      ctl.lastHealMs = nowMs;
-      ctl.heartbeatMs = nowMs;
-      ctl.lastHeartbeatMs = nowMs;
-      ceraSaveJobCtl_(ctl);
+      targetCtl.healCount = nextHeals;
+      targetCtl.resumeCount = nextHeals;
+      targetCtl.lastHealMs = nowMs;
+      targetCtl.heartbeatMs = nowMs;
+      targetCtl.lastHeartbeatMs = nowMs;
+      ceraSaveJobCtl_(targetCtl);
     }
     ceraAppendFlightIncident_('TRIGGER_REPAIRED_ON_OPEN', 'Re-armed background trigger via ' + (source || 'open') + '.');
     ceraRecordDiagLifecycle_(state, 'RUNNING', 'TRIGGER_REPAIRED_ON_OPEN', 'Auto-repaired missing/stale background trigger via ' + (source || 'open') + '.');
@@ -2892,14 +3403,20 @@ function ceraBuildIncidentPacket_(passedState) {
     if (rawHot) hotTicks = JSON.parse(rawHot) || [];
   } catch (e) {}
 
-  const ver = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.12';
+  const ver = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.18';
   const status = state.status || ctl.status || 'IDLE';
   const errCode = ceraScrubText_(ctl.lastErrorCode || state.errorKey || 'NONE', 60);
   const errMsg = ceraScrubText_(ctl.lastErrorMsg || state.errorMessage || '', 120);
+  const lic = (typeof ceraVerifyWorkbookLicense_ === 'function')
+    ? ceraVerifyWorkbookLicense_(null, null, { skipDriveCheck: true })
+    : null;
 
   const packetObj = {
     schema: 'cera.incident.v1',
     v: ver,
+    instanceRef: (lic && lic.refCode) || 'UNBOUND',
+    licenseState: (lic && lic.licenseState) || 'UNSTAMPED',
+    ownerMask: (lic && lic.maskedEmail) || '',
     activityId: state.activityId || ctl.activityId || 'NONE',
     status: status,
     healthState: health.healthState,
@@ -2943,6 +3460,10 @@ function ceraBuildIncidentPacket_(passedState) {
     json = JSON.stringify(packetObj);
   }
   return json;
+}
+
+function getDiagnosticSummaryText(passedState) {
+  return ceraBuildIncidentPacket_(passedState);
 }
 
 if (typeof globalThis !== 'undefined' && typeof globalThis.copyIngestionIncidentPacket !== 'function') {
@@ -3020,7 +3541,7 @@ function ceraStoredJobStatus_(activityId) {
   const ctlMatches = ctl && (!activityId || !ctl.activityId || ctl.activityId === activityId);
   if (ctlMatches) {
     if (ctl.status === 'IDLE' || ctl.status === 'DISCARDED') return 'GONE';
-    if (ctl.status === 'PAUSED' || ctl.status === 'STOPPED' || ctl.status === 'COMPLETED') return String(ctl.status);
+    if (ctl.status === 'PAUSED' || ctl.status === 'FINALIZING_STOP' || ctl.status === 'STOPPED' || ctl.status === 'COMPLETED') return String(ctl.status);
   } else if (ctl && activityId && ctl.activityId && ctl.activityId !== activityId) {
     return 'GONE';
   }
@@ -3108,15 +3629,17 @@ function detectExistingSession() {
               }
             }
 
-            // Sync target folder URL and ID from cell E6 (or legacy E7) formula
+            // Sync target folder URL and ID from cell E6 (or legacy E7) formula (strictly https://drive.google.com/drive/.../folders/<id>)
             const e6Formula = String(monitorSheet.getRange('E6').getFormula() || '');
             const e7Formula = String(monitorSheet.getRange('E7').getFormula() || '');
             const formulaStr = e6Formula.includes('HYPERLINK') ? e6Formula : e7Formula;
             const matchUrl = formulaStr.match(/HYPERLINK\("([^"]+)"/i);
             if (matchUrl && matchUrl[1]) {
-              state.folderUrl = matchUrl[1];
-              const matchFldId = matchUrl[1].match(/folders\/([-\w]+)/);
-              if (matchFldId) state.folderId = matchFldId[1];
+              const matchFldId = /^https:\/\/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([A-Za-z0-9_-]{1,200})(?:[/?#].*)?$/.exec(matchUrl[1].trim());
+              if (matchFldId && matchFldId[1]) {
+                state.folderId = matchFldId[1];
+                state.folderUrl = 'https://drive.google.com/drive/folders/' + matchFldId[1];
+              }
             }
 
             // Sync target folder name from cell E6 (or legacy E7) value if plain text
@@ -3175,9 +3698,9 @@ function detectExistingSession() {
       currentLogDateStr: state.currentLogDateStr || '',
       folderId: state.folderId || '',
       folderName: state.folderName || 'Extracted Chrome Logs Folder',
-      folderUrl: state.folderUrl || (state.folderId ? `https://drive.google.com/drive/folders/${state.folderId}` : ''),
+      folderUrl: ceraSafeHttpsDriveUrl_(state.folderUrl) || (ceraIsSafeDriveId_(state.folderId) ? `https://drive.google.com/drive/folders/${state.folderId}` : ''),
       logFolderId: (diagMeta && diagMeta.logFolderId) || '',
-      logFolderUrl: (diagMeta && diagMeta.logFolderUrl) || '',
+      logFolderUrl: ceraSafeHttpsDriveUrl_(diagMeta && diagMeta.logFolderUrl) || '',
       logFileId: (diagMeta && diagMeta.logFileId) || '',
       fileIndex: state.fileIndex || 1,
       rate: state.processingRate || state.rate || 0,
@@ -3198,6 +3721,29 @@ function detectExistingSession() {
 
 const CERA_DIAG_LOG_MAX_BYTES = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_MAX_BYTES) ? CeraConfig.DIAG_LOG_MAX_BYTES : 1000000;
 const CERA_DIAG_LOG_SOFT_BYTES = Math.floor(CERA_DIAG_LOG_MAX_BYTES * 0.94);
+const CERA_DIAG_MAX_TICKS = 150;
+const CERA_DIAG_MAX_ANOMALIES = 100;
+const CERA_DIAG_CACHE_SOFT_BYTES = 72000;
+
+function ceraIsSafeDriveId_(rawId) {
+  return typeof rawId === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(rawId.trim());
+}
+
+function ceraSafeHttpsDriveUrl_(rawUrl) {
+  const s = String(rawUrl || '').trim();
+  if (!s) return '';
+  return /^https:\/\/(?:drive|docs)\.google\.com\/[^\s"<>\\]+$/.test(s) ? s : '';
+}
+
+function ceraRedactSensitiveTokens_(rawText) {
+  if (!rawText) return '';
+  return String(rawText)
+    .replace(/\bBearer\s+[^\s,;)'"]+/gi, 'Bearer [REDACTED_TOKEN]')
+    .replace(/\bya29\.[A-Za-z0-9._-]+/g, '[REDACTED_TOKEN]')
+    .replace(/\b1\/\/[A-Za-z0-9._-]{8,}/g, '[REDACTED_TOKEN]')
+    .replace(/\bAIza[0-9A-Za-z_-]{20,}\b/g, '[REDACTED_TOKEN]')
+    .replace(/\b(access_token|refresh_token|id_token|api_key|apikey|client_secret)\s*[:=]\s*([^\s&"',;)]+)/gi, '$1=[REDACTED_TOKEN]');
+}
 
 /**
  * Retrieves the Drive IDs/URLs of the `diagnostics/` subfolder and `cera-diagnostic-log.txt` for a Direct Ingestion job folder.
@@ -3205,22 +3751,23 @@ const CERA_DIAG_LOG_SOFT_BYTES = Math.floor(CERA_DIAG_LOG_MAX_BYTES * 0.94);
  * Falls back to `Drive.Files.list` if `CERA_DIAG_LOG_META` is missing or belongs to another folder (e.g. cross-spreadsheet analysis).
  */
 function ceraGetDiagLogMeta_(folderId, allowListFallback) {
+  const cleanFolderId = folderId ? String(folderId).trim() : '';
   try {
     const raw = PropertiesService.getDocumentProperties().getProperty('CERA_DIAG_LOG_META');
     if (raw) {
       const meta = JSON.parse(raw);
-      if (meta && (!folderId || !meta.folderId || meta.folderId === folderId)) {
+      if (meta && (!cleanFolderId || !meta.folderId || meta.folderId === cleanFolderId)) {
         return meta;
       }
     }
   } catch (e) {}
 
-  if (allowListFallback && folderId && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.list === 'function') {
+  if (allowListFallback && ceraIsSafeDriveId_(cleanFolderId) && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.list === 'function') {
     try {
       const logFolderName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FOLDER_NAME) ? CeraConfig.DIAG_LOG_FOLDER_NAME : 'diagnostics';
       const logFileName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FILE_NAME) ? CeraConfig.DIAG_LOG_FILE_NAME : 'cera-diagnostic-log.txt';
       const folderList = Drive.Files.list({
-        q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+        q: `'${cleanFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
         pageSize: 20,
         fields: 'files(id,name,trashed)',
         supportsAllDrives: true,
@@ -3232,7 +3779,7 @@ function ceraGetDiagLogMeta_(folderId, allowListFallback) {
       for (let i = 0; i < candidateNames.length && !logFolder; i++) {
         logFolder = subFolders.find(f => f && f.id && !f.trashed && f.name === candidateNames[i]);
       }
-      if (logFolder) {
+      if (logFolder && ceraIsSafeDriveId_(logFolder.id)) {
         const fileList = Drive.Files.list({
           q: `'${logFolder.id}' in parents and trashed = false`,
           pageSize: 20,
@@ -3245,7 +3792,7 @@ function ceraGetDiagLogMeta_(folderId, allowListFallback) {
         if (logFile) {
           return {
             activityId: '',
-            folderId: folderId,
+            folderId: cleanFolderId,
             logFolderId: logFolder.id,
             logFolderUrl: `https://drive.google.com/drive/folders/${logFolder.id}`,
             logFileId: logFile.id
@@ -3288,18 +3835,35 @@ const CERA_SCRUB_REASON_ALLOWLIST = {
 function ceraScrubText_(text, maxLen) {
   if (!text) return '';
   let s = String(text);
-  // 1. Emails
+  // 1. Emails, OAuth / Bearer tokens, API keys, and token query parameters
   s = s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[REDACTED_EMAIL]');
+  s = s.replace(/\bBearer\s+[^\s,;)'"]+/gi, 'Bearer [REDACTED_TOKEN]');
+  s = s.replace(/\bya29\.[A-Za-z0-9._-]+/g, '[REDACTED_TOKEN]');
+  s = s.replace(/\b1\/\/[A-Za-z0-9._-]{8,}/g, '[REDACTED_TOKEN]');
+  s = s.replace(/\bAIza[0-9A-Za-z_-]{20,}\b/g, '[REDACTED_TOKEN]');
+  s = s.replace(/\b(access_token|refresh_token|id_token|pageToken|api_key|apikey|client_secret)\s*[:=]\s*([^\s&"',;)]+)/gi, '$1=[REDACTED_TOKEN]');
+  s = s.replace(/\bkey\s*=\s*([^\s&"',;)]+)/gi, 'key=[REDACTED_TOKEN]');
   // 2. URLs with any scheme
   s = s.replace(/\b[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s"'<>)]+/gi, '[REDACTED_URL]');
   // 3. IPv4 and IPv6 addresses
   s = s.replace(/\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g, '[REDACTED_IP]');
   s = s.replace(/\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}\b/g, '[REDACTED_IP]');
-  // 4. Page-token-like strings and Google Workspace customer IDs (C0xxxxxxx)
+  // 4. Page-token-like strings, Admin OU IDs (id:...), Shared Drive IDs (0A...), and Workspace customer IDs (C0xxxxxxx)
   s = s.replace(/\bA:[0-9A-Za-z_:-]{6,}\b/g, '[REDACTED_TOKEN]');
   s = s.replace(/\b[0-9A-Za-z_-]+:[0-9A-Za-z_-]+:chrome:[0-9A-Za-z_:-]+\b/gi, '[REDACTED_TOKEN]');
+  s = s.replace(/\bid:[A-Za-z0-9_-]{6,}\b/g, '[REDACTED_ID]');
+  s = s.replace(/\b0A[A-Za-z0-9_-]{14,}\b/g, '[REDACTED_ID]');
   s = s.replace(/\bC0[0-9a-zA-Z]{6,}\b/g, '[REDACTED_ID]');
-  // 5. Quoted literals ("...", '...', “...”, ‘...’, 「...」), preserving standard Sheet1/Raw Data ranges and API reason tokens
+  // 5. Unquoted raw folder/file identifiers (including multi-word labels) in Drive notices & labeled fields
+  s = s.replace(/\bFile not found:\s*([^,.;()\r\n|]{1,120})/gi, (m, val) => {
+    const trail = /\s+$/.exec(val) ? ' ' : '';
+    return 'File not found: [REDACTED_ID]' + trail;
+  });
+  s = s.replace(/\b(Folder|Directory|Workbook)\s*[:=]\s*([^,.;()\r\n|]{1,120})/gi, (m, label, val) => {
+    const trail = /\s+$/.exec(val) ? ' ' : '';
+    return label + ': [REDACTED]' + trail;
+  });
+  // 6. Quoted literals ("...", '...', “...”, ‘...’, 「...」), including escaped apostrophes ('Tab''s Name'!A1)
   const isAllowedLiteral = inner => {
     if (/^(Sheet1|Raw Data)(![A-Z0-9:]+)?$/i.test(inner)) return true;
     if (/^(Write requests|Read requests|urlfetch)$/i.test(inner)) return true;
@@ -3309,11 +3873,11 @@ function ceraScrubText_(text, maxLen) {
   s = s.replace(/“([^”]{1,200})”/g, (m, inner) => (isAllowedLiteral(inner) ? m : '"[REDACTED]"'));
   s = s.replace(/‘([^’]{1,200})’/g, (m, inner) => (isAllowedLiteral(inner) ? m : '"[REDACTED]"'));
   s = s.replace(/「([^」]{1,200})」/g, (m, inner) => (isAllowedLiteral(inner) ? m : '"[REDACTED]"'));
-  s = s.replace(/(?:^|[\s(:=])'([^']{1,200})'(?=$|[\s),.;:!])/g, (m, inner) => {
+  s = s.replace(/(?:^|[\s(:=])'((?:''|[^']){1,200})'(?=$|[\s),.;:!])/g, (m, inner) => {
     if (isAllowedLiteral(inner)) return m;
     return m.replace("'" + inner + "'", '"[REDACTED]"');
   });
-  // 6. Host names (2+ labels with any 2..24 char alphabetic TLD, excluding standard Google API service identifiers)
+  // 7. Host names (2+ labels with any 2..24 char alphabetic TLD, excluding standard Google API service identifiers)
   s = s.replace(/\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,24}\b/g, m => {
     const lower = m.toLowerCase();
     if (
@@ -3321,6 +3885,7 @@ function ceraScrubText_(text, maxLen) {
       lower === 'google.com' ||
       lower === 'script.google.com' ||
       lower === 'cera-diagnostic-log.txt' ||
+      lower === 'cera-analysis-summary.txt' ||
       lower.indexOf('sheets.spreadsheets') === 0 ||
       lower.indexOf('reports.activities') === 0 ||
       lower.indexOf('drive.files') === 0 ||
@@ -3330,17 +3895,63 @@ function ceraScrubText_(text, maxLen) {
     }
     return '[REDACTED_DOMAIN]';
   });
-  // 7. OU-like paths (/Segment/Segment)
+  // 8. OU-like paths (/Segment/Segment)
   s = s.replace(/(^|[\s(])(\/[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)+)/g, '$1[REDACTED_PATH]');
-  // 8. Digit runs >= 10 chars (trigger IDs, uniqueQualifiers) and opaque Drive/Sheet IDs >= 20 chars containing digits/hyphens/underscores
+  // 9. Digit runs >= 10 chars (trigger IDs, uniqueQualifiers) and opaque Drive/Sheet IDs >= 19 chars containing digits
   s = s.replace(/\b\d{10,}\b/g, '[REDACTED_ID]');
-  s = s.replace(/\b(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{20,}\b/g, m => {
-    if (m.indexOf('REDACTED_') === 0 || m.indexOf('CERA_') === 0) return m;
+  s = s.replace(/\b(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{19,}\b/g, m => {
+    if (m.indexOf('REDACTED_') === 0 || m.indexOf('CERA_') === 0 || /^[A-Z][A-Z0-9_]+$/.test(m)) return m;
     return '[REDACTED_ID]';
   });
   const limit = Number(maxLen) > 0 ? Number(maxLen) : 320;
-  if (s.length > limit) s = s.slice(0, Math.max(1, limit - 3)) + '...';
+  if (s.length > limit) {
+    let cut = Math.max(1, limit - 3);
+    if (cut > 1 && s.charCodeAt(cut - 1) >= 0xD800 && s.charCodeAt(cut - 1) <= 0xDBFF) {
+      cut--;
+    }
+    s = s.slice(0, cut) + '...';
+  }
   return s;
+}
+
+/**
+ * Sanitizes a workbook/spreadsheet identifier for diagnostic headers while rejecting emails, URLs, paths, domains, titles, or tenant IDs.
+ */
+function ceraSanitizeDiagId_(rawId) {
+  if (!rawId) return '';
+  const str = String(rawId).trim();
+  if (!str || /[\s@:/\\'"“”‘’「」]/.test(str) || /\.[A-Za-z]{2,}\b/.test(str)) return '';
+  if (/^C0[0-9A-Za-z]{6,}$/.test(str) || /^0A[A-Za-z0-9_-]{14,}$/.test(str) || /^ya29\./i.test(str) || /^AIza[0-9A-Za-z_-]{20,}$/.test(str)) {
+    return '';
+  }
+  return str.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+}
+
+const CERA_DIAG_SENSITIVE_KEY_RE = /^(rootOuId|orgUnitId|ouId|folderName|folderId|folderUrl|fileId|fileName|userEmail|ownerEmail|email|domain|primaryDomain|customerDomain|token|oauthToken)$/i;
+
+/**
+ * Recursively sanitizes a diagnostic metadata object (such as policyPrecheck or preflight),
+ * stripping any raw identifier/folder/domain/email keys and scrubbing all string values.
+ */
+function ceraSanitizeDiagObject_(val, depth) {
+  const d = Number(depth || 0);
+  if (d > 5 || val === null || val === undefined) return null;
+  if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'string') return ceraScrubText_(val, 160);
+  if (Array.isArray(val)) return val.slice(0, 30).map(item => ceraSanitizeDiagObject_(item, d + 1));
+  if (typeof val === 'object') {
+    const out = Object.create(null);
+    Object.keys(val).slice(0, 30).forEach(k => {
+      if (!/^[A-Za-z][A-Za-z0-9_]{0,48}$/.test(k)) return;
+      if (/^(?:__proto__|constructor|prototype|toString|valueOf|hasOwnProperty)$/i.test(k)) return;
+      if (CERA_DIAG_SENSITIVE_KEY_RE.test(k) || /^C0[0-9A-Za-z]{6,}$/.test(k) || /^0A[A-Za-z0-9_-]{14,}$/.test(k)) return;
+      const cleanVal = ceraSanitizeDiagObject_(val[k], d + 1);
+      if (cleanVal !== undefined) out[k] = cleanVal;
+    });
+    return out;
+  }
+  return undefined;
 }
 
 /**
@@ -3357,7 +3968,8 @@ function ceraSanitizeDiagnosticText_(text) {
  */
 function ceraRecordDiagRowSchema_(schemaMap, evName, row) {
   if (!schemaMap || !evName || !Array.isArray(row)) return;
-  if (!schemaMap[evName]) {
+  if (/^(?:__proto__|constructor|prototype|toString|valueOf|hasOwnProperty)$/i.test(String(evName))) return;
+  if (!Object.prototype.hasOwnProperty.call(schemaMap, evName)) {
     schemaMap[evName] = {
       rows: 0,
       hasUrl: 0,
@@ -3409,12 +4021,12 @@ function ceraInitDiagnosticLog_(initialState, firstPartition) {
     const logFolderUrl = `https://drive.google.com/drive/folders/${logFolderId}`;
 
     let tz = 'UTC';
-    try { tz = Session.getScriptTimeZone() || 'UTC'; } catch (e) {}
+    try { tz = String(Session.getScriptTimeZone() || 'UTC').replace(/[^A-Za-z0-9_/+:-]/g, '').slice(0, 64) || 'UTC'; } catch (e) {}
     let hostSpreadsheetId = '';
     try {
       const activeSs = SpreadsheetApp.getActiveSpreadsheet();
       if (activeSs && typeof activeSs.getId === 'function') {
-        hostSpreadsheetId = activeSs.getId() || '';
+        hostSpreadsheetId = ceraSanitizeDiagId_(activeSs.getId());
       }
     } catch (e) {}
 
@@ -3422,10 +4034,16 @@ function ceraInitDiagnosticLog_(initialState, firstPartition) {
     let preflight = null;
     try {
       const docProps = PropertiesService.getDocumentProperties();
-      const rawPol = docProps.getProperty('CERA_LAST_POLICY_PRECHECK');
-      if (rawPol) policyPrecheck = JSON.parse(rawPol);
+      let rawPol = docProps.getProperty('CERA_LAST_POLICY_PRECHECK');
+      if (!rawPol && typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function') {
+        try {
+          const sc = CacheService.getScriptCache();
+          rawPol = sc && typeof sc.get === 'function' ? sc.get('CERA_LAST_POLICY_PRECHECK') : '';
+        } catch (cPolErr) {}
+      }
+      if (rawPol) policyPrecheck = ceraSanitizeDiagObject_(JSON.parse(rawPol), 0);
       const rawPre = docProps.getProperty('CERA_LAST_PREFLIGHT_DIAG');
-      if (rawPre) preflight = JSON.parse(rawPre);
+      if (rawPre) preflight = ceraSanitizeDiagObject_(JSON.parse(rawPre), 0);
     } catch (pErr) {}
 
     const streamDiagnostics = {};
@@ -3462,9 +4080,12 @@ function ceraInitDiagnosticLog_(initialState, firstPartition) {
       (initialState.plan && initialState.plan.total) ||
       0
     );
+    const lic = (typeof ceraVerifyWorkbookLicense_ === 'function')
+      ? ceraVerifyWorkbookLicense_(null, null, { skipDriveCheck: true })
+      : null;
     const diag = {
       schemaVersion: '1.0',
-      ceraVersion: (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.12',
+      ceraVersion: (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.18',
       privacyNotice: 'Zero-PII Diagnostic Log: Contains only execution metrics, partition counts, timing, and sanitized status codes. No user emails, domains, OUs, URLs, file names, or device names are recorded.',
       activityId: initialState.activityId || '',
       status: initialState.status || 'RUNNING',
@@ -3472,6 +4093,9 @@ function ceraInitDiagnosticLog_(initialState, firstPartition) {
       updatedAtUtc: nowIso,
       environment: {
         hostSpreadsheetId: hostSpreadsheetId,
+        instanceRef: (lic && lic.refCode) || 'UNBOUND',
+        licenseState: (lic && lic.licenseState) || 'UNSTAMPED',
+        ownerMask: (lic && lic.maskedEmail) || '',
         locale: (typeof ceraGetLanguage === 'function') ? ceraGetLanguage() : 'en',
         scriptTimeZone: tz,
         targetEventsCount: TARGET_EVENTS.length,
@@ -3585,15 +4209,24 @@ function ceraLoadDiagState_(activityId, logFileId) {
 
   if (!logFileId) return null;
   try {
+    const beginMarker = '--- BEGIN CERA DIAGNOSTIC PAYLOAD (JSON) ---';
+    const endMarker = '--- END CERA DIAGNOSTIC PAYLOAD (JSON) ---';
     let rawTxt = '';
     if (typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.get === 'function') {
-      const resp = Drive.Files.get(logFileId, { alt: 'media', supportsAllDrives: true });
-      if (typeof resp === 'string') {
-        rawTxt = resp;
-      } else if (resp && typeof resp.getDataAsString === 'function') {
-        rawTxt = resp.getDataAsString();
-      } else if (resp && typeof resp.content === 'string') {
-        rawTxt = resp.content;
+      try {
+        const resp = Drive.Files.get(logFileId, { alt: 'media', supportsAllDrives: true });
+        if (typeof resp === 'string') {
+          rawTxt = resp;
+        } else if (resp && typeof resp.getDataAsString === 'function') {
+          rawTxt = resp.getDataAsString();
+        } else if (resp && typeof resp.content === 'string') {
+          rawTxt = resp.content;
+        }
+        if (!rawTxt || rawTxt.indexOf(beginMarker) === -1) {
+          rawTxt = '';
+        }
+      } catch (driveGetErr) {
+        rawTxt = '';
       }
     }
     if (!rawTxt && typeof UrlFetchApp !== 'undefined' && typeof ScriptApp !== 'undefined' && ScriptApp.getOAuthToken) {
@@ -3606,8 +4239,6 @@ function ceraLoadDiagState_(activityId, logFileId) {
       }
     }
     if (rawTxt) {
-      const beginMarker = '--- BEGIN CERA DIAGNOSTIC PAYLOAD (JSON) ---';
-      const endMarker = '--- END CERA DIAGNOSTIC PAYLOAD (JSON) ---';
       const bIdx = rawTxt.indexOf(beginMarker);
       const eIdx = rawTxt.indexOf(endMarker);
       if (bIdx !== -1 && eIdx !== -1 && eIdx > bIdx) {
@@ -3622,10 +4253,11 @@ function ceraLoadDiagState_(activityId, logFileId) {
 }
 
 /**
- * Enforces the 1 MB (`CERA_DIAG_LOG_MAX_BYTES`) ceiling and saves the updated hybrid `.txt` file to Google Drive.
+ * Enforces the `< 75 KB` ring-buffer / 1 MB (`CERA_DIAG_LOG_MAX_BYTES`) ceiling and saves the updated hybrid `.txt` file to Google Drive.
+ * Returns `true` when Drive write succeeded (or `skipDriveWrite` was requested), `false` otherwise.
  */
 function ceraSaveDiagState_(activityId, diag, logFileId, skipDriveWrite) {
-  if (!diag) return;
+  if (!diag) return false;
   diag.updatedAtUtc = new Date().toISOString();
   let txtContent = ceraEnforceDiagLogCap_(diag);
 
@@ -3639,7 +4271,8 @@ function ceraSaveDiagState_(activityId, diag, logFileId, skipDriveWrite) {
     }
   } catch (cErr) {}
 
-  if (skipDriveWrite || !logFileId) return;
+  if (skipDriveWrite) return true;
+  if (!logFileId) return false;
   try {
     const logFileName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FILE_NAME) ? CeraConfig.DIAG_LOG_FILE_NAME : 'cera-diagnostic-log.txt';
     const mediaBlob = Utilities.newBlob(txtContent, 'text/plain', logFileName);
@@ -3649,32 +4282,71 @@ function ceraSaveDiagState_(activityId, diag, logFileId, skipDriveWrite) {
       mediaBlob,
       { supportsAllDrives: true }
     );
+    return true;
   } catch (uErr) {
     console.warn('ceraSaveDiagState_ Drive update non-fatal notice: ' + (uErr.message || uErr));
+    return false;
   }
 }
 
 /**
- * Compacts `ticks`, `anomalies`, `slices`, and `partitions` if the rendered `.txt` approaches 1 MB (`1,000,000` bytes).
- * Guarantees the returned `.txt` string is strictly `<= CERA_DIAG_LOG_MAX_BYTES`.
+ * Bounds `ticks` (`<= 150`) and `anomalies` (`<= 100`) as ring-buffers so `JSON.stringify(diag)` stays well below
+ * `75 KB` (`< 95 KB` `CacheService` cap) even on 500+ tick jobs, and guarantees the rendered `.txt` string is strictly `<= CERA_DIAG_LOG_MAX_BYTES`.
  */
 function ceraEnforceDiagLogCap_(diag) {
-  // Structural array bounds for normal operation
-  if (Array.isArray(diag.ticks) && diag.ticks.length > 600) {
-    const first = diag.ticks.slice(0, 50);
-    const last = diag.ticks.slice(-500);
-    diag.ticks = first.concat(last);
+  if (!diag.runtimeHealth) diag.runtimeHealth = {};
+  if (Array.isArray(diag.ticks) && diag.ticks.length > CERA_DIAG_MAX_TICKS) {
+    diag.ticks = diag.ticks.slice(-CERA_DIAG_MAX_TICKS);
     diag.runtimeHealth.compactionCount = (diag.runtimeHealth.compactionCount || 0) + 1;
   }
-  if (Array.isArray(diag.anomalies) && diag.anomalies.length > 250) {
-    diag.anomalies = diag.anomalies.slice(0, 40).concat(diag.anomalies.slice(-180));
+  if (Array.isArray(diag.anomalies) && diag.anomalies.length > CERA_DIAG_MAX_ANOMALIES) {
+    diag.anomalies = [diag.anomalies[0]].concat(diag.anomalies.slice(-(CERA_DIAG_MAX_ANOMALIES - 1)));
     diag.runtimeHealth.compactionCount = (diag.runtimeHealth.compactionCount || 0) + 1;
   }
-  if (Array.isArray(diag.slices) && diag.slices.length > 300) {
-    diag.slices = diag.slices.slice(0, 30).concat(diag.slices.slice(-240));
+  if (Array.isArray(diag.slices) && diag.slices.length > 90) {
+    diag.slices = diag.slices.slice(-90);
   }
-  if (Array.isArray(diag.partitions) && diag.partitions.length > 400) {
-    diag.partitions = diag.partitions.slice(0, 40).concat(diag.partitions.slice(-300));
+  if (Array.isArray(diag.partitions) && diag.partitions.length > 80) {
+    diag.partitions = diag.partitions.slice(-80);
+  }
+
+  // Keep raw JSON comfortably under 72 KB (< 90 KB) even when anomalies hold 320 multi-byte UTF-8 chars each
+  const cacheBudgetSteps = [
+    d => { if (d.slices && d.slices.length > 45) d.slices = d.slices.slice(-45); },
+    d => { if (d.partitions && d.partitions.length > 40) d.partitions = d.partitions.slice(-40); },
+    d => { if (d.anomalies && d.anomalies.length > 60) d.anomalies = [d.anomalies[0]].concat(d.anomalies.slice(-59)); },
+    d => { if (d.ticks && d.ticks.length > 120) d.ticks = d.ticks.slice(-120); },
+    d => { if (d.anomalies && d.anomalies.length > 40) d.anomalies = [d.anomalies[0]].concat(d.anomalies.slice(-39)); },
+    d => { if (d.ticks && d.ticks.length > 90) d.ticks = d.ticks.slice(-90); },
+    d => { if (d.slices && d.slices.length > 20) d.slices = d.slices.slice(-20); if (d.partitions && d.partitions.length > 20) d.partitions = d.partitions.slice(-20); },
+    d => { if (d.anomalies && d.anomalies.length > 25) d.anomalies = [d.anomalies[0]].concat(d.anomalies.slice(-24)); },
+    d => { if (d.ticks && d.ticks.length > 60) d.ticks = d.ticks.slice(-60); }
+  ];
+  let rawJsonBytes = ceraUtf8Bytes_(JSON.stringify(diag));
+  for (let c = 0; c < cacheBudgetSteps.length && rawJsonBytes > CERA_DIAG_CACHE_SOFT_BYTES; c++) {
+    cacheBudgetSteps[c](diag);
+    diag.runtimeHealth.compactionCount = (diag.runtimeHealth.compactionCount || 0) + 1;
+    rawJsonBytes = ceraUtf8Bytes_(JSON.stringify(diag));
+  }
+  while (rawJsonBytes > CERA_DIAG_CACHE_SOFT_BYTES) {
+    let trimmed = false;
+    if (Array.isArray(diag.anomalies) && diag.anomalies.length > 10) {
+      const nextAnomCount = Math.max(10, diag.anomalies.length - 5);
+      diag.anomalies = [diag.anomalies[0]].concat(diag.anomalies.slice(-(nextAnomCount - 1)));
+      trimmed = true;
+    } else if (Array.isArray(diag.ticks) && diag.ticks.length > 20) {
+      diag.ticks = diag.ticks.slice(-Math.max(20, diag.ticks.length - 10));
+      trimmed = true;
+    } else if (Array.isArray(diag.slices) && diag.slices.length > 5) {
+      diag.slices = diag.slices.slice(-5);
+      trimmed = true;
+    } else if (Array.isArray(diag.partitions) && diag.partitions.length > 5) {
+      diag.partitions = diag.partitions.slice(-5);
+      trimmed = true;
+    }
+    if (!trimmed) break;
+    diag.runtimeHealth.compactionCount = (diag.runtimeHealth.compactionCount || 0) + 1;
+    rawJsonBytes = ceraUtf8Bytes_(JSON.stringify(diag));
   }
 
   let txt = ceraRenderDiagnosticLogTxt_(diag);
@@ -3683,12 +4355,8 @@ function ceraEnforceDiagLogCap_(diag) {
 
   // Progressive compaction pass if approaching 940 KB / 1 MB ceiling
   const steps = [
-    d => { if (d.ticks && d.ticks.length > 200) d.ticks = d.ticks.slice(0, 25).concat(d.ticks.slice(-150)); },
-    d => { if (d.anomalies && d.anomalies.length > 100) d.anomalies = d.anomalies.slice(0, 20).concat(d.anomalies.slice(-70)); },
-    d => { if (d.slices && d.slices.length > 120) d.slices = d.slices.slice(0, 15).concat(d.slices.slice(-90)); },
-    d => { if (d.partitions && d.partitions.length > 150) d.partitions = d.partitions.slice(0, 20).concat(d.partitions.slice(-100)); },
-    d => { if (d.ticks && d.ticks.length > 60) d.ticks = d.ticks.slice(0, 10).concat(d.ticks.slice(-40)); },
-    d => { if (d.anomalies && d.anomalies.length > 40) d.anomalies = d.anomalies.slice(0, 10).concat(d.anomalies.slice(-25)); },
+    d => { if (d.ticks && d.ticks.length > 60) d.ticks = d.ticks.slice(-60); },
+    d => { if (d.anomalies && d.anomalies.length > 40) d.anomalies = [d.anomalies[0]].concat(d.anomalies.slice(-39)); },
     d => { if (d.ticks && d.ticks.length > 15) d.ticks = d.ticks.slice(-15); },
     d => { if (d.slices && d.slices.length > 20) d.slices = d.slices.slice(-20); },
     d => { if (d.partitions && d.partitions.length > 25) d.partitions = d.partitions.slice(-25); }
@@ -3724,24 +4392,29 @@ function ceraRenderDiagnosticLogTxt_(diag) {
   const anoms = Array.isArray(diag.anomalies) ? diag.anomalies : [];
   const lastAnom = anoms.length > 0 ? anoms[anoms.length - 1] : null;
 
-  const polStatus = pol.status || (pol.allReady === true ? 'ALL_READY' : (pol.allReady === false ? 'INCOMPLETE' : 'NOT_RUN'));
+  const polStatus = ceraScrubText_(pol.status || (pol.allReady === true ? 'ALL_READY' : (pol.allReady === false ? 'INCOMPLETE' : 'NOT_RUN')), 80);
   const polDetail = pol.connectorStatus
-    ? ' (Connector: ' + pol.connectorStatus + ')'
+    ? ' (Connector: ' + ceraScrubText_(pol.connectorStatus, 80) + ')'
     : (pol.totalPoliciesCount ? ' (' + (pol.activePoliciesCount || 0) + '/' + pol.totalPoliciesCount + ' policies ready)' : '');
   const preExpected = (pre.expectedEvents !== undefined ? pre.expectedEvents : pre.estimatedEvents) || sd.expectedEvents || 0;
-  const preStatus = pre.status || (pre.estimatedEvents !== undefined || preExpected > 0 ? 'ESTIMATED' : 'NOT_RUN');
+  const preStatus = ceraScrubText_(pre.status || (pre.estimatedEvents !== undefined || preExpected > 0 ? 'ESTIMATED' : 'NOT_RUN'), 80);
   const preActive = pre.activeSlicesCount !== undefined ? pre.activeSlicesCount : (pre.activeWeeksCount || 0);
   const preTotal = pre.plannedSlicesCount !== undefined ? pre.plannedSlicesCount : (pre.totalWeeksCount || wd.totalPlannedSlices || 0);
   const preUnit = (pre.activeSlicesCount === undefined && pre.activeWeeksCount !== undefined) ? 'Active Weeks' : 'Active Slices';
 
+  const instRef = (diag.environment && diag.environment.instanceRef) || 'UNBOUND';
+  const licState = (diag.environment && diag.environment.licenseState) || 'UNSTAMPED';
+  const ownMask = (diag.environment && diag.environment.ownerMask) ? (' | Owner: ' + diag.environment.ownerMask) : '';
+
   const headerLines = [
     '================================================================================',
     `CERA (Chrome Egress Risk Analysis) — Direct Ingestion Diagnostic Log`,
-    `Version            : v${diag.ceraVersion || '2.0.12'} (Schema v${diag.schemaVersion || '1.0'})`,
+    `Version            : v${diag.ceraVersion || '2.0.18'} (Schema v${diag.schemaVersion || '1.0'})`,
     `Privacy Guarantee  : ZERO-PII / ZERO-SENSITIVE-DATA (Safe to inspect & share)`,
     '================================================================================',
     `Activity ID        : ${diag.activityId || 'N/A'}`,
     `Host Spreadsheet   : ${(diag.environment && diag.environment.hostSpreadsheetId) || 'N/A'}`,
+    `Instance & License : ${instRef} (${licState}${ownMask})`,
     `Job Status         : ${diag.status || 'UNKNOWN'}`,
     `Created (UTC)      : ${diag.createdAtUtc || 'N/A'}`,
     `Last Updated (UTC) : ${diag.updatedAtUtc || 'N/A'}`,
@@ -3928,7 +4601,7 @@ function ceraRecordDiagTick_(state, work, tickDiag, outcome, rawErrMsg) {
         diag.anomalies.push({
           tsUtc: a.atUtc || a.tsUtc || nowIso,
           level: a.level || 'WARN',
-          code: a.code || 'NOTICE',
+          code: ceraScrubText_(a.code || 'NOTICE', 80),
           detail: ceraSanitizeDiagnosticText_(a.detail || '')
         });
       });
@@ -3937,7 +4610,7 @@ function ceraRecordDiagTick_(state, work, tickDiag, outcome, rawErrMsg) {
       diag.anomalies.push({
         tsUtc: nowIso,
         level: String(outcome || '').indexOf('FAILED') === 0 ? 'ERROR' : 'WARN',
-        code: state.errorKey || outcome || 'TICK_ERROR',
+        code: ceraScrubText_(state.errorKey || outcome || 'TICK_ERROR', 80),
         detail: ceraSanitizeDiagnosticText_(rawErrMsg)
       });
     }
@@ -3966,7 +4639,7 @@ function ceraRecordDiagTick_(state, work, tickDiag, outcome, rawErrMsg) {
       partitionIdx: state.fileIndex || 1,
       timeSpanPct: wd.timeSpanPct,
       stateBytes: sessionBytes,
-      outcome: outcome || state.status || 'RUNNING'
+      outcome: ceraScrubText_(outcome || state.status || 'RUNNING', 60)
     });
 
     ceraSaveDiagState_(state.activityId, diag, meta.logFileId, false);
@@ -4010,7 +4683,7 @@ function ceraRecordDiagLifecycle_(state, statusLabel, code, detail) {
     diag.anomalies.push({
       tsUtc: nowIso,
       level: 'INFO',
-      code: code || 'LIFECYCLE',
+      code: ceraScrubText_(code || 'LIFECYCLE', 80),
       detail: ceraSanitizeDiagnosticText_(detail || '')
     });
     ceraSaveDiagState_(state.activityId, diag, meta.logFileId, false);
@@ -4020,47 +4693,201 @@ function ceraRecordDiagLifecycle_(state, statusLabel, code, detail) {
 }
 
 /**
+ * Writes or updates a Zero-PII fallback summary (`cera-analysis-summary.txt`, `text/plain`) inside the top-level
+ * `CERA` folder (`ceraEnsureRootFolder_`) when `cera-diagnostic-log.txt` inside the source folder cannot be read or
+ * updated (e.g. second workbook isolated by `drive.file` or customer folder shared Read-Only).
+ */
+function ceraWriteDiagAnalysisFallbackSummary_(summaryObj) {
+  if (!summaryObj || typeof Drive === 'undefined' || !Drive.Files) return false;
+  try {
+    const rootFolderId = ceraEnsureRootFolder_(false);
+    if (!rootFolderId) return false;
+
+    const fallbackFileName = 'cera-analysis-summary.txt';
+    const ceraVer = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION)
+      ? String(CeraConfig.VERSION).replace(/[^0-9A-Za-z._-]/g, '')
+      : '2.0.18';
+
+    const licFallback = (typeof ceraVerifyWorkbookLicense_ === 'function')
+      ? ceraVerifyWorkbookLicense_(null, null, { skipDriveCheck: true })
+      : null;
+
+    // Strict Zero-PII schema whitelist: never serialize arbitrary or raw caller properties
+    const safeSummary = {
+      completedAtUtc: String(summaryObj.completedAtUtc || new Date().toISOString()).replace(/[^0-9TZ:.+-]/g, '').slice(0, 40) || new Date().toISOString(),
+      analyzedFromSpreadsheetId: ceraSanitizeDiagId_(summaryObj.analyzedFromSpreadsheetId),
+      instanceRef: ceraScrubText_(summaryObj.instanceRef || (licFallback && licFallback.refCode) || 'UNBOUND', 24),
+      licenseState: ceraScrubText_(summaryObj.licenseState || (licFallback && licFallback.licenseState) || 'UNSTAMPED', 40),
+      ownerMask: String(summaryObj.ownerMask || (licFallback && licFallback.maskedEmail) || '').slice(0, 80),
+      sheetsTotal: Number(summaryObj.sheetsTotal) || 0,
+      sheetsRead: Number(summaryObj.sheetsRead) || 0,
+      rowsRead: Number(summaryObj.rowsRead) || 0,
+      rowsMerged: Number(summaryObj.rowsMerged) || 0,
+      rowsDropped: Number(summaryObj.rowsDropped) || 0,
+      rowsDuplicatesDropped: Number(summaryObj.rowsDuplicatesDropped) || 0,
+      actionsAssembled: Number(summaryObj.actionsAssembled) || 0,
+      truncatedByWatchdog: Boolean(summaryObj.truncatedByWatchdog),
+      slidesGenerated: Boolean(summaryObj.slidesGenerated),
+      sheetsGenerated: Boolean(summaryObj.sheetsGenerated),
+      nonFatalWarningsCount: Number(summaryObj.nonFatalWarningsCount) || 0
+    };
+
+    const lines = [
+      '================================================================================',
+      'CERA (Chrome Egress Risk Analysis) — Report Analysis Summary (Fallback)',
+      `Version            : v${ceraVer}`,
+      'Privacy Guarantee  : ZERO-PII / ZERO-SENSITIVE-DATA (Safe to inspect & share)',
+      '================================================================================',
+      `Completed (UTC)    : ${safeSummary.completedAtUtc || 'N/A'}`,
+      `Analyzed Workbook  : ${safeSummary.analyzedFromSpreadsheetId || 'N/A'}`,
+      `Instance & License : ${safeSummary.instanceRef} (${safeSummary.licenseState}${safeSummary.ownerMask ? ' | Owner: ' + safeSummary.ownerMask : ''})`,
+      `Partitions Read    : ${safeSummary.sheetsRead}/${safeSummary.sheetsTotal}`,
+      `Rows Read / Merged : ${safeSummary.rowsRead} read / ${safeSummary.rowsMerged} merged / ${safeSummary.rowsDropped} dropped`,
+      `Actions Assembled  : ${safeSummary.actionsAssembled}`,
+      `Truncated Watchdog : ${safeSummary.truncatedByWatchdog}`,
+      `Outputs Generated  : Slides=${safeSummary.slidesGenerated}, Sheets=${safeSummary.sheetsGenerated}`,
+      `Non-Fatal Warnings : ${safeSummary.nonFatalWarningsCount}`,
+      '================================================================================',
+      '',
+      '--- BEGIN CERA ANALYSIS SUMMARY (JSON) ---',
+      JSON.stringify(safeSummary, null, 2),
+      '--- END CERA ANALYSIS SUMMARY (JSON) ---',
+      ''
+    ];
+    const txtContent = lines.join('\n');
+
+    let docProps = null;
+    try { docProps = PropertiesService.getDocumentProperties(); } catch (e) {}
+    const cachedFileId = docProps ? String(docProps.getProperty('CERA_DIAG_FALLBACK_FILE_ID') || '') : '';
+    const candidateIds = [];
+
+    if (ceraIsSafeDriveId_(rootFolderId) && typeof Drive.Files.list === 'function') {
+      try {
+        const listRes = Drive.Files.list({
+          q: `'${rootFolderId}' in parents and name = '${fallbackFileName}' and trashed = false`,
+          pageSize: 10,
+          fields: 'files(id,name,trashed)',
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true
+        });
+        const files = (listRes && Array.isArray(listRes.files)) ? listRes.files : [];
+        files.forEach(f => {
+          if (f && f.id && !f.trashed && f.name === fallbackFileName && candidateIds.indexOf(f.id) === -1) {
+            candidateIds.push(f.id);
+          }
+        });
+      } catch (listErr) {}
+    }
+
+    if (cachedFileId && candidateIds.indexOf(cachedFileId) === -1) {
+      candidateIds.push(cachedFileId);
+    }
+
+    const mediaBlob = Utilities.newBlob(txtContent, 'text/plain', fallbackFileName);
+    if (typeof Drive.Files.update === 'function') {
+      for (let i = 0; i < candidateIds.length; i++) {
+        const cid = candidateIds[i];
+        try {
+          if (cid === cachedFileId && typeof Drive.Files.get === 'function') {
+            const metaCheck = Drive.Files.get(cid, { fields: 'id,name,parents,trashed', supportsAllDrives: true });
+            if (!metaCheck || metaCheck.trashed || metaCheck.name !== fallbackFileName ||
+                (Array.isArray(metaCheck.parents) && metaCheck.parents.indexOf(rootFolderId) === -1)) {
+              continue;
+            }
+          }
+          Drive.Files.update(
+            { name: fallbackFileName, mimeType: 'text/plain' },
+            cid,
+            mediaBlob,
+            { supportsAllDrives: true }
+          );
+          try { if (docProps) docProps.setProperty('CERA_DIAG_FALLBACK_FILE_ID', cid); } catch (pErr) {}
+          return true;
+        } catch (updErr) {
+          // Candidate file missing, trashed, or created by another drive.file container; try next candidate or create
+        }
+      }
+    }
+
+    if (typeof Drive.Files.create === 'function') {
+      const created = Drive.Files.create(
+        { name: fallbackFileName, mimeType: 'text/plain', parents: [rootFolderId] },
+        mediaBlob,
+        { supportsAllDrives: true }
+      );
+      if (created && created.id && docProps) {
+        try { docProps.setProperty('CERA_DIAG_FALLBACK_FILE_ID', created.id); } catch (pErr) {}
+      }
+      return true;
+    }
+  } catch (err) {
+    console.warn('ceraWriteDiagAnalysisFallbackSummary_ non-fatal notice: ' + (err.message || err));
+  }
+  return false;
+}
+
+/**
  * Records the final CERA analysis summary (`executeDlpAnalysis`) into `cera-diagnostic-log.txt`
- * when analyzing the Direct Ingestion folder. Manual Export folders do not have `CERA_DIAG_LOG_META` and are ignored.
+ * when analyzing the Direct Ingestion folder. If loading or updating `cera-diagnostic-log.txt` fails
+ * (e.g. second workbook isolated by `drive.file` or customer folder shared Read-Only), falls back to
+ * creating/updating `cera-analysis-summary.txt` (`text/plain`, Zero-PII) inside `ceraEnsureRootFolder_()`.
  */
 function ceraRecordDiagAnalysisSummary_(folderId, analysisStats) {
   if (!folderId || !analysisStats) return;
   try {
-    const meta = ceraGetDiagLogMeta_(folderId, !!(analysisStats.slidesGenerated || analysisStats.sheetsGenerated));
-    if (!meta || !meta.logFileId) return;
-    const diag = ceraLoadDiagState_(meta.activityId, meta.logFileId);
-    if (!diag) return;
+    const hasReportOutput = Boolean(analysisStats.slidesGenerated || analysisStats.sheetsGenerated);
+    const meta = ceraGetDiagLogMeta_(folderId, hasReportOutput);
+    if ((!meta || !meta.logFileId) && !hasReportOutput) return;
 
     let analyzedFromSpreadsheetId = '';
     try {
       const activeSs = SpreadsheetApp.getActiveSpreadsheet();
       if (activeSs && typeof activeSs.getId === 'function') {
-        analyzedFromSpreadsheetId = activeSs.getId() || '';
+        analyzedFromSpreadsheetId = ceraSanitizeDiagId_(activeSs.getId());
       }
     } catch (e) {}
 
+    const lic = (typeof ceraVerifyWorkbookLicense_ === 'function')
+      ? ceraVerifyWorkbookLicense_(null, null, { skipDriveCheck: true })
+      : null;
+
     const nowIso = new Date().toISOString();
-    diag.analysisSummary = {
+    const summaryObj = {
       completedAtUtc: nowIso,
       analyzedFromSpreadsheetId: analyzedFromSpreadsheetId,
-      sheetsTotal: analysisStats.sheetsTotal || 0,
-      sheetsRead: analysisStats.sheetsRead || 0,
-      rowsRead: analysisStats.rowsRead || 0,
-      rowsMerged: analysisStats.rowsMerged || 0,
-      rowsDropped: analysisStats.rowsDropped || 0,
-      actionsAssembled: analysisStats.actions || 0,
-      truncatedByWatchdog: !!analysisStats.truncated,
-      slidesGenerated: !!analysisStats.slidesGenerated,
-      sheetsGenerated: !!analysisStats.sheetsGenerated,
-      nonFatalWarningsCount: analysisStats.errorsCount || 0
+      instanceRef: (lic && lic.refCode) || 'UNBOUND',
+      licenseState: (lic && lic.licenseState) || 'UNSTAMPED',
+      ownerMask: (lic && lic.maskedEmail) || '',
+      sheetsTotal: Number(analysisStats.sheetsTotal) || 0,
+      sheetsRead: Number(analysisStats.sheetsRead) || 0,
+      rowsRead: Number(analysisStats.rowsRead) || 0,
+      rowsMerged: Number(analysisStats.rowsMerged) || 0,
+      rowsDropped: Number(analysisStats.rowsDropped) || 0,
+      rowsDuplicatesDropped: Number(analysisStats.rowsDuplicatesDropped) || 0,
+      actionsAssembled: Number(analysisStats.actions) || 0,
+      truncatedByWatchdog: Boolean(analysisStats.truncated),
+      slidesGenerated: Boolean(analysisStats.slidesGenerated),
+      sheetsGenerated: Boolean(analysisStats.sheetsGenerated),
+      nonFatalWarningsCount: Number(analysisStats.errorsCount) || 0
     };
-    diag.anomalies.push({
-      tsUtc: nowIso,
-      level: 'INFO',
-      code: 'ANALYSIS_COMPLETED',
-      detail: `Report generation completed: ${analysisStats.sheetsRead || 0}/${analysisStats.sheetsTotal || 0} partitions read, ${analysisStats.actions || 0} user actions assembled.`
-    });
-    ceraSaveDiagState_(meta.activityId || diag.activityId, diag, meta.logFileId, false);
+
+    if (meta && meta.logFileId) {
+      const diag = ceraLoadDiagState_(meta.activityId, meta.logFileId);
+      if (diag) {
+        diag.analysisSummary = summaryObj;
+        if (!Array.isArray(diag.anomalies)) diag.anomalies = [];
+        diag.anomalies.push({
+          tsUtc: nowIso,
+          level: 'INFO',
+          code: 'ANALYSIS_COMPLETED',
+          detail: `Report generation completed: ${summaryObj.sheetsRead}/${summaryObj.sheetsTotal} partitions read, ${summaryObj.actionsAssembled} user actions assembled.`
+        });
+        const savedOk = ceraSaveDiagState_(meta.activityId || diag.activityId, diag, meta.logFileId, false);
+        if (savedOk) return;
+      }
+    }
+
+    ceraWriteDiagAnalysisFallbackSummary_(summaryObj);
   } catch (err) {
     console.warn('ceraRecordDiagAnalysisSummary_ non-fatal notice: ' + (err.message || err));
   }

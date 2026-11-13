@@ -84,7 +84,8 @@ var TransparentChartEngine = {
         const data = config.data.datasets[0].data || [];
         const colors = config.data.datasets[0].backgroundColor || [];
         
-        let maxVal = Math.max(...data.filter(v => typeof v === 'number'));
+        const numericVals = data.filter(v => typeof v === 'number' && isFinite(v));
+        let maxVal = numericVals.reduce((m, v) => (v > m ? v : m), 0);
         if (maxVal <= 0) maxVal = 1;
 
         const maxBars = Math.min(6, labels.length);
@@ -94,14 +95,14 @@ var TransparentChartEngine = {
         const maxBarW = w - 100;
 
         for (let i = 0; i < maxBars; i++) {
-          const val = data[i] || 0;
-          const lbl = labels[i] || 'Item';
+          const val = Number(data[i]) || 0;
+          const lbl = String(labels[i] === null || labels[i] === undefined || labels[i] === '' ? 'Item' : labels[i]);
           const col = Array.isArray(colors) ? (colors[i] || '#2563EB') : (colors || '#2563EB');
           
           const barW = Math.max(2, (val / maxVal) * maxBarW);
           const barY = startY + (i * spacing);
 
-          const lblBox = slide.insertTextBox(lbl.substring(0,15), x + 10, barY - 4, 80, 18);
+          const lblBox = slide.insertTextBox(lbl.substring(0, 15), x + 10, barY - 4, 80, 18);
           lblBox.getText().getTextStyle().setFontFamily('Outfit').setFontSize(9).setBold(true).setForegroundColor('#0F172A');
 
           const track = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, x + 90, barY, maxBarW, barH);

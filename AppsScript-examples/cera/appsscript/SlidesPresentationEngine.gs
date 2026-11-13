@@ -28,7 +28,7 @@ function deckEgressView_(map) {
   if (!map || typeof map !== 'object') return map;
   const keys = Object.keys(map);
   if (!keys.some(k => map[k] && typeof map[k] === 'object' && Number(map[k].egressBytes) > 0)) return map;
-  const out = {};
+  const out = Object.create(null);
   keys.forEach(k => {
     const e = map[k];
     if (!e || typeof e !== 'object' || !(Number(e.egressBytes) > 0)) return;
@@ -335,9 +335,12 @@ var ExecutivePresentationEngine = {
   shortDateLabel(dateStr, includeYear, lang) {
     const m = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (!m) return String(dateStr || '');
+    const mIdx = parseInt(m[2], 10);
+    const dIdx = parseInt(m[3], 10);
+    if (!(mIdx >= 1 && mIdx <= 12 && dIdx >= 1 && dIdx <= 31)) return String(dateStr || '');
     if (lang && lang !== 'en') return formatDisplayDate(m[1] + '-' + m[2] + '-' + m[3], !!includeYear, lang);
     const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-    const base = m[3] + ' ' + (months[parseInt(m[2], 10) - 1] || m[2]);
+    const base = m[3] + ' ' + months[mIdx - 1];
     return includeYear ? base + ' ' + m[1] : base;
   },
 
@@ -511,9 +514,10 @@ var ExecutivePresentationEngine = {
     };
 
     const notRepOu = T('report.ou.notReported');
-    const isRealOu = name => validName(name) && name !== notRepOu && name !== 'OU not reported' && name !== 'Unassigned OU';
+    const isRealOu = name => validName(name) && name !== notRepOu &&
+      !(typeof ceraIsUnreportedOu_ === 'function' ? ceraIsUnreportedOu_(name) : (name === 'OU not reported' || name === 'Unassigned OU'));
     const radarForOus = (state && ((state.vectors && state.vectors.securityRadar && state.vectors.securityRadar.signals) || state.securityRadar)) || {};
-    const allSeenOus = {};
+    const allSeenOus = Object.create(null);
     [
       state && state.globalOUs,
       state && state.printStats && state.printStats.ous,
@@ -682,7 +686,14 @@ var ExecutivePresentationEngine = {
     const radar = (state && ((state.vectors && state.vectors.securityRadar && state.vectors.securityRadar.signals) || state.securityRadar)) || {};
     const pwData = radar.passwordReuse || {};
     const pwTotal = pwData.total || 0;
-    const topPwOUs = (typeof countMapToArray === 'function' && pwData.ous) ? cleanArr(countMapToArray(pwData.ous)).slice(0, 1) : [];
+    const normPwOuMap = Object.create(null);
+    Object.keys((pwData && pwData.ous) || {}).forEach(k => {
+      const disp = (typeof ceraFormatOuDisplay_ === 'function') ? ceraFormatOuDisplay_(k, lang) : k;
+      normPwOuMap[disp] = (normPwOuMap[disp] || 0) + (Number(pwData.ous[k]) || 0);
+    });
+    const allPwOUs = (typeof countMapToArray === 'function') ? cleanArr(countMapToArray(normPwOuMap)) : [];
+    const realPwOUs = allPwOUs.filter(o => isRealOu(o.name));
+    const topPwOUs = realPwOUs.slice(0, 1);
 
     // Findings on password reuse: the unit with the most events and, when corporate sites are among the destinations,
     // how many events were on them
@@ -697,8 +708,8 @@ var ExecutivePresentationEngine = {
     else if (pwExternalCount > 0) pwFindings.push('• ' + T('deck.sig.pwExternal', { n: pwExternalCount, total: pwTotal }));
     // Outcomes of the reuse events when the logs report them (warned, allowed)
     const pwResults = pwData.results || {};
-    const pwKnown = { WARNED: 'warned', ALLOWED: 'allowed', DETECTED: 'detected', REPORTED: 'detected' };
-    const pwCounts = {};
+    const pwKnown = Object.assign(Object.create(null), { WARNED: 'warned', ALLOWED: 'allowed', DETECTED: 'detected', REPORTED: 'detected' });
+    const pwCounts = Object.create(null);
     Object.keys(pwResults).filter(k => k !== 'NOT_REPORTED').forEach(k => {
       const cls = pwKnown[k] || 'other';
       pwCounts[cls] = (pwCounts[cls] || 0) + (Number(pwResults[k]) || 0);
@@ -830,14 +841,14 @@ var ExecutivePresentationEngine = {
     };
     // URL categories of the outbound transfers in the four vectors (uploads and pastes only; downloads and prints excluded)
     const outboundCategories = (() => {
-      const cats = {};
+      const cats = Object.create(null);
       ['personal', 'shadowAi', 'unmanaged', 'messaging'].forEach(k => {
         const acts = (state && state.vectors && state.vectors[k] && state.vectors[k].actions) || {};
         ['upload', 'paste'].forEach(a => {
           const m = (acts[a] && acts[a].cats) || {};
           Object.keys(m).forEach(c => {
             const e = m[c] || {};
-            const name = e.name || c;
+            const name = String(e.name || c);
             if (!cats[name]) cats[name] = { name: name, count: 0, bytes: 0 };
             cats[name].count += Number(e.count) || 0;
             cats[name].bytes += Number(e.bytes) || 0;
@@ -852,7 +863,7 @@ var ExecutivePresentationEngine = {
       return catList;
     })();
     const vecName = id => T('deck.vector.' + id);
-    const vectorsDeck = {};
+    const vectorsDeck = Object.create(null);
     ['personal', 'shadowAi', 'unmanaged', 'messaging'].forEach(k => { vectorsDeck[k] = vectorDeck(k); });
     // Outbound split of the personal-account vector between other organizations and personal mailboxes
     const split = ceraAccountSplit(vectorsDeck.personal.vec, state);
@@ -907,7 +918,7 @@ var ExecutivePresentationEngine = {
       // Destinations of an unmanaged-app channel: how many (ceraOutboundDestinations, the count of the channel's
       // headline as well), and the share of the three largest
       const destKeys = ceraOutboundDestinations(vd.vec);
-      const destMap = {};
+      const destMap = Object.create(null);
       destKeys.forEach(d => { destMap[d] = vd.vec.domains[d]; });
       const all = outboundRows(destMap, 100000);
       const sumOf = rows => rows.reduce((t, r) => t + (vd.byCount ? r.count : r.bytes), 0);
@@ -923,19 +934,24 @@ var ExecutivePresentationEngine = {
     const sGemini = gBench.sanctioned || { bytes: 0, count: 0, users: {} };
     const sShadow = gBench.shadow || { bytes: 0, count: 0, users: {} };
     const sPersonalAi = gBench.personalSanctioned || { bytes: 0, count: 0, users: {} };
-    const geminiBytes = sGemini.bytes || 0;
-    const shadowBytes = sShadow.bytes || 0;
-    const personalAiBytes = Number(sPersonalAi.bytes) || 0;
-    const geminiCount = sGemini.count || 0;
-    const shadowCount = sShadow.count || 0;
-    const personalAiCount = Number(sPersonalAi.count) || 0;
+    const nonNeg = v => Math.max(0, Number(v) || 0);
+    const geminiBytes = nonNeg(sGemini.bytes);
+    const shadowBytes = nonNeg(sShadow.bytes);
+    const personalAiBytes = nonNeg(sPersonalAi.bytes);
+    const geminiCount = nonNeg(sGemini.count);
+    const shadowCount = nonNeg(sShadow.count);
+    const personalAiCount = nonNeg(sPersonalAi.count);
     const otherAiCount = shadowCount + personalAiCount;
     const otherAiBytes = shadowBytes + personalAiBytes;
     const aiTotalCount = geminiCount + otherAiCount;
     const geminiUsers = Object.keys(sGemini.users || {}).length;
     const otherAiUsers = Object.keys(Object.assign({}, sShadow.users || {}, sPersonalAi.users || {})).length;
     const hasAi = aiTotalCount > 0;
-    const pctInt = (part, whole) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
+    const pctInt = (part, whole) => {
+      if (!(whole > 0) || !(part > 0)) return 0;
+      if (part >= whole) return 100;
+      return Math.max(1, Math.min(99, Math.round((part / whole) * 100)));
+    };
     const internalPctNum = pctInt(geminiCount, aiTotalCount);
     const shadowPctNum = hasAi ? (100 - internalPctNum) : 0;
     const personalAiPctNum = pctInt(personalAiCount, aiTotalCount);
@@ -1007,12 +1023,13 @@ var ExecutivePresentationEngine = {
 
     // Reasons of the Safe Browsing warnings: the most common one names the card; certificate errors count SSL reasons only
     const reasonKey = r => {
-      const c = String(r || '').toUpperCase();
-      if (c.indexOf('SSL') !== -1) return 'ssl';
-      if (c.indexOf('SOCIAL_ENGINEERING') !== -1) return 'phishing';
-      if (c.indexOf('MALWARE') !== -1) return 'malware';
-      if (c.indexOf('UNWANTED') !== -1) return 'unwanted';
-      if (c.indexOf('UNSPECIFIED') !== -1 || !c) return 'unspecified';
+      if (typeof ceraSafeBrowsingReasonKey_ === 'function') return ceraSafeBrowsingReasonKey_(r);
+      const c = String(r || '').trim().toUpperCase();
+      if (!c || c.indexOf('UNSPECIFIED') !== -1 || c === 'SECURITY_POLICY_TRIGGER') return 'unspecified';
+      if (c.indexOf('SSL') !== -1 || c.indexOf('CERT') !== -1) return 'ssl';
+      if (c.indexOf('SOCIAL_ENGINEERING') !== -1 || c.indexOf('PHISH') !== -1 || c.indexOf('DECEPTIVE') !== -1) return 'phishing';
+      if (c.indexOf('MALWARE') !== -1 || c.indexOf('MALICIOUS') !== -1) return 'malware';
+      if (c.indexOf('UNWANTED') !== -1 || c.indexOf('HARMFUL') !== -1) return 'unwanted';
       return 'other';
     };
     const unsafeAll = unsafeReasons.reduce((t, r) => t + (Number(r && r.count) || 0), 0);
@@ -1043,7 +1060,8 @@ var ExecutivePresentationEngine = {
       if (topDirectIp.shown > 0) radarEndpointNarrative += ' ' + T('deck.radar.endpointBypassedOf', { bypassed: Number(topDirectIp.bypassed) || 0, n: topDirectIp.shown, rate: topDirectIpBypassRate1 });
     }
 
-    const topUnsafeOU = unsafeOUs[0] || null;
+    const realUnsafeOUs = unsafeOUs.filter(o => isRealOu(o.ou));
+    const topUnsafeOU = realUnsafeOUs[0] || null;
     const radarTopOU1 = topUnsafeOU ? topUnsafeOU.ou : NR;
     const radarOUNarrative = topUnsafeOU
       ? T('deck.radar.unitEvents', { ou: radarTopOU1, n: Number(topUnsafeOU.count) || 0, total: unsafeAll, pct: topUnsafeOU.pct || '0.0%' })
@@ -1245,12 +1263,12 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 0, 0, 720, 4, '#2563EB', 'transparent', 0); // Header Accent Bar
     {
       let txt = 'Chrome Egress\nRisk Analysis';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 40, 62, 640, 78, 'Outfit', 28, 'bold', '#0F172A', 'left');
     }
     {
       let txt = '{{hl_cover}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 40, 140, 640, 30, 'Roboto', this.fitFont(txt, 640, 13, 9), 'bold', '#0F172A', 'left');
     }
     // What the logs say about policy outcomes: what was stopped, that nothing was, or that they carry no outcome
@@ -1258,7 +1276,7 @@ var ExecutivePresentationEngine = {
     this.addLineBox(slide, this.t_(ctx, 'deck.cover.scopeLabel'), 52, 186, 181, 16, 'Roboto', 7, 'bold', '#64748B', 'left');
     {
       let txt = '{{primaryDomain}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 52, 202, 181, 32, 'Outfit', 13, 'bold', '#2563eb', 'left');
     }
     {
@@ -1271,7 +1289,7 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 40, 258, 151, 76, '#FFFFFF', '#E2E8F0', 4, 0.5); // KPI Card 1
     {
       let txt = '{{coverCount}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 50, 266, 131, 28, 'Outfit', 18, 'bold', '#2563EB', 'left');
     }
     this.addLineBox(slide, ctx['{{coverCountLabel}}'], 50, 292, 131, 16, 'Roboto', 8, 'bold', '#0F172A', 'left');
@@ -1279,7 +1297,7 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 203, 258, 151, 76, '#FFFFFF', '#E2E8F0', 4, 0.5); // KPI Card 2
     {
       let txt = '{{coverPeople}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 213, 266, 131, 28, 'Outfit', 18, 'bold', '#D97706', 'left');
     }
     this.addLineBox(slide, ctx['{{coverPeopleLabel}}'], 213, 292, 131, 16, 'Roboto', 8, 'bold', '#0F172A', 'left');
@@ -1287,7 +1305,7 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 366, 258, 151, 76, '#FFFFFF', '#E2E8F0', 4, 0.5); // KPI Card 3
     {
       let txt = '{{monitoredOUs}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 376, 266, 131, 28, 'Outfit', 18, 'bold', '#059669', 'left');
     }
     this.addLineBox(slide, this.t_(ctx, 'deck.cover.units'), 376, 292, 131, 16, 'Roboto', 8, 'bold', '#0F172A', 'left');
@@ -1295,7 +1313,7 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 529, 258, 151, 76, '#FFFFFF', '#E2E8F0', 4, 0.5); // KPI Card 4
     {
       let txt = '{{coverSignals}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 539, 266, 131, 28, 'Outfit', 18, 'bold', '#DC2626', 'left');
     }
     this.addLineBox(slide, ctx['{{coverSignalsLabel}}'], 539, 292, 131, 16, 'Roboto', 8, 'bold', '#0F172A', 'left');
@@ -1315,12 +1333,12 @@ var ExecutivePresentationEngine = {
     this.addHeader_(slide, ctx, 'deck.header.matrix', null, '#2563EB');
     {
       let txt = '{{hl_s2}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 36, 26, 648, 26, 'Outfit', this.fitFont(txt, 648, 15, 10), 'bold', '#0F172A', 'left');
     }
     {
       let txt = '{{hl_s2sub}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 36, 50, 648, 16, 'Roboto', 8.5, 'normal', '#64748B', 'left');
     }
     const line_s2_hdr_sep = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, 36, 66, 648, 1);
@@ -1329,132 +1347,132 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 36, 75, 394, 136, '#FFFFFF', '#E2E8F0', 4); // Dominant Vector Card
     {
       let txt = '{{dominantTitle}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 48, 83, 374, 20, 'Outfit', 12, 'bold', '#DC2626', 'left');
     }
     {
       let txt = '{{dominantVectorVol}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 48, 103, 374, 34, 'Outfit', 24, 'bold', '#0F172A', 'left');
     }
     {
       let txt = '{{dominantVectorCount}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 48, 137, 374, 18, 'Roboto', 8, 'normal', '#64748B', 'left');
     }
     {
       let txt = '{{dominantVectorSummary}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 48, 157, 374, 46, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
     this.addCard(slide, 36, 219, 126, 123, '#FFFFFF', '#E2E8F0', 4); // Sub-Vector Card 1
     {
       let txt = '{{sub1Name}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 48, 227, 106, 16, 'Outfit', 9, 'bold', '#7C3AED', 'left');
     }
     {
       let txt = '{{sub1Vol}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 48, 243, 116, 26, 'Outfit', 16, 'bold', '#7C3AED', 'left');
     }
     {
       let txt = '{{sub1Count}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 48, 269, 106, 28, 'Roboto', 7.5, 'normal', '#64748B', 'left');
     }
     {
       let txt = '{{sub1Desc}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 48, 299, 106, 38, 'Roboto', 7, 'normal', '#334155', 'left');
     }
     this.addCard(slide, 170, 219, 126, 123, '#FFFFFF', '#E2E8F0', 4); // Sub-Vector Card 2
     {
       let txt = '{{sub2Name}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 182, 227, 106, 16, 'Outfit', 9, 'bold', '#059669', 'left');
     }
     {
       let txt = '{{sub2Vol}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 182, 243, 116, 26, 'Outfit', 16, 'bold', '#059669', 'left');
     }
     {
       let txt = '{{sub2Count}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 182, 269, 106, 28, 'Roboto', 7.5, 'normal', '#64748B', 'left');
     }
     {
       let txt = '{{sub2Desc}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 182, 299, 106, 38, 'Roboto', 7, 'normal', '#334155', 'left');
     }
     this.addCard(slide, 304, 219, 126, 123, '#FFFFFF', '#E2E8F0', 4); // Sub-Vector Card 3
     {
       let txt = '{{sub3Name}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 316, 227, 106, 16, 'Outfit', 9, 'bold', '#0284C7', 'left');
     }
     {
       let txt = '{{sub3Vol}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 316, 243, 116, 26, 'Outfit', 16, 'bold', '#0284C7', 'left');
     }
     {
       let txt = '{{sub3Count}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 316, 269, 106, 28, 'Roboto', 7.5, 'normal', '#64748B', 'left');
     }
     {
       let txt = '{{sub3Desc}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 316, 299, 106, 38, 'Roboto', 7, 'normal', '#334155', 'left');
     }
     {
       let txt = this.t_(ctx, 'deck.s2.identityLabel');
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 448, 83, 226, 16, 'Roboto', 7, 'bold', '#D97706', 'left');
     }
     {
       let txt = '{{userConcTitle}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 448, 97, 226, 20, 'Outfit', 10.5, 'bold', '#0F172A', 'left');
     }
     {
       let txt = '{{userConcText}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 448, 127, 226, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
     {
       let txt = this.t_(ctx, 'deck.s2.unitLabel');
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 448, 225, 226, 16, 'Roboto', 7, 'bold', '#0284C7', 'left');
     }
     {
       let txt = this.t_(ctx, 'deck.s2.unitTitle', { ou: ctx['{{topOUName}}'] });
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 448, 239, 226, 20, 'Outfit', 11, 'bold', '#0F172A', 'left');
     }
     {
       let txt = '{{topOUVol}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 448, 266, 226, 22, 'Outfit', 14, 'bold', '#0284C7', 'left');
     }
     {
       let txt = '{{topOUNarrative}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 448, 288, 226, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
     this.addCard(slide, 36, 350, 648, 42, '#EFF6FF', '#BFDBFE', 4, 0.68); // Bottom Callout Card
     {
       let txt = '{{threatMatrixNarrative}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 48, 356, 624, 30, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
     {
       // Footnote: outbound transfers with no recorded destination, when they are a notable share (empty otherwise)
       let txt = '{{hl_s2note}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 36, 392, 648, 12, 'Roboto', 6.5, 'normal', '#64748B', 'left');
     }
   },
@@ -1470,12 +1488,12 @@ var ExecutivePresentationEngine = {
     this.addHeader_(slide, ctx, 'deck.header.behavior', null, '#2563EB');
     {
       let txt = '{{hl_s3}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 36, 26, 648, 26, 'Outfit', this.fitFont(txt, 648, 15, 10), 'bold', '#0F172A', 'left');
     }
     {
       let txt = '{{hl_s3sub}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 36, 50, 648, 16, 'Roboto', 8.5, 'normal', '#64748B', 'left');
     }
     const line_s3_hdr_sep = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, 36, 66, 648, 1);
@@ -1483,7 +1501,7 @@ var ExecutivePresentationEngine = {
     line_s3_hdr_sep.getBorder().setTransparent();
     {
       let txt = '{{velocityTitle}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 48, 82, 296, 16, 'Outfit', this.fitFont(txt, 296, 10, 7.5), 'bold', '#D97706', 'left');
     }
     // Vector Chart: Velocity Line Chart (Daily Velocity Timeline)
@@ -1498,46 +1516,46 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 46, 282, 300, 48, '#FFFBEB', '#FDE68A', 4, 0.5); // Temporal Surge Card
     {
       let txt = '{{burstNarrative}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 56, 288, 280, 36, 'Roboto', 7.5, 'bold', '#D97706', 'left');
     }
     this.addCard(slide, 368, 75, 316, 82, '#FFFFFF', '#FECDD3', 4); // Funneling Card
     {
       let txt = '{{funnelTitle}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 382, 81, 292, 18, 'Outfit', 9, 'bold', '#DC2626', 'left');
     }
     {
       let txt = '{{funnelNarrative}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 382, 99, 292, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
     this.addCard(slide, 368, 166, 316, 82, '#FFFFFF', '#FDE68A', 4); // Dispersion Card
     {
       let txt = '{{scatterTitle}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 382, 172, 292, 18, 'Outfit', 9, 'bold', '#D97706', 'left');
     }
     {
       let txt = '{{scatterNarrative}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 382, 190, 292, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
     this.addCard(slide, 368, 257, 316, 82, '#FFFFFF', '#DDD6FE', 4); // Single-User Share Card
     {
       let txt = '{{skewTitle}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 382, 263, 292, 18, 'Outfit', 9, 'bold', '#7C3AED', 'left');
     }
     {
       let txt = '{{skewNarrative}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 382, 281, 292, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
     this.addCard(slide, 36, 350, 648, 42, '#FFFBEB', '#FDE68A', 10, 0.67); // Bottom Callout Card
     {
       let txt = this.t_(ctx, 'deck.s3.assessment', { text: ctx['{{outlierNarrative}}'] });
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 48, 356, 624, 30, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
   },
@@ -1550,17 +1568,17 @@ var ExecutivePresentationEngine = {
     this.addHeader_(slide, ctx, 'deck.header.units', null, '#2563EB');
     {
       let txt = '{{hl_s4}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 36, 26, 648, 26, 'Outfit', this.fitFont(txt, 648, 15, 10), 'bold', '#0F172A', 'left');
     }
     {
       let txt = '{{hl_s4sub}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 36, 50, 648, 16, 'Roboto', 8.5, 'normal', '#64748B', 'left');
     }
     {
       let txt = this.t_(ctx, 'deck.s4.unitsTitle');
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 48, 82, 150, 16, 'Outfit', 9.5, 'bold', '#2563EB', 'left');
     }
     // Vector Chart: Top OUs Stacked Bar (Top OUs Stacked Bars)
@@ -1573,7 +1591,7 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 46, 282, 300, 48, '#EFF6FF', '#BFDBFE', 4, 0.5); // Action Imbalance Card
     {
       let txt = '{{topOUActionNarrative}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 56, 288, 280, 36, 'Roboto', 7.5, 'bold', '#2563EB', 'left');
     }
     this.addLineBox(slide, ceraT('deck.s4.categoriesTitle', null, ctx._lang), 380, 80, 292, 16, 'Outfit', 9.5, 'bold', '#7C3AED', 'left');
@@ -1605,7 +1623,7 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 36, 350, 648, 42, '#F0F9FF', '#BAE6FD', 4, 0.5); // Bottom Callout Card
     {
       let txt = '{{directionText}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 48, 356, 624, 30, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
   },
@@ -1644,13 +1662,16 @@ var ExecutivePresentationEngine = {
     slide.getBackground().setSolidFill('#EFF6FF');
   },
 
-  /** Replaces the {{tokens}} of a template with their values from the runtime context. */
+  /** Replaces the {{tokens}} of a template in a single pass with their values from the runtime context. */
   fill_(txt, ctx) {
-    let out = String(txt === null || txt === undefined ? '' : txt);
-    for (let k in ctx) {
-      if (typeof ctx[k] !== 'object' && typeof ctx[k] !== 'function' && out.includes(k)) out = out.split(k).join(String(ctx[k]));
-    }
-    return out;
+    const out = String(txt === null || txt === undefined ? '' : txt);
+    if (!ctx || out.indexOf('{{') === -1) return out;
+    return out.replace(/\{\{[^{}]+\}\}/g, tok => (
+      Object.prototype.hasOwnProperty.call(ctx, tok) && ctx[tok] !== null && ctx[tok] !== undefined &&
+      typeof ctx[tok] !== 'object' && typeof ctx[tok] !== 'function'
+        ? String(ctx[tok])
+        : tok
+    ));
   },
 
   /**
@@ -1768,12 +1789,12 @@ var ExecutivePresentationEngine = {
     this.addHeader_(slide, ctx, 'deck.header.vectorDeep', { name: this.t_(ctx, 'report.sheet.shadowAi').toUpperCase() }, '#7C3AED');
     {
       let txt = '{{hl_shadowAiDeep}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 36, 26, 648, 26, 'Outfit', this.fitFont(txt, 648, 15, 10), 'bold', '#0F172A', 'left');
     }
     {
       let txt = ctx['{{hl_shadowAiDeepSub}}'] || '{{hl_shadowAiSub}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 36, 50, 648, 16, 'Roboto', 8.5, 'normal', '#64748B', 'left');
     }
     const line_hdr_sep = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, 36, 66, 648, 1);
@@ -1783,15 +1804,15 @@ var ExecutivePresentationEngine = {
     // 1. Hero split: shares of outbound AI transfers, the basis of the slide headline (sanctioned AI vs other tools,
     // including sanctioned tools used with non-corporate accounts). No AI activity renders as 0% / 0%.
     const benchmark = ctx._vShadowAiBenchmark || [];
-    const internalPct = (benchmark[0] && benchmark[0].pct) || 0;
-    const shadowPct = (benchmark[1] && benchmark[1].pct) || 0;
+    const internalPct = Math.max(0, Math.min(100, Math.round(Number(benchmark[0] && benchmark[0].pct) || 0)));
+    const shadowPct = Math.max(0, Math.min(100, Math.round(Number(benchmark[1] && benchmark[1].pct) || 0)));
 
-    // Clamping dynamic width between 130pt and 518pt out of 648pt total
+    // Clamping dynamic width between 130pt and 518pt out of 648pt total (always strictly positive)
     const totalHeroW = 648;
     const minCardW = 130;
     const maxCardW = totalHeroW - minCardW; // 518
     const rawW = totalHeroW * (internalPct / 100);
-    const dynamicW = Math.max(minCardW, Math.min(maxCardW, Math.round(rawW)));
+    const dynamicW = Math.max(minCardW, Math.min(maxCardW, Math.round(isFinite(rawW) ? rawW : 0)));
 
     // Hero Base Card (Shadow AI Container)
     this.addCard(slide, 36, 72, totalHeroW, 92, '#F1F5F9', '#FF7B00', 16);
@@ -1809,7 +1830,7 @@ var ExecutivePresentationEngine = {
     // Dynamic Executive Insight (Internal AI vs Shadow AI)
     {
       let txt = '{{aiBenchmarkInsight}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       const box = this.addTextBox(slide, txt, 36, 174, 648, 48, 'Outfit', 10, '500', '#0F172A', 'left');
       if (box && ctx._aiPersonalBoldText) {
         const idx = txt.indexOf(ctx._aiPersonalBoldText);
@@ -1835,12 +1856,14 @@ var ExecutivePresentationEngine = {
     // Pillar 3: Platforms & Velocity Spikes (Amber)
     this.addCard(slide, 476, 233, 208, 108, '#FFFFFF', '#FDE68A', 4);
     // Busiest outbound day of the vector under the deck's peak rule (ceraVectorPeak) plus top unsanctioned tools
-    this.addLineBox(slide, ctx._vectors.shadowAi.peakTitle, 488, 239, 190, 18, 'Outfit', 9, 'bold', '#D97706', 'left');
-    const aiDests = (ctx._vectors && ctx._vectors.shadowAi && ctx._vectors.shadowAi.dests) || [];
+    const aiVec = (ctx._vectors && ctx._vectors.shadowAi) || {};
+    this.addLineBox(slide, aiVec.peakTitle || '', 488, 239, 190, 18, 'Outfit', 9, 'bold', '#D97706', 'left');
+    const aiDests = aiVec.dests || [];
+    const fmtAiAmt = typeof aiVec.amountOf === 'function' ? aiVec.amountOf : (b => this.fmtBytes(b));
     const aiTopTools = aiDests.length
-      ? ceraT('deck.ai.topTools', { list: aiDests.slice(0, 3).map(d => `${d.name} (${ctx._vectors.shadowAi.amountOf(d.bytes, d.count)})`).join(', ') }, ctx._lang) + '\n'
+      ? ceraT('deck.ai.topTools', { list: aiDests.slice(0, 3).map(d => `${d.name} (${fmtAiAmt(d.bytes, d.count)})`).join(', ') }, ctx._lang) + '\n'
       : '';
-    this.addTextBox(slide, aiTopTools + ctx._vectors.shadowAi.peakText, 488, 258, 190, 78, 'Roboto', 7.2, 'normal', '#334155', 'left');
+    this.addTextBox(slide, aiTopTools + (aiVec.peakText || ''), 488, 258, 190, 78, 'Roboto', 7.2, 'normal', '#334155', 'left');
 
     this.addRecommendation_(slide, ctx, ['shadowAi'], '#FAF5FF', '#DDD6FE');
   },
@@ -1857,12 +1880,12 @@ var ExecutivePresentationEngine = {
     this.addHeader_(slide, ctx, 'deck.header.vector5Deep', null, '#2563EB');
     {
       let txt = '{{hl_signals}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 36, 26, 648, 26, 'Outfit', this.fitFont(txt, 648, 15, 10), 'bold', '#0F172A', 'left');
     }
     {
       let txt = '{{hl_signalsSub}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 36, 50, 648, 16, 'Roboto', 8.5, 'normal', '#64748B', 'left');
     }
     const line_hdr_sep = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, 36, 66, 648, 1);
@@ -1907,43 +1930,43 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 46, 282, 300, 48, '#FFF1F2', '#FECDD3', 4, 0.5); // Primary Target Card
     {
       let txt = '{{radarBypassNarrative}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 56, 288, 280, 36, 'Roboto', 7.5, 'bold', '#DC2626', 'left');
     }
 
     this.addCard(slide, 368, 75, 316, 82, '#FFFFFF', '#FECDD3', 4); // Card 1: Root Cause Analysis
     {
       let txt = '{{radarReasonTitle}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 382, 81, 292, 18, 'Outfit', 9, 'bold', '#DC2626', 'left');
     }
     {
       let txt = '{{radarRootCauseNarrative}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 382, 99, 292, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
 
     this.addCard(slide, 368, 166, 316, 82, '#FFFFFF', '#FDE68A', 4); // Card 2: Top Endpoint & Direct IP
     {
       let txt = '{{radarEndpointTitle}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 382, 172, 292, 18, 'Outfit', 9, 'bold', '#D97706', 'left');
     }
     {
       let txt = '{{radarEndpointNarrative}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 382, 190, 292, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
 
     this.addCard(slide, 368, 257, 316, 82, '#FFFFFF', '#DDD6FE', 4); // Card 3: unit with the most warnings
     {
       let txt = this.t_(ctx, 'deck.radar.unitTitle', { ou: ctx['{{radarTopOU1}}'] });
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 382, 263, 292, 18, 'Outfit', 9, 'bold', '#7C3AED', 'left');
     }
     {
       let txt = '{{radarOUNarrative}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 382, 281, 292, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
 
@@ -1961,61 +1984,70 @@ var ExecutivePresentationEngine = {
     this.addHeader_(slide, ctx, 'deck.header.signals', null, '#2563EB');
     {
       let txt = '{{hl_signals2}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 36, 26, 648, 26, 'Outfit', this.fitFont(txt, 648, 15, 10), 'bold', '#0F172A', 'left');
     }
     {
       let txt = '{{hl_signals2Sub}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 36, 50, 648, 16, 'Roboto', 8.5, 'normal', '#64748B', 'left');
     }
     {
       let txt = this.t_(ctx, 'deck.sig.pwTitle');
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 48, 81, 195, 16, 'Outfit', 9.5, 'bold', '#DC2626', 'left');
     }
     {
       let txt = this.t_(ctx, 'deck.sig.pwIncidents', { n: ctx._pwTotal });
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 243, 81, 98, 16, 'Outfit', 7.5, 'bold', '#DC2626', 'right');
     }
     {
       let txt = ceraT('deck.sig.pwSub', null, ctx._lang);
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 48, 97, 293, 14, 'Roboto', 6.8, 'normal', '#64748B', 'left');
     }
     this.addCard(slide, 48, 113, 141, 42, '#FFF1F2', '#FECDD3', 4, 0.5); // PW Mini Card 1
     {
       let txt = '{{pwTotal}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 52, 115, 133, 20, 'Outfit', 13.5, 'bold', '#DC2626', 'left');
     }
     {
       let txt = this.t_(ctx, 'deck.sig.pwTotalLabel');
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 52, 136, 133, 15, 'Roboto', 6.5, 'bold', '#0F172A', 'left');
     }
     this.addCard(slide, 196, 113, 145, 42, '#FFFFFF', '#E2E8F0', 4, 0.5); // PW Mini Card 2
     {
       let txt = '{{pwUsers}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 200, 115, 137, 20, 'Outfit', 13.5, 'bold', '#0F172A', 'left');
     }
     {
       let txt = this.t_(ctx, 'deck.sig.pwPeople');
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 200, 136, 137, 15, 'Roboto', 6.5, 'bold', '#64748B', 'left');
     }
     {
       let txt = ceraT('deck.sig.pwList', null, ctx._lang);
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 48, 161, 293, 13, 'Outfit', 6.8, 'bold', '#64748B', 'left');
     }
     // Vector List: Password Target Domains List (Top Targeted Password Domains)
     {
-      const radar = (state && state.securityRadar) || {};
+      const radar = (state && ((state.vectors && state.vectors.securityRadar && state.vectors.securityRadar.signals) || state.securityRadar)) || {};
       const pwData = radar.passwordReuse || {};
-      const topPwDomains = (typeof countMapToArray === 'function' && pwData.domains) ? countMapToArray(pwData.domains).filter(d => this.isValidName(d.name)).slice(0, 3) : [];
+      const legacyPw = (state && state.securityRadar && state.securityRadar.passwordReuse) || {};
+      const rawPwDomains = (pwData.domains && Object.keys(pwData.domains).length) ? pwData.domains : (legacyPw.domains || {});
+      const normPwDomains = Object.create(null);
+      Object.keys(rawPwDomains).forEach(k => {
+        const v = rawPwDomains[k];
+        const n = (v && typeof v === 'object') ? (Number(v.total) || 0) : (Number(v) || 0);
+        if (n > 0) normPwDomains[k] = n;
+      });
+      const pwInternalDomains = (pwData.internalDomains && Object.keys(pwData.internalDomains).length) ? pwData.internalDomains : (legacyPw.internalDomains || {});
+      const topPwDomains = (typeof countMapToArray === 'function') ? countMapToArray(normPwDomains).filter(d => this.isValidName(d.name)).slice(0, 3) : [];
       if (topPwDomains.length > 0) {
         topPwDomains.slice(0, 3).forEach((d, idx) => {
           const rowY = 177 + idx * 22.5;
@@ -2025,7 +2057,7 @@ var ExecutivePresentationEngine = {
           rPill.getBorder().setTransparent();
           this.addTextBox(slide, String(idx + 1), 48 - 1, rowY + 1, 24, 16, 'Roboto', 6.5, 'bold', idx === 0 ? '#FFFFFF' : (p.textMuted || '#64748B'), 'center');
           // Tagged by what the destination is: a browser page or local file is never an outside app
-          const kind = ctx._hostKind ? ctx._hostKind(d.name, pwData.internalDomains) : 'external';
+          const kind = ctx._hostKind ? ctx._hostKind(d.name, pwInternalDomains) : 'external';
           const displayName = this.destinationWithKind_(d.name, kind, ctx, 32);
           const isIp = kind === 'ip';
           const isInt = kind === 'corporate' || kind === 'internal' || kind === 'browser' || kind === 'local';
@@ -2040,62 +2072,62 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 48, 248, 293, 84, '#FFFFFF', '#FECDD3', 4); // PW Advisory Card
     {
       let txt = ceraT('deck.sig.findings', null, ctx._lang);
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 56, 252, 280, 13, 'Outfit', 6.5, 'bold', '#DC2626', 'left');
     }
     {
       let txt = '{{pwAdvText}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       const pwFont = txt.length > 140 ? 6.0 : 6.8;
       const pwRecY = txt.length > 140 ? 302 : 296;
       const pwRecH = txt.length > 140 ? 28 : 32;
       this.addTextBox(slide, txt, 56, 265, 280, pwRecY - 266, 'Roboto', pwFont, 'normal', '#0F172A', 'left');
       // The action the recommendations slide lists for password reuse, or nothing
-      const rec = (ctx._recByTopic.password || [])[0];
+      const rec = ((ctx._recByTopic && ctx._recByTopic.password) || [])[0];
       let recTxt = rec ? '• ' + ceraT('deck.v.recommended', { rec: rec }, ctx._lang) : '';
       this.addTextBox(slide, recTxt, 56, pwRecY, 280, pwRecH, 'Roboto', pwFont, 'normal', '#0F172A', 'left');
     }
     {
       let txt = this.t_(ctx, 'deck.sig.malTitle');
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 379, 81, 205, 16, 'Outfit', 9, 'bold', '#D97706', 'left');
     }
     {
       // Flagged downloads, one per download (a warning and its bypasses are one)
       let txt = '{{malDownloads}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 584, 81, 88, 16, 'Outfit', 7.5, 'bold', '#D97706', 'right');
     }
     {
       let txt = ceraT('deck.sig.malSub', null, ctx._lang);
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 379, 97, 293, 14, 'Roboto', 6.8, 'normal', '#64748B', 'left');
     }
     this.addCard(slide, 379, 113, 141, 42, '#FFFBEB', '#FDE68A', 4, 0.5); // Malware Mini Card 1
     {
       let txt = '{{malTotal}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 383, 115, 133, 20, 'Outfit', 13.5, 'bold', '#D97706', 'left');
     }
     {
       let txt = '{{malTotalLabel}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 383, 136, 133, 15, 'Roboto', 6.5, 'bold', '#0F172A', 'left');
     }
     this.addCard(slide, 527, 113, 145, 42, '#FFFFFF', '#E2E8F0', 4, 0.5); // Malware Mini Card 2
     {
       let txt = '{{malUsers}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 531, 115, 137, 20, 'Outfit', 13.5, 'bold', '#0F172A', 'left');
     }
     {
       let txt = ceraT('deck.sig.malPeople', null, ctx._lang);
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 531, 136, 137, 15, 'Roboto', 6.5, 'bold', '#64748B', 'left');
     }
     {
       let txt = this.t_(ctx, 'deck.sig.malList');
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 379, 161, 293, 13, 'Outfit', 6.8, 'bold', '#64748B', 'left');
     }
     // Vector List: potentially malicious files, most frequent first
@@ -2121,18 +2153,18 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 379, 248, 293, 84, '#FFFFFF', '#FDE68A', 4); // Malware Advisory Card
     {
       let txt = ceraT('deck.sig.findings', null, ctx._lang);
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 387, 252, 280, 13, 'Outfit', 6.5, 'bold', '#D97706', 'left');
     }
     {
       let txt = '{{malAdvText}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       const malFont = txt.length > 140 ? 6.0 : 6.8;
       const malRecY = txt.length > 140 ? 302 : 296;
       const malRecH = txt.length > 140 ? 28 : 32;
       this.addTextBox(slide, txt, 387, 265, 280, malRecY - 266, 'Roboto', malFont, 'normal', '#0F172A', 'left');
       // The action the recommendations slide lists for potentially malicious files, or nothing
-      const rec = (ctx._recByTopic.malware || [])[0];
+      const rec = ((ctx._recByTopic && ctx._recByTopic.malware) || [])[0];
       let recTxt = rec ? '• ' + ceraT('deck.v.recommended', { rec: rec }, ctx._lang) : '';
       this.addTextBox(slide, recTxt, 387, malRecY, 280, malRecH, 'Roboto', malFont, 'normal', '#0F172A', 'left');
     }
@@ -2149,25 +2181,32 @@ var ExecutivePresentationEngine = {
   },
 
   /**
-   * Browser launches with switches other than Chrome's own startup switches, on one basis (launches): launches per class
-   * of switches (a launch can be in several), the launches with Chrome's own startup switches only, the switches, the
-   * people and devices of these launches, what each class of switches allows, and the policy for each class present.
+   * Browser launches with switches other than Chrome's own startup switches, rendered as informational (INFO) telemetry
+   * on one basis (launches): launches per class of switches (a launch can be in several), the launches with Chrome's own
+   * startup switches only, the switches, the people and devices of these launches, what each class of switches allows,
+   * and a concise INFO explanation banner noting that parent-process / operational-intent context is not in log telemetry.
    */
   buildSlide_browser_launches(presentation, ctx, p, w, h) {
     const lf = ctx.insights.facts.launches;
     const T = (key, params) => ceraT(key, params, ctx._lang);
-    const color = '#4338CA';
-    const light = '#EEF2FF';
-    const border = '#C7D2FE';
+    const color = '#0284C7';
+    const light = '#F0F9FF';
+    const border = '#BAE6FD';
+    const card2Color = '#0369A1';
+    const card2Border = '#7DD3FC';
+    const card3Color = '#334155';
+    const card3Border = '#CBD5E1';
     const slide = presentation.appendSlide(SlidesApp.PredefinedLayout.BLANK);
     this.addBackground_(slide, w, h);
-    this.addCard(slide, 364, 257, 133, 82, '#D97706', 'transparent', 24); // C3 Stripe
-    this.addCard(slide, 364, 166, 133, 82, '#7C3AED', 'transparent', 24); // C2 Stripe
-    this.addCard(slide, 364, 75, 133, 82, color, 'transparent', 24); // C1 Stripe
+    this.addCard(slide, 364, 257, 133, 82, card3Color, 'transparent', 24); // C3 Stripe (calm slate)
+    this.addCard(slide, 364, 166, 133, 82, card2Color, 'transparent', 24); // C2 Stripe (calm deep sky)
+    this.addCard(slide, 364, 75, 133, 82, color, 'transparent', 24); // C1 Stripe (calm info blue)
     this.addHeader_(slide, ctx, 'deck.header.launches', null, color);
     const hl = ctx['{{hl_launches}}'] || '';
     this.addTextBox(slide, hl, 36, 26, 648, 26, 'Outfit', this.fitFont(hl, 648, 15, 10), 'bold', '#0F172A', 'left');
-    this.addLineBox(slide, ctx['{{hl_launchesSub}}'], 36, 50, 648, 16, 'Roboto', 8.5, 'normal', '#64748B', 'left');
+    this.addLineBox(slide, ctx['{{hl_launchesSub}}'], 36, 50, 444, 16, 'Roboto', 8.5, 'normal', '#64748B', 'left', 5);
+    this.addCard(slide, 488, 48, 196, 16, '#E0F2FE', '#7DD3FC', 8);
+    this.addLineBox(slide, T('deck.launch.infoBadge'), 492, 48, 188, 16, 'Outfit', 6.8, 'bold', '#0369A1', 'center', 5);
     const sep = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, 36, 66, 648, 1);
     sep.getFill().setSolidFill('#E2E8F0');
     sep.getBorder().setTransparent();
@@ -2182,7 +2221,7 @@ var ExecutivePresentationEngine = {
       : T(lf.notReported > 0 ? 'deck.launch.routineNoneReported' : 'deck.launch.routineNone');
     if (lf.notReported > 0) routineText += ' ' + T('deck.launch.notReported', { n: lf.notReported });
     this.addCard(slide, 46, 282, 300, 48, light, border, 4, 0.5);
-    this.addTextBox(slide, routineText, 56, 288, 280, 36, 'Roboto', 7.5, 'bold', color, 'left');
+    this.addTextBox(slide, routineText, 56, 288, 280, 36, 'Roboto', 7.5, 'bold', card2Color, 'left');
 
     // Card 1: the switches other than Chrome's own startup switches, most launches first
     const top = lf.switches.filter(sw => sw.cls !== 'routine').slice(0, 4).map(sw => T('deck.launch.switchItem', { name: sw.name, n: sw.launches }));
@@ -2200,18 +2239,22 @@ var ExecutivePresentationEngine = {
     else if (people) peopleText = T('deck.launch.peopleTextNoDevice', { n: lf.nonRoutine, people: people });
     else if (devices) peopleText = T('deck.launch.peopleTextNoPeople', { n: lf.nonRoutine, devices: devices });
     else peopleText = T('deck.launch.peopleTextNone', { n: lf.nonRoutine });
-    this.addCard(slide, 368, 166, 316, 82, '#FFFFFF', '#DDD6FE', 4);
-    this.addLineBox(slide, T('deck.launch.peopleTitle'), 382, 172, 292, 18, 'Outfit', 9, 'bold', '#7C3AED', 'left');
+    this.addCard(slide, 368, 166, 316, 82, '#FFFFFF', card2Border, 4);
+    this.addLineBox(slide, T('deck.launch.peopleTitle'), 382, 172, 292, 18, 'Outfit', 9, 'bold', card2Color, 'left');
     this.addTextBox(slide, peopleText, 382, 190, 292, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
 
     // Card 3: what the switches of the classes with the most launches allow, worded as what they allow, not as who
-    // used them or why
+    // used them or why (calm slate informational styling)
     const what = lf.classes.slice(0, 3).map(c => T('deck.launch.whatItem', { class: T('deck.launch.class.' + c.id), what: T('deck.launch.what.' + c.id) }));
-    this.addCard(slide, 368, 257, 316, 82, '#FFFFFF', '#FDE68A', 4);
-    this.addLineBox(slide, T('deck.launch.whatTitle'), 382, 263, 292, 18, 'Outfit', 9, 'bold', '#D97706', 'left');
-    this.addTextBox(slide, what.join('\n'), 382, 281, 292, 54, 'Roboto', 7.2, 'normal', '#334155', 'left');
+    const whatText = what.join('\n');
+    this.addCard(slide, 368, 257, 316, 82, '#FFFFFF', card3Border, 4);
+    this.addLineBox(slide, T('deck.launch.whatTitle'), 382, 263, 292, 18, 'Outfit', 9, 'bold', card3Color, 'left');
+    this.addTextBox(slide, whatText, 382, 281, 292, 55, 'Roboto', whatText.length > 300 ? 6.5 : 7.0, 'normal', '#334155', 'left');
 
-    this.addRecommendation_(slide, ctx, ['launches'], light, border);
+    // Bottom INFO explanation banner (y=346..390): explains why CLI Browser Launch is INFO-only visibility telemetry
+    const infoNote = T('deck.launch.infoNote');
+    this.addCard(slide, 36, 346, 648, 44, '#F0F9FF', '#7DD3FC', 4, 0.85);
+    this.addTextBox(slide, infoNote, 48, 350, 624, 36, 'Roboto', infoNote.length > 320 ? 6.6 : 7.0, 'normal', '#0C4A6E', 'left');
   },
 
   // Slide 10: Physical Egress: Printing Analysis
@@ -2225,17 +2268,17 @@ var ExecutivePresentationEngine = {
     this.addHeader_(slide, ctx, 'deck.print.header', null, '#D97706');
     {
       let txt = '{{hl_printing}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 36, 26, 648, 26, 'Outfit', this.fitFont(txt, 648, 15, 10), 'bold', '#0F172A', 'left');
     }
     {
       let txt = '{{hl_printingSub}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 36, 50, 648, 16, 'Roboto', 8.5, 'normal', '#64748B', 'left');
     }
     {
       let txt = ceraT('deck.print.chartTitle', null, ctx._lang);
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 48, 82, 296, 16, 'Outfit', 9.5, 'bold', '#D97706', 'left');
     }
     // Vector Chart: Print Origin Domains Bar (Print Origin Domains)
@@ -2250,40 +2293,40 @@ var ExecutivePresentationEngine = {
     this.addCard(slide, 46, 282, 300, 48, '#FFFBEB', '#FDE68A', 4, 0.5); // Primary Origin Card
     {
       let txt = '{{topPrintNarrative}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 56, 288, 280, 36, 'Roboto', 7.5, 'bold', '#D97706', 'left');
     }
     this.addCard(slide, 368, 75, 316, 82, '#FFFFFF', '#FECDD3', 4); // Print Ops Card
     {
       let txt = this.t_(ctx, 'deck.print.jobsTitle', { n: ctx._printEvents });
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 382, 81, 292, 18, 'Outfit', 9, 'bold', '#DC2626', 'left');
     }
     {
       let txt = '{{printOpsText}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 382, 99, 292, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
     this.addCard(slide, 368, 166, 316, 82, '#FFFFFF', '#DDD6FE', 4); // Print Sensitivity Card
     {
       let txt = this.t_(ctx, 'deck.print.sensTitle', { pct: ctx['{{printSensPct}}'], n: ctx._printSensCount });
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 382, 172, 292, 18, 'Outfit', 9, 'bold', '#7C3AED', 'left');
     }
     {
       let txt = '{{printDetectorsText}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 382, 190, 292, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
     this.addCard(slide, 368, 257, 316, 82, '#FFFFFF', '#FDE68A', 4); // Print Identity Card
     {
       let txt = '{{printPeopleTitle}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addLineBox(slide, txt, 382, 263, 292, 18, 'Outfit', 9, 'bold', '#D97706', 'left');
     }
     {
       let txt = '{{printPeopleText}}';
-      for (let k in ctx) { if (typeof ctx[k] !== 'object' && txt.includes(k)) txt = txt.split(k).join(String(ctx[k])); }
+      txt = this.fill_(txt, ctx);
       this.addTextBox(slide, txt, 382, 281, 292, 54, 'Roboto', 7.5, 'normal', '#334155', 'left');
     }
     this.addRecommendation_(slide, ctx, ['print'], '#FFFBEB', '#FDE68A');

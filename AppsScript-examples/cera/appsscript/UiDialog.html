@@ -650,7 +650,10 @@
 <body>
   <!-- Version badge & Language picker (always visible) -->
   <div class="lang-bar">
-    <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.14</span>
+    <div style="display: inline-flex; align-items: center; gap: 6px;">
+      <span id="cera-version-badge" class="md3-badge badge-primary">v2.0.18</span>
+      <span id="cera-instance-ref-badge" class="md3-badge badge-neutral" style="display: none;"></span>
+    </div>
     <div class="lang-picker-group">
       <label for="lang-select" data-i18n="lang.label">Language</label>
       <select id="lang-select" onchange="changeLanguage(this.value)"></select>
@@ -669,6 +672,39 @@
     <div id="template-freshness-body" data-i18n-html="freshness.warn.body" data-i18n-params='{"days":90}' style="font-size: 11.5px; color: #1E40AF; line-height: 1.45;">This CERA template copy was released over 90 days ago. For the latest detection rules and resilience updates, you can make a fresh copy at <a href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer"><b>goo.gle/cera</b> ↗</a> — or continue using this workbook below.</div>
   </div>
 
+  <!-- FULL-POPUP INTERSTITIAL GATE: Workbook License & Primary-Copy Verification Gate -->
+  <div id="license-gate-container" style="display: none;">
+    <div class="step-header">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+        <div id="license-gate-pill" data-i18n="license.gate.pill" class="step-pill" style="background: #FEE2E2; color: #991B1B; border-color: #FECACA; margin-bottom: 0;">🔒 Workbook Access Restricted</div>
+        <span id="license-gate-ref-badge" class="md3-badge badge-neutral" style="display: none;"></span>
+      </div>
+      <h1 id="license-gate-title" data-i18n="license.gate.title" class="step-title">This CERA Copy Is Not Authorized for Execution</h1>
+      <p id="license-gate-desc" class="step-desc"></p>
+    </div>
+
+    <div id="license-gate-switch-card" style="display: none; background: #EFF6FF; border: 2px solid #93C5FD; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;">
+      <div id="license-gate-switch-title" data-i18n="license.gate.switchTitle" style="font-weight: 700; font-size: 13px; color: #1E3A8A; margin-bottom: 6px;">🔄 Switch to Your Registered Google Account</div>
+      <ol style="margin: 0; padding-left: 18px; font-size: 11.5px; color: #1E40AF; line-height: 1.5;">
+        <li id="license-gate-switch-s1" style="margin-bottom: 4px;"></li>
+        <li id="license-gate-switch-s2"></li>
+      </ol>
+    </div>
+
+    <div id="license-gate-hero-card" style="background: #F0FDF4; border: 2px solid #86EFAC; border-radius: 12px; padding: 15px 16px; margin-bottom: 12px;">
+      <div id="license-gate-rec-title" data-i18n="license.gate.recTitle" style="font-weight: 700; font-size: 13px; color: #14532D; margin-bottom: 6px;">✨ Get Your Own Official CERA Copy</div>
+      <ul style="margin: 0 0 12px 18px; padding: 0; font-size: 11.5px; color: #166534; line-height: 1.45;">
+        <li id="license-gate-rec-b1" data-i18n="license.gate.recB1" style="margin-bottom: 3px;">Dedicated single-use instance: cera.tools (goo.gle/cera) provisions an official CERA workbook registered to your Google Workspace account.</li>
+        <li id="license-gate-rec-b2" data-i18n="license.gate.recB2">Zero re-extraction needed: if Chrome logs are already exported to Google Drive, you can analyze that folder immediately via Manual Export in your new copy.</li>
+      </ul>
+      <a id="btn-license-fresh-copy" data-i18n="license.gate.cta" href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer" class="btn-md3-filled" style="display: block; text-align: center; background: #15803D; color: #FFFFFF; text-decoration: none; padding: 10px 18px; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open cera.tools to Request Official Copy ↗</a>
+    </div>
+
+    <div class="dialog-footer">
+      <button id="btn-license-close" data-i18n="common.close" type="button" class="btn-md3-text" onclick="google.script.host.close()">Close</button>
+    </div>
+  </div>
+
   <!-- FULL-POPUP INTERSTITIAL GATE: Single-Use Workbook Enforcement ("Persulit User" + goo.gle/cera CTA) -->
   <div id="single-use-gate-container" style="display: none;">
     <div class="step-header">
@@ -681,7 +717,7 @@
     <div id="reuse-gate-slides-card" style="display: none; background: #FFFBEB; border: 2px solid #FCD34D; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; text-align: center;">
       <div id="reuse-gate-slides-title" data-i18n="reuse.gate.slidesTitle" style="font-weight: 700; font-size: 13.5px; color: #92400E; margin-bottom: 4px;">📊 Generated Executive Presentation Ready</div>
       <div id="reuse-gate-slides-summary" data-i18n="reuse.gate.slidesDesc" style="font-size: 11.5px; color: #B45309; line-height: 1.45; margin-bottom: 10px;">Your CERA presentation deck has already been generated from this workbook.</div>
-      <a id="btn-reuse-open-slides" data-i18n="reuse.gate.openSlides" href="#" target="_blank" rel="noopener noreferrer" class="btn-slides" style="display: inline-block; margin-top: 0; padding: 10px 20px; background: #D97706; color: #FFFFFF; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open Google Slides Presentation Deck ↗</a>
+      <a id="btn-reuse-open-slides" data-i18n="reuse.gate.openSlides" href="#" target="_blank" rel="noopener noreferrer" class="btn-slides" style="display: inline-block; margin-top: 0; padding: 10px 20px; background: #B45309; color: #FFFFFF; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open Google Slides Presentation Deck ↗</a>
     </div>
 
     <!-- Primary Hero Card: Make a Fresh Copy at goo.gle/cera -->
@@ -692,7 +728,7 @@
         <li id="reuse-gate-rec-b2" data-i18n="reuse.gate.recB2" style="margin-bottom: 3px;">Always latest version: making a fresh copy from goo.gle/cera automatically provisions the latest verified CERA release.</li>
         <li id="reuse-gate-rec-b3" data-i18n="reuse.gate.recB3">Zero re-extraction needed: if you already extracted logs to Google Drive, paste that Drive folder link into your new copy via Manual Export to analyze in seconds.</li>
       </ul>
-      <a id="btn-reuse-fresh-copy" data-i18n="reuse.gate.ctaFresh" href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer" class="btn-md3-filled" style="display: block; text-align: center; background: #16A34A; color: #FFFFFF; text-decoration: none; padding: 10px 18px; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open goo.gle/cera to Make a Fresh Copy (Recommended) ↗</a>
+      <a id="btn-reuse-fresh-copy" data-i18n="reuse.gate.ctaFresh" href="https://goo.gle/cera" target="_blank" rel="noopener noreferrer" class="btn-md3-filled" style="display: block; text-align: center; background: #15803D; color: #FFFFFF; text-decoration: none; padding: 10px 18px; border-radius: 9999px; font-weight: 700; font-size: 12.5px;">Open goo.gle/cera to Make a Fresh Copy (Recommended) ↗</a>
     </div>
 
     <div class="dialog-footer">
@@ -708,6 +744,13 @@
     </div>
     <div data-i18n="loader.init.title" style="font-weight: 700; font-size: 15px; margin-top: 16px; color: #0F172A;" id="init-loader-title">Initializing CERA...</div>
     <div data-i18n="loader.init.subtitle" style="font-size: 12px; color: #64748B; margin-top: 4px;" id="init-loader-subtitle">Checking background worker & Google Workspace environment...</div>
+    <div id="init-loader-watchdog" style="display: none; max-width: 440px; margin: 16px auto 0; background: #FFFBEB; border: 1.5px solid #FDE68A; border-radius: 12px; padding: 12px 14px; text-align: center;">
+      <div id="init-loader-watchdog-msg" data-i18n="loader.watchdog.notice" style="font-size: 11.5px; color: #92400E; line-height: 1.45; margin-bottom: 10px;">Google Sheets took longer than expected to respond (for example after closing and reopening the dialog). You can retry initialization or continue directly to setup.</div>
+      <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+        <button id="btn-boot-retry" data-i18n="loader.watchdog.retry" type="button" class="btn-md3-filled" style="background: #0B57D0; font-size: 11.5px; padding: 7px 14px;" onclick="retryDialogBoot()">Retry Initialization</button>
+        <button id="btn-boot-manual" data-i18n="loader.watchdog.continue" type="button" class="btn-md3-tonal" style="font-size: 11.5px; padding: 7px 14px;" onclick="fallbackBootToManualSetup()">Continue to Manual Setup ➔</button>
+      </div>
+    </div>
   </div>
 
   <!-- STATE: IN_PROGRESS / FAILED / COMPLETED (LOCKED OUT MONITOR VIEW) -->
@@ -899,6 +942,11 @@
 
       <div data-i18n="step0.cloud.noRole" id="cloud-role-notice" style="display: none; margin-top: 8px; padding: 10px 12px; background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px; font-size: 11.5px; color: #475569; line-height: 1.45;">
         🔒 You do not have the required administrator role in this organization to run Policy Precheck or Direct Ingestion via Admin SDK. Please ask your Google Workspace / Chrome Administrator to enable the required Chrome reporting policies and export the Chrome log events to Google Drive, then continue with Manual Export above.
+      </div>
+
+      <div id="cloud-checking-notice" style="display: none; margin-top: 8px; padding: 10px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; font-size: 11.5px; color: #1E40AF; line-height: 1.45;">
+        <span class="spinner" style="width: 12px; height: 12px; border-width: 2px; vertical-align: middle; margin-right: 6px;"></span>
+        <span id="cloud-checking-text" data-i18n="step0.cloud.checkingAccess">Checking Admin SDK &amp; policy readiness...</span>
       </div>
 
       <div id="cloud-controls-group">
@@ -1364,16 +1412,28 @@
     // ---------------------------------------------------------------------------
     let I18N = <?!= i18nJson ?>;
 
-    function t(key, params) {
-      let msg = I18N.messages[key];
-      if (msg === undefined) return key;
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    }
+
+    function safeExternalUrl(rawUrl) {
+      const s = String(rawUrl || '').trim();
+      if (!/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(?:[/:?#]|$)/i.test(s)) return '';
+      return s;
+    }
+
+    function t(key, params, escapeParamsForHtml) {
+      const hasOwn = Object.prototype.hasOwnProperty;
+      let msg = (I18N && I18N.messages && hasOwn.call(I18N.messages, key)) ? I18N.messages[key] : undefined;
+      if (msg === undefined) return String(key);
       if (msg && typeof msg === 'object') {
         const n = params ? Number(params.n) : NaN;
         msg = (n === 1 && msg.one !== undefined) ? msg.one : msg.other;
       }
       return String(msg).replace(/\{(\w+)\}/g, (m, name) => {
-        if (!params || params[name] === undefined || params[name] === null) return m;
-        return typeof params[name] === 'number' ? fmtNum(params[name]) : String(params[name]);
+        if (!params || !hasOwn.call(params, name) || params[name] === undefined || params[name] === null) return m;
+        const val = typeof params[name] === 'number' ? fmtNum(params[name]) : String(params[name]);
+        return escapeParamsForHtml ? escapeHtml(val) : val;
       });
     }
 
@@ -1382,10 +1442,13 @@
     }
 
     function renderI18nElement(el) {
-      const params = el.getAttribute('data-i18n-params') ? JSON.parse(el.getAttribute('data-i18n-params')) : null;
-      if (el.hasAttribute('data-i18n')) el.textContent = t(el.getAttribute('data-i18n'), params);
-      if (el.hasAttribute('data-i18n-html')) el.innerHTML = t(el.getAttribute('data-i18n-html'), params);
-      if (el.hasAttribute('data-i18n-placeholder')) el.placeholder = t(el.getAttribute('data-i18n-placeholder'), params);
+      let params = null;
+      if (el.hasAttribute('data-i18n-params')) {
+        try { params = JSON.parse(el.getAttribute('data-i18n-params')); } catch (e) { params = null; }
+      }
+      if (el.hasAttribute('data-i18n')) el.textContent = t(el.getAttribute('data-i18n'), params, false);
+      if (el.hasAttribute('data-i18n-html')) el.innerHTML = t(el.getAttribute('data-i18n-html'), params, true);
+      if (el.hasAttribute('data-i18n-placeholder')) el.placeholder = t(el.getAttribute('data-i18n-placeholder'), params, false);
     }
 
     function applyI18n() {
@@ -1683,6 +1746,247 @@
     }
     let detectedBrowserTz = detectBrowserTimeZone();
 
+    const BOOT_WATCHDOG_MS = 10000;
+    let activeBootSeq = 0;
+    let bootWatchdogTimer = null;
+    let bootResolved = false;
+
+    function clearBootWatchdog() {
+      if (bootWatchdogTimer) {
+        clearTimeout(bootWatchdogTimer);
+        bootWatchdogTimer = null;
+      }
+      const wd = document.getElementById('init-loader-watchdog');
+      if (wd) wd.style.display = 'none';
+    }
+
+    function applyHydratedDomainsAndPolicy(hyd) {
+      hyd = hyd || {};
+      if (hyd.authorized === false && hyd.licenseGate) {
+        currentLicenseGate = hyd.licenseGate;
+        goToLicenseGate(currentLicenseGate);
+        return;
+      }
+      const domList = Array.isArray(hyd.registeredDomains)
+        ? hyd.registeredDomains.map(d => String(d || '').toLowerCase().trim()).filter(Boolean)
+        : (hyd.detectedCorpDomain ? String(hyd.detectedCorpDomain).split(/[ ,;]+/).map(d => d.toLowerCase().trim()).filter(Boolean) : []);
+      runnerDirectoryDomains = domList;
+
+      if (hyd.detectedCorpDomain && corpChips && corpChips.items.length === 0) {
+        corpChips.setItems(hyd.detectedCorpDomain);
+      }
+      syncRegisteredDomainsToProd();
+
+      const hintEl = document.getElementById('corpDomainsHint');
+      if (hyd.directoryDomainsCount && hyd.directoryDomainsCount > 0) {
+        if (hintEl) setT(hintEl, 'step2.corp.hintDirectory', { n: hyd.directoryDomainsCount }, true);
+      } else {
+        if (hintEl) setT(hintEl, 'step2.corp.hintManual', null, true);
+      }
+
+      const checkingNotice = document.getElementById('cloud-checking-notice');
+      if (checkingNotice) checkingNotice.style.display = 'none';
+
+      applyAdminSdkAccessState(hyd.adminSdkAccess !== false);
+      if (hyd.policyPrecheck) {
+        renderPolicyPrecheck(hyd.policyPrecheck);
+      }
+    }
+
+    function applyAdminSdkCheckingState() {
+      hasAdminSdkAccess = false;
+      const card = document.getElementById('opt-cloud-card');
+      const icon = document.getElementById('opt-cloud-icon');
+      const badge = document.getElementById('cloud-role-badge');
+      const notice = document.getElementById('cloud-role-notice');
+      const checkingNotice = document.getElementById('cloud-checking-notice');
+      const controls = document.getElementById('cloud-controls-group');
+      const select = document.getElementById('cloudRangeDays');
+      const engageBtn = document.getElementById('btn-cloud-engage');
+      const backPrecheckBtn = document.getElementById('btn-step0-back-precheck');
+
+      if (card) {
+        card.classList.remove('option-disabled');
+        card.setAttribute('aria-disabled', 'true');
+      }
+      if (icon) {
+        icon.style.background = '#E8F0FE';
+        icon.style.color = '#0B57D0';
+      }
+      if (badge) badge.style.display = 'none';
+      if (notice) notice.style.display = 'none';
+      if (checkingNotice) checkingNotice.style.display = 'block';
+      if (controls) controls.style.display = 'none';
+      if (select) select.disabled = true;
+      if (engageBtn) engageBtn.disabled = true;
+      if (backPrecheckBtn) backPrecheckBtn.style.display = 'none';
+    }
+
+    function handleFastBootSuccess(data, seq) {
+      data = data || {};
+      const needsHydration = data.needsPolicyHydration === true;
+
+      if (!needsHydration) {
+        applyHydratedDomainsAndPolicy(data);
+      } else {
+        const hintEl = document.getElementById('corpDomainsHint');
+        if (hintEl) setT(hintEl, 'step2.corp.hintManual', null, true);
+      }
+
+      if (data.extractedFolderId) {
+        activeExtractedFolderId = data.extractedFolderId;
+        activeExtractedFolderName = data.extractedFolderName || t('step1.auto.defaultName');
+      }
+      if (data.workbookAlreadyUsed) {
+        workbookAlreadyUsed = {
+          ingestion: Boolean(data.workbookAlreadyUsed.ingestion),
+          report: Boolean(data.workbookAlreadyUsed.report)
+        };
+      }
+      currentSessionAnalyzed = Boolean(
+        data.currentSessionAnalyzed ||
+        (data.workbookAlreadyUsed && data.workbookAlreadyUsed.currentSessionAnalyzed)
+      );
+      lastSlidesUrl = String(data.lastSlidesUrl || '');
+      lastReportSummary = String(data.lastReportSummary || '');
+      lastCloudSession = data.cloudSession || null;
+      resumableAnalysisJob = data.analysisJob || null;
+      currentLicenseGate = data.licenseGate || data.licenseStatus || null;
+      strictSingleUse = Boolean(data.strictSingleUse || (currentLicenseGate && currentLicenseGate.strictSingleUse));
+
+      const refTopBadge = document.getElementById('cera-instance-ref-badge');
+      if (refTopBadge) {
+        if (currentLicenseGate && currentLicenseGate.refCode) {
+          setRaw(refTopBadge, currentLicenseGate.refCode);
+          refTopBadge.style.display = 'inline-flex';
+        } else {
+          refTopBadge.style.display = 'none';
+        }
+      }
+
+      // Local template freshness check (zero network calls)
+      const releaseDateStr = String(data.releaseDate || '2026-11-13');
+      const warnDays = Number(data.freshnessWarnDays || 90);
+      const relMs = Date.parse(releaseDateStr);
+      const ageDays = Number.isFinite(relMs)
+        ? Math.max(0, Math.floor((Date.now() - relMs) / 86400000))
+        : Number(data.templateAgeDays || 0);
+      const isStale = Boolean(data.isTemplateStale || (ageDays > warnDays));
+      const freshBanner = document.getElementById('template-freshness-banner');
+      const freshBody = document.getElementById('template-freshness-body');
+      if (freshBanner) {
+        if (isStale) {
+          if (freshBody) setT(freshBody, 'freshness.warn.body', { days: ageDays || warnDays }, true);
+          freshBanner.style.display = 'block';
+        } else {
+          freshBanner.style.display = 'none';
+        }
+      }
+
+      document.getElementById('init-loader').style.display = 'none';
+
+      // Check 4-layer workbook license gate first
+      if (currentLicenseGate && currentLicenseGate.authorized === false) {
+        goToLicenseGate(currentLicenseGate);
+        return;
+      }
+
+      // Check if a cloud session is currently active or if the single-use gate should intercept
+      const cs = data.cloudSession;
+      if (shouldShowSingleUseGate(cs)) {
+        goToSingleUseGate();
+        return;
+      }
+
+      if (cs && cs.hasExisting && (cs.status === 'RUNNING' || cs.status === 'PAUSED' || cs.status === 'QUOTA_PAUSED' || cs.status === 'FAILED' || cs.status === 'COMPLETED' || cs.status === 'TRANSIENT_READ_ERROR' || cs.isCompleted || cs.isStalled)) {
+        hideAllContainers();
+        document.getElementById('cloud-monitor-container').style.display = 'block';
+        renderCloudMonitor(cs);
+        if ((cs.status === 'RUNNING' || cs.status === 'TRANSIENT_READ_ERROR') && !cs.isCompleted) {
+          startCloudPolling();
+        }
+      } else if (activeExtractedFolderId) {
+        goToStep1();
+      } else if (needsHydration) {
+        applyAdminSdkCheckingState();
+        goToStep0();
+      } else if (hasAdminSdkAccess) {
+        goToPolicyPrecheck();
+      } else {
+        goToStep0();
+      }
+
+      // Phase 2 Non-blocking background hydration of Admin SDK access, policy precheck & corporate domains
+      if (needsHydration) {
+        google.script.run
+          .withSuccessHandler(hyd => {
+            if (seq !== activeBootSeq) return;
+            applyHydratedDomainsAndPolicy(hyd);
+          })
+          .withFailureHandler(err => {
+            if (seq !== activeBootSeq) return;
+            console.warn('Background policy/domain hydration notice:', err);
+            const checkingNotice = document.getElementById('cloud-checking-notice');
+            if (checkingNotice) checkingNotice.style.display = 'none';
+            applyAdminSdkAccessState(false);
+          })
+          .getAsyncPolicyAndDomains(false);
+      }
+    }
+
+    function startDialogBoot() {
+      const seq = ++activeBootSeq;
+      bootResolved = false;
+      clearBootWatchdog();
+      hideAllContainers();
+      const titleEl = document.getElementById('init-loader-title');
+      const subEl = document.getElementById('init-loader-subtitle');
+      if (titleEl) setT(titleEl, 'loader.init.title');
+      if (subEl) setT(subEl, 'loader.init.subtitle');
+      const initLoader = document.getElementById('init-loader');
+      if (initLoader) initLoader.style.display = 'block';
+
+      bootWatchdogTimer = setTimeout(() => {
+        if (seq !== activeBootSeq || bootResolved) return;
+        const wd = document.getElementById('init-loader-watchdog');
+        if (wd) wd.style.display = 'block';
+      }, BOOT_WATCHDOG_MS);
+
+      google.script.run
+        .withSuccessHandler(data => {
+          if (seq !== activeBootSeq) return;
+          bootResolved = true;
+          clearBootWatchdog();
+          handleFastBootSuccess(data, seq);
+        })
+        .withFailureHandler(err => {
+          if (seq !== activeBootSeq) return;
+          bootResolved = true;
+          clearBootWatchdog();
+          console.warn('Init notice:', err);
+          document.getElementById('init-loader').style.display = 'none';
+          applyAdminSdkAccessState(false);
+          goToStep0();
+        })
+        .getFastBootMetadata(activeExtractedFolderId, activeExtractedFolderName);
+    }
+
+    function retryDialogBoot() {
+      startDialogBoot();
+    }
+
+    function fallbackBootToManualSetup() {
+      ++activeBootSeq;
+      bootResolved = true;
+      clearBootWatchdog();
+      const initLoader = document.getElementById('init-loader');
+      if (initLoader) initLoader.style.display = 'none';
+      const checkingNotice = document.getElementById('cloud-checking-notice');
+      if (checkingNotice) checkingNotice.style.display = 'none';
+      applyAdminSdkAccessState(false);
+      goToStep0();
+    }
+
     window.onload = function() {
       detectedBrowserTz = detectBrowserTimeZone();
       setRaw('step2-tz-badge', detectedBrowserTz);
@@ -1715,93 +2019,7 @@
       msgChips = new ChipManager({ pillsId: 'msg-pills', inputId: 'msg-input', addBtnId: 'btn-add-msg', badgeId: 'msg-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-purple', defaultItems: ['web.whatsapp.com', 'whatsapp.com', 'telegram.org', 'web.telegram.org', 'messenger.com', 'discord.com', 'slack.com'] });
       partnerChips = new ChipManager({ pillsId: 'partner-pills', inputId: 'partner-input', addBtnId: 'btn-add-partner', badgeId: 'partner-badge', badgeKey: 'chips.count.domains', chipClass: 'chip-primary', defaultItems: [] });
 
-      google.script.run
-        .withSuccessHandler(data => {
-          data = data || {};
-          runnerDirectoryDomains = Array.isArray(data.registeredDomains)
-            ? data.registeredDomains.map(d => String(d || '').toLowerCase().trim()).filter(Boolean)
-            : (data.detectedCorpDomain ? String(data.detectedCorpDomain).split(/[ ,;]+/).map(d => d.toLowerCase().trim()).filter(Boolean) : []);
-          if (data.detectedCorpDomain) {
-            corpChips.setItems(data.detectedCorpDomain);
-          }
-          syncRegisteredDomainsToProd();
-
-          const hintEl = document.getElementById('corpDomainsHint');
-          if (data.directoryDomainsCount && data.directoryDomainsCount > 0) {
-            if (hintEl) setT(hintEl, 'step2.corp.hintDirectory', { n: data.directoryDomainsCount }, true);
-          } else {
-            if (hintEl) setT(hintEl, 'step2.corp.hintManual', null, true);
-          }
-
-          if (data.extractedFolderId) {
-            activeExtractedFolderId = data.extractedFolderId;
-            activeExtractedFolderName = data.extractedFolderName || t('step1.auto.defaultName');
-          }
-          if (data.workbookAlreadyUsed) {
-            workbookAlreadyUsed = {
-              ingestion: Boolean(data.workbookAlreadyUsed.ingestion),
-              report: Boolean(data.workbookAlreadyUsed.report)
-            };
-          }
-          currentSessionAnalyzed = Boolean(
-            data.currentSessionAnalyzed ||
-            (data.workbookAlreadyUsed && data.workbookAlreadyUsed.currentSessionAnalyzed)
-          );
-          lastSlidesUrl = String(data.lastSlidesUrl || '');
-          lastReportSummary = String(data.lastReportSummary || '');
-          lastCloudSession = data.cloudSession || null;
-          resumableAnalysisJob = data.analysisJob || null;
-
-          // Local template freshness check (zero network calls)
-          const releaseDateStr = String(data.releaseDate || '2026-10-19');
-          const warnDays = Number(data.freshnessWarnDays || 90);
-          const relMs = Date.parse(releaseDateStr);
-          const ageDays = Number.isFinite(relMs)
-            ? Math.max(0, Math.floor((Date.now() - relMs) / 86400000))
-            : Number(data.templateAgeDays || 0);
-          const isStale = Boolean(data.isTemplateStale || (ageDays > warnDays));
-          const freshBanner = document.getElementById('template-freshness-banner');
-          const freshBody = document.getElementById('template-freshness-body');
-          if (freshBanner) {
-            if (isStale) {
-              if (freshBody) setT(freshBody, 'freshness.warn.body', { days: ageDays || warnDays }, true);
-              freshBanner.style.display = 'block';
-            } else {
-              freshBanner.style.display = 'none';
-            }
-          }
-
-          applyAdminSdkAccessState(data.adminSdkAccess !== false);
-          if (data.policyPrecheck) {
-            renderPolicyPrecheck(data.policyPrecheck);
-          }
-
-          document.getElementById('init-loader').style.display = 'none';
-
-          // Check if a cloud session is currently active or if the single-use gate should intercept
-          const cs = data.cloudSession;
-          if (shouldShowSingleUseGate(cs)) {
-            goToSingleUseGate();
-          } else if (cs && cs.hasExisting && (cs.status === 'RUNNING' || cs.status === 'PAUSED' || cs.status === 'QUOTA_PAUSED' || cs.status === 'FAILED' || cs.status === 'COMPLETED' || cs.status === 'TRANSIENT_READ_ERROR' || cs.isCompleted || cs.isStalled)) {
-            document.getElementById('cloud-monitor-container').style.display = 'block';
-            renderCloudMonitor(cs);
-            if ((cs.status === 'RUNNING' || cs.status === 'TRANSIENT_READ_ERROR') && !cs.isCompleted) {
-              startCloudPolling();
-            }
-          } else if (activeExtractedFolderId) {
-            goToStep1();
-          } else if (hasAdminSdkAccess) {
-            goToPolicyPrecheck();
-          } else {
-            goToStep0();
-          }
-        })
-        .withFailureHandler(err => {
-          console.warn('Init notice:', err);
-          document.getElementById('init-loader').style.display = 'none';
-          goToStep0();
-        })
-        .getAsyncSetupMetadata(activeExtractedFolderId, activeExtractedFolderName);
+      startDialogBoot();
     };
 
     let hasAdminSdkAccess = true;
@@ -1814,6 +2032,71 @@
     let resumableAnalysisJob = null;
     let lastSlidesUrl = '';
     let lastReportSummary = '';
+    let currentLicenseGate = null;
+    let strictSingleUse = false;
+
+    function goToLicenseGate(gate) {
+      const g = gate || currentLicenseGate || {};
+      currentLicenseGate = g;
+      hideAllContainers();
+      const refStr = String(g.refCode || 'CERA');
+      const emailStr = String(g.maskedEmail || '***');
+      const refBadge = document.getElementById('license-gate-ref-badge');
+      if (refBadge) {
+        if (g.refCode) {
+          setRaw(refBadge, g.refCode);
+          refBadge.style.display = 'inline-flex';
+        } else {
+          refBadge.style.display = 'none';
+        }
+      }
+      const pillEl = document.getElementById('license-gate-pill');
+      const titleEl = document.getElementById('license-gate-title');
+      const descEl = document.getElementById('license-gate-desc');
+      const switchCard = document.getElementById('license-gate-switch-card');
+      const recTitleEl = document.getElementById('license-gate-rec-title');
+
+      if (g.reason === 'UNAUTHORIZED_USER') {
+        if (pillEl) {
+          pillEl.style.background = '#FEF3C7';
+          pillEl.style.color = '#92400E';
+          pillEl.style.borderColor = '#FDE68A';
+          setT(pillEl, 'license.gate.pillUser');
+        }
+        if (titleEl) setT(titleEl, 'license.gate.titleUser', { email: emailStr });
+        if (descEl) setT(descEl, 'license.gate.descUser', { ref: refStr, email: emailStr });
+        setT('license-gate-switch-s1', 'license.gate.switchS1', { email: emailStr });
+        setT('license-gate-switch-s2', 'license.gate.switchS2', { ref: refStr });
+        if (switchCard) switchCard.style.display = 'block';
+        if (recTitleEl) setT(recTitleEl, 'license.gate.recTitleUser');
+      } else if (g.reason === 'SECONDARY_COPY') {
+        if (pillEl) {
+          pillEl.style.background = '#FEE2E2';
+          pillEl.style.color = '#991B1B';
+          pillEl.style.borderColor = '#FECACA';
+          setT(pillEl, 'license.gate.pillClone');
+        }
+        if (titleEl) setT(titleEl, 'license.gate.titleClone');
+        if (descEl) setT(descEl, 'license.gate.descClone', { ref: refStr });
+        if (switchCard) switchCard.style.display = 'none';
+        if (recTitleEl) setT(recTitleEl, 'license.gate.recTitleClone');
+      } else {
+        if (pillEl) {
+          pillEl.style.background = '#FEE2E2';
+          pillEl.style.color = '#991B1B';
+          pillEl.style.borderColor = '#FECACA';
+          setT(pillEl, 'license.gate.pill');
+        }
+        if (titleEl) setT(titleEl, 'license.gate.title');
+        if (descEl) setT(descEl, 'license.gate.descTampered', { ref: refStr });
+        if (switchCard) switchCard.style.display = 'none';
+        if (recTitleEl) setT(recTitleEl, 'license.gate.recTitle');
+      }
+
+      const container = document.getElementById('license-gate-container');
+      if (container) container.style.display = 'block';
+    }
+    const showLicenseGate = goToLicenseGate;
 
     function shouldShowSingleUseGate(cs) {
       if (cs && cs.hasExisting) {
@@ -1843,13 +2126,23 @@
 
     function goToSingleUseGate() {
       hideAllContainers();
+      const reusePill = document.getElementById('reuse-gate-pill');
+      const reuseDesc = document.getElementById('reuse-gate-desc');
+      if (strictSingleUse && currentLicenseGate && currentLicenseGate.refCode) {
+        if (reusePill) setT(reusePill, 'reuse.gate.pillStamped');
+        if (reuseDesc) setT(reuseDesc, 'reuse.gate.descStamped', { ref: String(currentLicenseGate.refCode) });
+      } else {
+        if (reusePill) setT(reusePill, 'reuse.gate.pill');
+        if (reuseDesc) setT(reuseDesc, 'reuse.gate.desc');
+      }
       const slidesCard = document.getElementById('reuse-gate-slides-card');
       const slidesSummary = document.getElementById('reuse-gate-slides-summary');
       const slidesBtn = document.getElementById('btn-reuse-open-slides');
+      const safeSlidesHref = safeExternalUrl(lastSlidesUrl);
       if (slidesCard && slidesBtn) {
-        if (lastSlidesUrl) {
+        if (safeSlidesHref) {
           slidesCard.style.display = 'block';
-          slidesBtn.href = lastSlidesUrl;
+          slidesBtn.href = safeSlidesHref;
           if (slidesSummary) {
             if (lastReportSummary) setRaw(slidesSummary, lastReportSummary);
             else setT(slidesSummary, 'reuse.gate.slidesDesc');
@@ -1876,12 +2169,14 @@
       const icon = document.getElementById('opt-cloud-icon');
       const badge = document.getElementById('cloud-role-badge');
       const notice = document.getElementById('cloud-role-notice');
+      const checkingNotice = document.getElementById('cloud-checking-notice');
       const controls = document.getElementById('cloud-controls-group');
       const select = document.getElementById('cloudRangeDays');
       const engageBtn = document.getElementById('btn-cloud-engage');
       const backPrecheckBtn = document.getElementById('btn-step0-back-precheck');
       const nonAdminReqCard = document.getElementById('non-admin-request-card');
 
+      if (checkingNotice) checkingNotice.style.display = 'none';
       if (card) {
         if (hasAdminSdkAccess) {
           card.classList.remove('option-disabled');
@@ -1907,6 +2202,7 @@
     // State Transitions & Container Visibility
     function hideAllContainers() {
       const ids = [
+        'license-gate-container',
         'single-use-gate-container',
         'cloud-monitor-container',
         'policy-precheck-container',
@@ -1915,7 +2211,9 @@
         'prereq-check-container',
         'prereq-guide-container',
         'step1-container',
-        'step2-container'
+        'step2-container',
+        'exec-loader',
+        'result-card'
       ];
       ids.forEach(id => {
         const el = document.getElementById(id);
@@ -2298,15 +2596,21 @@
         else setT('mon-folder-txt', 'mon.folderDefault');
         setT('mon-days-badge', 'mon.daysBadge', { days: Number(cs.totalDays || DEFAULT_RANGE_DAYS) });
 
-        if (cs.folderUrl) {
-          document.getElementById('mon-drive-link').href = cs.folderUrl;
-          document.getElementById('mon-drive-link').style.display = 'inline';
+        const safeFolderUrl = safeExternalUrl(cs.folderUrl);
+        const monDriveLink = document.getElementById('mon-drive-link');
+        if (monDriveLink) {
+          if (safeFolderUrl) {
+            monDriveLink.href = safeFolderUrl;
+            monDriveLink.style.display = 'inline';
+          } else {
+            monDriveLink.style.display = 'none';
+          }
         }
         const openLogsBtn = document.getElementById('btn-mon-open-logs');
         if (openLogsBtn) {
-          const logUrl = cs.logFolderUrl || cs.folderUrl || '';
-          if (logUrl) {
-            openLogsBtn.href = logUrl;
+          const safeLogUrl = safeExternalUrl(cs.logFolderUrl || cs.folderUrl || '');
+          if (safeLogUrl) {
+            openLogsBtn.href = safeLogUrl;
             openLogsBtn.style.display = 'inline-flex';
           } else {
             openLogsBtn.style.display = 'none';
@@ -3042,6 +3346,7 @@
               }
               const nextPayload = Object.assign({}, payload, { batchToken: res.batchToken });
               if (res.jobId) nextPayload.jobId = res.jobId;
+              if (res.generation) nextPayload.generation = res.generation;
               if (res.targetPresentationId) nextPayload.targetPresentationId = res.targetPresentationId;
               if (res.phase) nextPayload.phase = res.phase;
               runAnalysisBatch(nextPayload);
@@ -3069,9 +3374,10 @@
             if (res && (res.slidesUrl || res.success)) {
               document.getElementById('result-card').style.display = 'block';
               const slidesLinkEl = document.getElementById('slides-link');
+              const safeResSlidesUrl = safeExternalUrl(res.slidesUrl);
               if (slidesLinkEl) {
-                if (res.slidesUrl) {
-                  slidesLinkEl.href = res.slidesUrl;
+                if (safeResSlidesUrl) {
+                  slidesLinkEl.href = safeResSlidesUrl;
                   slidesLinkEl.style.display = 'inline-block';
                 } else {
                   slidesLinkEl.style.display = 'none';

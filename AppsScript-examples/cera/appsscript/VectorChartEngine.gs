@@ -470,7 +470,7 @@ var VectorChartEngine = {
     }
 
     // Choose a display unit that keeps small tenants readable (B / KB / MB / GB)
-    const maxBytes = Math.max(...rawBytes, 0);
+    const maxBytes = rawBytes.reduce((m, v) => (v > m ? v : m), 0);
     const units = [['TB', 1024 ** 4], ['GB', 1024 ** 3], ['MB', 1024 ** 2], ['KB', 1024], ['B', 1]];
     let unit = units[units.length - 1];
     for (let u = 0; u < units.length; u++) {
@@ -479,11 +479,12 @@ var VectorChartEngine = {
     // A chart counted in transfers says so in the report language ("40 件", "40 ev")
     const unitLabel = countMode ? ceraT('deck.chart.countUnit', null, lang) : unit[0];
     const volumes = countMode ? rawCounts : rawBytes.map(b => b / unit[1]);
+    const peakVol = volumes.reduce((m, v) => (v > m ? v : m), 0);
     const peakIdx = !countMode && typeof data.peakIdx === 'number' && data.peakIdx >= 0
       ? data.peakIdx
-      : volumes.indexOf(Math.max(...volumes));
+      : volumes.indexOf(peakVol);
 
-    const maxVol = Math.max(...volumes, 1.0);
+    const maxVol = Math.max(peakVol, 1.0);
     const topGridVal = this.niceGridMax(maxVol);
 
     // Plot Area Dimensions

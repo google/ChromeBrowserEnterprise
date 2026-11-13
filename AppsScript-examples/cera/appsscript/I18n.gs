@@ -58,24 +58,54 @@ function ceraLangFromLocale_(locale) {
 }
 
 /**
- * Language for this user: the one they picked in the dialog (per user, so collaborators on one spreadsheet
- * can differ); otherwise their Google account language; otherwise the spreadsheet locale; otherwise English.
+ * Resolves `{ code, auto }` in a single pass with at most 1 UserProperties read, and only falls back to
+ * `SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetLocale()` when neither UserProperties nor Session
+ * yields a supported locale (eliminating redundant container RPCs during modal dialog creation).
  */
-function ceraGetLanguage() {
+function ceraResolveLanguageInfo_(optLang) {
+  if (optLang) {
+    return { code: ceraNormalizeLang_(optLang), auto: false };
+  }
+  let saved = '';
   try {
-    const saved = PropertiesService.getUserProperties().getProperty(CERA_LANG_PROPERTY);
-    if (saved) return ceraNormalizeLang_(saved);
+    saved = String(PropertiesService.getUserProperties().getProperty(CERA_LANG_PROPERTY) || '');
   } catch (e) {}
+  if (saved) {
+    return { code: ceraNormalizeLang_(saved), auto: false };
+  }
   try {
     const fromUser = ceraLangFromLocale_(Session.getActiveUserLocale());
-    if (fromUser) return fromUser;
+    if (fromUser) return { code: fromUser, auto: true };
   } catch (e) {}
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const fromSheet = ss ? ceraLangFromLocale_(ss.getSpreadsheetLocale()) : '';
-    if (fromSheet) return fromSheet;
+    if (fromSheet) return { code: fromSheet, auto: true };
   } catch (e) {}
-  return CERA_DEFAULT_LANG;
+  return { code: CERA_DEFAULT_LANG, auto: true };
+}
+
+/**
+ * Language for this user: the one they picked in the dialog (per user, so collaborators on one spreadsheet
+ * can differ); otherwise their Google account language; otherwise the spreadsheet locale; otherwise English.
+ */
+function ceraGetLanguage() {
+  return ceraResolveLanguageInfo_().code;
+}
+
+/**
+ * Strips report-only `deck.*` and `report.*` catalog keys unused by `UiDialog.html` (~71 KB / 66% smaller modal HTML).
+ */
+function ceraFilterDialogMessages_(rawMessages) {
+  const out = {};
+  if (!rawMessages || typeof rawMessages !== 'object') return out;
+  const keys = Object.keys(rawMessages);
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    if (k.indexOf('deck.') === 0 || k.indexOf('report.') === 0) continue;
+    out[k] = rawMessages[k];
+  }
+  return out;
 }
 
 /**
@@ -92,8 +122,9 @@ function setCeraLanguage(code) {
     lang = ceraNormalizeLang_(code);
     props.setProperty(CERA_LANG_PROPERTY, lang);
   }
+  const resolved = ceraResolveLanguageInfo_(lang);
   try {
-    buildCeraMenu_();
+    buildCeraMenu_(resolved.code);
   } catch (e) {
     // getUi() throws where there is no UI (triggers); the language is saved and the next open uses it
     Logger.log('CERA menu not rebuilt: ' + e.message);
@@ -104,16 +135,15 @@ function setCeraLanguage(code) {
 /**
  * Everything the dialog needs to translate itself: the locale list and the English catalog
  * overlaid with the chosen language, so a key missing from a translation falls back to English.
+ * Excludes report-only `deck.*` and `report.*` keys unless `opts && opts.includeReportKeys === true`.
  */
-function getCeraI18nState(lang) {
-  const code = lang ? ceraNormalizeLang_(lang) : ceraGetLanguage();
-  const messages = Object.assign({}, CERA_I18N_MESSAGES[CERA_DEFAULT_LANG], CERA_I18N_MESSAGES[code] || {});
-  let isAuto = !lang;
-  if (isAuto) {
-    try { isAuto = !PropertiesService.getUserProperties().getProperty(CERA_LANG_PROPERTY); } catch (e) {}
-  }
+function getCeraI18nState(lang, opts) {
+  const info = ceraResolveLanguageInfo_(lang);
+  const code = info.code;
+  const merged = Object.assign({}, CERA_I18N_MESSAGES[CERA_DEFAULT_LANG], CERA_I18N_MESSAGES[code] || {});
+  const messages = (opts && opts.includeReportKeys === true) ? merged : ceraFilterDialogMessages_(merged);
   const version = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? String(CeraConfig.VERSION) : '2.0.0';
-  return { lang: code, auto: isAuto, intl: ceraLocale_(code).intl, version: version, locales: CERA_LOCALES, messages: messages };
+  return { lang: code, auto: info.auto, intl: ceraLocale_(code).intl, version: version, locales: CERA_LOCALES, messages: messages };
 }
 
 /**
@@ -123,8 +153,10 @@ function getCeraI18nState(lang) {
 function ceraT(key, params, lang) {
   const code = lang ? ceraNormalizeLang_(lang) : ceraGetLanguage();
   const table = CERA_I18N_MESSAGES[code] || {};
-  const msg = table[key] !== undefined ? table[key] : CERA_I18N_MESSAGES[CERA_DEFAULT_LANG][key];
-  if (msg === undefined) return key;
+  const defaultTable = CERA_I18N_MESSAGES[CERA_DEFAULT_LANG] || {};
+  const hasOwn = Object.prototype.hasOwnProperty;
+  const msg = hasOwn.call(table, key) ? table[key] : (hasOwn.call(defaultTable, key) ? defaultTable[key] : undefined);
+  if (msg === undefined) return String(key);
   return ceraFormatMessage_(msg, params, code);
 }
 
@@ -134,8 +166,9 @@ function ceraFormatMessage_(msg, params, lang) {
     const n = params ? Number(params.n) : NaN;
     text = (n === 1 && text.one !== undefined) ? text.one : text.other;
   }
+  const hasOwn = Object.prototype.hasOwnProperty;
   return String(text).replace(/\{(\w+)\}/g, (match, name) => {
-    if (!params || params[name] === undefined || params[name] === null) return match;
+    if (!params || !hasOwn.call(params, name) || params[name] === undefined || params[name] === null) return match;
     const value = params[name];
     return typeof value === 'number' ? ceraFormatNumber(value, lang) : String(value);
   });

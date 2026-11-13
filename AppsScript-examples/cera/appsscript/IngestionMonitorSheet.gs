@@ -45,6 +45,19 @@ var IngestionMonitorSheet = {
    * Initializes sheet layout, column dimensions and freeze lines
    */
   initSheetStructure: function(sheet) {
+    if (typeof sheet.getMaxColumns === 'function' && typeof sheet.insertColumnsAfter === 'function') {
+      const curCols = sheet.getMaxColumns();
+      if (curCols < 8) sheet.insertColumnsAfter(Math.max(1, curCols), 8 - curCols);
+    }
+    if (typeof sheet.getMaxRows === 'function' && typeof sheet.insertRowsAfter === 'function') {
+      const curRows = sheet.getMaxRows();
+      if (curRows < 28) sheet.insertRowsAfter(Math.max(1, curRows), 28 - curRows);
+    }
+    if (typeof sheet.getMaxRows === 'function' && typeof sheet.getMaxColumns === 'function') {
+      try {
+        sheet.getRange(1, 1, Math.max(1, sheet.getMaxRows()), Math.max(1, sheet.getMaxColumns())).breakApart();
+      } catch (e) {}
+    }
     sheet.clear();
     if (typeof sheet.setHiddenGridlines === 'function') {
       sheet.setHiddenGridlines(true); // Executive styling: hide raw sheet gridlines
@@ -54,9 +67,10 @@ var IngestionMonitorSheet = {
     const colWidths = [180, 140, 160, 150, 170, 140, 150, 240];
     colWidths.forEach((w, idx) => sheet.setColumnWidth(idx + 1, w));
 
-    sheet.getRange('A1:H100').setFontFamily('Google Sans, Roboto, Arial, sans-serif');
-    if (SpreadsheetApp.WrapStrategy && SpreadsheetApp.WrapStrategy.CLIP && typeof sheet.getRange('A1:H100').setWrapStrategy === 'function') {
-      sheet.getRange('A1:H100').setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+    const initRows = typeof sheet.getMaxRows === 'function' ? Math.max(1, Math.min(100, sheet.getMaxRows())) : 100;
+    sheet.getRange(1, 1, initRows, 8).setFontFamily('Google Sans, Roboto, Arial, sans-serif');
+    if (SpreadsheetApp.WrapStrategy && SpreadsheetApp.WrapStrategy.CLIP && typeof sheet.getRange(1, 1, initRows, 8).setWrapStrategy === 'function') {
+      sheet.getRange(1, 1, initRows, 8).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
     }
   },
 
@@ -94,6 +108,24 @@ var IngestionMonitorSheet = {
    */
   updateDashboard: function(ss, state, partitions) {
     const sheet = this.getOrCreateSheet(ss);
+    let sheetMaxCols = typeof sheet.getMaxColumns === 'function' ? sheet.getMaxColumns() : 8;
+    let sheetMaxRows = typeof sheet.getMaxRows === 'function' ? sheet.getMaxRows() : 100;
+    const prevLastRow = typeof sheet.getLastRow === 'function' ? sheet.getLastRow() : 0;
+    const wasGridTrimmed = (sheetMaxCols < 8 || sheetMaxRows < 28);
+    if (sheetMaxCols < 8 && typeof sheet.insertColumnsAfter === 'function') {
+      sheet.insertColumnsAfter(Math.max(1, sheetMaxCols), 8 - sheetMaxCols);
+      sheetMaxCols = 8;
+      [180, 140, 160, 150, 170, 140, 150, 240].forEach((w, idx) => sheet.setColumnWidth(idx + 1, w));
+    }
+    if (sheetMaxRows < 28 && typeof sheet.insertRowsAfter === 'function') {
+      sheet.insertRowsAfter(Math.max(1, sheetMaxRows), 28 - sheetMaxRows);
+      sheetMaxRows = 28;
+    }
+    if (wasGridTrimmed && typeof sheet.getRange === 'function') {
+      const hdrRange = sheet.getRange(1, 1, Math.min(22, sheetMaxRows), 8);
+      if (typeof hdrRange.breakApart === 'function') hdrRange.breakApart();
+      if (typeof hdrRange.setFontFamily === 'function') hdrRange.setFontFamily('Google Sans, Roboto, Arial, sans-serif');
+    }
     state = state || {};
     partitions = partitions || [];
     const lang = ceraGetLanguage();
@@ -101,6 +133,21 @@ var IngestionMonitorSheet = {
     const num = n => ceraFormatNumber(Number(n) || 0, lang);
     // A label inside a HYPERLINK formula: its double quotes doubled
     const linkLabel = text => String(text).replace(/"/g, '""');
+    const safeHttpsUrl = raw => {
+      const s = String(raw || '').trim();
+      return /^https:\/\/[^\s"<>\\]+$/.test(s) ? s : '';
+    };
+    const safeDriveId = raw => {
+      const s = String(raw || '').trim();
+      return /^[A-Za-z0-9_-]{1,200}$/.test(s) ? s : '';
+    };
+    const safeCell = val => {
+      if (val === null || val === undefined) return '';
+      const s = String(val);
+      if (s === '' || s === '-' || s === '--' || s === '—' || s === '–') return s;
+      if (/^\s*[=+\-@\uFF1D\uFF0B\uFF0D\uFF20]|^[\t\r\n]/.test(s)) return "'" + s;
+      return s;
+    };
 
     const status = (state.status || 'RUNNING').toUpperCase();
     const healthState = String(state.healthState || '').toUpperCase();
@@ -111,18 +158,24 @@ var IngestionMonitorSheet = {
     const timeSpanPct = Number(state.timeSpanPct || 0);
     const currentDay = isIdle ? 0 : Number(state.currentDay || 1);
     const totalDays = Number(state.daysFilter || state.totalDays || 7);
-    const currentLogDate = state.currentLogDateStr || state.currentLogTimeStr || (isIdle || status === 'FAILED' ? T('mon.status.stopped') : (status === 'PAUSED' ? T('mon.sheet.streamStatus.paused') : T('mon.eta.calculating')));
-    const startDate = isIdle ? '--' : (state.startDateStr || T('mon.sheet.origin'));
-    const folderUrl = state.folderUrl || (state.folderId ? `https://drive.google.com/drive/folders/${state.folderId}` : '');
-    let logFolderUrl = state.logFolderUrl || '';
-    if (!logFolderUrl && state.folderId && typeof ceraGetDiagLogMeta_ === 'function') {
-      const diagMeta = ceraGetDiagLogMeta_(state.folderId);
-      if (diagMeta && diagMeta.logFolderUrl) logFolderUrl = diagMeta.logFolderUrl;
+    const currentLogDate = safeCell(state.currentLogDateStr || state.currentLogTimeStr || (isIdle || status === 'FAILED' ? T('mon.status.stopped') : (status === 'PAUSED' ? T('mon.sheet.streamStatus.paused') : T('mon.eta.calculating'))));
+    const startDate = safeCell(isIdle ? '--' : (state.startDateStr || T('mon.sheet.origin')));
+    const cleanStateFolderId = safeDriveId(state.folderId);
+    const folderUrl = safeHttpsUrl(state.folderUrl) || (cleanStateFolderId ? `https://drive.google.com/drive/folders/${cleanStateFolderId}` : '');
+    let logFolderUrl = safeHttpsUrl(state.logFolderUrl);
+    if (!logFolderUrl && cleanStateFolderId && typeof ceraGetDiagLogMeta_ === 'function') {
+      const diagMeta = ceraGetDiagLogMeta_(cleanStateFolderId);
+      if (diagMeta && diagMeta.logFolderUrl) logFolderUrl = safeHttpsUrl(diagMeta.logFolderUrl);
     }
     if (!logFolderUrl) logFolderUrl = folderUrl;
-    const folderName = state.folderName || (isIdle ? T('common.na') : T('mon.folderDefault'));
+    const folderName = safeCell(state.folderName || (isIdle ? T('common.na') : T('mon.folderDefault')));
     const fileIndex = state.fileIndex || partitions.length || 1;
-    const currentRows = isIdle ? 0 : Number(state.currentSheetRows || 1);
+    const lastPart = (partitions && partitions.length > 0) ? partitions[partitions.length - 1] : null;
+    const currentRows = isIdle
+      ? 0
+      : (lastPart && lastPart.rowCount !== undefined
+        ? Number(lastPart.rowCount || 0)
+        : (state.currentSheetRows !== undefined ? Math.max(0, Number(state.currentSheetRows) - 1) : 0));
     const rate = Number(state.rate || state.processingRate || 0);
     const etaSec = Number(state.etaSec || state.estimatedRemainingSec || 0);
     const lastUpdateStr = Utilities.formatDate(new Date(), ceraTimeZone(), 'yyyy-MM-dd HH:mm:ss');
@@ -169,7 +222,7 @@ var IngestionMonitorSheet = {
       .setFontWeight('bold')
       .setHorizontalAlignment('left')
       .setVerticalAlignment('middle');
-    const feedbackUrl = (typeof CeraConfig !== 'undefined' && CeraConfig.FEEDBACK_URL) || 'https://goo.gle/cera-feedback';
+    const feedbackUrl = safeHttpsUrl((typeof CeraConfig !== 'undefined' && CeraConfig.FEEDBACK_URL) || '') || 'https://goo.gle/cera-feedback';
     sheet.getRange('G1:H1').merge()
       .setFormula(`=HYPERLINK("${feedbackUrl}", "${linkLabel(T('mon.btn.reportProblem'))}")`)
       .setBackground('#1E293B')
@@ -239,8 +292,8 @@ var IngestionMonitorSheet = {
       sheet.getRange('E6:F6').merge().setFormula(`=HYPERLINK("${folderUrl}", "${linkLabel(T('mon.sheet.openFolder'))}")`)
         .setFontSize(9).setFontColor('#0B57D0').setFontLine('underline').setBackground('#F0FDF4');
     } else {
-      sheet.getRange('E6:F6').merge().setValue(T('mon.sheet.folder', { name: folderName }))
-        .setFontSize(9).setFontColor('#475569').setBackground('#F0FDF4');
+      sheet.getRange('E6:F6').merge().setValue(safeCell(T('mon.sheet.folder', { name: folderName })))
+        .setFontSize(9).setFontColor('#475569').setFontLine('none').setBackground('#F0FDF4');
     }
 
     // Card 4: Estimated Completion & Watchdog (G4:H6)
@@ -349,36 +402,55 @@ var IngestionMonitorSheet = {
     const partStatus = raw => raw === 'COMPLETED' ? T('mon.sheet.part.completed')
       : (raw === 'STOPPED' || raw === 'IDLE') ? T('mon.status.stopped')
         : (raw === 'PAUSED') ? T('mon.sheet.streamStatus.paused')
-          : (raw === 'IN_PROGRESS' || raw === 'WRITING' ? T('mon.sheet.part.writing') : raw);
-    const sheetLink = fileId => `=HYPERLINK("https://docs.google.com/spreadsheets/d/${fileId}/edit", "${linkLabel(T('mon.sheet.openSheet'))}")`;
+          : (raw === 'IN_PROGRESS' || raw === 'WRITING' ? T('mon.sheet.part.writing') : safeCell(raw));
+    const sheetLink = fileId => {
+      const cleanId = safeDriveId(fileId);
+      return cleanId ? `=HYPERLINK("https://docs.google.com/spreadsheets/d/${cleanId}/edit", "${linkLabel(T('mon.sheet.openSheet'))}")` : '--';
+    };
     const partRows = [];
     if (partitions && partitions.length > 0) {
       partitions.forEach((p, idx) => {
+        const partNum = p.fileIndex || p.index || (idx + 1);
         partRows.push([
-          T('mon.part', { n: idx + 1 }),
-          p.fileName || `Chrome_Logs_Part_${String(idx + 1).padStart(2, '0')}`,
+          T('mon.part', { n: partNum }),
+          safeCell(p.fileName || `Chrome_Logs_Part_${String(partNum).padStart(2, '0')}`),
           num(p.rowCount),
           num(maxRows),
           partStatus(p.status || (idx === partitions.length - 1 && status === 'RUNNING' ? 'IN_PROGRESS' : 'COMPLETED')),
-          p.fileId || '--',
+          safeCell(p.fileId || '--'),
           p.fileId ? sheetLink(p.fileId) : '--',
           T('mon.sheet.storage')
         ]);
       });
     } else {
       partRows.push([
-        isIdle ? '--' : T('mon.part', { n: 1 }),
-        state.currentFileName || (isIdle ? T('common.na') : T('mon.sheet.part.init')),
+        isIdle ? '--' : T('mon.part', { n: fileIndex }),
+        safeCell(state.currentFileName || (isIdle ? T('common.na') : T('mon.sheet.part.init'))),
         num(currentRows),
         num(maxRows),
         partStatus(status === 'COMPLETED' ? 'COMPLETED' : (isIdle || status === 'FAILED' ? 'STOPPED' : (status === 'PAUSED' ? 'PAUSED' : 'IN_PROGRESS'))),
-        state.currentFileId || '--',
+        safeCell(state.currentFileId || '--'),
         state.currentFileId ? sheetLink(state.currentFileId) : '--',
         T('mon.sheet.storage')
       ]);
     }
 
     const firstPartRow = partTitleRow + 2;
+    const requiredRows = firstPartRow + partRows.length + 6;
+    if (requiredRows > sheetMaxRows && typeof sheet.insertRowsAfter === 'function') {
+      sheet.insertRowsAfter(Math.max(1, sheetMaxRows), requiredRows - sheetMaxRows);
+      sheetMaxRows = requiredRows;
+    }
+    const clearEndRow = Math.min(sheetMaxRows, Math.max(prevLastRow + 4, firstPartRow + partRows.length + 10, 55));
+    const dynClearRows = Math.max(1, clearEndRow - firstPartRow + 1);
+    const dynRange = sheet.getRange(firstPartRow, 1, dynClearRows, 8);
+    if (typeof dynRange.breakApart === 'function') dynRange.breakApart();
+    if (typeof dynRange.clearContent === 'function') dynRange.clearContent();
+    if (typeof dynRange.clearFormat === 'function') dynRange.clearFormat();
+    if (typeof dynRange.setFontFamily === 'function') dynRange.setFontFamily('Google Sans, Roboto, Arial, sans-serif');
+    if (SpreadsheetApp.WrapStrategy && SpreadsheetApp.WrapStrategy.CLIP && typeof dynRange.setWrapStrategy === 'function') {
+      dynRange.setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+    }
     sheet.getRange(firstPartRow, 1, partRows.length, 8).setValues(partRows)
       .setFontSize(9).setFontColor('#1E293B').setBackground('#FFFFFF');
     for (let pr = firstPartRow; pr < firstPartRow + partRows.length; pr++) sheet.setRowHeight(pr, 20);
@@ -387,6 +459,8 @@ var IngestionMonitorSheet = {
     // 7. Action Guidance & Error Box (Below tables)
     const nextRow = firstPartRow + 1 + partRows.length;
     sheet.setRowHeight(nextRow - 1, 14);
+    sheet.setRowHeight(nextRow, 21);
+    sheet.setRowHeight(nextRow + 1, 21);
 
     if (isQuotaWait) {
       sheet.getRange(nextRow, 1, 2, 8).merge()
@@ -403,7 +477,7 @@ var IngestionMonitorSheet = {
     } else if (status === 'FAILED' && state.errorMessage) {
       const lastCursorInfo = state.currentLogDateStr ? T('mon.sheet.lastDate', { date: state.currentLogDateStr }) : '';
       sheet.getRange(nextRow, 1, 2, 8).merge()
-        .setValue(T('mon.sheet.failed', { error: state.errorMessage, cursor: lastCursorInfo, menu: menuPath('menu.resume') }))
+        .setValue(safeCell(T('mon.sheet.failed', { error: state.errorMessage, cursor: lastCursorInfo, menu: menuPath('menu.resume') })))
         .setBackground('#FEF2F2').setFontColor('#991B1B').setFontSize(9.5).setFontWeight('bold');
       sheet.getRange(nextRow, 1, 2, 8).setBorder(true, true, true, true, false, false, '#F87171', SpreadsheetApp.BorderStyle.SOLID);
     } else if (status === 'COMPLETED' || status === 'SUCCESS') {
@@ -440,5 +514,12 @@ var IngestionMonitorSheet = {
       .setHorizontalAlignment('center').setVerticalAlignment('middle')
       .setBorder(true, true, true, true, false, false, '#CBD5E1', SpreadsheetApp.BorderStyle.SOLID);
     sheet.setRowHeight(fbRow, 24);
+    if (clearEndRow > fbRow) {
+      if (typeof sheet.setRowHeights === 'function') {
+        sheet.setRowHeights(fbRow + 1, clearEndRow - fbRow, 21);
+      } else {
+        for (let cr = fbRow + 1; cr <= clearEndRow; cr++) sheet.setRowHeight(cr, 21);
+      }
+    }
   }
 };

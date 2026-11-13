@@ -31,11 +31,14 @@
  * up to three sample parameter sets. Email addresses and home folder names in samples are masked.
  */
 function ceraDiscoverChromeEvents(days) {
+  if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
+    ceraAssertWorkbookAuthorized_();
+  }
   const span = Math.min(180, Math.max(1, Number(days) || 30));
   const startTime = new Date(Date.now() - span * 86400000).toISOString();
-  const ingested = {};
+  const ingested = Object.create(null);
   TARGET_EVENTS.forEach(ev => { ingested[ev] = true; });
-  const summary = {};
+  const summary = Object.create(null);
   let pageToken = null;
   let pages = 0;
   let activities = 0;
@@ -46,12 +49,19 @@ function ceraDiscoverChromeEvents(days) {
     (page.items || []).forEach(item => {
       activities++;
       (item.events || []).forEach(ev => {
-        const entry = summary[ev.name] || (summary[ev.name] = { count: 0, type: ev.type || '', params: {}, samples: [] });
+        if (!ev || !ev.name) return;
+        const entry = summary[ev.name] || (summary[ev.name] = { count: 0, type: ev.type || '', params: Object.create(null), samples: [] });
         entry.count++;
-        (ev.parameters || []).forEach(p => { entry.params[p.name] = (entry.params[p.name] || 0) + 1; });
+        (ev.parameters || []).forEach(p => {
+          if (!p || !p.name) return;
+          entry.params[p.name] = (entry.params[p.name] || 0) + 1;
+        });
         if (!ingested[ev.name] && entry.samples.length < 3) {
-          const sample = {};
-          (ev.parameters || []).forEach(p => { sample[p.name] = _discoveryMask_(_discoveryValue_(p)); });
+          const sample = Object.create(null);
+          (ev.parameters || []).forEach(p => {
+            if (!p || !p.name) return;
+            sample[p.name] = _discoveryMask_(_discoveryValue_(p));
+          });
           entry.samples.push(sample);
         }
       });
@@ -101,6 +111,8 @@ function _discoveryMask_(value) {
   }
   if (typeof value !== 'string') return value;
   return value
-    .replace(/([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@/g, '$1***@')
+    .replace(/([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+)/g, (_, local, dom) => (
+      local.length >= 3 ? (local.charAt(0) + '***' + local.charAt(local.length - 1) + '@' + dom) : ((local.charAt(0) || '*') + '***@' + dom)
+    ))
     .replace(/(\/Users\/|\/home\/|\\Users\\)[^\/\\\s"']+/g, '$1~');
 }

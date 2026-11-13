@@ -19,10 +19,10 @@
  */
 
 var CeraConfig = {
-  VERSION: '2.0.14',
+  VERSION: '2.0.18',
   SUITE_NAME: 'Chrome Egress Risk Analysis (CERA)',
-  SHORT_NAME: 'CERA v2.0.14',
-  RELEASE_DATE: '2026-10-19',
+  SHORT_NAME: 'CERA v2.0.18',
+  RELEASE_DATE: '2026-11-13',
   FRESHNESS_WARN_DAYS: 90,
   FEEDBACK_URL: 'https://goo.gle/cera-feedback',
   DIAG_LOG_FOLDER_NAME: 'diagnostics',
@@ -166,7 +166,6 @@ var CeraConfig = {
       'telegram.org',
       'discord.com',
       'messenger.com',
-      'web.facebook.com',
       'teams.microsoft.com',
       'slack.com'
     ],
@@ -332,7 +331,7 @@ var CeraConfig = {
     // no-first-run, no-default-browser-check, user-data-dir and lang are left out: launchers, scripts and test tools set
     // them, Chrome does not.
     routine: ['no-startup-window', 'prefetch', 'startup-foreground-launch', 'profile-directory', 'restore-last-session',
-      'flag-switches-*', 'enable-features', 'disable-features', 'force-fieldtrials', 'force-fieldtrial-params']
+      'restart', 'flag-switches-begin', 'flag-switches-end', 'enable-features', 'disable-features', 'force-fieldtrials', 'force-fieldtrial-params']
   },
   // Classes of the switches that are not routine, in the order the deck and the workbook list them when tied
   LAUNCH_CLASS_ORDER: ['automation', 'protectionsOff', 'extensionsFromDisk', 'trafficRedirected', 'other']

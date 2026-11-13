@@ -79,33 +79,43 @@ function onOpen(e) {
  * Adds the CERA menu in the user's current language. Also called by setCeraLanguage: adding the menu again under
  * the same name replaces the one on screen, so it follows the new language without a reload.
  */
-function buildCeraMenu_() {
+function buildCeraMenu_(optLang) {
+  const lang = optLang ? ceraNormalizeLang_(optLang) : ceraGetLanguage();
   SpreadsheetApp.getUi()
     .createMenu('🛡️ CERA')
-    .addItem(ceraT('menu.open'), 'showSetupDialog')
+    .addItem(ceraT('menu.open', null, lang), 'showSetupDialog')
     .addSeparator()
-    .addItem(ceraT('menu.resume'), 'menuResumeCloudIngestion')
-    .addItem(ceraT('menu.reset'), 'emergencyResetIngestion')
+    .addItem(ceraT('menu.resume', null, lang), 'menuResumeCloudIngestion')
+    .addItem(ceraT('menu.reset', null, lang), 'emergencyResetIngestion')
     .addSeparator()
-    .addItem(ceraT('menu.privacy'), 'showPrivacyPolicyDialog')
+    .addItem(ceraT('menu.privacy', null, lang), 'showPrivacyPolicyDialog')
     .addToUi();
 }
 
 /**
- * Helper to produce HtmlOutput supporting native UiDialog.html
+ * Helper to produce HtmlOutput supporting native UiDialog.html.
+ * Resolves user language once and strips unused report/deck keys to minimize container RPCs and HTML payload size.
  */
-function createCeraDialogOutput(extractedFolderId, extractedFolderName) {
-  if (typeof extractedFolderId !== 'string') extractedFolderId = '';
-  if (typeof extractedFolderName !== 'string') extractedFolderName = '';
+function createCeraDialogOutput(extractedFolderId, extractedFolderName, optI18nState) {
+  const safeFolderId = typeof extractedFolderId === 'string'
+    ? extractedFolderId.replace(/[^-\w]/g, '').slice(0, 128)
+    : '';
+  const safeFolderName = typeof extractedFolderName === 'string'
+    ? extractedFolderName.replace(/[\r\n<>\\'"]/g, ' ').trim().slice(0, 200)
+    : '';
 
+  const i18nState = optI18nState || getCeraI18nState();
   const template = HtmlService.createTemplateFromFile('UiDialog');
-  template.extractedFolderId = extractedFolderId;
-  template.extractedFolderName = extractedFolderName;
-  // Escape '<' so catalog strings containing HTML cannot close the <script> block they are injected into
-  template.i18nJson = JSON.stringify(getCeraI18nState()).replace(/</g, '\\u003c');
+  template.extractedFolderId = safeFolderId;
+  template.extractedFolderName = safeFolderName;
+  // Escape '<' and JS line separators so catalog strings cannot close or break the <script> block
+  template.i18nJson = JSON.stringify(i18nState)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
   const ver = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? ' (v' + CeraConfig.VERSION + ')' : '';
   return template.evaluate()
-    .setTitle(ceraT('dialog.title') + ver)
+    .setTitle(ceraT('dialog.title', null, i18nState.lang) + ver)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -115,12 +125,13 @@ function createCeraDialogOutput(extractedFolderId, extractedFolderName) {
 function showSetupDialog(extractedFolderId, extractedFolderName) {
   try {
     Logger.log('showSetupDialog invoked: preparing HTML modal output...');
-    const html = createCeraDialogOutput(extractedFolderId, extractedFolderName)
+    const i18nState = getCeraI18nState();
+    const html = createCeraDialogOutput(extractedFolderId, extractedFolderName, i18nState)
       .setWidth(640)
       .setHeight(720);
     const ver = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? ' (v' + CeraConfig.VERSION + ')' : '';
 
-    SpreadsheetApp.getUi().showModalDialog(html, ceraT('dialog.title') + ver);
+    SpreadsheetApp.getUi().showModalDialog(html, ceraT('dialog.title', null, i18nState.lang) + ver);
     Logger.log('showSetupDialog: modal dispatched successfully.');
   } catch (err) {
     Logger.log('showSetupDialog error: ' + err.toString());
@@ -136,13 +147,14 @@ function showSetupDialog(extractedFolderId, extractedFolderName) {
  */
 function showPrivacyPolicyDialog() {
   try {
-    const tx = key => ceraEscapeHtml_(ceraT(key));
+    const lang = ceraGetLanguage();
+    const tx = key => ceraEscapeHtml_(ceraT(key, null, lang));
     const verBadge = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION)
       ? `<span style="font-size: 11px; font-weight: 600; color: #1D4ED8; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 9999px; padding: 2px 8px; vertical-align: middle; margin-left: 6px;">v${ceraEscapeHtml_(CeraConfig.VERSION)}</span>`
       : '';
     const htmlContent = `
       <!DOCTYPE html>
-      <html lang="${ceraGetLanguage()}">
+      <html lang="${ceraEscapeHtml_(lang)}">
         <head>
           <base target="_top">
           <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
@@ -294,6 +306,516 @@ function showPrivacyPolicyDialog() {
   }
 }
 
+const CERA_LICENSE_PEPPER_ = 'cera-v1-integrity-pepper-2026-9f4b2c8e1a7d';
+const CERA_MASTER_TEMPLATE_IDS_ = [
+  '14ZJbpH3JO1qR6KQKzlbxuR-OdSLTQ31Fq38ksGW-xvA',
+  '1xqWC9SsVMDvuRUstaJ1OZnJ1MZToy7s44dbJHdISCgA'
+];
+
+function ceraSha256Hex_(inputStr) {
+  const raw = String(inputStr || '');
+  const digest = (typeof Utilities !== 'undefined' && Utilities.Charset && Utilities.Charset.UTF_8)
+    ? Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw, Utilities.Charset.UTF_8)
+    : Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw);
+  let hex = '';
+  for (let i = 0; i < digest.length; i++) {
+    const b = digest[i] < 0 ? digest[i] + 256 : digest[i];
+    const h = b.toString(16);
+    hex += (h.length === 1 ? '0' + h : h);
+  }
+  return hex;
+}
+
+function ceraMaskEmailForLicense_(email) {
+  const clean = String(email || '').trim().toLowerCase();
+  const atIdx = clean.indexOf('@');
+  if (atIdx <= 0 || atIdx === clean.length - 1) return '***';
+  const local = clean.slice(0, atIdx);
+  const domain = clean.slice(atIdx + 1);
+  if (local.length >= 3) {
+    return local.charAt(0) + '***' + local.charAt(local.length - 1) + '@' + domain;
+  }
+  return (local.charAt(0) || '*') + '***@' + domain;
+}
+
+function ceraComputeLicenseEmailHash_(email) {
+  const clean = String(email || '').trim().toLowerCase();
+  return ceraSha256Hex_('cera-email-v1|' + clean + '|' + CERA_LICENSE_PEPPER_).slice(0, 32);
+}
+
+function ceraBase64UrlDecodeUtf8_(b64url) {
+  let s = String(b64url || '').replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4 !== 0) s += '=';
+  const signedBytes = Utilities.base64Decode(s);
+  const bytes = [];
+  for (let i = 0; i < signedBytes.length; i++) {
+    bytes.push(signedBytes[i] < 0 ? signedBytes[i] + 256 : signedBytes[i]);
+  }
+  let out = '';
+  let i = 0;
+  while (i < bytes.length) {
+    const c1 = bytes[i++];
+    if (c1 < 128) {
+      out += String.fromCharCode(c1);
+    } else if (c1 >= 192 && c1 < 224) {
+      const c2 = bytes[i++] & 63;
+      out += String.fromCharCode(((c1 & 31) << 6) | c2);
+    } else if (c1 >= 224 && c1 < 240) {
+      const c2 = bytes[i++] & 63;
+      const c3 = bytes[i++] & 63;
+      out += String.fromCharCode(((c1 & 15) << 12) | (c2 << 6) | c3);
+    } else {
+      const c2 = bytes[i++] & 63;
+      const c3 = bytes[i++] & 63;
+      const c4 = bytes[i++] & 63;
+      let cp = ((c1 & 7) << 18) | (c2 << 12) | (c3 << 6) | c4;
+      cp -= 0x10000;
+      out += String.fromCharCode(0xD800 + ((cp >> 10) & 0x3FF), 0xDC00 + (cp & 0x3FF));
+    }
+  }
+  return out;
+}
+
+/**
+ * Deterministic helper to construct a signed `CERA_LICENSE_STAMP` v1 token (matching `drive-dispenser.ts`).
+ */
+function ceraCreateLicenseStamp_(refCode, requesterEmail, dispenserId, issuedAtMs, windowMs) {
+  const v = 1;
+  const ref = String(refCode || '').trim().toUpperCase();
+  const cleanEmail = String(requesterEmail || '').trim().toLowerCase();
+  const emailHash = ceraComputeLicenseEmailHash_(cleanEmail);
+  const maskedEmail = ceraMaskEmailForLicense_(cleanEmail);
+  const dispId = String(dispenserId || '').trim();
+  const issuedMs = Number.isFinite(Number(issuedAtMs)) ? Number(issuedAtMs) : Date.now();
+  const winMs = Number.isFinite(Number(windowMs)) ? Number(windowMs) : (15 * 60 * 1000);
+  const canonical = [v, ref, emailHash, maskedEmail, dispId, issuedMs, winMs, CERA_LICENSE_PEPPER_].join('|');
+  const sig = ceraSha256Hex_(canonical).slice(0, 24);
+  const payloadJson = JSON.stringify({
+    v: v,
+    ref: ref,
+    emailHash: emailHash,
+    maskedEmail: maskedEmail,
+    dispenserId: dispId,
+    issuedAtMs: issuedMs,
+    windowMs: winMs
+  });
+  let b64 = '';
+  if (typeof Utilities !== 'undefined' && typeof Utilities.base64EncodeWebSafe === 'function') {
+    b64 = String(Utilities.base64EncodeWebSafe(payloadJson)).replace(/=+$/, '');
+  } else {
+    b64 = String(Utilities.base64Encode(payloadJson)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  return 'cera1.' + b64 + '.' + sig;
+}
+
+function ceraExtractRefCodeFromTitle_(title) {
+  const m = /\b(CR-[A-Z0-9]{4,10})\b/i.exec(String(title || ''));
+  return m && m[1] ? m[1].toUpperCase() : '';
+}
+
+function ceraIsChainCopyTitle_(title) {
+  const s = String(title || '').trim();
+  if (!s) return false;
+  if (/^(?:Copy of\s+|Salinan dari\s+|Bản sao của\s+){2,}/i.test(s)) return true;
+  if (/(?:のコピー\s*){2,}/.test(s)) return true;
+  if (/(?:의 사본\s*){2,}/.test(s)) return true;
+  if (/^(?:副本\s*){2,}/.test(s)) return true;
+  return false;
+}
+
+/**
+ * 4-Layer Workbook License & Primary-Copy Verification Gate:
+ * - Unstamped workbooks and Master Templates pass with `{ authorized: true, mode: 'UNSTAMPED' }` (zero regression).
+ * - Stamped workbooks (`CERA_LICENSE_STAMP` in Spreadsheet DeveloperMetadata) enforce:
+ *   Layer 0: SHA-256 signature integrity (`TAMPERED_TOKEN`)
+ *   Layer 1: Signed-in user email hash match (`UNAUTHORIZED_USER`)
+ *   Layer 2: Primary copy authenticity (`SECONDARY_COPY` — catches cloning Copy 1 -> Copy 2 both before and after Copy 1 is opened)
+ *   Layer 3: First-open binding (`CERA_BOUND_SHEET_ID` written to DeveloperMetadata on Copy 1)
+ *   Layer 4: Strict single-use enforcement (`strictSingleUse: true`)
+ */
+function ceraVerifyWorkbookLicense_(ss, docProps, opts) {
+  const options = opts || {};
+  let activeSs = ss;
+  if (!activeSs) {
+    try { activeSs = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) {}
+  }
+  let props = docProps;
+  if (!props) {
+    try { props = PropertiesService.getDocumentProperties(); } catch (e) {}
+  }
+
+  let activeSheetId = '';
+  let sheetTitle = '';
+  try {
+    if (activeSs && typeof activeSs.getId === 'function') activeSheetId = String(activeSs.getId() || '');
+    if (activeSs && typeof activeSs.getName === 'function') sheetTitle = String(activeSs.getName() || '');
+  } catch (e) {}
+
+  const titleRefCode = ceraExtractRefCodeFromTitle_(sheetTitle);
+
+  if (activeSheetId && CERA_MASTER_TEMPLATE_IDS_.indexOf(activeSheetId) !== -1) {
+    return {
+      authorized: true,
+      mode: 'MASTER_TEMPLATE',
+      licenseState: 'UNSTAMPED',
+      reason: '',
+      refCode: titleRefCode || '',
+      maskedEmail: '',
+      strictSingleUse: false
+    };
+  }
+
+  let stampRaw = '';
+  let boundSheetId = '';
+  try {
+    if (activeSs && typeof activeSs.getDeveloperMetadata === 'function') {
+      const metas = activeSs.getDeveloperMetadata() || [];
+      for (let i = 0; i < metas.length; i++) {
+        const m = metas[i];
+        if (!m || typeof m.getKey !== 'function') continue;
+        const k = String(m.getKey() || '');
+        const v = typeof m.getValue === 'function' ? String(m.getValue() || '') : '';
+        if (k === 'CERA_LICENSE_STAMP' && v) stampRaw = v;
+        if (k === 'CERA_BOUND_SHEET_ID' && v) boundSheetId = v;
+      }
+    }
+  } catch (metaErr) {}
+
+  if (!stampRaw && typeof CeraConfig !== 'undefined' && CeraConfig.LICENSE_STAMP) {
+    stampRaw = String(CeraConfig.LICENSE_STAMP || '');
+  }
+  if (!stampRaw && props && typeof props.getProperty === 'function') {
+    try {
+      stampRaw = String(props.getProperty('CERA_LICENSE_STAMP') || '');
+    } catch (e) {}
+  }
+  if (!boundSheetId && props && typeof props.getProperty === 'function') {
+    try {
+      boundSheetId = String(props.getProperty('CERA_BOUND_SHEET_ID') || '');
+    } catch (e) {}
+  }
+
+  // Unstamped bypass: preserve 100% compatibility for unstamped workbooks and existing tests
+  if (!stampRaw && !boundSheetId) {
+    return {
+      authorized: true,
+      mode: 'UNSTAMPED',
+      licenseState: 'UNSTAMPED',
+      reason: '',
+      refCode: titleRefCode || '',
+      maskedEmail: '',
+      strictSingleUse: false
+    };
+  }
+
+  if (!stampRaw && boundSheetId && activeSheetId && boundSheetId !== activeSheetId) {
+    return {
+      authorized: false,
+      mode: 'BLOCKED',
+      licenseState: 'BLOCKED_SECONDARY_COPY',
+      reason: 'SECONDARY_COPY',
+      refCode: titleRefCode || 'UNBOUND',
+      maskedEmail: '',
+      strictSingleUse: true
+    };
+  }
+
+  // Layer 0 — Signature / Checksum Integrity
+  const parts = String(stampRaw || '').trim().split('.');
+  if (parts.length !== 3 || parts[0] !== 'cera1') {
+    return {
+      authorized: false,
+      mode: 'BLOCKED',
+      licenseState: 'BLOCKED_TAMPERED_TOKEN',
+      reason: 'TAMPERED_TOKEN',
+      refCode: titleRefCode || 'UNBOUND',
+      maskedEmail: '',
+      strictSingleUse: true
+    };
+  }
+
+  let payload = null;
+  try {
+    const jsonStr = ceraBase64UrlDecodeUtf8_(parts[1]);
+    payload = JSON.parse(jsonStr);
+  } catch (parseErr) {
+    payload = null;
+  }
+
+  if (
+    !payload ||
+    payload.v !== 1 ||
+    !payload.ref ||
+    !payload.emailHash ||
+    !payload.dispenserId ||
+    !Number.isFinite(Number(payload.issuedAtMs)) ||
+    !Number.isFinite(Number(payload.windowMs))
+  ) {
+    return {
+      authorized: false,
+      mode: 'BLOCKED',
+      licenseState: 'BLOCKED_TAMPERED_TOKEN',
+      reason: 'TAMPERED_TOKEN',
+      refCode: (payload && payload.ref) ? String(payload.ref) : (titleRefCode || 'UNBOUND'),
+      maskedEmail: (payload && payload.maskedEmail) ? String(payload.maskedEmail) : '',
+      strictSingleUse: true
+    };
+  }
+
+  const refCode = String(payload.ref).trim().toUpperCase();
+  const maskedEmail = String(payload.maskedEmail || '');
+  const issuedAtMs = Number(payload.issuedAtMs);
+  const windowMs = Number(payload.windowMs);
+  const canonical = [
+    payload.v,
+    refCode,
+    payload.emailHash,
+    maskedEmail,
+    payload.dispenserId,
+    issuedAtMs,
+    windowMs,
+    CERA_LICENSE_PEPPER_
+  ].join('|');
+  const expectedSig = ceraSha256Hex_(canonical).slice(0, 24);
+
+  if (parts[2] !== expectedSig) {
+    return {
+      authorized: false,
+      mode: 'BLOCKED',
+      licenseState: 'BLOCKED_TAMPERED_TOKEN',
+      reason: 'TAMPERED_TOKEN',
+      refCode: refCode,
+      maskedEmail: maskedEmail,
+      strictSingleUse: true
+    };
+  }
+
+  // Layer 1 — Caller Identity Match
+  let callerEmail = '';
+  try {
+    callerEmail = String(
+      (typeof Session !== 'undefined' && Session.getEffectiveUser && Session.getEffectiveUser().getEmail()) ||
+      (typeof Session !== 'undefined' && Session.getActiveUser && Session.getActiveUser().getEmail()) ||
+      ''
+    ).trim().toLowerCase();
+  } catch (e) {}
+  if (!callerEmail && typeof Drive !== 'undefined' && Drive.About && typeof Drive.About.get === 'function') {
+    try {
+      const about = Drive.About.get({ fields: 'user(emailAddress)' });
+      if (about && about.user && about.user.emailAddress) {
+        callerEmail = String(about.user.emailAddress).trim().toLowerCase();
+      }
+    } catch (aboutErr) {}
+  }
+
+  const callerHash = callerEmail ? ceraComputeLicenseEmailHash_(callerEmail) : '';
+  if (!callerEmail || callerHash !== payload.emailHash) {
+    return {
+      authorized: false,
+      mode: 'BLOCKED',
+      licenseState: 'BLOCKED_UNAUTHORIZED_USER',
+      reason: 'UNAUTHORIZED_USER',
+      refCode: refCode,
+      maskedEmail: maskedEmail,
+      strictSingleUse: true
+    };
+  }
+
+  // Layer 2 — Primary Copy Authenticity (catches Copy 1 -> Copy 2 both after and before Copy 1 is opened)
+  if (activeSheetId && activeSheetId === String(payload.dispenserId)) {
+    return {
+      authorized: false,
+      mode: 'BLOCKED',
+      licenseState: 'BLOCKED_SECONDARY_COPY',
+      reason: 'SECONDARY_COPY',
+      refCode: refCode,
+      maskedEmail: maskedEmail,
+      strictSingleUse: true
+    };
+  }
+
+  if (boundSheetId && activeSheetId && boundSheetId !== activeSheetId) {
+    return {
+      authorized: false,
+      mode: 'BLOCKED',
+      licenseState: 'BLOCKED_SECONDARY_COPY',
+      reason: 'SECONDARY_COPY',
+      refCode: refCode,
+      maskedEmail: maskedEmail,
+      strictSingleUse: true
+    };
+  }
+
+  if (ceraIsChainCopyTitle_(sheetTitle)) {
+    return {
+      authorized: false,
+      mode: 'BLOCKED',
+      licenseState: 'BLOCKED_SECONDARY_COPY',
+      reason: 'SECONDARY_COPY',
+      refCode: refCode,
+      maskedEmail: maskedEmail,
+      strictSingleUse: true
+    };
+  }
+
+  // If CERA_BOUND_SHEET_ID has not been bound yet on this copy, verify Drive createdTime window and earliest-copy precedence
+  if (!boundSheetId && !options.skipDriveCheck && activeSheetId && typeof Drive !== 'undefined' && Drive.Files) {
+    let thisCreatedMs = NaN;
+    try {
+      if (typeof Drive.Files.get === 'function') {
+        const fileMeta = Drive.Files.get(activeSheetId, {
+          fields: 'id,name,createdTime',
+          supportsAllDrives: true
+        });
+        if (fileMeta) {
+          if (fileMeta.name && ceraIsChainCopyTitle_(fileMeta.name)) {
+            return {
+              authorized: false,
+              mode: 'BLOCKED',
+              licenseState: 'BLOCKED_SECONDARY_COPY',
+              reason: 'SECONDARY_COPY',
+              refCode: refCode,
+              maskedEmail: maskedEmail,
+              strictSingleUse: true
+            };
+          }
+          if (fileMeta.createdTime) {
+            thisCreatedMs = Date.parse(String(fileMeta.createdTime));
+          }
+        }
+      }
+    } catch (getErr) {}
+
+    if (Number.isFinite(thisCreatedMs)) {
+      // Creation Time vs Dispenser Redemption Window Guard (checks immutable file creation timestamp, never Date.now())
+      if (thisCreatedMs < issuedAtMs - 120000 || thisCreatedMs > issuedAtMs + windowMs) {
+        return {
+          authorized: false,
+          mode: 'BLOCKED',
+          licenseState: 'BLOCKED_SECONDARY_COPY',
+          reason: 'SECONDARY_COPY',
+          refCode: refCode,
+          maskedEmail: maskedEmail,
+          strictSingleUse: true
+        };
+      }
+
+      // Earliest-Copy Wins Guard: if another non-dispenser copy of this refCode in Drive has an earlier createdTime, this is Copy 2+
+      try {
+        if (typeof Drive.Files.list === 'function') {
+          const safeRef = refCode.replace(/[^A-Z0-9-]/gi, '');
+          const listRes = Drive.Files.list({
+            q: "mimeType = 'application/vnd.google-apps.spreadsheet' and name contains '" + safeRef + "' and trashed = false",
+            fields: 'files(id,name,createdTime)',
+            pageSize: 20,
+            supportsAllDrives: true,
+            includeItemsFromAllDrives: true
+          });
+          const files = (listRes && Array.isArray(listRes.files)) ? listRes.files : [];
+          for (let fIdx = 0; fIdx < files.length; fIdx++) {
+            const f = files[fIdx];
+            if (!f || !f.id || f.id === activeSheetId || f.id === String(payload.dispenserId) || CERA_MASTER_TEMPLATE_IDS_.indexOf(f.id) !== -1) continue;
+            const otherCreatedMs = f.createdTime ? Date.parse(String(f.createdTime)) : NaN;
+            if (
+              Number.isFinite(otherCreatedMs) &&
+              otherCreatedMs >= issuedAtMs - 120000 &&
+              otherCreatedMs < thisCreatedMs - 1000
+            ) {
+              return {
+                authorized: false,
+                mode: 'BLOCKED',
+                licenseState: 'BLOCKED_SECONDARY_COPY',
+                reason: 'SECONDARY_COPY',
+                refCode: refCode,
+                maskedEmail: maskedEmail,
+                strictSingleUse: true
+              };
+            }
+          }
+        }
+      } catch (listErr) {}
+    }
+  }
+
+  // Layer 3 — First-Open Binding (write CERA_BOUND_SHEET_ID to DeveloperMetadata so any subsequent clone is caught immediately)
+  if (!boundSheetId && !options.skipDriveCheck && activeSheetId && activeSs && typeof activeSs.addDeveloperMetadata === 'function') {
+    try {
+      activeSs.addDeveloperMetadata(
+        'CERA_BOUND_SHEET_ID',
+        activeSheetId,
+        (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.DeveloperMetadataVisibility)
+          ? SpreadsheetApp.DeveloperMetadataVisibility.DOCUMENT
+          : undefined
+      );
+      boundSheetId = activeSheetId;
+    } catch (bindErr) {}
+    try {
+      if (props && typeof props.setProperty === 'function') {
+        props.setProperty('CERA_BOUND_SHEET_ID', activeSheetId);
+      }
+    } catch (propErr) {}
+  }
+
+  // Layer 4 — Strict One-Time Use enabled for stamped customer workbooks
+  return {
+    authorized: true,
+    mode: 'STAMPED',
+    licenseState: 'VERIFIED_PRIMARY_COPY',
+    reason: '',
+    refCode: refCode,
+    maskedEmail: maskedEmail,
+    boundSheetId: boundSheetId || activeSheetId,
+    strictSingleUse: true
+  };
+}
+
+/**
+ * Throws a localized authorization error if the active workbook is blocked by the 4-layer license gate.
+ */
+function ceraAssertWorkbookAuthorized_(ss, docProps) {
+  const gate = ceraVerifyWorkbookLicense_(ss, docProps);
+  if (gate && gate.authorized === false) {
+    if (gate.reason === 'UNAUTHORIZED_USER') {
+      throw new Error(ceraT('license.err.unauthorizedUser', {
+        ref: gate.refCode || 'CERA',
+        email: gate.maskedEmail || '***'
+      }));
+    }
+    if (gate.reason === 'SECONDARY_COPY') {
+      throw new Error(ceraT('license.err.secondaryCopy', {
+        ref: gate.refCode || 'CERA'
+      }));
+    }
+    const refSuffix = gate.refCode ? ' (' + gate.refCode + ')' : '';
+    throw new Error(ceraT('license.err.tampered', { ref: refSuffix }));
+  }
+  return gate;
+}
+
+/**
+ * Asserts 4-layer workbook authorization AND single-use availability for starting a new ingestion or analysis run.
+ * Throws a structured `REPORT_ALREADY_USED` error if a stamped (`strictSingleUse`) workbook has already completed
+ * its report execution (`CERA_REPORT_USED_SHEET_ID === activeSheetId`). Unstamped workbooks remain unaffected.
+ */
+function ceraAssertWorkbookSingleUseAvailable_(ssOpt, docPropsOpt) {
+  const activeSs = ssOpt || (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.getActiveSpreadsheet ? SpreadsheetApp.getActiveSpreadsheet() : null);
+  const props = docPropsOpt || (typeof PropertiesService !== 'undefined' && PropertiesService.getDocumentProperties ? PropertiesService.getDocumentProperties() : null);
+  const gate = ceraAssertWorkbookAuthorized_(activeSs, props);
+  if (gate && gate.strictSingleUse) {
+    const activeSheetId = (activeSs && typeof activeSs.getId === 'function' && activeSs.getId()) ? String(activeSs.getId()) : '';
+    const repUsedId = (props && typeof props.getProperty === 'function') ? String(props.getProperty('CERA_REPORT_USED_SHEET_ID') || '') : '';
+    if (activeSheetId && repUsedId && repUsedId === activeSheetId) {
+      const err = new Error(ceraT('license.err.alreadyUsed', {
+        ref: gate.refCode || 'CERA'
+      }));
+      err.code = 'REPORT_ALREADY_USED';
+      err.reason = 'REPORT_ALREADY_USED';
+      throw err;
+    }
+  }
+  return gate;
+}
+
 /**
  * Returns whether the active spreadsheet (by its own spreadsheet ID, so File -> Make a copy starts clean)
  * has already been used for a Direct Ingestion run or a full Report Generation run.
@@ -323,6 +845,7 @@ function ceraGetWorkbookUsageState_(ss, docProps) {
  */
 function emergencyResetIngestion(forceReset) {
   try {
+    ceraAssertWorkbookAuthorized_();
     Logger.log('emergencyResetIngestion triggered by user...');
     cleanupAllIngestionTriggers('EMERGENCY_RESET');
     const lock = LockService.getScriptLock();
@@ -470,18 +993,233 @@ function menuResumeCloudIngestion() {
   }
 }
 
+const CERA_BOOT_HYDRATION_CACHE_TTL_SEC_ = 300;
+
+function ceraBootHydrationCacheKey_(ssId) {
+  const cleanId = String(ssId || 'default').replace(/[^-\w]/g, '').slice(0, 64);
+  return 'CERA_BOOT_HYDRATION_V1_' + cleanId;
+}
+
+function ceraReadBootHydrationCache_(ssId) {
+  try {
+    if (typeof CacheService === 'undefined' || typeof CacheService.getUserCache !== 'function') return null;
+    const raw = CacheService.getUserCache().get(ceraBootHydrationCacheKey_(ssId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.v !== 1 || typeof parsed.adminSdkAccess !== 'boolean') return null;
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+function ceraWriteBootHydrationCache_(ssId, data) {
+  try {
+    if (typeof CacheService === 'undefined' || typeof CacheService.getUserCache !== 'function') return;
+    const payload = JSON.stringify({
+      v: 1,
+      savedAtMs: Date.now(),
+      primaryDomain: String(data.primaryDomain || ''),
+      detectedCorpDomain: String(data.detectedCorpDomain || ''),
+      registeredDomains: Array.isArray(data.registeredDomains) ? data.registeredDomains : [],
+      directoryDomainsCount: Number(data.directoryDomainsCount || 0),
+      adminSdkAccess: Boolean(data.adminSdkAccess),
+      policyPrecheck: data.policyPrecheck || null
+    });
+    if (payload.length < 90000) {
+      CacheService.getUserCache().put(ceraBootHydrationCacheKey_(ssId), payload, CERA_BOOT_HYDRATION_CACHE_TTL_SEC_);
+    }
+  } catch (e) {}
+}
+
+function ceraBuildLockedSetupMetadata_(licenseGate, freshness) {
+  return {
+    primaryDomain: '',
+    detectedCorpDomain: '',
+    registeredDomains: [],
+    domains: [],
+    directoryDomainsCount: 0,
+    adminSdkAccess: false,
+    isAdmin: false,
+    policyPrecheck: null,
+    cloudSession: { hasExisting: false, status: 'IDLE' },
+    autoHealResult: null,
+    extractedFolderId: '',
+    extractedFolderName: '',
+    workbookAlreadyUsed: { ingestion: false, report: false },
+    currentSessionAnalyzed: false,
+    lastSlidesUrl: '',
+    lastReportSummary: '',
+    releaseDate: freshness.releaseDate,
+    freshnessWarnDays: freshness.freshnessWarnDays,
+    templateAgeDays: freshness.templateAgeDays,
+    isTemplateStale: freshness.isTemplateStale,
+    analysisJob: null,
+    licenseGate: licenseGate,
+    licenseStatus: licenseGate,
+    strictSingleUse: Boolean(licenseGate && licenseGate.strictSingleUse),
+    policyHydrated: true,
+    needsPolicyHydration: false
+  };
+}
+
+function ceraComputeTemplateFreshness_() {
+  const releaseDate = (typeof CeraConfig !== 'undefined' && CeraConfig.RELEASE_DATE)
+    ? String(CeraConfig.RELEASE_DATE)
+    : '2026-11-13';
+  const freshnessWarnDays = (typeof CeraConfig !== 'undefined' && Number(CeraConfig.FRESHNESS_WARN_DAYS) > 0)
+    ? Number(CeraConfig.FRESHNESS_WARN_DAYS)
+    : 90;
+  const parsedReleaseMs = Date.parse(releaseDate);
+  const templateAgeDays = Number.isFinite(parsedReleaseMs)
+    ? Math.max(0, Math.floor((Date.now() - parsedReleaseMs) / 86400000))
+    : 0;
+  return {
+    releaseDate: releaseDate,
+    freshnessWarnDays: freshnessWarnDays,
+    templateAgeDays: templateAgeDays,
+    isTemplateStale: templateAgeDays > freshnessWarnDays
+  };
+}
+
 /**
- * Setup metadata: registered domains and the background cloud job state.
- * Safely ignores non-admin privileges. The manual source is always the link or ID the user enters; the folder of
- * this spreadsheet is not offered as a source.
+ * Phase 1 Instant Dialog Boot (< 300ms local-only):
+ * Verifies 4-layer workbook license, checks local session / auto-heal / single-use state, and returns immediately
+ * (hydrating Admin SDK & policy precheck synchronously ONLY if already warm in `CacheService.getUserCache()`).
+ * Eliminates the 8–32s cold-start spinner so closing & reopening the dialog never collides with slow Admin SDK probes.
  */
-function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
+function getFastBootMetadata(passedFolderId, passedFolderName) {
+  const activeSs = SpreadsheetApp.getActiveSpreadsheet();
+  const docProps = PropertiesService.getDocumentProperties();
+  const licenseGate = ceraVerifyWorkbookLicense_(activeSs, docProps);
+  const freshness = ceraComputeTemplateFreshness_();
+
+  if (licenseGate && licenseGate.authorized === false) {
+    return ceraBuildLockedSetupMetadata_(licenseGate, freshness);
+  }
+
+  let autoHealResult = null;
+  if (typeof ceraMaybeAutoHealIngestionOnOpen_ === 'function') {
+    try {
+      autoHealResult = ceraMaybeAutoHealIngestionOnOpen_('setup');
+    } catch (healErr) {
+      Logger.log('getFastBootMetadata auto-heal notice: ' + healErr.message);
+    }
+  }
+
+  const cloudSession = detectExistingSession();
+  const workbookAlreadyUsed = ceraGetWorkbookUsageState_(activeSs, docProps);
+  const currentSessionAnalyzed = !!(workbookAlreadyUsed.report && docProps && docProps.getProperty('CERA_ANALYSIS_EXECUTED') === 'true');
+  const lastSlidesUrl = (workbookAlreadyUsed.report && docProps) ? (docProps.getProperty('CERA_LAST_SLIDES_URL') || '') : '';
+  const lastReportSummary = (workbookAlreadyUsed.report && docProps) ? (docProps.getProperty('CERA_LAST_REPORT_SUMMARY') || '') : '';
+
+  let activeExtractedFolderId = passedFolderId || '';
+  let activeExtractedFolderName = passedFolderName || '';
+
+  if (!activeExtractedFolderId && cloudSession && cloudSession.folderId && !currentSessionAnalyzed) {
+    activeExtractedFolderId = cloudSession.folderId;
+    activeExtractedFolderName = cloudSession.folderName || 'Admin SDK Export Folder';
+  }
+
+  const ssId = (activeSs && typeof activeSs.getId === 'function') ? String(activeSs.getId() || '') : '';
+  let analysisJob = null;
+  try {
+    const rawJob = docProps ? docProps.getProperty('CERA_ANALYSIS_JOB') : '';
+    if (rawJob) {
+      const parsedJob = JSON.parse(rawJob);
+      if (parsedJob && (!parsedJob.hostSpreadsheetId || !ssId || parsedJob.hostSpreadsheetId === ssId)) {
+        analysisJob = parsedJob;
+      }
+    }
+  } catch (ajErr) {}
+
+  const cached = ceraReadBootHydrationCache_(ssId);
+  const uniqueDomains = cached ? cached.registeredDomains : [];
+  const adminSdkAccess = cached ? Boolean(cached.adminSdkAccess) : false;
+
+  return {
+    primaryDomain: cached ? cached.primaryDomain : '',
+    detectedCorpDomain: cached ? cached.detectedCorpDomain : '',
+    registeredDomains: uniqueDomains,
+    domains: uniqueDomains,
+    directoryDomainsCount: cached ? cached.directoryDomainsCount : 0,
+    adminSdkAccess: adminSdkAccess,
+    isAdmin: adminSdkAccess,
+    policyPrecheck: cached ? cached.policyPrecheck : null,
+    cloudSession: cloudSession,
+    autoHealResult: autoHealResult,
+    extractedFolderId: activeExtractedFolderId,
+    extractedFolderName: activeExtractedFolderName,
+    workbookAlreadyUsed: workbookAlreadyUsed,
+    currentSessionAnalyzed: currentSessionAnalyzed,
+    lastSlidesUrl: lastSlidesUrl,
+    lastReportSummary: lastReportSummary,
+    releaseDate: freshness.releaseDate,
+    freshnessWarnDays: freshness.freshnessWarnDays,
+    templateAgeDays: freshness.templateAgeDays,
+    isTemplateStale: freshness.isTemplateStale,
+    analysisJob: analysisJob,
+    licenseGate: licenseGate,
+    licenseStatus: licenseGate,
+    strictSingleUse: Boolean(licenseGate && licenseGate.strictSingleUse),
+    policyHydrated: Boolean(cached),
+    needsPolicyHydration: !cached
+  };
+}
+
+/**
+ * Phase 2 Non-Blocking Background Hydration (`UserCache` 300s TTL):
+ * Resolves corporate domains (`AdminDirectory`), Admin SDK Reports access, and Chrome Enterprise policy precheck
+ * without blocking dialog startup or mutating `DocumentProperties` on read-only dialog opens.
+ */
+function getAsyncPolicyAndDomains(forceRefresh) {
+  const activeSs = SpreadsheetApp.getActiveSpreadsheet();
+  const docProps = PropertiesService.getDocumentProperties();
+  const licenseGate = ceraVerifyWorkbookLicense_(activeSs, docProps);
+  if (licenseGate && licenseGate.authorized === false) {
+    return {
+      authorized: false,
+      licenseGate: licenseGate,
+      primaryDomain: '',
+      detectedCorpDomain: '',
+      registeredDomains: [],
+      domains: [],
+      directoryDomainsCount: 0,
+      adminSdkAccess: false,
+      isAdmin: false,
+      policyPrecheck: null,
+      policyHydrated: true,
+      needsPolicyHydration: false,
+      cached: false
+    };
+  }
+
+  const ssId = (activeSs && typeof activeSs.getId === 'function') ? String(activeSs.getId() || '') : '';
+  if (!forceRefresh) {
+    const cached = ceraReadBootHydrationCache_(ssId);
+    if (cached) {
+      return {
+        authorized: true,
+        primaryDomain: cached.primaryDomain,
+        detectedCorpDomain: cached.detectedCorpDomain,
+        registeredDomains: cached.registeredDomains,
+        domains: cached.registeredDomains,
+        directoryDomainsCount: cached.directoryDomainsCount,
+        adminSdkAccess: cached.adminSdkAccess,
+        isAdmin: cached.adminSdkAccess,
+        policyPrecheck: cached.policyPrecheck,
+        policyHydrated: true,
+        needsPolicyHydration: false,
+        cached: true
+      };
+    }
+  }
+
   let detectedDomains = [];
   let primaryDomain = '';
   let directoryDomainsCount = 0;
 
   try {
-    // 1. Ingest registered corporate domains from Admin Directory SDK API if accessible
     try {
       if (typeof AdminDirectory !== 'undefined' && AdminDirectory.Domains && AdminDirectory.Domains.list) {
         const dirResp = AdminDirectory.Domains.list('my_customer');
@@ -500,7 +1238,6 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
       Logger.log('AdminDirectory.Domains.list notice (optional admin API not accessible, ignoring): ' + err.message);
     }
 
-    // 2. Ingest domain aliases if configured and accessible
     try {
       if (typeof AdminDirectory !== 'undefined' && AdminDirectory.DomainAliases && AdminDirectory.DomainAliases.list) {
         const aliasResp = AdminDirectory.DomainAliases.list('my_customer');
@@ -517,15 +1254,15 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
       Logger.log('AdminDirectory.DomainAliases.list notice (optional admin API not accessible, ignoring): ' + err.message);
     }
   } catch (globalErr) {
-    Logger.log('getAsyncSetupMetadata notice: ' + globalErr.message);
+    Logger.log('getAsyncPolicyAndDomains notice: ' + globalErr.message);
   }
 
-  // Check whether the signed-in user holds the Admin role required to read Chrome audit logs via Reports API
   let adminSdkAccess = true;
+  let accessProbe = null;
   try {
     if (typeof _preflightCheckReportsAccess_ === 'function' && typeof ScriptApp !== 'undefined' && ScriptApp.getOAuthToken) {
-      const access = _preflightCheckReportsAccess_(ScriptApp.getOAuthToken());
-      adminSdkAccess = !!(access && access.ok);
+      accessProbe = _preflightCheckReportsAccess_(ScriptApp.getOAuthToken());
+      adminSdkAccess = !!(accessProbe && accessProbe.ok);
     }
   } catch (accessErr) {
     Logger.log('Admin SDK Reports access check notice: ' + accessErr.message);
@@ -535,90 +1272,69 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
   let policyPrecheck = null;
   if (adminSdkAccess && typeof runAdminPolicyPrecheck === 'function') {
     try {
-      policyPrecheck = runAdminPolicyPrecheck();
+      policyPrecheck = runAdminPolicyPrecheck({
+        skipDocPropWrite: true,
+        existingAccessProbe: accessProbe,
+        optExistingProbe: accessProbe
+      });
     } catch (preErr) {
       Logger.log('runAdminPolicyPrecheck notice: ' + preErr.message);
     }
   }
 
-  // Attempt owner auto-heal if a background ingestion session was interrupted
-  let autoHealResult = null;
-  if (typeof ceraMaybeAutoHealIngestionOnOpen_ === 'function') {
-    try {
-      autoHealResult = ceraMaybeAutoHealIngestionOnOpen_('setup');
-    } catch (healErr) {
-      Logger.log('getAsyncSetupMetadata auto-heal notice: ' + healErr.message);
-    }
-  }
-
-  // Check active cloud ingestion background job
-  const cloudSession = detectExistingSession();
-  const activeSs = SpreadsheetApp.getActiveSpreadsheet();
-  const docProps = PropertiesService.getDocumentProperties();
-  const workbookAlreadyUsed = ceraGetWorkbookUsageState_(activeSs, docProps);
-  const currentSessionAnalyzed = !!(workbookAlreadyUsed.report && docProps && docProps.getProperty('CERA_ANALYSIS_EXECUTED') === 'true');
-  const lastSlidesUrl = (workbookAlreadyUsed.report && docProps) ? (docProps.getProperty('CERA_LAST_SLIDES_URL') || '') : '';
-  const lastReportSummary = (workbookAlreadyUsed.report && docProps) ? (docProps.getProperty('CERA_LAST_REPORT_SUMMARY') || '') : '';
-
-  let activeExtractedFolderId = passedFolderId || '';
-  let activeExtractedFolderName = passedFolderName || '';
-
-  if (!activeExtractedFolderId && cloudSession && cloudSession.folderId && !currentSessionAnalyzed) {
-    activeExtractedFolderId = cloudSession.folderId;
-    activeExtractedFolderName = cloudSession.folderName || 'Admin SDK Export Folder';
-  }
-
-  // Local template freshness calculation (zero external network calls)
-  const releaseDate = (typeof CeraConfig !== 'undefined' && CeraConfig.RELEASE_DATE)
-    ? String(CeraConfig.RELEASE_DATE)
-    : '2026-10-19';
-  const freshnessWarnDays = (typeof CeraConfig !== 'undefined' && Number(CeraConfig.FRESHNESS_WARN_DAYS) > 0)
-    ? Number(CeraConfig.FRESHNESS_WARN_DAYS)
-    : 90;
-  const parsedReleaseMs = Date.parse(releaseDate);
-  const templateAgeDays = Number.isFinite(parsedReleaseMs)
-    ? Math.max(0, Math.floor((Date.now() - parsedReleaseMs) / 86400000))
-    : 0;
-  const isTemplateStale = templateAgeDays > freshnessWarnDays;
-
-  // Check for resumable multi-batch analysis job scoped to this spreadsheet
-  let analysisJob = null;
-  try {
-    const rawJob = docProps ? docProps.getProperty('CERA_ANALYSIS_JOB') : '';
-    if (rawJob) {
-      const parsedJob = JSON.parse(rawJob);
-      const ssId = (activeSs && typeof activeSs.getId === 'function') ? String(activeSs.getId() || '') : '';
-      if (parsedJob && (!parsedJob.hostSpreadsheetId || !ssId || parsedJob.hostSpreadsheetId === ssId)) {
-        analysisJob = parsedJob;
-      }
-    }
-  } catch (ajErr) {}
-
-  // Deduplicate domains
   const uniqueDomains = Array.from(new Set(detectedDomains.filter(Boolean)));
   const detectedCorpDomain = uniqueDomains.length > 0 ? uniqueDomains.join(', ') : '';
+  const finalPrimary = primaryDomain || (uniqueDomains.length > 0 ? uniqueDomains[0] : '');
+  const finalCount = uniqueDomains.length || directoryDomainsCount;
 
-  return {
-    primaryDomain: primaryDomain || (uniqueDomains.length > 0 ? uniqueDomains[0] : ''),
+  const hydration = {
+    authorized: true,
+    primaryDomain: finalPrimary,
     detectedCorpDomain: detectedCorpDomain,
     registeredDomains: uniqueDomains,
-    directoryDomainsCount: uniqueDomains.length || directoryDomainsCount,
+    domains: uniqueDomains,
+    directoryDomainsCount: finalCount,
     adminSdkAccess: adminSdkAccess,
+    isAdmin: adminSdkAccess,
     policyPrecheck: policyPrecheck,
-    cloudSession: cloudSession,
-    autoHealResult: autoHealResult,
-    extractedFolderId: activeExtractedFolderId,
-    extractedFolderName: activeExtractedFolderName,
-    workbookAlreadyUsed: workbookAlreadyUsed,
-    currentSessionAnalyzed: currentSessionAnalyzed,
-    lastSlidesUrl: lastSlidesUrl,
-    lastReportSummary: lastReportSummary,
-    releaseDate: releaseDate,
-    freshnessWarnDays: freshnessWarnDays,
-    templateAgeDays: templateAgeDays,
-    isTemplateStale: isTemplateStale,
-    analysisJob: analysisJob
+    policyHydrated: true,
+    needsPolicyHydration: false,
+    cached: false
   };
+
+  ceraWriteBootHydrationCache_(ssId, hydration);
+  return hydration;
+}
+
+/**
+ * Combined setup metadata: backward-compatible full payload combining Phase 1 (`getFastBootMetadata`)
+ * and Phase 2 (`getAsyncPolicyAndDomains`).
+ */
+function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
+  const boot = getFastBootMetadata(passedFolderId, passedFolderName);
+  if (boot && boot.licenseGate && boot.licenseGate.authorized === false) {
+    return boot;
+  }
+  if (boot && !boot.needsPolicyHydration) {
+    return boot;
+  }
+  const hyd = getAsyncPolicyAndDomains(false);
+  return Object.assign({}, boot, {
+    primaryDomain: hyd.primaryDomain,
+    detectedCorpDomain: hyd.detectedCorpDomain,
+    registeredDomains: hyd.registeredDomains,
+    domains: hyd.domains,
+    directoryDomainsCount: hyd.directoryDomainsCount,
+    adminSdkAccess: hyd.adminSdkAccess,
+    isAdmin: hyd.isAdmin,
+    policyPrecheck: hyd.policyPrecheck,
+    policyHydrated: true,
+    needsPolicyHydration: false
+  });
+}
+
+function getInitialSetupContext(passedFolderId, passedFolderName) {
+  return getAsyncSetupMetadata(passedFolderId, passedFolderName);
 }
 
 /**
@@ -626,6 +1342,7 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
  * to discover corporate and subsidiary domains from User Profile, Account, and OU columns for Step 2.
  */
 function discoverManualSourceDomains(sourceInput) {
+  ceraAssertWorkbookAuthorized_();
   const empty = { domains: [], primaryDomain: '', counts: {} };
   try {
     const rawInput = String(sourceInput || '').trim();
@@ -701,10 +1418,10 @@ function discoverManualSourceDomains(sourceInput) {
       return dom;
     };
 
-    const counts = {};
-    const accountCounts = {};
+    const counts = Object.create(null);
+    const accountCounts = Object.create(null);
     const corpStems = new Set();
-    const hasManagedOu = {};
+    const hasManagedOu = Object.create(null);
 
     function ceraColIndexToLetter_(idx) {
       let temp, letter = '';
@@ -859,7 +1576,7 @@ function discoverManualSourceDomains(sourceInput) {
     return {
       domains: domains,
       primaryDomain: domains[0] || '',
-      counts: counts
+      counts: Object.assign({}, counts)
     };
   } catch (err) {
     Logger.log('discoverManualSourceDomains notice: ' + err.message);
@@ -871,6 +1588,7 @@ function discoverManualSourceDomains(sourceInput) {
  * Bridge method to query live cloud ingestion status from the modal
  */
 function getCloudIngestionStatus() {
+  ceraAssertWorkbookAuthorized_();
   return detectExistingSession();
 }
 
@@ -878,6 +1596,7 @@ function getCloudIngestionStatus() {
  * Builds and returns a sanitized, zero-PII incident summary packet for clipboard copy in the Setup Dialog.
  */
 function copyIngestionIncidentPacket() {
+  ceraAssertWorkbookAuthorized_();
   try {
     if (typeof ceraBuildIncidentPacket_ === 'function') {
       const state = (typeof getProgressUpdate === 'function') ? getProgressUpdate() : null;
@@ -896,7 +1615,7 @@ function copyIngestionIncidentPacket() {
     }
     const fallbackLines = [
       'CERA Diagnostic Incident Summary (Zero-PII)',
-      'Version: v' + ((typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.12'),
+      'Version: v' + ((typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.18'),
       'Status: ' + ((session && session.status) || 'IDLE'),
       'Health: ' + ((session && session.healthState) || 'IDLE'),
       'Progress: ' + Number((session && session.timeSpanPct) || 0) + '% (' + Number((session && session.processedCount) || 0) + ' events)',
@@ -920,20 +1639,30 @@ function copyIngestionIncidentPacket() {
  * Cache Polling with Size Bounding Guard (<100KB safe)
  */
 function getProgressStatus() {
-  const cache = CacheService.getUserCache();
-  const data = cache.get('DLP_V2_JOB_PROGRESS');
-  return data ? JSON.parse(data) : null;
+  ceraAssertWorkbookAuthorized_();
+  try {
+    const cache = CacheService.getUserCache();
+    const data = cache.get('DLP_V2_JOB_PROGRESS');
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 function updateProgress(message, currentFile, index, total, errors) {
-  const cache = CacheService.getUserCache();
-  const safeErrors = (errors || []).slice(-10); // Keep last 10 errors to prevent cache overflow
-  const payload = {
-    message: message || '',
-    currentFile: currentFile || '',
-    index: index || 0,
-    total: total || 1,
-    errors: safeErrors
-  };
-  cache.put('DLP_V2_JOB_PROGRESS', JSON.stringify(payload), 300);
+  try {
+    const cache = CacheService.getUserCache();
+    const safeErrors = (errors || []).slice(-10).map(e => String(e || '').slice(0, 500));
+    const payload = {
+      message: String(message || '').slice(0, 500),
+      currentFile: String(currentFile || '').slice(0, 300),
+      index: Number(index) || 0,
+      total: Number(total) || 1,
+      errors: safeErrors
+    };
+    const serialized = JSON.stringify(payload);
+    if (serialized.length < 95000) {
+      cache.put('DLP_V2_JOB_PROGRESS', serialized, 300);
+    }
+  } catch (e) {}
 }
