@@ -21,6 +21,12 @@ vi.mock("@/lib/env", async (importOriginal) => {
   };
 });
 
+const mockProbeMcpServerWithRetry = vi.fn().mockResolvedValue({ ok: true, message: "ok" });
+vi.mock("@/lib/doctor-checks", () => ({
+  probeMcpServer: vi.fn().mockResolvedValue({ ok: true, message: "ok" }),
+  probeMcpServerWithRetry: (...args: unknown[]) => mockProbeMcpServerWithRetry(...args),
+}));
+
 vi.mock("better-auth/cookies", () => ({
   getSessionCookie: mockGetSessionCookie,
 }));
@@ -170,6 +176,22 @@ describe("proxy — normal auth routing", () => {
     // NextResponse.next() sets an internal header; status stays 200.
     expect(res.headers.get("location")).toBeNull();
   });
+
+  it("user_oauth + HTTPS proxy + __Secure-better-auth.session_token → allows /dashboard access without redirecting to root", async () => {
+    mockGetEnv.mockReturnValue({
+      AUTH_MODE: "user_oauth",
+      MCP_SERVER_URL: "http://localhost:4000/mcp",
+    });
+    mockGetSessionCookie.mockReturnValue(null);
+
+    const req = new NextRequest(new URL("https://pocket-cep-12345.cr.gclb.goog/dashboard"), {
+      headers: { "x-forwarded-proto": "https" },
+    });
+    req.cookies.set("__Secure-better-auth.session_token", "signed-secure-token");
+
+    const res = await proxy(req);
+    expect(res.headers.get("location")).toBeNull();
+  });
 });
 
 describe("proxy — MCP reachability gate", () => {
@@ -188,6 +210,7 @@ describe("proxy — MCP reachability gate", () => {
     vi.doMock("better-auth/cookies", () => ({ getSessionCookie: mockGetSessionCookie }));
     vi.doMock("@/lib/doctor-checks", () => ({
       probeMcpServer: vi.fn().mockResolvedValue({ ok: false, message: "fetch failed" }),
+      probeMcpServerWithRetry: vi.fn().mockResolvedValue({ ok: false, message: "fetch failed" }),
     }));
     mockGetEnv.mockReturnValue({
       AUTH_MODE: "service_account",
@@ -219,6 +242,7 @@ describe("proxy — MCP reachability gate", () => {
     vi.doMock("better-auth/cookies", () => ({ getSessionCookie: mockGetSessionCookie }));
     vi.doMock("@/lib/doctor-checks", () => ({
       probeMcpServer: vi.fn().mockResolvedValue({ ok: true, message: "ok" }),
+      probeMcpServerWithRetry: vi.fn().mockResolvedValue({ ok: true, message: "ok" }),
     }));
     mockGetEnv.mockReturnValue({
       AUTH_MODE: "service_account",
@@ -247,7 +271,10 @@ describe("proxy — MCP reachability gate", () => {
       return { ...actual, getEnv: mockGetEnv };
     });
     vi.doMock("better-auth/cookies", () => ({ getSessionCookie: mockGetSessionCookie }));
-    vi.doMock("@/lib/doctor-checks", () => ({ probeMcpServer: probe }));
+    vi.doMock("@/lib/doctor-checks", () => ({
+      probeMcpServer: probe,
+      probeMcpServerWithRetry: probe,
+    }));
     mockGetEnv.mockReturnValue({
       AUTH_MODE: "user_oauth",
       MCP_SERVER_URL: "http://localhost:4000/mcp",
@@ -268,7 +295,10 @@ describe("proxy — MCP reachability gate", () => {
       return { ...actual, getEnv: mockGetEnv };
     });
     vi.doMock("better-auth/cookies", () => ({ getSessionCookie: mockGetSessionCookie }));
-    vi.doMock("@/lib/doctor-checks", () => ({ probeMcpServer: probe }));
+    vi.doMock("@/lib/doctor-checks", () => ({
+      probeMcpServer: probe,
+      probeMcpServerWithRetry: probe,
+    }));
     mockGetEnv.mockReturnValue({
       AUTH_MODE: "service_account",
       MCP_SERVER_URL: "http://localhost:4000/mcp",
