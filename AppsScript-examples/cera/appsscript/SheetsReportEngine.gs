@@ -23,6 +23,18 @@
  */
 
 /**
+ * Prefixes strings that Google Sheets would evaluate as a formula (= + - @, full-width variants,
+ * or leading tab/CR/LF/VT/FF) with a literal-text apostrophe, leaving normal prose and dates untouched.
+ */
+function sanitizeFormulaText_(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'string') return value;
+  if (value === '' || value === '-' || value === '—' || value === '–') return value;
+  if (/^[\s\uFEFF]*[=+\-@\uFF1D\uFF0B\uFF0D\uFF20]|^[\t\r\n\v\f]/.test(value)) return "'" + value;
+  return value;
+}
+
+/**
  * Makes a log-derived string safe to write into a cell.
  * Strings that Sheets would parse as a formula (= + - @, leading tab/CR) or
  * auto-convert to a number, date, percent or boolean ("1-2", "00123", "TRUE")
@@ -33,7 +45,8 @@ function sanitizeCellText_(value) {
   if (value === null || value === undefined) return '';
   if (typeof value !== 'string') return value;
   if (value === '' || value === '-' || value === '—' || value === '–') return value;
-  if (/^\s*[=+\-@\uFF1D\uFF0B\uFF0D\uFF20]|^[\t\r\n]/.test(value)) return "'" + value;
+  const escaped = sanitizeFormulaText_(value);
+  if (escaped !== value) return escaped;
   if (/\d/.test(value) && /^[\s\d.,:\/%$€£¥()eE+\-]+$/.test(value)) return "'" + value;
   if (/^\s*(true|false)\s*$/i.test(value)) return "'" + value;
   return value;
@@ -81,7 +94,7 @@ function reportPeakText_(outlierMetrics, lang) {
  * internal-domain map the Security Radar carries), for the destination-type columns.
  */
 function reportCorporateDomains_(state, radar) {
-  const map = {};
+  const map = Object.create(null);
   const add = m => Object.keys(m || {}).forEach(d => { map[d] = true; });
   add(state && state.securityRadar && state.securityRadar.passwordReuse && state.securityRadar.passwordReuse.internalDomains);
   add(radar && radar.internalDomains);
@@ -181,7 +194,7 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
       const namedDoms = domEntries.filter(e => !/^unknown (endpoint|destination)$/i.test(String(e.name).trim()) && e.name !== '-' && e.name !== 'N/A');
       if (namedDoms.length) topDomName = ceraDestinationLabel(namedDoms[0].name, lang);
 
-      const mergedOus = {};
+      const mergedOus = Object.create(null);
       Object.entries(v.ous || {}).forEach(e => {
         const cnt = typeof e[1] === 'object' ? reportNum_(e[1] && (e[1].total || e[1].count)) : reportNum_(e[1]);
         if (!e[0] || cnt <= 0) return;
@@ -218,7 +231,7 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   // Largest outbound channel and destination (uploads, pastes, prints; downloads are not data leaving)
   const outTotal = reportNum_(state.egress && state.egress.bytes);
   let outChannel = null;
-  const outDest = {};
+  const outDest = Object.create(null);
   ['personal', 'shadowAi', 'unmanaged', 'messaging'].forEach(k => {
     const v = vectors[k] || {};
     const b = reportNum_(v.egress && v.egress.bytes);
@@ -261,7 +274,7 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
     covExtraParts.push(ceraT('result.partial', { read: partRead, total: partTotal }, lang));
   }
   const coverageNote = baseCoverageNote + (covExtraParts.length ? ' • ' + covExtraParts.join(' • ') : '');
-  sheet.getRange('B3:S3').merge().setValue(coverageNote)
+  sheet.getRange('B3:S3').merge().setValue(sanitizeFormulaText_(coverageNote))
     .setFontStyle('italic').setFontColor('#64748B').setFontSize(8).setHorizontalAlignment('left');
 
   // KPI Hero Cards: transfers and volume of the four channels in every direction (downloads included)
@@ -352,7 +365,7 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   const briefing = briefingLines.join('\n');
 
   sheet.getRange('B7:S10').merge()
-    .setValue(briefing)
+    .setValue(sanitizeFormulaText_(briefing))
     .setBackground('#F8FAFC').setFontColor('#1E293B').setFontSize(9).setWrap(true).setVerticalAlignment('middle')
     .setBorder(true, true, true, true, false, false, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
 
@@ -374,8 +387,9 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
     sanitizeCellText_(vs.topOU)
   ]);
 
-  const numVectors = matrixRows.length;
-  sheet.getRange(14, 2, numVectors, 7).setValues(matrixRows).setFontSize(9);
+  const matrixRowsToWrite = matrixRows.length > 0 ? matrixRows : [['-', 0, '-', 0, '-', '-', '-']];
+  const numVectors = matrixRowsToWrite.length;
+  sheet.getRange(14, 2, numVectors, 7).setValues(matrixRowsToWrite).setFontSize(9);
   sheet.getRange(14, 3, numVectors, 1).setNumberFormat('#,##0');
   sheet.getRange(14, 4, numVectors, 1).setNumberFormat('0.0%');
   sheet.getRange(14, 5, numVectors, 1).setNumberFormat('#,##0.00');
@@ -422,12 +436,12 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
     : [printClause, sanctionedClause, copiesClause].filter(Boolean);
   if (b19Parts.length > 0) {
     sheet.getRange(14 + numVectors, 2, 1, 7).merge()
-      .setValue(b19Parts.join(sentSep))
+      .setValue(sanitizeFormulaText_(b19Parts.join(sentSep)))
       .setFontStyle('italic').setFontColor('#64748B').setFontSize(8).setWrap(true);
   }
   if (hasUnknownDest && printClause) {
     sheet.getRange(14 + numVectors + 1, 2, 1, 7).merge()
-      .setValue(printClause)
+      .setValue(sanitizeFormulaText_(printClause))
       .setFontStyle('italic').setFontColor('#64748B').setFontSize(8).setWrap(true);
   }
 
@@ -489,11 +503,11 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   const extPwStr = topExternalPw.length > 0 ? topExternalPw.map(x => ceraDestinationLabel(x.name, lang)).join(', ') : noneLogged;
   const pwContextNote = ceraT('report.adv.pwSites', { corporate: intPwStr, other: extPwStr }, lang);
   sheet.getRange('M21:P23').merge()
-    .setValue(pwContextNote)
+    .setValue(sanitizeFormulaText_(pwContextNote))
     .setBackground('#FFFFFF').setFontColor('#1E293B').setFontSize(8).setWrap(true).setVerticalAlignment('middle');
 
   sheet.getRange('Q21:S23').merge()
-    .setValue(recText(['password']))
+    .setValue(sanitizeFormulaText_(recText(['password'])))
     .setBackground('#FAF5FF').setFontColor('#6D28D9').setFontSize(8).setWrap(true).setVerticalAlignment('middle');
 
   // Row 24-26: Potentially Malicious Files
@@ -506,17 +520,17 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
   if (malUsersCount === 1) filesUsers = filesUsers.replace(/\(1 users\)/g, '(1 user)');
 
   sheet.getRange('L24:L26').merge()
-    .setValue(filesUsers)
+    .setValue(sanitizeFormulaText_(filesUsers))
     .setBackground('#FFFBEB').setFontColor('#D97706').setFontWeight('bold').setFontSize(8).setVerticalAlignment('middle').setHorizontalAlignment('center');
 
   const malFileStr = topMalFiles.length > 0 ? topMalFiles.map(x => x.name).join(', ') : noneLogged;
   const malContextNote = ceraT('report.adv.malFiles', { files: malFileStr }, lang);
   sheet.getRange('M24:P26').merge()
-    .setValue(malContextNote)
+    .setValue(sanitizeFormulaText_(malContextNote))
     .setBackground('#FFFFFF').setFontColor('#1E293B').setFontSize(8).setWrap(true).setVerticalAlignment('middle');
 
   sheet.getRange('Q24:S26').merge()
-    .setValue(recText(['malware']))
+    .setValue(sanitizeFormulaText_(recText(['malware'])))
     .setBackground('#FFFBEB').setFontColor('#B45309').setFontSize(8).setWrap(true).setVerticalAlignment('middle');
 
   // Row 27-29: Behavioral Outliers
@@ -547,7 +561,7 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
     ? outlierLines.join('\n')
     : ((s3Cards && s3Cards.funnelNarrative) ? s3Cards.funnelNarrative : ceraT('report.adv.outliersNone', null, lang));
   sheet.getRange('M27:P29').merge()
-    .setValue(outlierContextNote)
+    .setValue(sanitizeFormulaText_(outlierContextNote))
     .setBackground('#FFFFFF').setFontColor('#1E293B').setFontSize(8).setWrap(true).setVerticalAlignment('middle');
 
   sheet.getRange('Q27:S29').merge()
@@ -593,11 +607,11 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
       ceraT('report.adv.unsafeInternal', { n: unsafeInternal, total: unsafeCount }, lang);
   }
   sheet.getRange('M30:P32').merge()
-    .setValue(unsafeContextNote)
+    .setValue(sanitizeFormulaText_(unsafeContextNote))
     .setBackground('#FFFFFF').setFontColor('#1E293B').setFontSize(8).setWrap(true).setVerticalAlignment('middle');
 
   sheet.getRange('Q30:S32').merge()
-    .setValue(recText(['certs', 'safeBrowsing']))
+    .setValue(sanitizeFormulaText_(recText(['certs', 'safeBrowsing'])))
     .setBackground('#EFF6FF').setFontColor('#1E40AF').setFontSize(8).setWrap(true).setVerticalAlignment('middle');
 
   sheet.getRange('J19:S32').setBorder(true, true, true, true, true, true, '#CBD5E1', SpreadsheetApp.BorderStyle.SOLID);
@@ -636,13 +650,13 @@ function renderExecutiveOverview(ss, state, outlierMetrics) {
       : T(item.totalDlpGb > 0 || (item.totalDlpEvents || 0) > 0 || item.radarIncidents > 0 ? 'report.ov.statusActive' : 'report.status.noActivity');
 
     execTimelineRows.push([
-      item.displayDate || item.date,
+      sanitizeFormulaText_(item.displayDate || item.date),
       item.personalGb,
       item.shadowGb,
       item.unmanagedGb,
       item.messagingGb,
       item.radarIncidents,
-      status
+      sanitizeFormulaText_(status)
     ]);
   });
 
@@ -753,7 +767,8 @@ function renderPolicyOutcomesSheet(ss, state) {
     const domains = (vectors[k] && vectors[k].domains) || {};
     Object.keys(domains).forEach(d => {
       const e = domains[d] || {};
-      if (!e.egressOutcomes || !validOuName_(d)) return;
+      const okName = typeof validOuName_ === 'function' ? validOuName_(d) : !!d;
+      if (!e.egressOutcomes || !okName) return;
       const count = reportNum_(e.egressCount);
       const left = reportNum_(e.egressLeftCount);
       dests.push({ row: [sanitizeCellText_(T('deck.vector.' + k)), sanitizeCellText_(ceraDestinationLabel(d, lang)), count, left, count - left].concat(classCounts(e.egressOutcomes)),
@@ -810,7 +825,7 @@ function renderPolicyOutcomesSheet(ss, state) {
   const other = (state.outcomes && state.outcomes.other) || {};
   const otherList = Object.keys(other).sort().map(k => `${k} (${ceraFormatNumber(reportNum_(other[k]), lang)})`).join(', ');
   sheet.getRange(row, 2, 5, width).merge()
-    .setValue(T('report.outcomes.disclosure') + (otherList ? '\n' + T('report.outcomes.otherValues', { list: otherList }) : ''))
+    .setValue(sanitizeFormulaText_(T('report.outcomes.disclosure') + (otherList ? '\n' + T('report.outcomes.otherValues', { list: otherList }) : '')))
     .setBackground('#F8FAFC').setFontColor('#334155').setFontSize(8).setWrap(true).setVerticalAlignment('top')
     .setBorder(true, true, true, true, false, false, '#CBD5E1', SpreadsheetApp.BorderStyle.SOLID);
 
@@ -910,7 +925,7 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
     dlpNote + actionSplit + outcomeNote;
 
   sheet.getRange('K4:T5').merge()
-    .setValue(vectorSummary)
+    .setValue(sanitizeFormulaText_(vectorSummary))
     .setBackground('#F8FAFC').setFontColor('#1E293B').setFontSize(9).setWrap(true).setVerticalAlignment('middle')
     .setBorder(true, true, true, true, false, false, '#CBD5E1', SpreadsheetApp.BorderStyle.SOLID);
 
@@ -947,7 +962,7 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
   const timelineRows = [];
   timelineSeries.forEach(item => {
     timelineRows.push([
-      item.displayDate || item.date,
+      sanitizeFormulaText_(item.displayDate || item.date),
       item.uploadGb,
       item.totalEvents,
       item.totalGb,
@@ -1059,7 +1074,7 @@ function renderVectorSheetWithCharts(ss, v, stateOrDomains) {
       const sp = topSpikes[s];
       spikeRows.push([
         s + 1,
-        sp.date,
+        sanitizeFormulaText_(sp.date),
         sp.totalGb,
         sp.totalEvents,
         `${reportNum_(sp.burstMultiple || 1).toFixed(1)}x`,
@@ -1233,7 +1248,7 @@ function renderSecurityRadarSheetWithCharts(ss, radar, state) {
   const topSpike = topSpikes.length > 0 ? topSpikes[0] : null;
   const burstText = topSpike ? T('report.radar.peakValue', { multiple: reportNum_(topSpike.burstMultiple || 1).toFixed(1), date: topSpike.date }) : T('report.radar.peakNone');
   sheet.getRange('H4:I4').merge().setValue(T('report.radar.kpiPeak')).setFontColor('#64748B').setFontSize(9).setFontWeight('bold').setHorizontalAlignment('center');
-  sheet.getRange('H5:I5').merge().setValue(burstText).setFontColor('#EA580C').setFontSize(11).setFontWeight('bold').setHorizontalAlignment('center');
+  sheet.getRange('H5:I5').merge().setValue(sanitizeFormulaText_(burstText)).setFontColor('#EA580C').setFontSize(11).setFontWeight('bold').setHorizontalAlignment('center');
   sheet.getRange('H4:I5').setBackground('#FFFBEB').setBorder(true, true, true, true, false, false, '#FDE68A', SpreadsheetApp.BorderStyle.SOLID);
 
   // Card 5: Dynamic Executive Radar Summary
@@ -1252,7 +1267,7 @@ function renderSecurityRadarSheetWithCharts(ss, radar, state) {
     : ceraT('report.radar.summaryNone', null, lang);
 
   sheet.getRange('K4:T5').merge()
-    .setValue(radarSummary)
+    .setValue(sanitizeFormulaText_(radarSummary))
     .setBackground('#F8FAFC').setFontColor('#1E293B').setFontSize(9).setWrap(true).setVerticalAlignment('middle')
     .setBorder(true, true, true, true, false, false, '#CBD5E1', SpreadsheetApp.BorderStyle.SOLID);
 
@@ -1293,7 +1308,7 @@ function renderSecurityRadarSheetWithCharts(ss, radar, state) {
     const total = reportNum_(item.total);
     const bPct = (warned + bypassed > 0) ? (bypassed / (warned + bypassed)) : 0;
     timelineRows.push([
-      item.displayDate || item.date,
+      sanitizeFormulaText_(item.displayDate || item.date),
       reportNum_(item.unsafe),
       reportNum_(item.password),
       reportNum_(item.malware),
@@ -1458,7 +1473,7 @@ function renderSecurityRadarSheetWithCharts(ss, radar, state) {
  */
 function renderBrowserLaunchSection_(sheet, lf, startRow, lang) {
   const T = (key, params) => ceraT(key, params, lang);
-  const countCell = c => (c.exact ? c.n : (c.n > 0 ? T('report.launch.atLeast', { n: c.n }) : T('report.launch.notReportedCell')));
+  const countCell = c => sanitizeFormulaText_(c.exact ? c.n : (c.n > 0 ? T('report.launch.atLeast', { n: c.n }) : T('report.launch.notReportedCell')));
   let row = startRow;
 
   sheet.getRange(row, 2, 1, 19).merge()
@@ -1469,10 +1484,14 @@ function renderBrowserLaunchSection_(sheet, lf, startRow, lang) {
     .setFontStyle('italic').setFontColor('#64748B').setFontSize(8);
   const summaryParams = { launches: lf.launches, events: lf.events, routine: lf.routine, other: lf.nonRoutine, nr: lf.notReported };
   sheet.getRange(row + 2, 2, 1, 19).merge()
-    .setValue(T(lf.notReported > 0 ? 'report.launch.summaryNotReported' : 'report.launch.summary', summaryParams))
-    .setBackground('#EEF2FF').setFontColor('#312E81').setFontSize(9).setWrap(true).setVerticalAlignment('middle')
-    .setBorder(true, true, true, true, false, false, '#C7D2FE', SpreadsheetApp.BorderStyle.SOLID);
-  row += 4;
+    .setValue(sanitizeFormulaText_(T(lf.notReported > 0 ? 'report.launch.summaryNotReported' : 'report.launch.summary', summaryParams)))
+    .setBackground('#F0F9FF').setFontColor('#0C4A6E').setFontSize(9).setWrap(true).setVerticalAlignment('middle')
+    .setBorder(true, true, true, true, false, false, '#BAE6FD', SpreadsheetApp.BorderStyle.SOLID);
+  sheet.getRange(row + 3, 2, 1, 19).merge()
+    .setValue(sanitizeFormulaText_(T('report.launch.infoNote')))
+    .setBackground('#E0F2FE').setFontColor('#0369A1').setFontSize(8.5).setWrap(true).setVerticalAlignment('middle')
+    .setBorder(true, true, true, true, false, false, '#7DD3FC', SpreadsheetApp.BorderStyle.SOLID);
+  row += 5;
 
   // Launches per class of switches (left) and the switches with the most launches (right)
   sheet.getRange(row, 3, 1, 5).merge().setValue(T('report.launch.classesTitle'))
@@ -1486,9 +1505,10 @@ function renderBrowserLaunchSection_(sheet, lf, startRow, lang) {
   sheet.getRange(row + 1, 10, 1, switchHeaders.length).setValues([switchHeaders])
     .setBackground('#F1F5F9').setFontColor('#334155').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center');
 
-  const classRows = lf.classes.map(c => [T('deck.launch.class.' + c.id), c.launches, countCell(c.people), countCell(c.devices), T('deck.launch.what.' + c.id)]);
-  if (lf.routine > 0) classRows.push([T('report.launch.routine'), lf.routine, countCell(lf.routinePeople), countCell(lf.routineDevices), T('report.launch.what.routine')]);
-  if (lf.notReported > 0) classRows.push([T('report.launch.notReported'), lf.notReported, countCell(lf.notReportedPeople), countCell(lf.notReportedDevices), T('report.launch.what.notReported')]);
+  const classRows = lf.classes.map(c => [sanitizeCellText_(T('deck.launch.class.' + c.id)), c.launches, countCell(c.people), countCell(c.devices), sanitizeFormulaText_(T('deck.launch.what.' + c.id))]);
+  if (lf.routine > 0) classRows.push([sanitizeCellText_(T('report.launch.routine')), lf.routine, countCell(lf.routinePeople), countCell(lf.routineDevices), sanitizeFormulaText_(T('report.launch.what.routine'))]);
+  if (lf.notReported > 0) classRows.push([sanitizeCellText_(T('report.launch.notReported')), lf.notReported, countCell(lf.notReportedPeople), countCell(lf.notReportedDevices), sanitizeFormulaText_(T('report.launch.what.notReported'))]);
+  if (classRows.length === 0) classRows.push(['-', 0, '-', '-', '-']);
   sheet.getRange(row + 2, 3, classRows.length, classHeaders.length).setValues(classRows).setFontSize(8);
   sheet.getRange(row + 2, 4, classRows.length, 3).setNumberFormat('#,##0');
   sheet.getRange(row + 2, 3, classRows.length, classHeaders.length).setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
@@ -1563,7 +1583,7 @@ function renderTop5ActorsTimelineSection(sheet, v, vectorAnalytics, startRow, la
       date: act.peakDate, multiple: actBurst.toFixed(1), action: act.dominantAction
     });
     sheet.getRange(currentRow, 2, 1, 19).merge()
-      .setValue(subTitle)
+      .setValue(sanitizeFormulaText_(subTitle))
       .setBackground('#F1F5F9').setFontColor('#1E293B').setFontWeight('bold').setFontSize(9).setHorizontalAlignment('left');
 
     // Table Headers (Cols 2 to 7)
@@ -1580,12 +1600,12 @@ function renderTop5ActorsTimelineSection(sheet, v, vectorAnalytics, startRow, la
         : (dayHasActivity ? T('report.vec.statusNormal') : T('report.status.noActivity'));
 
       dayRows.push([
-        d.displayDate || d.date,
+        sanitizeFormulaText_(d.displayDate || d.date),
         d.uploadGb,
         d.totalEvents,
         d.totalGb,
         d.uploadCount,
-        status
+        sanitizeFormulaText_(status)
       ]);
     });
 
@@ -1743,7 +1763,7 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
   const callout3A = calloutParts3A.join(sentSep);
 
   sheet.getRange(currentRow, 2, 1, 19).merge()
-    .setValue(callout3A)
+    .setValue(sanitizeFormulaText_(callout3A))
     .setBackground('#EFF6FF').setFontColor('#1E3A8A').setFontSize(9).setWrap(true).setVerticalAlignment('middle')
     .setBorder(true, true, true, true, false, false, '#BFDBFE', SpreadsheetApp.BorderStyle.SOLID);
 
@@ -1794,7 +1814,7 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
     : T('deck.sig.pwNone');
 
   sheet.getRange(currentRow, 2, 1, 19).merge()
-    .setValue(callout3B)
+    .setValue(sanitizeFormulaText_(callout3B))
     .setBackground('#FEF3C7').setFontColor('#78350F').setFontSize(9).setWrap(true).setVerticalAlignment('middle')
     .setBorder(true, true, true, true, false, false, '#FDE68A', SpreadsheetApp.BorderStyle.SOLID);
 
@@ -1823,9 +1843,11 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
   // Without an Event Result for these downloads, warnings shown / bypassed are unknown rather than 0
   const malResultUnknown = detailed.malwareResultReported === false;
   const malFiles = (radar && radar.signals && radar.signals.malwareTransfer && radar.signals.malwareTransfer.files) || {};
+  const malEntryOf = name => (name && Object.prototype.hasOwnProperty.call(malFiles, name) ? malFiles[name] : null);
   // The reason Chrome logged for a file (MALWARE_TRANSFER_* or Console label -> localized catalog entry)
   const malReason = name => {
-    const raw = String((malFiles[name] && malFiles[name].reason) || '').trim();
+    const f = malEntryOf(name);
+    const raw = String((f && f.reason) || '').trim();
     if (typeof ceraMalwareReasonKey_ === 'function') {
       const mKey = ceraMalwareReasonKey_(raw);
       return mKey ? T('report.radar.malCode.' + mKey) : raw;
@@ -1837,7 +1859,7 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
   };
   // The outcome the log reports: bypassed, blocked or warned, otherwise only detected
   const malOutcome = item => {
-    const f = malFiles[item.fileName] || {};
+    const f = malEntryOf(item.fileName) || {};
     if (reportNum_(item.bypassed) > 0) return T('report.radar.outcome.bypassed');
     if (reportNum_(f.blocked) > 0) return T('report.radar.outcome.blocked');
     if (reportNum_(item.warned) > 0) return T('report.radar.outcome.warned');
@@ -1849,7 +1871,7 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
       const item = malList[m];
       const enfStatus = malResultUnknown ? ceraT('report.radar.unreported', null, lang) : malOutcome(item);
       malRows.push([m + 1, sanitizeCellText_(ceraFileLabel(item.fileName, item.domain, lang)), sanitizeCellText_(malReason(item.fileName)), sanitizeCellText_(ceraDestinationLabel(item.domain, lang)), reportNum_(item.total),
-        malResultUnknown ? '' : reportNum_(item.warned) + reportNum_(item.bypassed), malResultUnknown ? '' : reportNum_(item.bypassed), enfStatus]);
+        malResultUnknown ? '' : reportNum_(item.warned) + reportNum_(item.bypassed), malResultUnknown ? '' : reportNum_(item.bypassed), sanitizeCellText_(enfStatus)]);
     } else {
       malRows.push([m + 1, '-', '-', '-', '', '', '', '-']);
     }
@@ -1870,7 +1892,7 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
   if (topMalItem && !malResultUnknown && malBypassed > 0) callout3C += sentSep + T('report.radar.callout3CBypass', { n: malBypassed });
 
   sheet.getRange(currentRow, 2, 1, 19).merge()
-    .setValue(callout3C)
+    .setValue(sanitizeFormulaText_(callout3C))
     .setBackground('#FEF2F2').setFontColor('#991B1B').setFontSize(9).setWrap(true).setVerticalAlignment('middle')
     .setBorder(true, true, true, true, false, false, '#FECACA', SpreadsheetApp.BorderStyle.SOLID);
 
@@ -1911,7 +1933,7 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
       date: act.peakDate, multiple: actBurst.toFixed(1), signal: act.dominantAction
     });
     sheet.getRange(currentRow, 2, 1, 19).merge()
-      .setValue(subTitle)
+      .setValue(sanitizeFormulaText_(subTitle))
       .setBackground('#F1F5F9').setFontColor('#1E293B').setFontWeight('bold').setFontSize(9).setHorizontalAlignment('left');
 
     sheet.getRange(currentRow + 1, 2, 1, secColHeaders.length).setValues([secColHeaders])
@@ -1926,14 +1948,14 @@ function renderSecurityRadarGranularSections(sheet, radar, radarAnalytics, start
         : (d.total > 0 ? T('report.radar.statusNormal') : T('report.radar.statusNone'));
 
       dayRows.push([
-        d.displayDate || d.date,
+        sanitizeFormulaText_(d.displayDate || d.date),
         d.unsafe,
         d.password,
         d.malware,
         d.bypassed,
         d.warned,
         d.total,
-        status
+        sanitizeFormulaText_(status)
       ]);
     });
 

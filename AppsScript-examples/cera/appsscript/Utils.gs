@@ -236,7 +236,7 @@ function matchGenAiHost(host) {
   if (isGenAiExcludedHost(h)) return '';
   const hit = matchDomainList(h, cfg.GENAI_TOOLS || []);
   if (!hit) return '';
-  return (cfg.GENAI_CANONICAL && cfg.GENAI_CANONICAL[hit]) || hit;
+  return (cfg.GENAI_CANONICAL && Object.prototype.hasOwnProperty.call(cfg.GENAI_CANONICAL, hit) && cfg.GENAI_CANONICAL[hit]) || hit;
 }
 
 function isGenAiHost(host) {
@@ -254,7 +254,7 @@ function isGenAiExcludedHost(host) {
 var _ceraTimeZone_ = null;
 var _ceraReportTimeZone_ = '';
 var _ceraDayKeyTz_ = null;
-var _ceraDayKeyCache_ = {};
+var _ceraDayKeyCache_ = Object.create(null);
 
 /**
  * Validates an IANA or UTC/GMT offset time zone identifier. Returns the trimmed identifier when valid, or ''.
@@ -284,9 +284,9 @@ function ceraSetReportTimeZone_(tz) {
   _ceraReportTimeZone_ = ceraValidateTimeZone_(tz);
   _ceraTimeZone_ = null;
   _ceraDayKeyTz_ = null;
-  _ceraDayKeyCache_ = {};
+  _ceraDayKeyCache_ = Object.create(null);
   _ceraHourCacheTz_ = null;
-  _ceraHourCache_ = {};
+  _ceraHourCache_ = Object.create(null);
   return ceraTimeZone();
 }
 
@@ -321,7 +321,7 @@ function ceraTimeZone(tzOverride) {
  * multiple of 15 minutes), which keeps the per-row cost low.
  */
 var _ceraHourCacheTz_ = null;
-var _ceraHourCache_ = {};
+var _ceraHourCache_ = Object.create(null);
 
 /**
  * Whether the time falls on a Saturday or Sunday in the report time zone.
@@ -337,7 +337,7 @@ function ceraIsAfterHoursMs_(ms) {
   const tzKey = tz + '|' + hours.start + '|' + hours.end;
   if (_ceraHourCacheTz_ !== tzKey) {
     _ceraHourCacheTz_ = tzKey;
-    _ceraHourCache_ = {};
+    _ceraHourCache_ = Object.create(null);
   }
   const slot = Math.floor(ms / 900000);
   if (_ceraHourCache_[slot] !== undefined) return _ceraHourCache_[slot];
@@ -366,7 +366,7 @@ function ceraDayKeyMs_(ms) {
   const tz = ceraTimeZone();
   if (_ceraDayKeyTz_ !== tz) {
     _ceraDayKeyTz_ = tz;
-    _ceraDayKeyCache_ = {};
+    _ceraDayKeyCache_ = Object.create(null);
   }
   const slot = Math.floor(ms / 900000);
   const cached = _ceraDayKeyCache_[slot];
@@ -726,7 +726,13 @@ function ceraSharedHostingSuffix(host) {
  * Browser-internal and local schemes. A destination on one of them is a page of the browser or a file on the device,
  * never an outside app; ingestion can keep the bare scheme as the destination name ("chrome-untrusted").
  */
-var CERA_LOCAL_SCHEMES = { 'chrome': 'browser', 'chrome-untrusted': 'browser', 'chrome-extension': 'browser', 'devtools': 'browser', 'file': 'local' };
+var CERA_LOCAL_SCHEMES = Object.assign(Object.create(null), {
+  'chrome': 'browser',
+  'chrome-untrusted': 'browser',
+  'chrome-extension': 'browser',
+  'devtools': 'browser',
+  'file': 'local'
+});
 
 /**
  * What a destination name, host or URL is, for its label: 'browser' (a browser page), 'local' (a local file),
@@ -880,7 +886,7 @@ function extractMainDomain(domainStr) {
   return parts.slice(-2).join('.');
 }
 
-var CERA_PSEUDO_TAB_HOSTS_ = {
+var CERA_PSEUDO_TAB_HOSTS_ = Object.assign(Object.create(null), {
   'about': true,
   'blob': true,
   'data': true,
@@ -909,7 +915,7 @@ var CERA_PSEUDO_TAB_HOSTS_ = {
   'local file': true,
   'local file / pdf': true,
   'direct browser protocol': true
-};
+});
 
 function ceraIsPseudoTabHost_(raw) {
   const s = String(raw === null || raw === undefined ? '' : raw).trim().toLowerCase();
@@ -1081,10 +1087,15 @@ function formatDisplayDate(dateInput, includeYear, lang) {
   // which would read them as UTC midnight and shift them a day in negative-offset time zones
   const key = typeof dateInput === 'string' && dateInput.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (key) {
-    const localized = local ? ceraLocaleDate_(key[1], key[2], key[3], includeYear, lang) : null;
-    if (localized) return localized;
-    const label = key[3] + ' ' + months[Number(key[2]) - 1];
-    return (includeYear !== false) ? (label + ' ' + key[1]) : label;
+    const mNum = Number(key[2]);
+    const dNum = Number(key[3]);
+    if (mNum >= 1 && mNum <= 12 && dNum >= 1 && dNum <= 31) {
+      const localized = local ? ceraLocaleDate_(key[1], key[2], key[3], includeYear, lang) : null;
+      if (localized) return localized;
+      const label = key[3] + ' ' + months[mNum - 1];
+      return (includeYear !== false) ? (label + ' ' + key[1]) : label;
+    }
+    return String(dateInput);
   }
   let d = null;
   if (dateInput instanceof Date) {
@@ -1775,7 +1786,7 @@ function normalizeUrlCategory(input) {
   } else {
     // 1. Direct API code match (e.g. "INTERNET_AND_TECHNOLOGY__GENERATIVE_AI")
     const upper = str.toUpperCase().replace(/\s+/g, '_');
-    if (URL_CATEGORY_API_MAP[upper]) {
+    if (Object.prototype.hasOwnProperty.call(URL_CATEGORY_API_MAP, upper)) {
       res = URL_CATEGORY_API_MAP[upper];
     } else if (str.startsWith('/')) {
       // 2. Slash-delimited path (e.g. "/Internet & Technology/Generative AI")

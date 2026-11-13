@@ -123,8 +123,9 @@ function computeOutlierAnalytics(outliers, state) {
   let scatterBytes = 0;
 
   Object.keys(outliers.actorEndpoints || {}).sort().forEach(actor => {
-    const act = outliers.actorEndpoints[actor];
-    if (act.totalBytes < 50 * (1024 ** 2)) return; // Minimum 50 MB threshold
+    const act = ceraOwnGet_(outliers.actorEndpoints, actor);
+    const actBytes = ceraSafeBytes_(act && act.totalBytes);
+    if (!act || actBytes < 50 * (1024 ** 2)) return; // Minimum 50 MB threshold
 
     // Herfindahl-Hirschman Index (HHI) calculation
     let sumSquares = 0;
@@ -133,29 +134,30 @@ function computeOutlierAnalytics(outliers, state) {
     const domainKeys = Object.keys(act.domains || {}).sort();
 
     domainKeys.forEach(dom => {
-      const share = act.domains[dom] / act.totalBytes;
+      const domBytes = ceraSafeBytes_(ceraOwnGet_(act.domains, dom));
+      const share = actBytes > 0 ? (domBytes / actBytes) : 0;
       sumSquares += (share * share);
-      if (act.domains[dom] > localMaxDomainBytes) {
-        localMaxDomainBytes = act.domains[dom];
+      if (domBytes > localMaxDomainBytes) {
+        localMaxDomainBytes = domBytes;
         localMaxDomain = dom;
       }
     });
 
     const higherHHI = sumSquares > maxHHI + SHARE_EPSILON;
     const sameHHI = Math.abs(sumSquares - maxHHI) <= SHARE_EPSILON;
-    if (topFunnelActor === 'N/A' || higherHHI || (sameHHI && act.totalBytes > funnelBytes)) {
+    if (topFunnelActor === 'N/A' || higherHHI || (sameHHI && actBytes > funnelBytes)) {
       maxHHI = sumSquares;
       topFunnelActor = actor;
       topFunnelOU = ceraFormatOuDisplay_(act.ou, lang);
       topFunnelDomain = localMaxDomain;
-      funnelBytes = act.totalBytes;
+      funnelBytes = actBytes;
     }
 
-    if (domainKeys.length > maxScatterCount || (domainKeys.length === maxScatterCount && act.totalBytes > scatterBytes)) {
+    if (domainKeys.length > maxScatterCount || (domainKeys.length === maxScatterCount && actBytes > scatterBytes)) {
       maxScatterCount = domainKeys.length;
       topScatterActor = actor;
       topScatterOU = ceraFormatOuDisplay_(act.ou, lang);
-      scatterBytes = act.totalBytes;
+      scatterBytes = actBytes;
     }
   });
 
@@ -166,19 +168,21 @@ function computeOutlierAnalytics(outliers, state) {
 
   Object.keys(outliers.ouActors || {}).sort().forEach(ou => {
     if (typeof ceraIsUnreportedOu_ === 'function' && ceraIsUnreportedOu_(ou)) return;
-    const o = outliers.ouActors[ou];
-    if (o.totalBytes < 100 * (1024 ** 2)) return;
+    const o = ceraOwnGet_(outliers.ouActors, ou);
+    const oBytes = ceraSafeBytes_(o && o.totalBytes);
+    if (!o || oBytes < 100 * (1024 ** 2)) return;
     let maxUserBytes = 0;
-    for (let u in (o.users || {})) {
-      if (o.users[u] > maxUserBytes) maxUserBytes = o.users[u];
-    }
-    const ratio = o.totalBytes > 0 ? (maxUserBytes / o.totalBytes) : 0;
+    Object.keys(o.users || {}).forEach(u => {
+      const ub = ceraSafeBytes_(ceraOwnGet_(o.users, u));
+      if (ub > maxUserBytes) maxUserBytes = ub;
+    });
+    const ratio = oBytes > 0 ? (maxUserBytes / oBytes) : 0;
     const higher = ratio > topSkewRatio + SHARE_EPSILON;
     const same = Math.abs(ratio - topSkewRatio) <= SHARE_EPSILON;
-    if (ratio > 0 && (higher || (same && o.totalBytes > skewBytes))) {
+    if (ratio > 0 && (higher || (same && oBytes > skewBytes))) {
       topSkewRatio = ratio;
       topSkewOU = ou;
-      skewBytes = o.totalBytes;
+      skewBytes = oBytes;
     }
   });
 
@@ -240,8 +244,12 @@ var CERA_PEAK_RULE = { minActiveDays: 7, minMedianMultiple: 2.5 };
  */
 function ceraPeakStats(daily) {
   const src = daily || {};
+  const safeCount = v => { const n = Number(v); return (isFinite(n) && n > 0) ? n : 0; };
   const days = Object.keys(src).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k)).sort()
-    .map(k => ({ key: k, bytes: Number(src[k] && src[k].bytes) || 0, count: Number(src[k] && src[k].count) || 0 }))
+    .map(k => {
+      const e = ceraOwnGet_(src, k);
+      return { key: k, bytes: ceraSafeBytes_(e && e.bytes), count: safeCount(e && e.count) };
+    })
     .filter(d => d.bytes > 0 || d.count > 0);
   const totalBytes = days.reduce((s, d) => s + d.bytes, 0);
   const totalCount = days.reduce((s, d) => s + d.count, 0);
@@ -299,16 +307,16 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
 
   const actors = [];
   Object.keys(outliers.actorEndpoints || {}).sort().forEach(u => {
-    const a = outliers.actorEndpoints[u] || {};
+    const a = ceraOwnGet_(outliers.actorEndpoints, u) || {};
     const rawOu = a.ou || '';
     if (!isValid(rawOu)) return;
     const ou = ceraFormatOuDisplay_(rawOu, l);
-    const totalBytes = Number(a.totalBytes) || 0;
+    const totalBytes = ceraSafeBytes_(a.totalBytes);
     const domKeys = Object.keys(a.domains || {}).filter(isValid).sort();
     const domainCounts = a.domainCounts || {};
-    let totalCount = Number(a.totalCount) || 0;
+    let totalCount = Math.max(0, Number(a.totalCount) || 0);
     if (!totalCount && domKeys.length) {
-      totalCount = domKeys.reduce((s, d) => s + (Number(domainCounts[d]) || (Number(a.domains[d]) > 0 ? 1 : 0)), 0);
+      totalCount = domKeys.reduce((s, d) => s + (Math.max(0, Number(ceraOwnGet_(domainCounts, d)) || 0) || (ceraSafeBytes_(ceraOwnGet_(a.domains, d)) > 0 ? 1 : 0)), 0);
     }
     const byCount = !(totalBytes > 0) && totalCount > 0;
     const totalVal = byCount ? totalCount : totalBytes;
@@ -320,8 +328,8 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
     let topDomCount = 0;
     let topDomVal = -1;
     domKeys.forEach(d => {
-      const db = Number(a.domains[d]) || 0;
-      const dc = Number(domainCounts[d]) || (db > 0 ? 1 : 0);
+      const db = ceraSafeBytes_(ceraOwnGet_(a.domains, d));
+      const dc = Math.max(0, Number(ceraOwnGet_(domainCounts, d)) || 0) || (db > 0 ? 1 : 0);
       const dv = byCount ? dc : db;
       const share = dv / totalVal;
       hhi += share * share;
@@ -333,7 +341,7 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
       }
     });
     const topShare = totalVal > 0 ? topDomVal / totalVal : 0;
-    const dayRec = (peakKey && a.days && a.days[peakKey]) || null;
+    const dayRec = (peakKey && a.days && ceraOwnGet_(a.days, peakKey)) || null;
     const peakBytes = dayRec ? (Number(dayRec.bytes) || 0) : 0;
     const peakCount = dayRec ? (Number(dayRec.count) || 0) : 0;
     const peakVal = byCount ? peakCount : peakBytes;
@@ -461,19 +469,19 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
   // 3. Card 3: Intra-Unit Skew & Peak-Day Unit Activity
   const skew = (typeof ceraUnitSkew === 'function') ? ceraUnitSkew(state) : null;
   const hasSkew = !!skew;
-  const skewOU = hasSkew ? skew.ou : NR;
+  const skewOU = hasSkew ? ceraFormatOuDisplay_(skew.ou, l) : NR;
   const skewRatio = hasSkew ? skew.ratio : 0;
   const skewPct = Math.round(skewRatio * 100) + '%';
   const skewSize = fmtB(CERA_SKEW_RULE.minBytes);
 
   let peakUnit = null;
-  const dayEntry = (peakKey && outliers.dailyEgress && outliers.dailyEgress[peakKey]) || null;
-  const dayOus = (peakKey && outliers.dailyEgressOus && outliers.dailyEgressOus[peakKey]) || (dayEntry && dayEntry.ous) || {};
+  const dayEntry = (peakKey && outliers.dailyEgress && ceraOwnGet_(outliers.dailyEgress, peakKey)) || null;
+  const dayOus = (peakKey && outliers.dailyEgressOus && ceraOwnGet_(outliers.dailyEgressOus, peakKey)) || (dayEntry && dayEntry.ous) || {};
   const dayTotalVal = dayEntry ? (globalByCount ? (Number(dayEntry.count) || 0) : (Number(dayEntry.bytes) || 0)) : 0;
   Object.keys(dayOus).filter(isValid).sort().forEach(ou => {
-    const o = dayOus[ou] || {};
-    const b = Number(o.bytes) || 0;
-    const c = Number(o.count) || 0;
+    const o = ceraOwnGet_(dayOus, ou) || {};
+    const b = ceraSafeBytes_(o.bytes);
+    const c = Math.max(0, Number(o.count) || 0);
     const v = globalByCount ? c : b;
     if (v <= 0) return;
     const isRealOu = typeof ceraIsUnreportedOu_ !== 'function' || !ceraIsUnreportedOu_(ou);
@@ -481,7 +489,7 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
     if (!peakUnit) {
       shouldReplace = true;
     } else {
-      const peakIsReal = typeof ceraIsUnreportedOu_ !== 'function' || !ceraIsUnreportedOu_(peakUnit.ou);
+      const peakIsReal = typeof ceraIsUnreportedOu_ !== 'function' || !ceraIsUnreportedOu_(peakUnit.rawOu);
       if (isRealOu && !peakIsReal) {
         shouldReplace = true;
       } else if (isRealOu === peakIsReal) {
@@ -495,12 +503,12 @@ function ceraSlide3Cards(state, om, egressVelocity, lang) {
       let topDom = '';
       let topDomVal = -1;
       Object.keys(o.domains || {}).filter(isValid).sort().forEach(d => {
-        const domObj = o.domains[d] || {};
-        const dv = globalByCount ? (Number(domObj.count) || 0) : (Number(domObj.bytes) || 0);
+        const domObj = ceraOwnGet_(o.domains, d) || {};
+        const dv = globalByCount ? (Math.max(0, Number(domObj.count) || 0)) : ceraSafeBytes_(domObj.bytes);
         if (dv > topDomVal) { topDomVal = dv; topDom = d; }
       });
       peakUnit = {
-        ou: ou, bytes: b, count: c, val: v,
+        rawOu: ou, ou: ceraFormatOuDisplay_(ou, l), bytes: b, count: c, val: v,
         share: dayTotalVal > 0 ? Math.round((v / dayTotalVal) * 100) + '%' : '100%',
         topDom: topDom
       };
@@ -590,19 +598,21 @@ function computeVectorTimelineAnalytics(vectorTimeline, vectorActors, lang, boun
   let sumEvents = 0;
 
   dates.forEach(d => {
-    const item = vectorTimeline[d] || {};
+    const item = ceraOwnGet_(vectorTimeline, d) || {};
     const evts = (item.totalEvents !== undefined && item.totalEvents !== null) ? item.totalEvents : (item.totalCount || 0);
-    sumBytes += (item.totalBytes || 0);
+    const upBytes = ceraSafeBytes_(item.uploadBytes) + ceraSafeBytes_(item.pasteBytes);
+    const upCount = (Number(item.uploadCount) || 0) + (Number(item.pasteCount) || 0);
+    sumBytes += ceraSafeBytes_(item.totalBytes);
     sumEvents += evts;
     const dispDate = typeof formatDisplayDate === 'function' ? formatDisplayDate(d, true, lang) : d;
     timelineSeries.push({
       date: d,
       displayDate: dispDate,
-      uploadGb: (item.uploadBytes || 0) / (1024 ** 3),
-      downloadGb: (item.downloadBytes || 0) / (1024 ** 3),
-      printGb: (item.printBytes || 0) / (1024 ** 3),
-      totalGb: (item.totalBytes || 0) / (1024 ** 3),
-      uploadCount: item.uploadCount || 0,
+      uploadGb: upBytes / (1024 ** 3),
+      downloadGb: ceraSafeBytes_(item.downloadBytes) / (1024 ** 3),
+      printGb: ceraSafeBytes_(item.printBytes) / (1024 ** 3),
+      totalGb: ceraSafeBytes_(item.totalBytes) / (1024 ** 3),
+      uploadCount: upCount,
       downloadCount: item.downloadCount || 0,
       printCount: item.printCount || 0,
       totalEvents: evts
@@ -656,15 +666,17 @@ function computeVectorTimelineAnalytics(vectorTimeline, vectorActors, lang, boun
   const actorList = Object.values(vectorActors);
   actorList.sort((a, b) => (b.totalBytes || 0) - (a.totalBytes || 0) || (b.totalEvents || 0) - (a.totalEvents || 0));
   const top10Actors = actorList.slice(0, 10).map((act, idx) => {
+    const upBytes = ceraSafeBytes_(act.uploadBytes) + ceraSafeBytes_(act.pasteBytes);
+    const upCount = (Number(act.uploadCount) || 0) + (Number(act.pasteCount) || 0);
     return {
       rank: idx + 1,
       user: act.user || notRecorded,
       ou: act.ou ? ceraFormatOuDisplay_(act.ou, lang) : notRecorded,
-      uploadGb: (act.uploadBytes || 0) / (1024 ** 3),
-      downloadGb: (act.downloadBytes || 0) / (1024 ** 3),
-      printGb: (act.printBytes || 0) / (1024 ** 3),
-      totalGb: (act.totalBytes || 0) / (1024 ** 3),
-      uploadCount: act.uploadCount || 0,
+      uploadGb: upBytes / (1024 ** 3),
+      downloadGb: ceraSafeBytes_(act.downloadBytes) / (1024 ** 3),
+      printGb: ceraSafeBytes_(act.printBytes) / (1024 ** 3),
+      totalGb: ceraSafeBytes_(act.totalBytes) / (1024 ** 3),
+      uploadCount: upCount,
       downloadCount: act.downloadCount || 0,
       printCount: act.printCount || 0,
       totalEvents: act.totalEvents || 0
@@ -754,15 +766,15 @@ function computeSecurityRadarAnalytics(radar, lang, bounds) {
   });
 
   // 3. Top 10 Impacted Organizational Units (normalized to report language)
-  const mergedRadarOus = {};
+  const mergedRadarOus = Object.create(null);
   Object.entries(radar.ous || {}).forEach(entry => {
     const rawKey = entry[0];
     const dispOu = ceraFormatOuDisplay_(rawKey, lang);
     if (!mergedRadarOus[dispOu]) mergedRadarOus[dispOu] = { ou: dispOu, incidents: 0, unsafe: 0, password: 0, malware: 0 };
     mergedRadarOus[dispOu].incidents += (Number(entry[1]) || 0);
-    mergedRadarOus[dispOu].unsafe += Number((radar.signals && radar.signals.unsafeSiteVisit && radar.signals.unsafeSiteVisit.ous && radar.signals.unsafeSiteVisit.ous[rawKey]) || 0);
-    mergedRadarOus[dispOu].password += Number((radar.signals && radar.signals.passwordReuse && radar.signals.passwordReuse.ous && radar.signals.passwordReuse.ous[rawKey]) || 0);
-    mergedRadarOus[dispOu].malware += Number((radar.signals && radar.signals.malwareTransfer && radar.signals.malwareTransfer.ous && radar.signals.malwareTransfer.ous[rawKey]) || 0);
+    mergedRadarOus[dispOu].unsafe += Number((radar.signals && radar.signals.unsafeSiteVisit && ceraOwnGet_(radar.signals.unsafeSiteVisit.ous, rawKey)) || 0);
+    mergedRadarOus[dispOu].password += Number((radar.signals && radar.signals.passwordReuse && ceraOwnGet_(radar.signals.passwordReuse.ous, rawKey)) || 0);
+    mergedRadarOus[dispOu].malware += Number((radar.signals && radar.signals.malwareTransfer && ceraOwnGet_(radar.signals.malwareTransfer.ous, rawKey)) || 0);
   });
   const top10OUs = Object.values(mergedRadarOus)
     .filter(item => item.incidents > 0)
@@ -929,17 +941,18 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang, bounds) {
           else dominantAction = 'malware';
         }
       } else {
-        const upBytes = dayData.uploadBytes || 0;
-        const downBytes = dayData.downloadBytes || 0;
-        const printBytes = dayData.printBytes || 0;
-        const totBytes = dayData.totalBytes || (upBytes + downBytes + printBytes) || 0;
-        const totEvts = dayData.totalEvents || ((dayData.uploadCount || 0) + (dayData.downloadCount || 0) + (dayData.printCount || 0)) || 0;
+        const upBytes = ceraSafeBytes_(dayData.uploadBytes) + ceraSafeBytes_(dayData.pasteBytes);
+        const downBytes = ceraSafeBytes_(dayData.downloadBytes);
+        const printBytes = ceraSafeBytes_(dayData.printBytes);
+        const upCount = (Number(dayData.uploadCount) || 0) + (Number(dayData.pasteCount) || 0);
+        const totBytes = ceraSafeBytes_(dayData.totalBytes) || (upBytes + downBytes + printBytes) || 0;
+        const totEvts = dayData.totalEvents || (upCount + (dayData.downloadCount || 0) + (dayData.printCount || 0)) || 0;
         const totMetric = actorByCount ? totEvts : (totBytes / (1024 ** 3));
         if (totMetric > maxMetric) {
           maxMetric = totMetric;
           peakDate = displayDate;
           actorPeakDateKey = dKey;
-          const upVal = actorByCount ? (dayData.uploadCount || 0) : (upBytes / (1024 ** 3));
+          const upVal = actorByCount ? upCount : (upBytes / (1024 ** 3));
           const downVal = actorByCount ? (dayData.downloadCount || 0) : (downBytes / (1024 ** 3));
           const printVal = actorByCount ? (dayData.printCount || 0) : (printBytes / (1024 ** 3));
           if (upVal >= downVal && upVal >= printVal) dominantAction = 'upload';
@@ -955,7 +968,7 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang, bounds) {
 
     // Construct the continuous corridor rows [T_actor_peak - 7, T_actor_peak + 7]
     const dailyRows = actorWindowDates.map(dStr => {
-      const dayData = actTimeline[dStr] || {};
+      const dayData = ceraOwnGet_(actTimeline, dStr) || {};
       const displayDate = typeof formatDisplayDate === 'function' ? formatDisplayDate(dStr, false, lang) : dStr;
 
       if (isSecurity) {
@@ -980,17 +993,17 @@ function computeTop5ActorTimelines(vector, peakDateStr, lang, bounds) {
           warned: warned
         };
       } else {
-        const upBytes = dayData.uploadBytes || 0;
-        const downBytes = dayData.downloadBytes || 0;
-        const printBytes = dayData.printBytes || 0;
-        const totBytes = dayData.totalBytes || (upBytes + downBytes + printBytes) || 0;
+        const upBytes = ceraSafeBytes_(dayData.uploadBytes) + ceraSafeBytes_(dayData.pasteBytes);
+        const downBytes = ceraSafeBytes_(dayData.downloadBytes);
+        const printBytes = ceraSafeBytes_(dayData.printBytes);
+        const totBytes = ceraSafeBytes_(dayData.totalBytes) || (upBytes + downBytes + printBytes) || 0;
 
         const upGb = upBytes / (1024 ** 3);
         const downGb = downBytes / (1024 ** 3);
         const printGb = printBytes / (1024 ** 3);
         const totGb = totBytes / (1024 ** 3);
 
-        const upEvts = dayData.uploadCount || 0;
+        const upEvts = (Number(dayData.uploadCount) || 0) + (Number(dayData.pasteCount) || 0);
         const downEvts = dayData.downloadCount || 0;
         const printEvts = dayData.printCount || 0;
         const totEvts = dayData.totalEvents || (upEvts + downEvts + printEvts) || 0;
@@ -1123,11 +1136,12 @@ function computeDetailedSecurityRadarBreakdown(radar, lang) {
     const bypassed = typeof data === 'object' ? data.bypassed : 0;
     const blocked = typeof data === 'object' ? (data.blocked || 0) : 0;
     const unreported = typeof data === 'object' ? (data.unreported || 0) : 0;
-    const isIp = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(domain.trim());
+    const domStr = String(domain || '').trim();
+    const isIp = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(domStr);
     let type = 'External Web Destination';
     if (isIp) {
       type = 'Direct IP Address';
-    } else if ((radar.internalDomains && radar.internalDomains[domain]) || (signals.internalDomains && signals.internalDomains[domain])) {
+    } else if (ceraOwnGet_(radar.internalDomains, domain) || ceraOwnGet_(signals.internalDomains, domain)) {
       type = 'Corporate Managed Domain';
     }
     const cleanDomain = domain || notRecorded;
@@ -1155,7 +1169,7 @@ function computeDetailedSecurityRadarBreakdown(radar, lang) {
     };
   }).sort((a, b) => b.total - a.total);
 
-  const mergedUnsafeOus = {};
+  const mergedUnsafeOus = Object.create(null);
   Object.entries(u.ous || {}).forEach(([ou, count]) => {
     const dispOu = ceraFormatOuDisplay_(ou, lang || 'en');
     mergedUnsafeOus[dispOu] = (mergedUnsafeOus[dispOu] || 0) + (Number(count) || 0);
@@ -1169,9 +1183,12 @@ function computeDetailedSecurityRadarBreakdown(radar, lang) {
   const p = signals.passwordReuse || {};
   const passwordDestinations = Object.entries(p.domains || {}).map(([domain, data]) => {
     const total = typeof data === 'object' ? data.total : data;
-    const isMeta = domain.includes('facebook.com') || domain.includes('messenger.com');
-    const isIp = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(domain.trim());
-    const isInternal = ((p.internalDomains && p.internalDomains[domain]) || (signals.internalDomains && signals.internalDomains[domain]));
+    const domStr = String(domain || '').trim();
+    const isMeta = (typeof ceraIsMetaDomain_ === 'function')
+      ? ceraIsMetaDomain_(domStr)
+      : (domStr === 'facebook.com' || domStr.endsWith('.facebook.com') || domStr === 'messenger.com' || domStr.endsWith('.messenger.com'));
+    const isIp = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(domStr);
+    const isInternal = !!(ceraOwnGet_(p.internalDomains, domain) || ceraOwnGet_(signals.internalDomains, domain));
     let classification = 'External Web Service';
     if (isIp) {
       classification = 'Direct IP Address';
@@ -1195,7 +1212,8 @@ function computeDetailedSecurityRadarBreakdown(radar, lang) {
     const warned = typeof data === 'object' ? data.warned : 0;
     const bypassed = typeof data === 'object' ? data.bypassed : 0;
     const domain = (typeof data === 'object' && data.domain) ? data.domain : notRecorded;
-    const isWarez = fileName.toLowerCase().includes('reset') || fileName.toLowerCase().includes('rar') || fileName.toLowerCase().includes('crack');
+    const fnLower = String(fileName || '').toLowerCase();
+    const isWarez = fnLower.includes('reset') || fnLower.includes('rar') || fnLower.includes('crack');
     return {
       fileName: fileName || notRecorded,
       total: total || 0,
@@ -1286,18 +1304,20 @@ function computeOutlierContextTimeline(vectorTimeline, peakDateStr, windowDays, 
   return slots.map(slot => {
     const dateStr = slot.dateStr;
     const offset = slot.offset;
-    const item = (vectorTimeline && vectorTimeline[dateStr]) || {};
+    const item = ceraOwnGet_(vectorTimeline, dateStr) || {};
     const evts = (item.totalEvents !== undefined && item.totalEvents !== null) ? item.totalEvents : (item.totalCount || 0);
+    const upBytes = ceraSafeBytes_(item.uploadBytes) + ceraSafeBytes_(item.pasteBytes);
+    const upCount = (Number(item.uploadCount) || 0) + (Number(item.pasteCount) || 0);
     const dispDate = typeof formatDisplayDate === 'function' ? formatDisplayDate(dateStr, false, lang) : dateStr;
 
     return {
       date: dateStr,
       displayDate: dispDate,
-      uploadGb: (item.uploadBytes || 0) / (1024 ** 3),
-      downloadGb: (item.downloadBytes || 0) / (1024 ** 3),
-      printGb: (item.printBytes || 0) / (1024 ** 3),
-      totalGb: (item.totalBytes || 0) / (1024 ** 3),
-      uploadCount: item.uploadCount || 0,
+      uploadGb: upBytes / (1024 ** 3),
+      downloadGb: ceraSafeBytes_(item.downloadBytes) / (1024 ** 3),
+      printGb: ceraSafeBytes_(item.printBytes) / (1024 ** 3),
+      totalGb: ceraSafeBytes_(item.totalBytes) / (1024 ** 3),
+      uploadCount: upCount,
       downloadCount: item.downloadCount || 0,
       printCount: item.printCount || 0,
       totalEvents: evts,
@@ -1318,7 +1338,7 @@ function computeSecurityRadarOutlierContextTimeline(radarTimeline, peakDateStr, 
   return slots.map(slot => {
     const dateStr = slot.dateStr;
     const offset = slot.offset;
-    const entry = (radarTimeline && radarTimeline[dateStr]) || {};
+    const entry = ceraOwnGet_(radarTimeline, dateStr) || {};
     const total = entry.total || (entry.unsafe + entry.password + entry.malware) || 0;
     const dispDate = typeof formatDisplayDate === 'function' ? formatDisplayDate(dateStr, false, lang) : dateStr;
 
@@ -1350,19 +1370,29 @@ function computeCrossVectorOutlierTimeline(vectors, peakDateStr, windowDays, lan
   // Derive or parse peakDateStr
   let m = String(peakDateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) {
-    let maxMetric = -1;
-    let foundPeak = null;
-    for (let k in vectors) {
-      const v = vectors[k];
-      for (let dKey in (v.timeline || {})) {
-        const item = v.timeline[dKey];
-        const val = item.totalBytes !== undefined ? item.totalBytes : (item.total || 0);
-        if (val > maxMetric && /^(\d{4})-(\d{2})-(\d{2})/.test(dKey)) {
-          maxMetric = val;
-          foundPeak = dKey;
+    let maxBytes = -1;
+    let maxEvents = -1;
+    let foundPeakByBytes = null;
+    let foundPeakByEvents = null;
+    Object.keys(vectors).sort().forEach(k => {
+      const v = ceraOwnGet_(vectors, k);
+      if (!v || !v.timeline) return;
+      Object.keys(v.timeline).sort().forEach(dKey => {
+        if (!/^(\d{4})-(\d{2})-(\d{2})/.test(dKey)) return;
+        const item = ceraOwnGet_(v.timeline, dKey) || {};
+        const bytes = ceraSafeBytes_(item.totalBytes);
+        const evts = Math.max(0, Number(item.total || item.totalEvents || item.totalCount) || 0);
+        if (bytes > maxBytes) {
+          maxBytes = bytes;
+          foundPeakByBytes = dKey;
         }
-      }
-    }
+        if (evts > maxEvents) {
+          maxEvents = evts;
+          foundPeakByEvents = dKey;
+        }
+      });
+    });
+    const foundPeak = maxBytes > 0 ? foundPeakByBytes : (maxEvents > 0 ? foundPeakByEvents : null);
     if (foundPeak) {
       peakDateStr = foundPeak;
       m = String(peakDateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);

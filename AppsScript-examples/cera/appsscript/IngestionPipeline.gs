@@ -71,6 +71,40 @@ function ceraSerializeDedupeStore_(dedupeStore, keepSheetOcc) {
   };
 }
 
+function ceraEscapeDriveQueryLiteral_(val) {
+  return String(val === null || val === undefined ? '' : val)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'");
+}
+
+function ceraPipelineOwnGet_(obj, key) {
+  return (obj && Object.prototype.hasOwnProperty.call(obj, key)) ? obj[key] : undefined;
+}
+
+function ceraPipelineOwnSet_(obj, key, val) {
+  if (!obj) return val;
+  if (key === '__proto__') {
+    Object.defineProperty(obj, '__proto__', { value: val, enumerable: true, configurable: true, writable: true });
+  } else {
+    obj[key] = val;
+  }
+  return val;
+}
+
+function ceraPipelineOwnInc_(obj, key, delta) {
+  if (!obj) return 0;
+  const cur = Number(ceraPipelineOwnGet_(obj, key)) || 0;
+  const next = cur + (Number(delta) || 0);
+  ceraPipelineOwnSet_(obj, key, next);
+  return next;
+}
+
+function ceraPipelineOwnEnsure_(obj, key, factory) {
+  const existing = ceraPipelineOwnGet_(obj, key);
+  if (existing !== undefined && existing !== null) return existing;
+  return ceraPipelineOwnSet_(obj, key, factory());
+}
+
 function ceraAnalysisCpHistoryPropKey_() {
   return 'CERA_ANALYSIS_CP_HISTORY';
 }
@@ -80,17 +114,17 @@ function ceraRestoreDedupeStore_(state, rawDedupe) {
   const store = ceraDedupeStore_(state);
   store.eventIds = new Set(rawDedupe.eventIds || []);
   store.rowHashes = new Map(rawDedupe.rowHashes || []);
-  const restoredRanges = {};
+  const restoredRanges = Object.create(null);
   const srcRanges = rawDedupe.fileRanges || {};
   const rangeKeys = Object.keys(srcRanges);
   for (let i = 0; i < rangeKeys.length; i++) {
     const k = rangeKeys[i];
-    const r = srcRanges[k];
+    const r = ceraPipelineOwnGet_(srcRanges, k);
     if (!r || typeof r !== 'object') continue;
-    restoredRanges[k] = Object.assign({}, r, {
+    ceraPipelineOwnSet_(restoredRanges, k, Object.assign({}, r, {
       minT: (typeof r.minT === 'number' && isFinite(r.minT)) ? r.minT : Infinity,
       maxT: (typeof r.maxT === 'number' && isFinite(r.maxT)) ? r.maxT : -Infinity
-    });
+    }));
   }
   store.fileRanges = restoredRanges;
   store._sheetOcc = new Map(rawDedupe._sheetOcc || []);
@@ -225,7 +259,7 @@ function ceraSaveAnalysisBatch_(token, checkpoint) {
     if (cpParentId && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.create === 'function') {
       const cpName = 'cera-analysis-checkpoint-' + token + '.json';
       const existing = (typeof Drive.Files.list === 'function') ? Drive.Files.list({
-        q: `'${cpParentId}' in parents and name = '${cpName}' and trashed = false`,
+        q: "'" + ceraEscapeDriveQueryLiteral_(cpParentId) + "' in parents and name = '" + ceraEscapeDriveQueryLiteral_(cpName) + "' and trashed = false",
         fields: 'files(id)',
         supportsAllDrives: true,
         includeItemsFromAllDrives: true
@@ -1018,6 +1052,9 @@ function executeDlpAnalysis(params) {
       : '';
     const allowContinuation = !!params.allowContinuation;
     const batchToken = params.batchToken ? String(params.batchToken).trim() : (params.jobId ? String(params.jobId).trim() : '');
+    if (batchToken && !/^[A-Za-z0-9._:-]{1,128}$/.test(batchToken)) {
+      throw new Error('Invalid analysis batch token.');
+    }
 
     let authGate = null;
     if (!batchToken && typeof ceraAssertWorkbookSingleUseAvailable_ === 'function') {
@@ -1727,6 +1764,7 @@ function executeDlpAnalysis(params) {
       renderExecutiveOverview(currentSs, state, outlierMetrics);
       renderPolicyOutcomesSheet(currentSs, state);
       for (let key in state.vectors) {
+        if (!Object.prototype.hasOwnProperty.call(state.vectors, key)) continue;
         if (key === 'securityRadar') {
           renderSecurityRadarSheetWithCharts(currentSs, state.vectors[key], state);
         } else {
@@ -1901,7 +1939,7 @@ function ceraIsRecognizedEventValue_(rawVal) {
   if (ceraIsOutOfScopeChromeEvent_(s)) return true;
   if (typeof CERA_CONSOLE_LABELS !== 'undefined' && CERA_CONSOLE_LABELS.events) {
     const k = ceraNormConsoleKey_(s);
-    if (CERA_CONSOLE_LABELS.events[k] !== undefined) return true;
+    if (Object.prototype.hasOwnProperty.call(CERA_CONSOLE_LABELS.events, k)) return true;
   }
   const canon = typeof ceraCanonConsoleEvent_ === 'function' ? ceraCanonConsoleEvent_(s) : s;
   const ek = ceraEventKey_(canon);
@@ -1922,7 +1960,7 @@ function ceraIsRecognizedTriggerValue_(rawVal) {
   if (!s) return true;
   if (typeof CERA_CONSOLE_LABELS !== 'undefined' && CERA_CONSOLE_LABELS.triggerTypes) {
     const k = ceraNormConsoleKey_(s);
-    if (CERA_CONSOLE_LABELS.triggerTypes[k] !== undefined) return true;
+    if (Object.prototype.hasOwnProperty.call(CERA_CONSOLE_LABELS.triggerTypes, k)) return true;
   }
   const canon = typeof ceraCanonConsoleTrigger_ === 'function' ? ceraCanonConsoleTrigger_(s) : s;
   const lc = String(canon).toLowerCase().trim();
@@ -2021,7 +2059,7 @@ function ceraFolderSheets_(folderId) {
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         page = Drive.Files.list({
-          q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`,
+          q: "'" + ceraEscapeDriveQueryLiteral_(folderId) + "' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
           fields: 'nextPageToken,files(id,name)',
           pageSize: 1000,
           supportsAllDrives: true,
@@ -2120,15 +2158,15 @@ function _isBlankRow_(row) {
  */
 function ceraOuLabel_(raw, state, corpDomains) {
   const s = raw === null || raw === undefined ? '' : String(raw).trim();
-  if (!state._ouLabels) Object.defineProperty(state, '_ouLabels', { value: {}, enumerable: false, writable: true });
+  if (!state._ouLabels) Object.defineProperty(state, '_ouLabels', { value: Object.create(null), enumerable: false, writable: true });
   const cache = state._ouLabels;
-  if (cache[s] !== undefined) return cache[s];
+  if (Object.prototype.hasOwnProperty.call(cache, s)) return cache[s];
   const lang = state.reportLang || 'en';
   const path = s.replace(/^\/+/, '').trim();
   let label = path;
   if (s && !path) label = ceraT('report.ou.root', null, lang);
   else if (!path || /^(null|undefined|n\/a|-|unassigned ou|ou not reported)$/i.test(path)) label = ceraT('report.ou.notReported', null, lang);
-  cache[s] = label;
+  ceraPipelineOwnSet_(cache, s, label);
   return label;
 }
 
@@ -2148,8 +2186,10 @@ function ceraNormalizeRow_(row, col, corpDomains, state) {
   const rawEvent = typeof ceraCanonConsoleEvent_ === 'function' ? ceraCanonConsoleEvent_(rawEventCell) : rawEventCell;
   const eventName = rawEvent.toLowerCase();
   const eventKey = ceraEventKey_(rawEvent);
-  const ou = ceraOuLabel_(col.ou !== -1 ? row[col.ou] : '', state, corpDomains);
-  const emptyOu = state._ouLabels && state._ouLabels[''] !== undefined ? state._ouLabels[''] : ceraOuLabel_('', state, corpDomains);
+  const ou = ceraOuLabel_((col.ou !== undefined && col.ou >= 0) ? row[col.ou] : '', state, corpDomains);
+  const emptyOu = state._ouLabels && Object.prototype.hasOwnProperty.call(state._ouLabels, '')
+    ? state._ouLabels['']
+    : ceraOuLabel_('', state, corpDomains);
   let rawUrl = text(col.url).trim();
   const rawTabUrl = text(col.tabUrl).trim();
   const rawDest = text(col.destination).trim();
@@ -2159,6 +2199,7 @@ function ceraNormalizeRow_(row, col, corpDomains, state) {
 
   const rawCatCell = text(col.urlCategory).trim();
   const canonCat = (typeof ceraCanonConsoleCategory_ === 'function' ? ceraCanonConsoleCategory_(rawCatCell) : rawCatCell) || 'Uncategorized';
+  const rawContentSize = (col.contentSize !== undefined && col.contentSize >= 0) ? Number(row[col.contentSize]) : 0;
 
   const rec = {
     t: null,
@@ -2170,13 +2211,13 @@ function ceraNormalizeRow_(row, col, corpDomains, state) {
     rawTabUrl: rawTabUrl,
     ou: ou,
     ouReported: ou !== emptyOu,
-    sizeBytes: col.contentSize !== -1 ? Number(row[col.contentSize]) || 0 : 0,
+    sizeBytes: (typeof rawContentSize === 'number' && isFinite(rawContentSize) && rawContentSize > 0) ? rawContentSize : 0,
     userIdent: userIdent,
     account: text(col.account).trim().toLowerCase(),
     rawCategory: canonCat.trim(),
     // Outcome from the Event Result column (normalizeEventResult, classes in CeraConfig.EVENT_RESULT_CLASSES). When the
     // log does not report one, the outcome stays '' (not reported) rather than being assumed.
-    result: col.eventResult !== -1 ? normalizeEventResult(row[col.eventResult]) : '',
+    result: (col.eventResult !== undefined && col.eventResult >= 0) ? normalizeEventResult(row[col.eventResult]) : '',
     reason: text(col.eventReason).trim(),
     detector: text(col.detectorName).trim(),
     contentType: text(col.contentType).trim(),
@@ -2187,7 +2228,7 @@ function ceraNormalizeRow_(row, col, corpDomains, state) {
 
   // Day keys and working hours follow the offset a time was written with (a console export at +08:00), otherwise the
   // report time zone (ceraLocalDayKey, ceraLocalIsAfterHours), so they match the times in the log
-  if (col.date !== -1 && row[col.date]) {
+  if (col.date !== undefined && col.date >= 0 && row[col.date]) {
     const rawDate = row[col.date];
     const dateOrder = (state && state._dateOrder) || 'MDY';
     let ms = NaN;
@@ -2336,9 +2377,9 @@ function processRowStream(row, col, corpDomains, authorizedGenAi, sanctionedProd
 
   // A password change is neither password reuse nor a transfer: counted apart in state.passwordChanges
   if (rec.isPasswordChange) {
-    const pc = state.passwordChanges || (state.passwordChanges = { count: 0, users: {} });
+    const pc = state.passwordChanges || (state.passwordChanges = { count: 0, users: Object.create(null) });
     pc.count++;
-    if (rec.userIdent) pc.users[rec.userIdent] = (pc.users[rec.userIdent] || 0) + 1;
+    if (rec.userIdent) ceraPipelineOwnInc_(pc.users, rec.userIdent, 1);
     return;
   }
 
@@ -2482,8 +2523,8 @@ function ceraClassifyDestination_(rawUrl, rawTabUrl, account, userIdent, rawCate
     category = 'Unspecified';
     const tabDom = tabHost || (!rawTabUrl && urlHost) || extractTabDomain(rawTabUrl, rawUrl);
     if (tabDom && !isBlankDestination(tabDom) && (typeof ceraIsPseudoTabHost_ !== 'function' || !ceraIsPseudoTabHost_(tabDom))) {
-      if (!state.unspecifiedTabDomains) state.unspecifiedTabDomains = {};
-      state.unspecifiedTabDomains[tabDom] = (state.unspecifiedTabDomains[tabDom] || 0) + 1;
+      if (!state.unspecifiedTabDomains) state.unspecifiedTabDomains = Object.create(null);
+      ceraPipelineOwnInc_(state.unspecifiedTabDomains, tabDom, 1);
     }
   }
 
@@ -2513,18 +2554,32 @@ function ceraAggregateRadarEvent_(ev, state) {
   const domain = first.domain;
   const fileName = (ev.rows.find(r => r.fileName) || {}).fileName || '';
   const radar = state.securityRadar;
-  const signal = { unsafe: 'unsafeSiteVisit', malware: 'malwareTransfer', password: 'passwordReuse' }[ev.signal];
-  if (!radar[signal]) radar[signal] = { total: 0, ous: {}, users: {}, domains: {}, threats: {} };
-  const s = radar[signal];
+  const signalMap = { unsafe: 'unsafeSiteVisit', malware: 'malwareTransfer', password: 'passwordReuse' };
+  const signal = Object.prototype.hasOwnProperty.call(signalMap, ev.signal) ? signalMap[ev.signal] : '';
+  if (!signal) return;
+  const s = ceraPipelineOwnEnsure_(radar, signal, () => ({
+    total: 0,
+    ous: Object.create(null),
+    users: Object.create(null),
+    domains: Object.create(null),
+    threats: Object.create(null),
+    internalDomains: Object.create(null),
+    externalDomains: Object.create(null),
+    files: Object.create(null)
+  }));
   s.total++;
-  s.ous[ou] = (s.ous[ou] || 0) + 1;
-  s.domains[domain] = (s.domains[domain] || 0) + 1;
-  if (userIdent) s.users[userIdent] = true;
+  ceraPipelineOwnInc_(s.ous, ou, 1);
+  ceraPipelineOwnInc_(s.domains, domain, 1);
+  if (userIdent) ceraPipelineOwnSet_(s.users, userIdent, true);
   if (ev.signal === 'password') {
     const side = first.internal ? 'internalDomains' : 'externalDomains';
-    s[side][domain] = (s[side][domain] || 0) + 1;
+    if (!s[side]) s[side] = Object.create(null);
+    ceraPipelineOwnInc_(s[side], domain, 1);
   }
-  if (ev.signal === 'malware' && fileName) s.files[fileName] = (s.files[fileName] || 0) + 1;
+  if (ev.signal === 'malware' && fileName) {
+    if (!s.files) s.files = Object.create(null);
+    ceraPipelineOwnInc_(s.files, fileName, 1);
+  }
   recordSecurityRadarHit(state.vectors.securityRadar, signal, first.day, ou, userIdent, domain, ev.result, ev.reason, fileName, first.url);
 }
 
@@ -2641,8 +2696,8 @@ function ceraAggregateAction_(a, scope, state) {
       bucket.leftCount = (bucket.leftCount || 0) + 1;
       bucket.leftBytes = (bucket.leftBytes || 0) + sizeBytes;
     }
-    if (userIdent) bucket.users[userIdent] = true;
-    bucket.ous[ou] = (bucket.ous[ou] || 0) + sizeBytes;
+    if (userIdent) ceraPipelineOwnSet_(bucket.users, userIdent, true);
+    ceraPipelineOwnInc_(bucket.ous, ou, sizeBytes);
   }
 
   // 7. Mutex Primary Vector Classification Hierarchy (exact-or-suffix domain matching throughout)
@@ -2688,7 +2743,7 @@ function ceraAggregateAction_(a, scope, state) {
     it.count++;
     it.bytes += sizeBytes;
     if (isEgressAction(action)) { it.egressCount++; it.egressBytes += sizeBytes; }
-    it.hosts[domain] = (it.hosts[domain] || 0) + 1;
+    ceraPipelineOwnInc_(it.hosts, domain, 1);
   }
 
   // No recorded destination: not an unmanaged app, but never dropped either. Counted apart and disclosed.
@@ -2717,14 +2772,16 @@ function ceraAggregateAction_(a, scope, state) {
     recordVectorHit(assignedVector, action, sizeBytes, contentType, domain, category, ou, userIdent, isSensitive, detectorCategory, eventDateStr, a.unscanned, atMs, outcome);
     if (outboundKind) {
       ceraRecordOutboundKind_(assignedVector.egress, outboundKind, sizeBytes, left, isSensitive);
-      ceraRecordOutboundKind_(assignedVector.domains[domain], outboundKind, sizeBytes, left, isSensitive);
-      ceraRecordOutboundKind_(assignedVector.ous[ou], outboundKind, sizeBytes, left, isSensitive);
+      const vecDomEntry = ceraPipelineOwnGet_(assignedVector.domains, domain);
+      if (vecDomEntry) ceraRecordOutboundKind_(vecDomEntry, outboundKind, sizeBytes, left, isSensitive);
+      const vecOuEntry = ceraPipelineOwnGet_(assignedVector.ous, ou);
+      if (vecOuEntry) ceraRecordOutboundKind_(vecOuEntry, outboundKind, sizeBytes, left, isSensitive);
     }
     // Outbound volume by file family: the extension of the Content Name first, the MIME type otherwise
     if (isEgressAction(action)) {
-      if (!assignedVector.families) assignedVector.families = {};
+      if (!assignedVector.families) assignedVector.families = Object.create(null);
       const family = ceraFileFamily_(a.contentName, a.contentType, outboundKind);
-      const fam = assignedVector.families[family] || (assignedVector.families[family] = { bytes: 0, count: 0 });
+      const fam = ceraPipelineOwnEnsure_(assignedVector.families, family, () => ({ bytes: 0, count: 0 }));
       fam.bytes += sizeBytes;
       fam.count++;
       if (a.unscanned) {
@@ -2736,30 +2793,31 @@ function ceraAggregateAction_(a, scope, state) {
     // Detector names as the customer's rules report them (NIK, Date of Birth, custom rules), not only the
     // four coarse categories, so insights can name what was detected
     if (isSensitive && a.detectors.length) {
-      if (!assignedVector.detectorNames) assignedVector.detectorNames = {};
+      if (!assignedVector.detectorNames) assignedVector.detectorNames = Object.create(null);
       if (isEgressAction(action)) {
-        if (!assignedVector.egress.detectorNames) assignedVector.egress.detectorNames = {};
-        if (!state.egress.detectorNames) state.egress.detectorNames = {};
+        if (!assignedVector.egress.detectorNames) assignedVector.egress.detectorNames = Object.create(null);
+        if (!state.egress.detectorNames) state.egress.detectorNames = Object.create(null);
       }
       a.detectors.forEach(d => {
-        assignedVector.detectorNames[d] = (assignedVector.detectorNames[d] || 0) + 1;
+        ceraPipelineOwnInc_(assignedVector.detectorNames, d, 1);
         if (isEgressAction(action)) {
-          assignedVector.egress.detectorNames[d] = (assignedVector.egress.detectorNames[d] || 0) + 1;
-          state.egress.detectorNames[d] = (state.egress.detectorNames[d] || 0) + 1;
+          ceraPipelineOwnInc_(assignedVector.egress.detectorNames, d, 1);
+          ceraPipelineOwnInc_(state.egress.detectorNames, d, 1);
         }
       });
     }
     // Outbound actions per account class (consumer, otherOrg), next to the vector's outbound count: a download made
     // from a personal account is in the vector, but it is not an upload to an outside account
     if (isPersonalAccount && assignedVector === state.vectors.personal && isEgressAction(action)) {
-      if (!assignedVector.accountClasses) assignedVector.accountClasses = {};
-      const ac = assignedVector.accountClasses[accountClass] || (assignedVector.accountClasses[accountClass] = { count: 0, bytes: 0, domains: {} });
+      if (!assignedVector.accountClasses) assignedVector.accountClasses = Object.create(null);
+      const ac = ceraPipelineOwnEnsure_(assignedVector.accountClasses, accountClass, () => ({ count: 0, bytes: 0, domains: Object.create(null) }));
       ac.count++;
       ac.bytes += sizeBytes;
-      ac.domains[accountDomain] = (ac.domains[accountDomain] || 0) + 1;
+      if (!ac.domains) ac.domains = Object.create(null);
+      ceraPipelineOwnInc_(ac.domains, accountDomain, 1);
       // The same per account type by kind: a print made while signed in to an outside account sends nothing to it
-      if (!assignedVector.accountClassKinds) assignedVector.accountClassKinds = {};
-      const ack = assignedVector.accountClassKinds[accountClass] || (assignedVector.accountClassKinds[accountClass] = {});
+      if (!assignedVector.accountClassKinds) assignedVector.accountClassKinds = Object.create(null);
+      const ack = ceraPipelineOwnEnsure_(assignedVector.accountClassKinds, accountClass, () => Object.create(null));
       ceraRecordOutboundKind_(ack, outboundKind, sizeBytes, left, isSensitive);
     }
   }
@@ -2770,12 +2828,12 @@ function ceraAggregateAction_(a, scope, state) {
   if (action === 'print' && !isAboutBlank) {
     state.printStats.totalEvents++;
     state.printStats.totalBytes += sizeBytes;
-    if (userIdent) state.printStats.users[userIdent] = true;
-    state.printStats.originDomains[domain] = (state.printStats.originDomains[domain] || 0) + 1;
-    state.printStats.ous[ou] = (state.printStats.ous[ou] || 0) + 1;
-    state.printStats.types[contentType] = (state.printStats.types[contentType] || 0) + 1;
+    if (userIdent) ceraPipelineOwnSet_(state.printStats.users, userIdent, true);
+    ceraPipelineOwnInc_(state.printStats.originDomains, domain, 1);
+    ceraPipelineOwnInc_(state.printStats.ous, ou, 1);
+    ceraPipelineOwnInc_(state.printStats.types, contentType, 1);
     ceraRecordOutcome_(state.printStats, outcome, sizeBytes, userIdent);
-    if (state.globalActions && state.globalActions.print) {
+    if (state.globalActions && Object.prototype.hasOwnProperty.call(state.globalActions, 'print') && state.globalActions.print) {
       state.globalActions.print.count++;
       state.globalActions.print.bytes += sizeBytes;
     }
@@ -2783,16 +2841,16 @@ function ceraAggregateAction_(a, scope, state) {
     if (isSensitive) {
       const ps = state.printStats.sensitivity;
       ps.sensitiveCount++;
-      ps.detectors[detectorCategory] = (ps.detectors[detectorCategory] || 0) + 1;
+      ceraPipelineOwnInc_(ps.detectors, detectorCategory, 1);
       // Detector names as the rules report them, as for the vectors: the print slide names them like a vector slide
       if (a.detectors.length) {
-        if (!ps.detectorNames) ps.detectorNames = {};
-        a.detectors.forEach(d => { ps.detectorNames[d] = (ps.detectorNames[d] || 0) + 1; });
+        if (!ps.detectorNames) ps.detectorNames = Object.create(null);
+        a.detectors.forEach(d => { ceraPipelineOwnInc_(ps.detectorNames, d, 1); });
       }
       ceraRecordOutcome_(ps, outcome, sizeBytes, userIdent);
       if (left) {
-        if (!ps.leftOrigins) ps.leftOrigins = {};
-        ps.leftOrigins[domain] = (ps.leftOrigins[domain] || 0) + 1;
+        if (!ps.leftOrigins) ps.leftOrigins = Object.create(null);
+        ceraPipelineOwnInc_(ps.leftOrigins, domain, 1);
       }
     } else {
       state.printStats.sensitivity.nonSensitiveCount++;
@@ -2803,19 +2861,22 @@ function ceraAggregateAction_(a, scope, state) {
   if (assignedVector) {
     state.totalEvents++;
     state.totalBytes += sizeBytes;
-    if (userIdent) state.globalUsers[userIdent] = true;
+    if (userIdent) ceraPipelineOwnSet_(state.globalUsers, userIdent, true);
     if (a.unscanned) {
       state.unscanned.count++;
       state.unscanned.bytes += sizeBytes;
     }
 
-    if (state.globalActions && state.globalActions[action]) {
+    if (state.globalActions && Object.prototype.hasOwnProperty.call(state.globalActions, action) && state.globalActions[action]) {
       state.globalActions[action].count++;
       state.globalActions[action].bytes += sizeBytes;
     }
 
     updateSubMap(state.globalOUs, ou, action, sizeBytes);
-    if (outboundKind) ceraRecordOutboundKind_(state.globalOUs[ou], outboundKind, sizeBytes, left, isSensitive);
+    if (outboundKind) {
+      const globalOuEntry = ceraPipelineOwnGet_(state.globalOUs, ou);
+      if (globalOuEntry) ceraRecordOutboundKind_(globalOuEntry, outboundKind, sizeBytes, left, isSensitive);
+    }
     updateSubMap(state.globalTypes, contentType, action, sizeBytes);
     updateSimpleMap(state.globalDomains, domain, sizeBytes);
     if (category) {
@@ -2824,11 +2885,9 @@ function ceraAggregateAction_(a, scope, state) {
 
     // Outlier 1: Daily Volume Tracking (all directions, downloads included)
     if (eventDateStr) {
-      if (!state.outliers.dailyVolume[eventDateStr]) {
-        state.outliers.dailyVolume[eventDateStr] = { bytes: 0, count: 0 };
-      }
-      state.outliers.dailyVolume[eventDateStr].bytes += sizeBytes;
-      state.outliers.dailyVolume[eventDateStr].count++;
+      const dv = ceraPipelineOwnEnsure_(state.outliers.dailyVolume, eventDateStr, () => ({ bytes: 0, count: 0 }));
+      dv.bytes += sizeBytes;
+      dv.count++;
     }
 
     // Egress (outbound-only: upload, paste) per OU, per user and per day (outliers.dailyEgress)
@@ -2856,52 +2915,60 @@ function ceraAggregateAction_(a, scope, state) {
 
     // Outlier 2: Actor to Domain Tracking (HHI & Scatter)
     if (userIdent && isEgress) {
-      if (!state.outliers.actorEndpoints[userIdent]) {
-        state.outliers.actorEndpoints[userIdent] = { totalBytes: 0, totalCount: 0, ou: ou, domains: {}, domainCounts: {}, days: {} };
-      }
-      const actor = state.outliers.actorEndpoints[userIdent];
+      const actor = ceraPipelineOwnEnsure_(state.outliers.actorEndpoints, userIdent, () => ({
+        totalBytes: 0,
+        totalCount: 0,
+        ou: ou,
+        domains: Object.create(null),
+        domainCounts: Object.create(null),
+        days: Object.create(null)
+      }));
       ceraKeepLatestOu_(actor, ou, atMs);
       actor.totalBytes += sizeBytes;
       actor.totalCount = (actor.totalCount || 0) + 1;
-      actor.domains[domain] = (actor.domains[domain] || 0) + sizeBytes;
-      if (!actor.domainCounts) actor.domainCounts = {};
-      actor.domainCounts[domain] = (actor.domainCounts[domain] || 0) + 1;
+      if (!actor.domains) actor.domains = Object.create(null);
+      ceraPipelineOwnInc_(actor.domains, domain, sizeBytes);
+      if (!actor.domainCounts) actor.domainCounts = Object.create(null);
+      ceraPipelineOwnInc_(actor.domainCounts, domain, 1);
       if (eventDateStr) {
-        if (!actor.days) actor.days = {};
-        if (!actor.days[eventDateStr]) actor.days[eventDateStr] = { bytes: 0, count: 0 };
-        actor.days[eventDateStr].bytes += sizeBytes;
-        actor.days[eventDateStr].count++;
+        if (!actor.days) actor.days = Object.create(null);
+        const actorDay = ceraPipelineOwnEnsure_(actor.days, eventDateStr, () => ({ bytes: 0, count: 0 }));
+        actorDay.bytes += sizeBytes;
+        actorDay.count++;
       }
     }
 
     // Outlier 3: OU Intra-Peer Tracking & Daily OU Breakdown
     if (isEgress) {
-      if (!state.outliers.ouActors[ou]) {
-        state.outliers.ouActors[ou] = { totalBytes: 0, totalCount: 0, users: {}, domains: {} };
-      }
-      const ouEntry = state.outliers.ouActors[ou];
+      const ouEntry = ceraPipelineOwnEnsure_(state.outliers.ouActors, ou, () => ({
+        totalBytes: 0,
+        totalCount: 0,
+        users: Object.create(null),
+        domains: Object.create(null)
+      }));
       ouEntry.totalBytes += sizeBytes;
       ouEntry.totalCount = (ouEntry.totalCount || 0) + 1;
       if (userIdent) {
-        ouEntry.users[userIdent] = (ouEntry.users[userIdent] || 0) + sizeBytes;
+        if (!ouEntry.users) ouEntry.users = Object.create(null);
+        ceraPipelineOwnInc_(ouEntry.users, userIdent, sizeBytes);
       }
-      if (!ouEntry.domains) ouEntry.domains = {};
+      if (!ouEntry.domains) ouEntry.domains = Object.create(null);
       if (domain) {
-        if (!ouEntry.domains[domain]) ouEntry.domains[domain] = { bytes: 0, count: 0 };
-        ouEntry.domains[domain].bytes += sizeBytes;
-        ouEntry.domains[domain].count++;
+        const ouDom = ceraPipelineOwnEnsure_(ouEntry.domains, domain, () => ({ bytes: 0, count: 0 }));
+        ouDom.bytes += sizeBytes;
+        ouDom.count++;
       }
-      if (eventDateStr && state.outliers.dailyEgress && state.outliers.dailyEgress[eventDateStr]) {
-        if (!state.outliers.dailyEgressOus) state.outliers.dailyEgressOus = {};
-        if (!state.outliers.dailyEgressOus[eventDateStr]) state.outliers.dailyEgressOus[eventDateStr] = {};
-        const dayOus = state.outliers.dailyEgressOus[eventDateStr];
-        if (!dayOus[ou]) dayOus[ou] = { bytes: 0, count: 0, domains: {} };
-        dayOus[ou].bytes += sizeBytes;
-        dayOus[ou].count++;
+      if (eventDateStr && state.outliers.dailyEgress && ceraPipelineOwnGet_(state.outliers.dailyEgress, eventDateStr)) {
+        if (!state.outliers.dailyEgressOus) state.outliers.dailyEgressOus = Object.create(null);
+        const dayOus = ceraPipelineOwnEnsure_(state.outliers.dailyEgressOus, eventDateStr, () => Object.create(null));
+        const dayOuEntry = ceraPipelineOwnEnsure_(dayOus, ou, () => ({ bytes: 0, count: 0, domains: Object.create(null) }));
+        dayOuEntry.bytes += sizeBytes;
+        dayOuEntry.count++;
         if (domain) {
-          if (!dayOus[ou].domains[domain]) dayOus[ou].domains[domain] = { bytes: 0, count: 0 };
-          dayOus[ou].domains[domain].bytes += sizeBytes;
-          dayOus[ou].domains[domain].count++;
+          if (!dayOuEntry.domains) dayOuEntry.domains = Object.create(null);
+          const dayOuDom = ceraPipelineOwnEnsure_(dayOuEntry.domains, domain, () => ({ bytes: 0, count: 0 }));
+          dayOuDom.bytes += sizeBytes;
+          dayOuDom.count++;
         }
       }
     }

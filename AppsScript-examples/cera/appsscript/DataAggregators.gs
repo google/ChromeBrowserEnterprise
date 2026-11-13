@@ -198,6 +198,43 @@ function createInitialState() {
 }
 
 /**
+ * Safe own-property dictionary helpers so untrusted log strings ('__proto__', 'constructor',
+ * 'toString', 'valueOf', 'hasOwnProperty') never pollute Object.prototype or collide with inherited methods,
+ * even after JSON checkpoint serialization and restoration.
+ */
+function ceraOwn_(map, key) {
+  return !!(map && Object.prototype.hasOwnProperty.call(map, key));
+}
+
+function ceraOwnGet_(map, key) {
+  return (map && Object.prototype.hasOwnProperty.call(map, key)) ? map[key] : undefined;
+}
+
+function ceraOwnSet_(map, key, val) {
+  if (!map) return val;
+  if (key === '__proto__' && Object.getPrototypeOf(map) !== null) {
+    Object.defineProperty(map, '__proto__', { value: val, writable: true, enumerable: true, configurable: true });
+  } else {
+    map[key] = val;
+  }
+  return val;
+}
+
+function ceraOwnEnsure_(map, key, initFn) {
+  return ceraOwn_(map, key) ? map[key] : ceraOwnSet_(map, key, initFn());
+}
+
+function ceraOwnInc_(map, key, delta) {
+  const cur = ceraOwn_(map, key) ? (Number(map[key]) || 0) : 0;
+  return ceraOwnSet_(map, key, cur + (Number(delta) || 0));
+}
+
+function ceraSafeBytes_(val) {
+  const n = Number(val);
+  return (isFinite(n) && n > 0) ? n : 0;
+}
+
+/**
  * Empty policy-outcome split: left and stopped ({ bytes, count, users: user -> { bytes, count } }) and outcomes
  * (outcome class -> { bytes, count }). Merged into the aggregates that split by outcome.
  */
@@ -212,16 +249,16 @@ function ceraOutcomeTally_() {
  */
 function ceraRecordOutcome_(holder, outcome, bytes, userIdent) {
   const cls = outcome || 'notReported';
-  const size = Number(bytes) || 0;
+  const size = ceraSafeBytes_(bytes);
   if (!holder.outcomes) Object.assign(holder, ceraOutcomeTally_());
-  const o = holder.outcomes[cls] || (holder.outcomes[cls] = { bytes: 0, count: 0 });
+  const o = ceraOwnEnsure_(holder.outcomes, cls, () => ({ bytes: 0, count: 0 }));
   o.bytes += size;
   o.count++;
   const side = holder[ceraOutcomeStopped_(cls) ? 'stopped' : 'left'];
   side.bytes += size;
   side.count++;
   if (userIdent) {
-    const u = side.users[userIdent] || (side.users[userIdent] = { bytes: 0, count: 0 });
+    const u = ceraOwnEnsure_(side.users, userIdent, () => ({ bytes: 0, count: 0 }));
     u.bytes += size;
     u.count++;
   }
@@ -239,49 +276,48 @@ function ceraNoteEventResult_(state, result) {
   o.reported = true;
   if (CeraConfig.OUTCOME_ENFORCED.indexOf(cls) !== -1) o.enforced = true;
   o.mode = o.enforced ? 'enforced' : 'audit';
-  if (cls === 'other' && (o.other[result] || Object.keys(o.other).length < 20)) o.other[result] = (o.other[result] || 0) + 1;
+  if (cls === 'other' && (ceraOwn_(o.other, result) || Object.keys(o.other).length < 20)) ceraOwnInc_(o.other, result, 1);
 }
 
 /**
  * Updates a multi-action sub-map (upload, download, print)
  */
 function updateSubMap(map, key, action, sizeBytes) {
-  if (!map[key]) {
-    map[key] = {
-      name: key,
-      totalBytes: 0,
-      count: 0,
-      uploadBytes: 0,
-      downloadBytes: 0,
-      printBytes: 0,
-      uploadCount: 0,
-      downloadCount: 0,
-      printCount: 0,
-      pasteBytes: 0,
-      pasteCount: 0,
-      // Outbound-only share of this entry (upload, paste, print; downloads excluded)
-      egressBytes: 0,
-      egressCount: 0
-    };
-  }
-  map[key].count++;
-  map[key].totalBytes += sizeBytes;
+  sizeBytes = ceraSafeBytes_(sizeBytes);
+  const entry = ceraOwnEnsure_(map, key, () => ({
+    name: key,
+    totalBytes: 0,
+    count: 0,
+    uploadBytes: 0,
+    downloadBytes: 0,
+    printBytes: 0,
+    uploadCount: 0,
+    downloadCount: 0,
+    printCount: 0,
+    pasteBytes: 0,
+    pasteCount: 0,
+    // Outbound-only share of this entry (upload, paste, print; downloads excluded)
+    egressBytes: 0,
+    egressCount: 0
+  }));
+  entry.count++;
+  entry.totalBytes += sizeBytes;
   if (action === 'upload') {
-    map[key].uploadBytes += sizeBytes;
-    map[key].uploadCount = (map[key].uploadCount || 0) + 1;
+    entry.uploadBytes += sizeBytes;
+    entry.uploadCount = (entry.uploadCount || 0) + 1;
   } else if (action === 'download') {
-    map[key].downloadBytes += sizeBytes;
-    map[key].downloadCount = (map[key].downloadCount || 0) + 1;
+    entry.downloadBytes += sizeBytes;
+    entry.downloadCount = (entry.downloadCount || 0) + 1;
   } else if (action === 'print') {
-    map[key].printBytes += sizeBytes;
-    map[key].printCount = (map[key].printCount || 0) + 1;
+    entry.printBytes += sizeBytes;
+    entry.printCount = (entry.printCount || 0) + 1;
   } else if (action === 'paste') {
-    map[key].pasteBytes = (map[key].pasteBytes || 0) + sizeBytes;
-    map[key].pasteCount = (map[key].pasteCount || 0) + 1;
+    entry.pasteBytes = (entry.pasteBytes || 0) + sizeBytes;
+    entry.pasteCount = (entry.pasteCount || 0) + 1;
   }
   if (isEgressAction(action)) {
-    map[key].egressBytes = (map[key].egressBytes || 0) + sizeBytes;
-    map[key].egressCount = (map[key].egressCount || 0) + 1;
+    entry.egressBytes = (entry.egressBytes || 0) + sizeBytes;
+    entry.egressCount = (entry.egressCount || 0) + 1;
   }
 }
 
@@ -316,8 +352,8 @@ function ceraOutboundKind_(action, triggerType) {
 function ceraRecordOutboundKind_(entry, kind, sizeBytes, left, sensitive) {
   if (!entry || !kind) return;
   if (!entry.kinds) entry.kinds = {};
-  const k = entry.kinds[kind] || (entry.kinds[kind] = { count: 0, bytes: 0, leftCount: 0, leftBytes: 0, sensitive: 0, sensitiveLeft: 0 });
-  const size = Number(sizeBytes) || 0;
+  const k = ceraOwnEnsure_(entry.kinds, kind, () => ({ count: 0, bytes: 0, leftCount: 0, leftBytes: 0, sensitive: 0, sensitiveLeft: 0 }));
+  const size = ceraSafeBytes_(sizeBytes);
   k.count++;
   k.bytes += size;
   if (left) {
@@ -353,29 +389,30 @@ function ceraKeepLatestOu_(entry, ou, atMs) {
  */
 function recordEgressHit(state, action, sizeBytes, ou, userIdent, eventDateStr, atMs, outcome) {
   if (!isEgressAction(action)) return;
+  sizeBytes = ceraSafeBytes_(sizeBytes);
   if (!state.egress) state.egress = { bytes: 0, count: 0, ous: {}, users: {} };
   const e = state.egress;
   e.bytes += sizeBytes;
   e.count++;
   ceraRecordOutcome_(e, outcome, sizeBytes, userIdent);
-  if (!e.ous[ou]) e.ous[ou] = { bytes: 0, count: 0, leftBytes: 0, leftCount: 0 };
-  e.ous[ou].bytes += sizeBytes;
-  e.ous[ou].count++;
+  const ouEntry = ceraOwnEnsure_(e.ous, ou, () => ({ bytes: 0, count: 0, leftBytes: 0, leftCount: 0 }));
+  ouEntry.bytes += sizeBytes;
+  ouEntry.count++;
   if (!ceraOutcomeStopped_(outcome || 'notReported')) {
-    e.ous[ou].leftBytes = (e.ous[ou].leftBytes || 0) + sizeBytes;
-    e.ous[ou].leftCount = (e.ous[ou].leftCount || 0) + 1;
+    ouEntry.leftBytes = (ouEntry.leftBytes || 0) + sizeBytes;
+    ouEntry.leftCount = (ouEntry.leftCount || 0) + 1;
   }
   if (userIdent) {
-    if (!e.users[userIdent]) e.users[userIdent] = { bytes: 0, count: 0, ou: ou };
-    ceraKeepLatestOu_(e.users[userIdent], ou, atMs);
-    e.users[userIdent].bytes += sizeBytes;
-    e.users[userIdent].count++;
+    const uEntry = ceraOwnEnsure_(e.users, userIdent, () => ({ bytes: 0, count: 0, ou: ou }));
+    ceraKeepLatestOu_(uEntry, ou, atMs);
+    uEntry.bytes += sizeBytes;
+    uEntry.count++;
   }
   if (eventDateStr && state.outliers) {
     if (!state.outliers.dailyEgress) state.outliers.dailyEgress = {};
-    if (!state.outliers.dailyEgress[eventDateStr]) state.outliers.dailyEgress[eventDateStr] = { bytes: 0, count: 0 };
-    state.outliers.dailyEgress[eventDateStr].bytes += sizeBytes;
-    state.outliers.dailyEgress[eventDateStr].count++;
+    const dayEntry = ceraOwnEnsure_(state.outliers.dailyEgress, eventDateStr, () => ({ bytes: 0, count: 0 }));
+    dayEntry.bytes += sizeBytes;
+    dayEntry.count++;
   }
 }
 
@@ -383,11 +420,10 @@ function recordEgressHit(state, action, sizeBytes, ou, userIdent, eventDateStr, 
  * Updates a simple frequency & volume map
  */
 function updateSimpleMap(map, key, sizeBytes) {
-  if (!map[key]) {
-    map[key] = { name: key, count: 0, bytes: 0 };
-  }
-  map[key].count++;
-  map[key].bytes += sizeBytes;
+  sizeBytes = ceraSafeBytes_(sizeBytes);
+  const entry = ceraOwnEnsure_(map, key, () => ({ name: key, count: 0, bytes: 0 }));
+  entry.count++;
+  entry.bytes += sizeBytes;
 }
 
 /**
@@ -396,9 +432,10 @@ function updateSimpleMap(map, key, sizeBytes) {
  * (leftCount / leftBytes) and its destination (ceraRecordDestinationOutcome_).
  */
 function recordVectorHit(v, action, sizeBytes, contentType, domain, category, ou, userIdent, isSensitive, detectorCategory, eventDateStr, isUnscanned, atMs, outcome) {
+  sizeBytes = ceraSafeBytes_(sizeBytes);
   v.totalEvents++;
   v.totalBytes += sizeBytes;
-  if (userIdent) v.users[userIdent] = true;
+  if (userIdent) ceraOwnSet_(v.users, userIdent, true);
   const isEgress = isEgressAction(action);
   const left = !ceraOutcomeStopped_(outcome || 'notReported');
   if (isEgress) {
@@ -407,7 +444,7 @@ function recordVectorHit(v, action, sizeBytes, contentType, domain, category, ou
     v.egress.bytes += sizeBytes;
     v.egress.count++;
     if (userIdent) {
-      const eu = v.egress.users[userIdent] || (v.egress.users[userIdent] = { bytes: 0, count: 0 });
+      const eu = ceraOwnEnsure_(v.egress.users, userIdent, () => ({ bytes: 0, count: 0 }));
       eu.bytes += sizeBytes;
       eu.count++;
     }
@@ -416,7 +453,7 @@ function recordVectorHit(v, action, sizeBytes, contentType, domain, category, ou
   }
   if (isUnscanned) markVectorUnscanned(v, sizeBytes);
 
-  const actObj = v.actions[action];
+  const actObj = ceraOwnGet_(v.actions, action);
   if (actObj) {
     actObj.count++;
     actObj.bytes += sizeBytes;
@@ -432,32 +469,29 @@ function recordVectorHit(v, action, sizeBytes, contentType, domain, category, ou
 
   updateSubMap(v.ous, ou, action, sizeBytes);
   updateSubMap(v.domains, domain, action, sizeBytes);
-  if (isEgress) ceraRecordDestinationOutcome_(v.domains[domain], outcome, sizeBytes, isSensitive);
+  if (isEgress) ceraRecordDestinationOutcome_(ceraOwnGet_(v.domains, domain), outcome, sizeBytes, isSensitive);
   updateSubMap(v.types, contentType, action, sizeBytes);
   updateSimpleMap(v.cats, category, sizeBytes);
 
   // Directional timeline tracking per vector
   if (eventDateStr && v.timeline) {
-    if (!v.timeline[eventDateStr]) {
-      v.timeline[eventDateStr] = {
-        date: eventDateStr,
-        uploadBytes: 0,
-        downloadBytes: 0,
-        printBytes: 0,
-        totalBytes: 0,
-        uploadCount: 0,
-        downloadCount: 0,
-        printCount: 0,
-        totalEvents: 0,
-        totalCount: 0,
-        pasteBytes: 0,
-        pasteCount: 0,
-        egressBytes: 0,
-        egressCount: 0,
-        types: {}
-      };
-    }
-    const t = v.timeline[eventDateStr];
+    const t = ceraOwnEnsure_(v.timeline, eventDateStr, () => ({
+      date: eventDateStr,
+      uploadBytes: 0,
+      downloadBytes: 0,
+      printBytes: 0,
+      totalBytes: 0,
+      uploadCount: 0,
+      downloadCount: 0,
+      printCount: 0,
+      totalEvents: 0,
+      totalCount: 0,
+      pasteBytes: 0,
+      pasteCount: 0,
+      egressBytes: 0,
+      egressCount: 0,
+      types: {}
+    }));
     t.totalBytes += sizeBytes;
     t.totalEvents++;
     t.totalCount++;
@@ -466,30 +500,27 @@ function recordVectorHit(v, action, sizeBytes, contentType, domain, category, ou
     else if (action === 'print') { t.printBytes += sizeBytes; t.printCount++; }
     else if (action === 'paste') { t.pasteBytes += sizeBytes; t.pasteCount++; }
     if (isEgress) { t.egressBytes += sizeBytes; t.egressCount++; }
-    t.types[contentType] = (t.types[contentType] || 0) + sizeBytes;
+    ceraOwnInc_(t.types, contentType, sizeBytes);
   }
 
   // User actor attribution per vector
   if (userIdent && v.actors) {
-    if (!v.actors[userIdent]) {
-      v.actors[userIdent] = {
-        user: userIdent,
-        ou: ou || 'Unassigned OU',
-        uploadBytes: 0,
-        downloadBytes: 0,
-        printBytes: 0,
-        totalBytes: 0,
-        uploadCount: 0,
-        downloadCount: 0,
-        printCount: 0,
-        totalEvents: 0,
-        pasteBytes: 0,
-        pasteCount: 0,
-        egressBytes: 0,
-        egressCount: 0
-      };
-    }
-    const a = v.actors[userIdent];
+    const a = ceraOwnEnsure_(v.actors, userIdent, () => ({
+      user: userIdent,
+      ou: ou || 'Unassigned OU',
+      uploadBytes: 0,
+      downloadBytes: 0,
+      printBytes: 0,
+      totalBytes: 0,
+      uploadCount: 0,
+      downloadCount: 0,
+      printCount: 0,
+      totalEvents: 0,
+      pasteBytes: 0,
+      pasteCount: 0,
+      egressBytes: 0,
+      egressCount: 0
+    }));
     ceraKeepLatestOu_(a, ou || 'Unassigned OU', atMs);
     a.totalBytes += sizeBytes;
     a.totalEvents++;
@@ -502,31 +533,31 @@ function recordVectorHit(v, action, sizeBytes, contentType, domain, category, ou
     // Track actor daily timeline
     if (!a.timeline) a.timeline = {};
     if (eventDateStr) {
-      if (!a.timeline[eventDateStr]) {
-        a.timeline[eventDateStr] = {
-          date: eventDateStr,
-          uploadBytes: 0,
-          downloadBytes: 0,
-          printBytes: 0,
-          totalBytes: 0,
-          uploadCount: 0,
-          downloadCount: 0,
-          printCount: 0,
-          totalEvents: 0
-        };
-      }
-      const at = a.timeline[eventDateStr];
+      const at = ceraOwnEnsure_(a.timeline, eventDateStr, () => ({
+        date: eventDateStr,
+        uploadBytes: 0,
+        downloadBytes: 0,
+        printBytes: 0,
+        pasteBytes: 0,
+        totalBytes: 0,
+        uploadCount: 0,
+        downloadCount: 0,
+        printCount: 0,
+        pasteCount: 0,
+        totalEvents: 0
+      }));
       at.totalBytes += sizeBytes;
       at.totalEvents++;
       if (action === 'upload') { at.uploadBytes += sizeBytes; at.uploadCount++; }
       else if (action === 'download') { at.downloadBytes += sizeBytes; at.downloadCount++; }
       else if (action === 'print') { at.printBytes += sizeBytes; at.printCount++; }
+      else if (action === 'paste') { at.pasteBytes = (at.pasteBytes || 0) + sizeBytes; at.pasteCount = (at.pasteCount || 0) + 1; }
     }
   }
 
   if (isSensitive) {
     v.sensitivity.sensitiveCount++;
-    v.sensitivity.detectors[detectorCategory] = (v.sensitivity.detectors[detectorCategory] || 0) + 1;
+    ceraOwnInc_(v.sensitivity.detectors, detectorCategory || 'OTHER', 1);
   } else {
     v.sensitivity.nonSensitiveCount++;
   }
@@ -539,9 +570,10 @@ function recordVectorHit(v, action, sizeBytes, contentType, domain, category, ou
  */
 function ceraRecordDestinationOutcome_(entry, outcome, sizeBytes, isSensitive) {
   if (!entry) return;
+  sizeBytes = ceraSafeBytes_(sizeBytes);
   const cls = outcome || 'notReported';
   if (!entry.egressOutcomes) entry.egressOutcomes = {};
-  const o = entry.egressOutcomes[cls] || (entry.egressOutcomes[cls] = { bytes: 0, count: 0 });
+  const o = ceraOwnEnsure_(entry.egressOutcomes, cls, () => ({ bytes: 0, count: 0 }));
   o.bytes += sizeBytes;
   o.count++;
   if (ceraOutcomeStopped_(cls)) return;
@@ -555,6 +587,7 @@ function ceraRecordDestinationOutcome_(entry, outcome, sizeBytes, isSensitive) {
  */
 function markVectorUnscanned(v, sizeBytes) {
   if (!v) return;
+  sizeBytes = ceraSafeBytes_(sizeBytes);
   if (!v.unscanned) v.unscanned = { bytes: 0, count: 0 };
   v.unscanned.bytes += sizeBytes;
   v.unscanned.count++;
@@ -642,6 +675,19 @@ function createSecurityRadarAggregator() {
 }
 
 /**
+ * True only when `host` is an exact or registrable-subdomain match for facebook.com or messenger.com
+ * (prevents suffix-spoofing such as evilfacebook.com or facebook.com.attacker.example).
+ */
+function ceraIsMetaDomain_(host) {
+  const h = String(host || '').trim().toLowerCase().replace(/:\d+$/, '');
+  if (!h) return false;
+  if (typeof domainMatches === 'function') {
+    return domainMatches(h, 'facebook.com') || domainMatches(h, 'messenger.com');
+  }
+  return h === 'facebook.com' || h.endsWith('.facebook.com') || h === 'messenger.com' || h.endsWith('.messenger.com');
+}
+
+/**
  * Records one security event into Threat Vector 5: Security Radar with granular forensics. resultAction is the event's
  * outcome: BYPASSED for a warning the user clicked through, otherwise the result of the event's first row.
  */
@@ -655,9 +701,9 @@ function recordSecurityRadarHit(radar, signalType, eventDateStr, ou, userIdent, 
 
   radar.totalIncidents++;
   radar.totalEvents++;
-  radar.ous[ou] = (radar.ous[ou] || 0) + 1;
-  radar.domains[domain] = (radar.domains[domain] || 0) + 1;
-  if (userIdent) radar.users[userIdent] = true;
+  ceraOwnInc_(radar.ous, ou, 1);
+  ceraOwnInc_(radar.domains, domain, 1);
+  if (userIdent) ceraOwnSet_(radar.users, userIdent, true);
 
   // One outcome per event (ceraOutcomeClass_): bypassed, warned (shown and heeded), blocked, cancelled, not reported,
   // detected (ALLOWED, DETECTED, REPORTED), or other (a result of no known class). A blocked visit is never counted
@@ -678,11 +724,11 @@ function recordSecurityRadarHit(radar, signalType, eventDateStr, ou, userIdent, 
   else if (outcomeKey === 'cancelled') radar.cancelledCount = (radar.cancelledCount || 0) + 1;
   else radar.otherCount = (radar.otherCount || 0) + 1;
   // Events per normalized result of each signal (WARNED, ALLOWED, ...; NOT_REPORTED without one)
-  const sig = radar.signals[signalType];
+  const sig = ceraOwnGet_(radar.signals, signalType);
   if (sig) {
     if (!sig.results) sig.results = {};
     const rk = outcome || 'NOT_REPORTED';
-    sig.results[rk] = (sig.results[rk] || 0) + 1;
+    ceraOwnInc_(sig.results, rk, 1);
   }
 
   // 1. Signal-specific granular sub-mapping
@@ -691,13 +737,13 @@ function recordSecurityRadarHit(radar, signalType, eventDateStr, ou, userIdent, 
     s.total++;
     s[outcomeKey]++;
 
-    s.reasons[reason] = (s.reasons[reason] || 0) + 1;
-    if (!s.domains[domain]) s.domains[domain] = { total: 0, warned: 0, bypassed: 0, blocked: 0, cancelled: 0, detected: 0, other: 0, unreported: 0 };
-    s.domains[domain].total++;
-    s.domains[domain][outcomeKey]++;
+    ceraOwnInc_(s.reasons, reason, 1);
+    const sd = ceraOwnEnsure_(s.domains, domain, () => ({ total: 0, warned: 0, bypassed: 0, blocked: 0, cancelled: 0, detected: 0, other: 0, unreported: 0 }));
+    sd.total++;
+    sd[outcomeKey]++;
 
-    s.ous[ou] = (s.ous[ou] || 0) + 1;
-    if (userIdent) s.users[userIdent] = true;
+    ceraOwnInc_(s.ous, ou, 1);
+    if (userIdent) ceraOwnSet_(s.users, userIdent, true);
 
     if (rawUrl && s.sampleUrls && s.sampleUrls.length < 50) {
       s.sampleUrls.push({ url: rawUrl, domain: domain, reason: reason, action: resultAction, ou: ou, user: userIdent, date: eventDateStr });
@@ -707,14 +753,13 @@ function recordSecurityRadarHit(radar, signalType, eventDateStr, ou, userIdent, 
     s.total++;
     // Events per destination. A password change is no reuse event (state.passwordChanges counts it), so there is no
     // changed or allowed split to keep here
-    if (!s.domains[domain]) s.domains[domain] = { total: 0 };
-    s.domains[domain].total++;
+    const pd = ceraOwnEnsure_(s.domains, domain, () => ({ total: 0 }));
+    pd.total++;
 
-    const isMeta = domain.includes('facebook.com') || domain.includes('messenger.com');
-    if (isMeta) s.metaHits = (s.metaHits || 0) + 1;
+    if (ceraIsMetaDomain_(domain)) s.metaHits = (s.metaHits || 0) + 1;
 
-    s.ous[ou] = (s.ous[ou] || 0) + 1;
-    if (userIdent) s.users[userIdent] = true;
+    ceraOwnInc_(s.ous, ou, 1);
+    if (userIdent) ceraOwnSet_(s.users, userIdent, true);
 
     if (rawUrl && s.sampleUrls && s.sampleUrls.length < 50) {
       s.sampleUrls.push({ url: rawUrl, domain: domain, reason: reason, action: resultAction, ou: ou, user: userIdent, date: eventDateStr });
@@ -724,17 +769,17 @@ function recordSecurityRadarHit(radar, signalType, eventDateStr, ou, userIdent, 
     s.total++;
     s[outcomeKey]++;
 
-    s.reasons[reason] = (s.reasons[reason] || 0) + 1;
-    s.domains[domain] = (s.domains[domain] || 0) + 1;
-    s.ous[ou] = (s.ous[ou] || 0) + 1;
-    if (userIdent) s.users[userIdent] = true;
+    ceraOwnInc_(s.reasons, reason, 1);
+    ceraOwnInc_(s.domains, domain, 1);
+    ceraOwnInc_(s.ous, ou, 1);
+    if (userIdent) ceraOwnSet_(s.users, userIdent, true);
 
     if (fileName) {
-      if (!s.files[fileName]) s.files[fileName] = { total: 0, warned: 0, bypassed: 0, blocked: 0, domain: domain, reason: reason };
-      s.files[fileName].total++;
-      if (isBypass) s.files[fileName].bypassed++;
-      else if (isWarned) s.files[fileName].warned++;
-      else if (isBlocked) s.files[fileName].blocked++;
+      const mf = ceraOwnEnsure_(s.files, fileName, () => ({ total: 0, warned: 0, bypassed: 0, blocked: 0, domain: domain, reason: reason }));
+      mf.total++;
+      if (isBypass) mf.bypassed++;
+      else if (isWarned) mf.warned++;
+      else if (isBlocked) mf.blocked++;
     }
 
     if (rawUrl && s.sampleUrls && s.sampleUrls.length < 50) {
@@ -744,21 +789,18 @@ function recordSecurityRadarHit(radar, signalType, eventDateStr, ou, userIdent, 
 
   // 2. Timeline Aggregation (YYYY-MM-DD)
   if (eventDateStr) {
-    if (!radar.timeline[eventDateStr]) {
-      radar.timeline[eventDateStr] = {
-        date: eventDateStr,
-        unsafe: 0,
-        password: 0,
-        malware: 0,
-        total: 0,
-        totalEvents: 0,
-        bypassed: 0,
-        warned: 0,
-        blocked: 0,
-        unreported: 0
-      };
-    }
-    const t = radar.timeline[eventDateStr];
+    const t = ceraOwnEnsure_(radar.timeline, eventDateStr, () => ({
+      date: eventDateStr,
+      unsafe: 0,
+      password: 0,
+      malware: 0,
+      total: 0,
+      totalEvents: 0,
+      bypassed: 0,
+      warned: 0,
+      blocked: 0,
+      unreported: 0
+    }));
     t.total++;
     t.totalEvents++;
     if (signalType === 'unsafeSiteVisit') t.unsafe++;
@@ -772,20 +814,17 @@ function recordSecurityRadarHit(radar, signalType, eventDateStr, ou, userIdent, 
 
   // 3. Actor Attribution & Daily Actor Timeline
   if (userIdent) {
-    if (!radar.actors[userIdent]) {
-      radar.actors[userIdent] = {
-        user: userIdent,
-        ou: ou,
-        unsafe: 0,
-        password: 0,
-        malware: 0,
-        total: 0,
-        totalEvents: 0,
-        bypassed: 0,
-        timeline: {}
-      };
-    }
-    const a = radar.actors[userIdent];
+    const a = ceraOwnEnsure_(radar.actors, userIdent, () => ({
+      user: userIdent,
+      ou: ou,
+      unsafe: 0,
+      password: 0,
+      malware: 0,
+      total: 0,
+      totalEvents: 0,
+      bypassed: 0,
+      timeline: {}
+    }));
     if (!a.ou || a.ou === 'Unassigned OU') a.ou = ou;
     a.total++;
     a.totalEvents++;
@@ -797,18 +836,15 @@ function recordSecurityRadarHit(radar, signalType, eventDateStr, ou, userIdent, 
     // Track actor daily timeline
     if (!a.timeline) a.timeline = {};
     if (eventDateStr) {
-      if (!a.timeline[eventDateStr]) {
-        a.timeline[eventDateStr] = {
-          date: eventDateStr,
-          unsafe: 0,
-          password: 0,
-          malware: 0,
-          total: 0,
-          bypassed: 0,
-          warned: 0
-        };
-      }
-      const at = a.timeline[eventDateStr];
+      const at = ceraOwnEnsure_(a.timeline, eventDateStr, () => ({
+        date: eventDateStr,
+        unsafe: 0,
+        password: 0,
+        malware: 0,
+        total: 0,
+        bypassed: 0,
+        warned: 0
+      }));
       at.total++;
       if (signalType === 'unsafeSiteVisit') at.unsafe++;
       else if (signalType === 'passwordReuse') at.password++;
@@ -842,8 +878,8 @@ function recordClipboardCopy(state, sourceHost, userIdent, isSensitive, outcome,
   const c = state.copies;
   const host = sourceHost || (CeraConfig.UNKNOWN_DESTINATION || 'Unknown destination');
   c.count++;
-  if (userIdent) c.users[userIdent] = (c.users[userIdent] || 0) + 1;
-  c.sources[host] = (c.sources[host] || 0) + 1;
+  if (userIdent) ceraOwnInc_(c.users, userIdent, 1);
+  ceraOwnInc_(c.sources, host, 1);
   if (isSensitive) c.sensitive++;
   ceraRecordOutcome_(c, outcome, sizeBytes, '');
 }
@@ -863,17 +899,17 @@ function recordSensitiveOnPage(state, host, detectorText, ou, userIdent, dayKey,
   else if (['mail.google.com', 'outlook.office.com', 'outlook.office365.com', 'outlook.live.com'].some(d => domainMatches(h, d))) hostClass = 'email';
 
   sp.count++;
-  sp.hosts[h] = (sp.hosts[h] || 0) + 1;
+  ceraOwnInc_(sp.hosts, h, 1);
   if (outcome === 'unmasked') {
     if (!sp.unmaskHosts) sp.unmaskHosts = {};
-    sp.unmaskHosts[h] = (sp.unmaskHosts[h] || 0) + 1;
+    ceraOwnInc_(sp.unmaskHosts, h, 1);
   }
-  sp.hostClasses[hostClass] = (sp.hostClasses[hostClass] || 0) + 1;
-  sp.ous[ou] = (sp.ous[ou] || 0) + 1;
-  if (userIdent) sp.users[userIdent] = (sp.users[userIdent] || 0) + 1;
-  if (dayKey) sp.daily[dayKey] = (sp.daily[dayKey] || 0) + 1;
+  ceraOwnInc_(sp.hostClasses, hostClass, 1);
+  ceraOwnInc_(sp.ous, ou, 1);
+  if (userIdent) ceraOwnInc_(sp.users, userIdent, 1);
+  if (dayKey) ceraOwnInc_(sp.daily, dayKey, 1);
   String(detectorText || '').split(',').map(d => d.trim()).filter(Boolean).forEach(d => {
-    sp.detectors[d] = (sp.detectors[d] || 0) + 1;
+    ceraOwnInc_(sp.detectors, d, 1);
   });
 }
 

@@ -53,7 +53,11 @@ var InsightEngine = {
     const lang = ceraNormalizeLang_(o.lang || 'en');
     const T = (key, params) => ceraT(key, params, lang);
     const B = bytes => formatBytes(Number(bytes) || 0);
-    const pct = (part, whole) => whole > 0 ? Math.round((part / whole) * 100) : 0;
+    const pct = (part, whole) => {
+      const p = Number(part) || 0;
+      const w = Number(whole) || 0;
+      return (isFinite(p) && isFinite(w) && w > 0 && p > 0) ? Math.round((p / w) * 100) : 0;
+    };
     const P = n => T('deck.people', { n: n });
     const st = state || {};
     const m = om || {};
@@ -89,8 +93,8 @@ var InsightEngine = {
       const sentTotals = ceraSentToSite(out);
       let sent;
       if (sentTotals) {
-        const perDest = {};
-        Object.keys(v.domains || {}).forEach(d => { perDest[d] = ceraSentToSite(v.domains[d]) || {}; });
+        const perDest = Object.create(null);
+        Object.keys(v.domains || {}).forEach(d => { perDest[d] = ceraSentToSite(ceraOwnGet_(v.domains, d)) || {}; });
         const sentByCount = !(sentTotals.bytes > 0) && sentTotals.count > 0;
         sent = Object.assign({}, sentTotals, {
           byCount: sentByCount,
@@ -148,9 +152,9 @@ var InsightEngine = {
 
     const ranked = INSIGHT_VECTORS.map(k => vectors[k]).sort((a, b) => b.bytes - a.bytes || b.count - a.count);
     const lead = ranked[0];
-    const users = Object.keys(egress.users || {}).map(u => sizeOf(egress.users[u])).sort((a, b) => b - a);
+    const users = Object.keys(egress.users || {}).map(u => sizeOf(ceraOwnGet_(egress.users, u))).sort((a, b) => b - a);
     const ous = Object.keys(egress.ous || {}).map(k => {
-      const e = egress.ous[k];
+      const e = ceraOwnGet_(egress.ous, k) || {};
       const count = Number(e.count) || 0;
       const bytes = Number(e.bytes) || 0;
       return { name: k, bytes: bytes, count: count, size: sizeOf(e),
@@ -163,19 +167,35 @@ var InsightEngine = {
     const aiPersonalCount = Math.max(0, Number(ai.personalSanctioned && ai.personalSanctioned.count) || 0);
     const aiTotal = aiSanctionedCount + aiShadowCount + aiPersonalCount;
     const radar = st.securityRadar || {};
-    const unsafe = radar.unsafeSiteVisit || { total: 0, domains: {} };
-    const unsafeInternal = Object.keys(unsafe.domains || {}).filter(d => isInternalHost(d)).reduce((s, d) => s + (unsafe.domains[d] || 0), 0);
-    // Outcomes of the Safe Browsing visits (Event Result column); bypasses are known only for visits that reported one
-    const unsafeOutcomes = (st.vectors && st.vectors.securityRadar && st.vectors.securityRadar.signals && st.vectors.securityRadar.signals.unsafeSiteVisit) || {};
-    const pw = radar.passwordReuse || { total: 0, users: {} };
-    const mal = radar.malwareTransfer || { total: 0, users: {} };
+    const radarSignals = (st.vectors && st.vectors.securityRadar && st.vectors.securityRadar.signals) || {};
+    // Outcomes of the Safe Browsing visits (Event Result column); bypasses are known only for visits that reported one.
+    // Falls back to vectors.securityRadar.signals when state.securityRadar is absent so headlines and slide cards stay on one basis.
+    const unsafeOutcomes = radarSignals.unsafeSiteVisit || {};
+    const unsafe = (radar.unsafeSiteVisit && (Number(radar.unsafeSiteVisit.total) || 0) > 0)
+      ? radar.unsafeSiteVisit
+      : ((Number(unsafeOutcomes.total) || 0) > 0 ? unsafeOutcomes : (radar.unsafeSiteVisit || { total: 0, domains: {} }));
+    const unsafeInternal = Object.keys(unsafe.domains || {}).filter(d => isInternalHost(d)).reduce((s, d) => {
+      const dv = ceraOwnGet_(unsafe.domains, d);
+      const hits = (dv && typeof dv === 'object') ? (Number(dv.total) || 0) : (Number(dv) || 0);
+      return s + (hits > 0 ? hits : 0);
+    }, 0);
+    const pwSig = radarSignals.passwordReuse || {};
+    const pw = (radar.passwordReuse && (Number(radar.passwordReuse.total) || 0) > 0)
+      ? radar.passwordReuse
+      : ((Number(pwSig.total) || 0) > 0 ? pwSig : (radar.passwordReuse || { total: 0, users: {} }));
+    const malSig = radarSignals.malwareTransfer || {};
+    const mal = (radar.malwareTransfer && (Number(radar.malwareTransfer.total) || 0) > 0)
+      ? radar.malwareTransfer
+      : ((Number(malSig.total) || 0) > 0 ? malSig : (radar.malwareTransfer || { total: 0, users: {} }));
     const prints = st.printStats || { totalEvents: 0, sensitivity: { sensitiveCount: 0 } };
     const onPage = st.sensitiveOnPage || { count: 0, detectors: {} };
     const onPageOut = ceraOutcomeFacts(onPage).outcomes;
-    const countOf = (o, k) => Number(o[k] && o[k].count) || 0;
+    const countOf = (o, k) => {
+      const item = ceraOwnGet_(o, k);
+      return Number(item && item.count) || 0;
+    };
     // Flagged downloads per event and outcome (ceraAggregateRadarEvent_): the ones that got through were not blocked,
     // cancelled or stopped at a heeded warning
-    const malSig = (st.vectors && st.vectors.securityRadar && st.vectors.securityRadar.signals && st.vectors.securityRadar.signals.malwareTransfer) || {};
     const malStopped = (Number(malSig.blocked) || 0) + (Number(malSig.cancelled) || 0) + (Number(malSig.warned) || 0);
 
     // Outcome mode of the logs (ceraOutcomeMode) and the outcome split of all outbound transfers, prints and AI use
@@ -236,8 +256,12 @@ var InsightEngine = {
     };
 
     facts.printPeople = Object.keys(prints.users || {}).length;
-    // Browser launches with command-line switches, folded and classed (ceraLaunchFacts); null when the logs hold none
+    // Browser launches with command-line switches, folded and classed (ceraLaunchFacts); null when the logs hold none.
+    // Tagged strictly as INFO visibility telemetry since per-process origin/intent analysis is not in log telemetry.
     facts.launches = ceraLaunchFacts(st);
+    if (facts.launches) {
+      facts.launches.severity = 'INFO';
+    }
     // Outbound transfers with no recorded destination are outside the four vectors (state.unknownDestinations)
     const unknownDest = st.unknownDestinations || {};
     facts.unknownOutCount = Number(unknownDest.egressCount) || 0;
@@ -248,9 +272,9 @@ var InsightEngine = {
     const headlines = this._headlines(facts, T, A, pct, o.dateRange || '', P);
     const recs = this._recommendations(facts, T, A, pct);
     // recByTopic: the same texts by finding (shadowAi, personal, unmanaged, messaging, print, malware, password,
-    // certs, safeBrowsing, onPage, launches), so a slide can quote the action that the recommendations slide lists for it
+    // certs, safeBrowsing, onPage), so a slide can quote the action that the recommendations slide lists for it
     const recByTopic = {};
-    recs.forEach(r => { (recByTopic[r.topic] = recByTopic[r.topic] || []).push(r.text); });
+    recs.forEach(r => { ceraOwnEnsure_(recByTopic, r.topic, () => []).push(r.text); });
     return { facts: facts, tiers: this._tiers(vectors), headlines: headlines, recommendations: recs.map(r => r.text), recByTopic: recByTopic, lang: lang };
   },
 
@@ -333,7 +357,8 @@ var InsightEngine = {
     h.s3sub = f.outboundCount > 0 ? T('deck.s3.sub', { pct: pct(f.afterHoursCount, f.outboundCount) }) : T('deck.s3.subNone');
 
     // Transfers whose unit was not in the logs are a bucket, not a unit: the headline says so instead of naming it
-    if (f.topOu && f.topOu.name === T('report.ou.notReported')) h.s4 = T('deck.s4.hlNoOu', { bytes: A(f.topOu.bytes, f.topOu.count, f.byCount), pct: pct(sizeOf(f.topOu), outboundTotal) });
+    const topOuUnreported = f.topOu && (f.topOu.name === T('report.ou.notReported') || (typeof ceraIsUnreportedOu_ === 'function' && ceraIsUnreportedOu_(f.topOu.name)));
+    if (topOuUnreported) h.s4 = T('deck.s4.hlNoOu', { bytes: A(f.topOu.bytes, f.topOu.count, f.byCount), pct: pct(sizeOf(f.topOu), outboundTotal) });
     else if (f.topOu && f.ouCount >= 2 && f.enforced && f.topOu.leftCount < f.topOu.count) {
       h.s4 = T('deck.s4.hlOutcome', { ou: f.topOu.name, bytes: A(f.topOu.bytes, f.topOu.count, f.byCount), pct: pct(sizeOf(f.topOu), outboundTotal),
         left: A(f.topOu.leftBytes, f.topOu.leftCount, f.byCount) });
@@ -502,8 +527,8 @@ var InsightEngine = {
       if (en && printLeft < f.printSensitive) add(450 + printLeft, f.printSensitiveLeftOrigin ? 'deck.rec.printLeft' : 'deck.rec.print', { n: printLeft, host: f.printSensitiveLeftOrigin }, 'print');
       else add(450 + f.printSensitive, 'deck.rec.print', { n: f.printSensitive }, 'print');
     }
-    const malLeft = f.malTotal - f.malStopped;
-    if (f.malTotal > 0 && !(en && malLeft === 0)) {
+    const malLeft = Math.max(0, f.malTotal - f.malStopped);
+    if (f.malTotal > 0 && !(en && malLeft <= 0)) {
       if (en && f.malStopped > 0) add(350, 'deck.rec.malwareLeft', { n: malLeft, total: f.malTotal }, 'malware');
       else add(350, 'deck.rec.malware', { n: f.malTotal }, 'malware');
     }
@@ -513,17 +538,8 @@ var InsightEngine = {
     }
     if (f.unsafeInternal > 0) add(200, 'deck.rec.certs', { n: f.unsafeInternal }, 'certs');
     if (f.pwTotal > 0) add(300, 'deck.rec.password', { n: f.pwTotal }, 'password');
-    // Browser launches: the Chrome Enterprise Core policy that acts on each class of switches present. Launches with
-    // Chrome's own startup switches or other switches only call for none.
-    const lf = f.launches;
-    if (lf) {
-      const launchesOf = id => (lf.classes.find(c => c.id === id) || { launches: 0 }).launches;
-      const devTools = (lf.switches.find(s => s.name === 'auto-open-devtools-for-tabs') || { launches: 0 }).launches;
-      if (launchesOf('protectionsOff') > 0) add(330, 'deck.rec.launchProtections', { n: launchesOf('protectionsOff') }, 'launches');
-      if (launchesOf('automation') > 0) add(325, 'deck.rec.launchAutomation', { n: launchesOf('automation') }, 'launches');
-      if (devTools > 0) add(322, 'deck.rec.launchDevTools', { n: devTools }, 'launches');
-      if (launchesOf('extensionsFromDisk') > 0) add(320, 'deck.rec.launchExtensions', { n: launchesOf('extensionsFromDisk') }, 'launches');
-    }
+    // Browser launches (facts.launches) are strictly INFO-level telemetry inventory without forensic process-origin
+    // attribution, so they never generate urgent security enforcement recommendations here.
     recs.sort((a, b) => b.impact - a.impact);
     return recs;
   },
@@ -535,18 +551,18 @@ var InsightEngine = {
 
   /** A map of counts (name -> n) as entries _topBy can rank: name -> { n }. */
   _counts(map) {
-    const out = {};
-    Object.keys(map || {}).forEach(k => { out[k] = { n: Number(map[k]) || 0 }; });
+    const out = Object.create(null);
+    Object.keys(map || {}).forEach(k => { out[k] = { n: Number(ceraOwnGet_(map, k)) || 0 }; });
     return out;
   },
 
   _topBy(map, bytesKey, countKey) {
     let top = null;
     Object.keys(map || {}).forEach(k => {
-      const e = map[k];
+      const e = ceraOwnGet_(map, k);
       if (!e || typeof e !== 'object' || !validOuName_(k)) return;
-      const bytes = Number(e[bytesKey]) || 0;
-      const count = Number(e[countKey]) || 0;
+      const bytes = Number(ceraOwnGet_(e, bytesKey)) || 0;
+      const count = Number(ceraOwnGet_(e, countKey)) || 0;
       if (bytes <= 0 && count <= 0) return;
       if (!top || bytes > top.bytes || (bytes === top.bytes && count > top.count)) top = { name: k, bytes: bytes, count: count };
     });
@@ -564,13 +580,13 @@ var InsightEngine = {
     let totalHits = 0;
     Object.keys(map || {}).forEach(k => {
       if (!k || /^policies\//.test(k) || /^(OTHER|UNKNOWN)$/i.test(k)) return;
-      const n = Number(map[k]) || 0;
+      const n = Number(ceraOwnGet_(map, k)) || 0;
       if (n <= 0) return;
       totalHits += n;
-      if (!best || n > (Number(map[best]) || 0)) best = k;
-      if (HIGH.test(k) && (!bestHigh || n > (Number(map[bestHigh]) || 0))) bestHigh = k;
+      if (!best || n > (Number(ceraOwnGet_(map, best)) || 0)) best = k;
+      if (HIGH.test(k) && (!bestHigh || n > (Number(ceraOwnGet_(map, bestHigh)) || 0))) bestHigh = k;
     });
-    const bestHighCount = bestHigh ? (Number(map[bestHigh]) || 0) : 0;
+    const bestHighCount = bestHigh ? (Number(ceraOwnGet_(map, bestHigh)) || 0) : 0;
     const useHigh = bestHigh && (totalHits < 20 || (bestHighCount >= 2 && (bestHighCount / totalHits) >= 0.005));
     const pick = useHigh ? bestHigh : best;
     return pick ? ceraDetectorLabel(pick) : '';
@@ -600,8 +616,8 @@ function ceraOutcomeFacts(holder) {
     return { left: all, stopped: { bytes: 0, count: 0 }, outcomes: all.count ? { notReported: all } : {}, blocked: { bytes: 0, count: 0 } };
   }
   const outcomes = {};
-  Object.keys(h.outcomes || {}).forEach(k => { outcomes[k] = pair(h.outcomes[k]); });
-  return { left: pair(h.left), stopped: pair(h.stopped), outcomes: outcomes, blocked: outcomes.blocked || { bytes: 0, count: 0 } };
+  Object.keys(h.outcomes || {}).forEach(k => { ceraOwnSet_(outcomes, k, pair(ceraOwnGet_(h.outcomes, k))); });
+  return { left: pair(h.left), stopped: pair(h.stopped), outcomes: outcomes, blocked: ceraOwnGet_(outcomes, 'blocked') || { bytes: 0, count: 0 } };
 }
 
 /**
@@ -650,14 +666,18 @@ function ceraOutboundDetectors(vec) {
   const sensitive = Number(out.sensitiveCount) || 0;
   const explicit = (out.detectorNames && typeof out.detectorNames === 'object') ? out.detectorNames
     : ((v.egressDetectorNames && typeof v.egressDetectorNames === 'object') ? v.egressDetectorNames : null);
-  if (explicit) return { names: Object.assign({}, explicit), exact: true, sensitive: sensitive };
+  if (explicit) {
+    const copy = {};
+    Object.keys(explicit).forEach(k => { ceraOwnSet_(copy, k, explicit[k]); });
+    return { names: copy, exact: true, sensitive: sensitive };
+  }
   if (sensitive <= 0) return { names: {}, exact: true, sensitive: 0 };
   const all = v.detectorNames || {};
   const notOutbound = Math.max(0, (Number(v.sensitivity && v.sensitivity.sensitiveCount) || 0) - sensitive);
   const names = {};
   Object.keys(all).forEach(k => {
-    const n = (Number(all[k]) || 0) - notOutbound;
-    if (n > 0) names[k] = n;
+    const n = (Number(ceraOwnGet_(all, k)) || 0) - notOutbound;
+    if (n > 0) ceraOwnSet_(names, k, n);
   });
   return { names: names, exact: notOutbound === 0, sensitive: sensitive };
 }
@@ -670,9 +690,9 @@ function ceraOutboundDetectors(vec) {
  */
 function ceraDetectorListText(names, exact, lang, limit) {
   const map = names || {};
-  const det = Object.keys(map).filter(k => k && !/^policies\//.test(k) && !/^(OTHER|UNKNOWN)$/i.test(k) && (Number(map[k]) || 0) > 0)
-    .sort((a, b) => (Number(map[b]) || 0) - (Number(map[a]) || 0) || (a < b ? -1 : 1)).slice(0, limit || 3);
-  return ceraJoinList(det.map(k => exact ? ceraT('deck.v.detectorCount', { name: ceraDetectorLabel(k), n: Number(map[k]) || 0 }, lang) : ceraDetectorLabel(k)), lang);
+  const det = Object.keys(map).filter(k => k && !/^policies\//.test(k) && !/^(OTHER|UNKNOWN)$/i.test(k) && (Number(ceraOwnGet_(map, k)) || 0) > 0)
+    .sort((a, b) => (Number(ceraOwnGet_(map, b)) || 0) - (Number(ceraOwnGet_(map, a)) || 0) || (a < b ? -1 : 1)).slice(0, limit || 3);
+  return ceraJoinList(det.map(k => exact ? ceraT('deck.v.detectorCount', { name: ceraDetectorLabel(k), n: Number(ceraOwnGet_(map, k)) || 0 }, lang) : ceraDetectorLabel(k)), lang);
 }
 
 /**
@@ -684,7 +704,7 @@ function ceraSensitivityDetectorNames(sens, names) {
   if (names && typeof names === 'object' && Object.keys(names).length) return names;
   const coarse = (sens && sens.detectors) || {};
   const out = {};
-  ['CREDIT_CARD_NUMBER', 'PHONE_NUMBER', 'EMAIL_ADDRESS'].forEach(k => { if ((Number(coarse[k]) || 0) > 0) out[k] = Number(coarse[k]); });
+  ['CREDIT_CARD_NUMBER', 'PHONE_NUMBER', 'EMAIL_ADDRESS'].forEach(k => { if ((Number(ceraOwnGet_(coarse, k)) || 0) > 0) out[k] = Number(ceraOwnGet_(coarse, k)); });
   return out;
 }
 
@@ -719,7 +739,7 @@ function ceraAccountSplit(vec, state) {
     const domains = Object.keys(c.domains || {}).filter(validOuName_);
     let domain = '';
     if (min > 0 && (domains.length === 1 || (!explicit && notOutbound === 0))) {
-      domain = domains.sort((a, b) => (c.domains[b] - c.domains[a]) || (a < b ? -1 : 1))[0] || '';
+      domain = domains.sort((a, b) => ((Number(ceraOwnGet_(c.domains, b)) || 0) - (Number(ceraOwnGet_(c.domains, a)) || 0)) || (a < b ? -1 : 1))[0] || '';
     }
     return { min: min, max: max, domain: domain };
   };
@@ -856,9 +876,9 @@ function ceraMalwareFileRows(state, lang) {
   const legacy = state && state.securityRadar && state.securityRadar.malwareTransfer;
   const files = (sig && sig.files && Object.keys(sig.files).length) ? sig.files : ((legacy && legacy.files) || {});
   const rows = [];
-  const unnamed = {}; // source host -> { files, hits }
+  const unnamed = Object.create(null); // source host -> { files, hits }
   Object.keys(files).forEach(key => {
-    const e = files[key];
+    const e = ceraOwnGet_(files, key);
     const hits = (e && typeof e === 'object') ? (Number(e.total || e.count) || 0) : (Number(e) || 0);
     if (hits <= 0) return;
     const fileName = (e && typeof e === 'object' && e.fileName) ? e.fileName : key;
@@ -893,7 +913,7 @@ function ceraOutboundFormats(vec, lang, limit) {
   let items;
   if (fams && Object.keys(fams).length) {
     items = Object.keys(fams).map(id => {
-      const e = fams[id] || {};
+      const e = ceraOwnGet_(fams, id) || {};
       return {
         name: ceraFamilyLabel(id, lang),
         bytes: Number(e.egressBytes !== undefined ? e.egressBytes : e.bytes) || 0,
@@ -902,7 +922,7 @@ function ceraOutboundFormats(vec, lang, limit) {
     });
   } else {
     items = Object.keys(v.types || {}).map(k => {
-      const e = v.types[k] || {};
+      const e = ceraOwnGet_(v.types, k) || {};
       return { name: (e && e.name) || k, bytes: Number(e.egressBytes) || 0, count: Number(e.egressCount) || 0 };
     });
   }
@@ -968,18 +988,18 @@ function ceraUnitSkew(state) {
   let best = null;
   Object.keys(units).sort().forEach(ou => {
     if (typeof ceraIsUnreportedOu_ === 'function' && ceraIsUnreportedOu_(ou)) return;
-    const u = units[ou] || {};
+    const u = ceraOwnGet_(units, ou) || {};
     const total = Number(u.totalBytes) || 0;
-    const people = Object.keys(u.users || {}).filter(p => (Number(u.users[p]) || 0) > 0);
+    const people = Object.keys(u.users || {}).filter(p => (Number(ceraOwnGet_(u.users, p)) || 0) > 0);
     if (!validOuName_(ou) || total < CERA_SKEW_RULE.minBytes || people.length < CERA_SKEW_RULE.minPeople) return;
-    const top = people.reduce((m, p) => Math.max(m, Number(u.users[p]) || 0), 0);
+    const top = people.reduce((m, p) => Math.max(m, Number(ceraOwnGet_(u.users, p)) || 0), 0);
     const ratio = total > 0 ? top / total : 0;
     if (!best || ratio > best.ratio + 1e-9 || (Math.abs(ratio - best.ratio) <= 1e-9 && total > best.bytes)) {
       let topDomain = '';
       let topDomBytes = -1;
       let topDomCount = -1;
       Object.keys(u.domains || {}).filter(validOuName_).sort().forEach(d => {
-        const domObj = u.domains[d] || {};
+        const domObj = ceraOwnGet_(u.domains, d) || {};
         const db = Number(domObj.bytes) || 0;
         const dc = Number(domObj.count) || 0;
         if (db > topDomBytes || (db === topDomBytes && dc > topDomCount)) {
@@ -1004,7 +1024,7 @@ function ceraPeopleInLog(state) {
   const st = state || {};
   const cov = st.coverage || {};
   if (typeof cov.people === 'number') return { n: cov.people, exact: true };
-  const seen = {};
+  const seen = Object.create(null);
   const add = m => Object.keys(m || {}).forEach(u => { if (u) seen[u] = true; });
   add(st.globalUsers);
   add(st.egress && st.egress.users);
@@ -1013,6 +1033,8 @@ function ceraPeopleInLog(state) {
   add(st.copies && st.copies.users);
   const radar = st.securityRadar || {};
   ['passwordReuse', 'malwareTransfer', 'unsafeSiteVisit'].forEach(k => add(radar[k] && radar[k].users));
+  const radarSignals = st.vectors && st.vectors.securityRadar && st.vectors.securityRadar.signals;
+  if (radarSignals) ['passwordReuse', 'malwareTransfer', 'unsafeSiteVisit'].forEach(k => add(radarSignals[k] && radarSignals[k].users));
   add(st.vectors && st.vectors.securityRadar && st.vectors.securityRadar.users);
   return { n: Object.keys(seen).length, exact: false };
 }
@@ -1028,21 +1050,21 @@ function ceraOutboundUsers(vec) {
   const eu = v.egress && v.egress.users;
   if (eu && typeof eu === 'object' && Object.keys(eu).length) {
     Object.keys(eu).forEach(u => {
-      const e = eu[u] || {};
-      if ((Number(e.count) || 0) > 0 || (Number(e.bytes) || 0) > 0) out[u] = { bytes: Number(e.bytes) || 0, count: Number(e.count) || 0 };
+      const e = ceraOwnGet_(eu, u) || {};
+      if ((Number(e.count) || 0) > 0 || (Number(e.bytes) || 0) > 0) ceraOwnSet_(out, u, { bytes: Number(e.bytes) || 0, count: Number(e.count) || 0 });
     });
     return out;
   }
   const actors = v.actors || {};
   if (Object.keys(actors).length) {
     Object.keys(actors).forEach(u => {
-      const a = actors[u] || {};
-      if ((Number(a.egressCount) || 0) > 0) out[u] = { bytes: Number(a.egressBytes) || 0, count: Number(a.egressCount) || 0 };
+      const a = ceraOwnGet_(actors, u) || {};
+      if ((Number(a.egressCount) || 0) > 0) ceraOwnSet_(out, u, { bytes: Number(a.egressBytes) || 0, count: Number(a.egressCount) || 0 });
     });
     return out;
   }
   if (eu && typeof eu === 'object') return out;
-  Object.keys(v.users || {}).forEach(u => { out[u] = { bytes: 0, count: 0 }; });
+  Object.keys(v.users || {}).forEach(u => { ceraOwnSet_(out, u, { bytes: 0, count: 0 }); });
   return out;
 }
 
@@ -1053,7 +1075,10 @@ function ceraOutboundUsers(vec) {
  */
 function ceraOutboundDestinations(vec) {
   const d = (vec && vec.domains) || {};
-  return Object.keys(d).filter(k => validOuName_(k) && String(k).trim().toLowerCase() !== 'n/a' && d[k] && (Number(d[k].egressCount) || 0) > 0);
+  return Object.keys(d).filter(k => {
+    const entry = ceraOwnGet_(d, k);
+    return validOuName_(k) && String(k).trim().toLowerCase() !== 'n/a' && entry && (Number(entry.egressCount) || 0) > 0;
+  });
 }
 
 /** Number of people with outbound transfers in a vector (ceraOutboundUsers). */
@@ -1068,9 +1093,9 @@ function ceraOutboundPeople(vec) {
  */
 function ceraVectorPeak(vec) {
   const tl = (vec && vec.timeline) || {};
-  const daily = {};
+  const daily = Object.create(null);
   Object.keys(tl).forEach(d => {
-    const e = tl[d] || {};
+    const e = ceraOwnGet_(tl, d) || {};
     daily[d] = { bytes: Number(e.egressBytes) || 0, count: Number(e.egressCount) || 0 };
   });
   return ceraPeakStats(daily);

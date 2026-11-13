@@ -29,24 +29,32 @@
  */
 var DynamicNarrativeEngine = {
   getOutlierNarrative(outliers, lang, state) {
+    const l = (typeof ceraNormalizeLang_ === 'function') ? ceraNormalizeLang_(lang || 'en') : (lang || 'en');
     const { egressPeak, topFunnelOU, topFunnelDomain, funnelHHI, topScatterOU, scatterDomainCount } = outliers || {};
     const statements = [];
+    const hasName = s => {
+      const v = String(s || '').trim().toLowerCase();
+      return !!v && v !== 'n/a' && v !== 'null' && v !== 'undefined' && v !== '-';
+    };
+    const fmtOu = s => (typeof ceraFormatOuDisplay_ === 'function') ? ceraFormatOuDisplay_(s, l) : String(s || '');
 
     // Busiest outbound day under the deck's peak rule, in the deck's words (downloads are not outbound)
-    statements.push(ceraPeakSentence(egressPeak, lang || 'en'));
+    statements.push(ceraPeakSentence(egressPeak, l));
 
     // One person's destinations (people above 50 MB of outbound data): an index of 0.75 or more means one destination
     // received most of that person's outbound data, since the largest share is at least the index
-    if ((funnelHHI || 0) >= 0.75 && topFunnelDomain) {
-      statements.push(ceraT('deck.narr.funnel', { ou: topFunnelOU, dest: ceraDestinationLabel(topFunnelDomain, lang || 'en'), hhi: (funnelHHI * 100).toFixed(0) + '%' }, lang || 'en'));
-    } else if ((scatterDomainCount || 0) >= 4) {
-      statements.push(ceraT('deck.narr.scatter', { ou: topScatterOU, n: scatterDomainCount }, lang || 'en'));
+    const hhi = Number(funnelHHI) || 0;
+    const scCount = Math.floor(Number(scatterDomainCount) || 0);
+    if (isFinite(hhi) && hhi >= 0.75 && hasName(topFunnelDomain) && hasName(topFunnelOU)) {
+      statements.push(ceraT('deck.narr.funnel', { ou: fmtOu(topFunnelOU), dest: ceraDestinationLabel(topFunnelDomain, l), hhi: (hhi * 100).toFixed(0) + '%' }, l));
+    } else if (scCount >= 4 && hasName(topScatterOU)) {
+      statements.push(ceraT('deck.narr.scatter', { ou: fmtOu(topScatterOU), n: scCount }, l));
     }
 
     // One person's share of a unit, only for units with enough people for it to mean something (ceraUnitSkew)
     const skew = (typeof ceraUnitSkew === 'function') ? ceraUnitSkew(state) : null;
-    if (skew && skew.ratio >= 0.80) {
-      statements.push(ceraT('deck.skew.assess', { pct: (skew.ratio * 100).toFixed(0) + '%', ou: skew.ou }, lang || 'en'));
+    if (skew && isFinite(skew.ratio) && skew.ratio >= 0.80) {
+      statements.push(ceraT('deck.skew.assess', { pct: (skew.ratio * 100).toFixed(0) + '%', ou: fmtOu(skew.ou) }, l));
     }
 
     return statements.join(' ');

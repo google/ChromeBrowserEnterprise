@@ -52,6 +52,8 @@ const PREFLIGHT_GATE_MAX_WALL_HOURS = 2.0;
 const REPORTS_CHROME_URL = 'https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/chrome';
 const PREFLIGHT_PROBE_FIELDS = 'nextPageToken,items(id(time))';
 const PREFLIGHT_TRIMMED_FIELDS = 'nextPageToken,items(id(time,uniqueQualifier),actor(email),events(name,parameters(name,value,intValue,boolValue,multiValue,messageValue,multiMessageValue)))';
+const CERA_CHROME_POLICY_403_CACHE_KEY = 'CERA_CHROME_POLICY_403_V1';
+const CERA_CHROME_POLICY_403_TTL_SEC = 21600; // 6 hours (Apps Script CacheService maximum)
 
 /**
  * Entry point called from the setup dialog before engageCloudIngestion.
@@ -173,8 +175,25 @@ function _preflightEventParams_(evName, extra) {
 
 function _preflightCheckReportsAccess_(token) {
   try {
-    const res = _preflightGet_(_preflightReportsUrl_({ maxResults: 1, fields: 'items(id(time))' }), token);
-    if (res.code === 200) return { ok: true };
+    const endMs = Date.now();
+    const startIso = new Date(endMs - 7 * 86400000).toISOString();
+    const endIso = new Date(endMs).toISOString();
+    const res = _preflightGet_(_preflightReportsUrl_({
+      maxResults: 1,
+      startTime: startIso,
+      endTime: endIso,
+      fields: PREFLIGHT_PROBE_FIELDS
+    }), token);
+    if (res.code === 200) {
+      const hasRecentActivity = !!(res.json && Array.isArray(res.json.items) && res.json.items.length > 0);
+      return {
+        ok: true,
+        hasRecentActivity: hasRecentActivity,
+        anyEventActive: hasRecentActivity,
+        probedDays: 7,
+        probedAtMs: endMs
+      };
+    }
     if (res.code === 401 || res.code === 403) {
       return { ok: false, code: res.code, reasonKey: 'pf.access.denied', detail: _preflightErrorText_(res) };
     }
@@ -870,13 +889,62 @@ function _precheckExtractRootOuId_(ous) {
   for (let i = 0; i < ous.length; i++) {
     const ou = ous[i];
     if (ou && ou.orgUnitPath === '/' && typeof ou.orgUnitId === 'string' && ou.orgUnitId) {
-      return ou.orgUnitId.replace(/^id:/, '');
+      const cleanId = ou.orgUnitId.replace(/^id:/, '').trim();
+      if (/^[A-Za-z0-9_-]{1,128}$/.test(cleanId)) return cleanId;
     }
     if (ou && ou.parentOrgUnitPath === '/' && typeof ou.parentOrgUnitId === 'string' && ou.parentOrgUnitId) {
-      return ou.parentOrgUnitId.replace(/^id:/, '');
+      const cleanParentId = ou.parentOrgUnitId.replace(/^id:/, '').trim();
+      if (/^[A-Za-z0-9_-]{1,128}$/.test(cleanParentId)) return cleanParentId;
     }
   }
   return '';
+}
+
+function _precheckReadCachedPolicy403_() {
+  if (typeof CacheService === 'undefined' || !CacheService) return null;
+  const stores = [];
+  try { if (typeof CacheService.getUserCache === 'function') stores.push(CacheService.getUserCache()); } catch (e) {}
+  try { if (typeof CacheService.getScriptCache === 'function') stores.push(CacheService.getScriptCache()); } catch (e) {}
+  for (let i = 0; i < stores.length; i++) {
+    try {
+      const s = stores[i];
+      const raw = s && typeof s.get === 'function' ? s.get(CERA_CHROME_POLICY_403_CACHE_KEY) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.blocked === true) return parsed;
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
+function _precheckWriteCachedPolicy403_(rootOuId, isProjectDisabled) {
+  if (typeof CacheService === 'undefined' || !CacheService) return;
+  const payload = JSON.stringify({
+    blocked: true,
+    rootOuId: String(rootOuId || ''),
+    atMs: Date.now()
+  });
+  let wroteUser = false;
+  try {
+    if (typeof CacheService.getUserCache === 'function') {
+      const uc = CacheService.getUserCache();
+      if (uc && typeof uc.put === 'function') {
+        uc.put(CERA_CHROME_POLICY_403_CACHE_KEY, payload, CERA_CHROME_POLICY_403_TTL_SEC);
+        wroteUser = true;
+      }
+    }
+  } catch (e) {}
+  if (isProjectDisabled || !wroteUser) {
+    try {
+      if (typeof CacheService.getScriptCache === 'function') {
+        const sc = CacheService.getScriptCache();
+        if (sc && typeof sc.put === 'function') {
+          sc.put(CERA_CHROME_POLICY_403_CACHE_KEY, payload, CERA_CHROME_POLICY_403_TTL_SEC);
+        }
+      }
+    } catch (e) {}
+  }
 }
 
 function _precheckResolveRootOuId_(token) {
@@ -919,19 +987,53 @@ function _precheckEvaluatePolicyValue_(policyId, val) {
 /**
  * Checks the 3 essential Chrome Enterprise pre-requisite policies in Step 0:
  * Event reporting, Managed browser reporting, and Managed profile reporting.
- * Uses Chrome Policy API v1 when available and falls back to a lightweight Reports API
- * activity check when policies are configured on child OUs or when the Policy API is not enabled.
+ * Uses Chrome Policy API v1 when available (memoizing 403 disabled/denied responses in CacheService for 6h)
+ * and falls back to a lightweight Reports API activity check (reusing `optExistingProbe` when supplied).
+ * Supports `{ skipDocPropWrite: true }` during read-only dialog boot to avoid mutating DocumentProperties.
  */
-function runAdminPolicyPrecheck() {
+function runAdminPolicyPrecheck(optExistingProbe, extraOpts) {
   if (typeof ceraAssertWorkbookAuthorized_ === 'function') {
     ceraAssertWorkbookAuthorized_();
   }
-  const token = (typeof ScriptApp !== 'undefined' && ScriptApp.getOAuthToken) ? ScriptApp.getOAuthToken() : '';
-  const rootOuId = _precheckResolveRootOuId_(token);
-  let policyApiReachable = false;
-  const directStatusMap = {};
 
-  if (rootOuId) {
+  let existingProbe = null;
+  let opts = (extraOpts && typeof extraOpts === 'object') ? extraOpts : {};
+  if (typeof optExistingProbe === 'boolean') {
+    existingProbe = { ok: true, anyEventActive: optExistingProbe, hasRecentActivity: optExistingProbe };
+  } else if (optExistingProbe && typeof optExistingProbe === 'object') {
+    if (
+      typeof optExistingProbe.anyEventActive === 'boolean' ||
+      typeof optExistingProbe.hasRecentActivity === 'boolean' ||
+      typeof optExistingProbe.ok === 'boolean'
+    ) {
+      existingProbe = optExistingProbe;
+      if (optExistingProbe.skipDocPropWrite !== undefined && opts.skipDocPropWrite === undefined) {
+        opts = Object.assign({}, optExistingProbe, opts);
+      }
+    } else {
+      opts = Object.assign({}, optExistingProbe, opts);
+      const nested = opts.existingProbe || opts.optExistingProbe || opts.existingAccessProbe || null;
+      if (typeof nested === 'boolean') {
+        existingProbe = { ok: true, anyEventActive: nested, hasRecentActivity: nested };
+      } else if (nested && typeof nested === 'object') {
+        existingProbe = nested;
+      } else if (typeof opts.anyEventActive === 'boolean' || typeof opts.hasRecentActivity === 'boolean') {
+        const flag = typeof opts.anyEventActive === 'boolean' ? opts.anyEventActive : opts.hasRecentActivity;
+        existingProbe = { ok: true, anyEventActive: flag, hasRecentActivity: flag };
+      }
+    }
+  }
+
+  const skipDocPropWrite = Boolean(opts && opts.skipDocPropWrite);
+  const forcePolicyProbe = Boolean(opts && (opts.forcePolicyProbe || opts.forceRefresh));
+  const token = (typeof ScriptApp !== 'undefined' && ScriptApp.getOAuthToken) ? ScriptApp.getOAuthToken() : '';
+
+  const cached403 = !forcePolicyProbe ? _precheckReadCachedPolicy403_() : null;
+  let rootOuId = cached403 ? String(cached403.rootOuId || '') : _precheckResolveRootOuId_(token);
+  let policyApiReachable = false;
+  const directStatusMap = Object.create(null);
+
+  if (rootOuId && !cached403) {
     try {
       const polReqs = CERA_CEC_POLICIES.map(pol => ({
         url: CHROME_POLICY_RESOLVE_URL,
@@ -945,6 +1047,8 @@ function runAdminPolicyPrecheck() {
         muteHttpExceptions: true
       }));
       const polResponses = UrlFetchApp.fetchAll(polReqs);
+      let forbiddenCount = 0;
+      let projectDisabled403 = false;
       polResponses.forEach((resp, idx) => {
         const res = _preflightParse_(resp);
         if (res.code === 200) {
@@ -954,8 +1058,21 @@ function runAdminPolicyPrecheck() {
           const pol = CERA_CEC_POLICIES[idx];
           const evaluated = _precheckEvaluatePolicyValue_(pol.id, rawVal);
           if (evaluated) directStatusMap[pol.id] = evaluated;
+        } else if (res.code === 403) {
+          forbiddenCount++;
+          const errDetail = _preflightErrorText_(res).toLowerCase();
+          if (
+            errDetail.indexOf('has not been used') !== -1 ||
+            errDetail.indexOf('service_disabled') !== -1 ||
+            errDetail.indexOf('disabled') !== -1
+          ) {
+            projectDisabled403 = true;
+          }
         }
       });
+      if (!policyApiReachable && polResponses.length > 0 && forbiddenCount === polResponses.length) {
+        _precheckWriteCachedPolicy403_(rootOuId, projectDisabled403);
+      }
     } catch (e) {
       console.warn('[PolicyPrecheck] Chrome Policy API notice: ' + e.message);
     }
@@ -964,18 +1081,24 @@ function runAdminPolicyPrecheck() {
   let anyEventActive = false;
   const needsFallback = CERA_CEC_POLICIES.some(pol => !directStatusMap[pol.id]);
   if (needsFallback) {
-    try {
-      const endMs = Date.now();
-      const startIso = new Date(endMs - 7 * 86400000).toISOString();
-      const endIso = new Date(endMs).toISOString();
-      const probeRes = _preflightGet_(_preflightReportsUrl_({
-        maxResults: 1,
-        startTime: startIso,
-        endTime: endIso,
-        fields: PREFLIGHT_PROBE_FIELDS
-      }), token);
-      anyEventActive = probeRes.code === 200 && !!(probeRes.json && Array.isArray(probeRes.json.items) && probeRes.json.items.length > 0);
-    } catch (e) {}
+    if (existingProbe && typeof existingProbe.anyEventActive === 'boolean') {
+      anyEventActive = existingProbe.anyEventActive;
+    } else if (existingProbe && typeof existingProbe.hasRecentActivity === 'boolean') {
+      anyEventActive = existingProbe.hasRecentActivity;
+    } else {
+      try {
+        const endMs = Date.now();
+        const startIso = new Date(endMs - 7 * 86400000).toISOString();
+        const endIso = new Date(endMs).toISOString();
+        const probeRes = _preflightGet_(_preflightReportsUrl_({
+          maxResults: 1,
+          startTime: startIso,
+          endTime: endIso,
+          fields: PREFLIGHT_PROBE_FIELDS
+        }), token);
+        anyEventActive = probeRes.code === 200 && !!(probeRes.json && Array.isArray(probeRes.json.items) && probeRes.json.items.length > 0);
+      } catch (e) {}
+    }
   }
 
   const policies = CERA_CEC_POLICIES.map(pol => {
@@ -1022,7 +1145,18 @@ function runAdminPolicyPrecheck() {
       totalPoliciesCount: policies.length,
       policies: policyMap
     };
-    PropertiesService.getDocumentProperties().setProperty('CERA_LAST_POLICY_PRECHECK', JSON.stringify(policyDiag));
+    const serializedDiag = JSON.stringify(policyDiag);
+    try {
+      if (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function') {
+        const sc = CacheService.getScriptCache();
+        if (sc && typeof sc.put === 'function') {
+          sc.put('CERA_LAST_POLICY_PRECHECK', serializedDiag, CERA_CHROME_POLICY_403_TTL_SEC);
+        }
+      }
+    } catch (cErr) {}
+    if (!skipDocPropWrite) {
+      PropertiesService.getDocumentProperties().setProperty('CERA_LAST_POLICY_PRECHECK', serializedDiag);
+    }
   } catch (e) {}
 
   return {

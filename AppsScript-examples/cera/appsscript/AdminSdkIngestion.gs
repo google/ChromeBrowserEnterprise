@@ -721,9 +721,9 @@ function processCloudIngestionBatch() {
       tokenFallbacks: 0,
       rewinds: 0,
       sleepMs: 0,
-      streamPages: {},
-      streamTokenFallbacks: {},
-      streamSchema: {},
+      streamPages: Object.create(null),
+      streamTokenFallbacks: Object.create(null),
+      streamSchema: Object.create(null),
       anomalies: []
     };
 
@@ -1324,7 +1324,7 @@ function processCloudIngestionBatch() {
         } else {
           const failCount = (Number(state.consecutiveFailures) || 0) + 1;
           state.consecutiveFailures = failCount;
-          state.errorMessage = rawErrMsg;
+          state.errorMessage = ceraRedactSensitiveTokens_(rawErrMsg);
           state.errorKey = '';
           ceraAppendFlightIncident_('TICK_ERROR', rawErrMsg);
 
@@ -2730,7 +2730,7 @@ function ceraReconcileUncommittedPartitionWrites_(state, lease) {
 
   ceraAssertWorkerLease_(lease.token, state.activityId);
 
-  if (lease.killedPrevious && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.list === 'function') {
+  if (lease.killedPrevious && ceraIsSafeDriveId_(state.folderId) && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.list === 'function') {
     try {
       const listRes = Drive.Files.list({
         q: `'${state.folderId}' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`,
@@ -3313,6 +3313,12 @@ function ceraComputeJobHealth_(state, ctl) {
 function ceraMaybeAutoHealIngestionOnOpen_(source) {
   try {
     const docProps = PropertiesService.getDocumentProperties();
+    if (typeof ceraVerifyWorkbookLicense_ === 'function') {
+      const licGate = ceraVerifyWorkbookLicense_(null, docProps, { skipDriveCheck: true });
+      if (licGate && licGate.authorized === false) {
+        return { checked: true, healed: false, reason: 'UNAUTHORIZED_LICENSE', ownerMatch: false };
+      }
+    }
     const readRes = ceraReadPropTriState_(docProps, 'SIERRA_SESSION');
     if (readRes.status !== 'PRESENT' || !readRes.value) {
       return { checked: true, healed: false, reason: readRes.status };
@@ -3397,7 +3403,7 @@ function ceraBuildIncidentPacket_(passedState) {
     if (rawHot) hotTicks = JSON.parse(rawHot) || [];
   } catch (e) {}
 
-  const ver = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.17';
+  const ver = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.18';
   const status = state.status || ctl.status || 'IDLE';
   const errCode = ceraScrubText_(ctl.lastErrorCode || state.errorKey || 'NONE', 60);
   const errMsg = ceraScrubText_(ctl.lastErrorMsg || state.errorMessage || '', 120);
@@ -3623,15 +3629,17 @@ function detectExistingSession() {
               }
             }
 
-            // Sync target folder URL and ID from cell E6 (or legacy E7) formula
+            // Sync target folder URL and ID from cell E6 (or legacy E7) formula (strictly https://drive.google.com/drive/.../folders/<id>)
             const e6Formula = String(monitorSheet.getRange('E6').getFormula() || '');
             const e7Formula = String(monitorSheet.getRange('E7').getFormula() || '');
             const formulaStr = e6Formula.includes('HYPERLINK') ? e6Formula : e7Formula;
             const matchUrl = formulaStr.match(/HYPERLINK\("([^"]+)"/i);
             if (matchUrl && matchUrl[1]) {
-              state.folderUrl = matchUrl[1];
-              const matchFldId = matchUrl[1].match(/folders\/([-\w]+)/);
-              if (matchFldId) state.folderId = matchFldId[1];
+              const matchFldId = /^https:\/\/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([A-Za-z0-9_-]{1,200})(?:[/?#].*)?$/.exec(matchUrl[1].trim());
+              if (matchFldId && matchFldId[1]) {
+                state.folderId = matchFldId[1];
+                state.folderUrl = 'https://drive.google.com/drive/folders/' + matchFldId[1];
+              }
             }
 
             // Sync target folder name from cell E6 (or legacy E7) value if plain text
@@ -3690,9 +3698,9 @@ function detectExistingSession() {
       currentLogDateStr: state.currentLogDateStr || '',
       folderId: state.folderId || '',
       folderName: state.folderName || 'Extracted Chrome Logs Folder',
-      folderUrl: state.folderUrl || (state.folderId ? `https://drive.google.com/drive/folders/${state.folderId}` : ''),
+      folderUrl: ceraSafeHttpsDriveUrl_(state.folderUrl) || (ceraIsSafeDriveId_(state.folderId) ? `https://drive.google.com/drive/folders/${state.folderId}` : ''),
       logFolderId: (diagMeta && diagMeta.logFolderId) || '',
-      logFolderUrl: (diagMeta && diagMeta.logFolderUrl) || '',
+      logFolderUrl: ceraSafeHttpsDriveUrl_(diagMeta && diagMeta.logFolderUrl) || '',
       logFileId: (diagMeta && diagMeta.logFileId) || '',
       fileIndex: state.fileIndex || 1,
       rate: state.processingRate || state.rate || 0,
@@ -3717,28 +3725,49 @@ const CERA_DIAG_MAX_TICKS = 150;
 const CERA_DIAG_MAX_ANOMALIES = 100;
 const CERA_DIAG_CACHE_SOFT_BYTES = 72000;
 
+function ceraIsSafeDriveId_(rawId) {
+  return typeof rawId === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(rawId.trim());
+}
+
+function ceraSafeHttpsDriveUrl_(rawUrl) {
+  const s = String(rawUrl || '').trim();
+  if (!s) return '';
+  return /^https:\/\/(?:drive|docs)\.google\.com\/[^\s"<>\\]+$/.test(s) ? s : '';
+}
+
+function ceraRedactSensitiveTokens_(rawText) {
+  if (!rawText) return '';
+  return String(rawText)
+    .replace(/\bBearer\s+[^\s,;)'"]+/gi, 'Bearer [REDACTED_TOKEN]')
+    .replace(/\bya29\.[A-Za-z0-9._-]+/g, '[REDACTED_TOKEN]')
+    .replace(/\b1\/\/[A-Za-z0-9._-]{8,}/g, '[REDACTED_TOKEN]')
+    .replace(/\bAIza[0-9A-Za-z_-]{20,}\b/g, '[REDACTED_TOKEN]')
+    .replace(/\b(access_token|refresh_token|id_token|api_key|apikey|client_secret)\s*[:=]\s*([^\s&"',;)]+)/gi, '$1=[REDACTED_TOKEN]');
+}
+
 /**
  * Retrieves the Drive IDs/URLs of the `diagnostics/` subfolder and `cera-diagnostic-log.txt` for a Direct Ingestion job folder.
  * Stored in its own DocumentProperties key (`CERA_DIAG_LOG_META`) so `SIERRA_SESSION` stays well under its 9,216-byte limit.
  * Falls back to `Drive.Files.list` if `CERA_DIAG_LOG_META` is missing or belongs to another folder (e.g. cross-spreadsheet analysis).
  */
 function ceraGetDiagLogMeta_(folderId, allowListFallback) {
+  const cleanFolderId = folderId ? String(folderId).trim() : '';
   try {
     const raw = PropertiesService.getDocumentProperties().getProperty('CERA_DIAG_LOG_META');
     if (raw) {
       const meta = JSON.parse(raw);
-      if (meta && (!folderId || !meta.folderId || meta.folderId === folderId)) {
+      if (meta && (!cleanFolderId || !meta.folderId || meta.folderId === cleanFolderId)) {
         return meta;
       }
     }
   } catch (e) {}
 
-  if (allowListFallback && folderId && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.list === 'function') {
+  if (allowListFallback && ceraIsSafeDriveId_(cleanFolderId) && typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.list === 'function') {
     try {
       const logFolderName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FOLDER_NAME) ? CeraConfig.DIAG_LOG_FOLDER_NAME : 'diagnostics';
       const logFileName = (typeof CeraConfig !== 'undefined' && CeraConfig.DIAG_LOG_FILE_NAME) ? CeraConfig.DIAG_LOG_FILE_NAME : 'cera-diagnostic-log.txt';
       const folderList = Drive.Files.list({
-        q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+        q: `'${cleanFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
         pageSize: 20,
         fields: 'files(id,name,trashed)',
         supportsAllDrives: true,
@@ -3750,7 +3779,7 @@ function ceraGetDiagLogMeta_(folderId, allowListFallback) {
       for (let i = 0; i < candidateNames.length && !logFolder; i++) {
         logFolder = subFolders.find(f => f && f.id && !f.trashed && f.name === candidateNames[i]);
       }
-      if (logFolder) {
+      if (logFolder && ceraIsSafeDriveId_(logFolder.id)) {
         const fileList = Drive.Files.list({
           q: `'${logFolder.id}' in parents and trashed = false`,
           pageSize: 20,
@@ -3763,7 +3792,7 @@ function ceraGetDiagLogMeta_(folderId, allowListFallback) {
         if (logFile) {
           return {
             activityId: '',
-            folderId: folderId,
+            folderId: cleanFolderId,
             logFolderId: logFolder.id,
             logFolderUrl: `https://drive.google.com/drive/folders/${logFolder.id}`,
             logFileId: logFile.id
@@ -3912,9 +3941,10 @@ function ceraSanitizeDiagObject_(val, depth) {
   if (typeof val === 'string') return ceraScrubText_(val, 160);
   if (Array.isArray(val)) return val.slice(0, 30).map(item => ceraSanitizeDiagObject_(item, d + 1));
   if (typeof val === 'object') {
-    const out = {};
+    const out = Object.create(null);
     Object.keys(val).slice(0, 30).forEach(k => {
       if (!/^[A-Za-z][A-Za-z0-9_]{0,48}$/.test(k)) return;
+      if (/^(?:__proto__|constructor|prototype|toString|valueOf|hasOwnProperty)$/i.test(k)) return;
       if (CERA_DIAG_SENSITIVE_KEY_RE.test(k) || /^C0[0-9A-Za-z]{6,}$/.test(k) || /^0A[A-Za-z0-9_-]{14,}$/.test(k)) return;
       const cleanVal = ceraSanitizeDiagObject_(val[k], d + 1);
       if (cleanVal !== undefined) out[k] = cleanVal;
@@ -3938,7 +3968,8 @@ function ceraSanitizeDiagnosticText_(text) {
  */
 function ceraRecordDiagRowSchema_(schemaMap, evName, row) {
   if (!schemaMap || !evName || !Array.isArray(row)) return;
-  if (!schemaMap[evName]) {
+  if (/^(?:__proto__|constructor|prototype|toString|valueOf|hasOwnProperty)$/i.test(String(evName))) return;
+  if (!Object.prototype.hasOwnProperty.call(schemaMap, evName)) {
     schemaMap[evName] = {
       rows: 0,
       hasUrl: 0,
@@ -4003,7 +4034,13 @@ function ceraInitDiagnosticLog_(initialState, firstPartition) {
     let preflight = null;
     try {
       const docProps = PropertiesService.getDocumentProperties();
-      const rawPol = docProps.getProperty('CERA_LAST_POLICY_PRECHECK');
+      let rawPol = docProps.getProperty('CERA_LAST_POLICY_PRECHECK');
+      if (!rawPol && typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function') {
+        try {
+          const sc = CacheService.getScriptCache();
+          rawPol = sc && typeof sc.get === 'function' ? sc.get('CERA_LAST_POLICY_PRECHECK') : '';
+        } catch (cPolErr) {}
+      }
       if (rawPol) policyPrecheck = ceraSanitizeDiagObject_(JSON.parse(rawPol), 0);
       const rawPre = docProps.getProperty('CERA_LAST_PREFLIGHT_DIAG');
       if (rawPre) preflight = ceraSanitizeDiagObject_(JSON.parse(rawPre), 0);
@@ -4048,7 +4085,7 @@ function ceraInitDiagnosticLog_(initialState, firstPartition) {
       : null;
     const diag = {
       schemaVersion: '1.0',
-      ceraVersion: (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.17',
+      ceraVersion: (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.18',
       privacyNotice: 'Zero-PII Diagnostic Log: Contains only execution metrics, partition counts, timing, and sanitized status codes. No user emails, domains, OUs, URLs, file names, or device names are recorded.',
       activityId: initialState.activityId || '',
       status: initialState.status || 'RUNNING',
@@ -4372,7 +4409,7 @@ function ceraRenderDiagnosticLogTxt_(diag) {
   const headerLines = [
     '================================================================================',
     `CERA (Chrome Egress Risk Analysis) — Direct Ingestion Diagnostic Log`,
-    `Version            : v${diag.ceraVersion || '2.0.17'} (Schema v${diag.schemaVersion || '1.0'})`,
+    `Version            : v${diag.ceraVersion || '2.0.18'} (Schema v${diag.schemaVersion || '1.0'})`,
     `Privacy Guarantee  : ZERO-PII / ZERO-SENSITIVE-DATA (Safe to inspect & share)`,
     '================================================================================',
     `Activity ID        : ${diag.activityId || 'N/A'}`,
@@ -4669,7 +4706,7 @@ function ceraWriteDiagAnalysisFallbackSummary_(summaryObj) {
     const fallbackFileName = 'cera-analysis-summary.txt';
     const ceraVer = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION)
       ? String(CeraConfig.VERSION).replace(/[^0-9A-Za-z._-]/g, '')
-      : '2.0.17';
+      : '2.0.18';
 
     const licFallback = (typeof ceraVerifyWorkbookLicense_ === 'function')
       ? ceraVerifyWorkbookLicense_(null, null, { skipDriveCheck: true })
@@ -4724,7 +4761,7 @@ function ceraWriteDiagAnalysisFallbackSummary_(summaryObj) {
     const cachedFileId = docProps ? String(docProps.getProperty('CERA_DIAG_FALLBACK_FILE_ID') || '') : '';
     const candidateIds = [];
 
-    if (typeof Drive.Files.list === 'function') {
+    if (ceraIsSafeDriveId_(rootFolderId) && typeof Drive.Files.list === 'function') {
       try {
         const listRes = Drive.Files.list({
           q: `'${rootFolderId}' in parents and name = '${fallbackFileName}' and trashed = false`,

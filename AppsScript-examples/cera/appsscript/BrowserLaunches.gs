@@ -206,7 +206,7 @@ function ceraLaunchSwitches_(value) {
           if (sw) {
             seenSwitch = true;
             parts.push(sw.token);
-            prevNeedsValue = !sw.hasInlineValue && !CERA_BOOLEAN_LAUNCH_SWITCHES_[sw.name];
+            prevNeedsValue = !sw.hasInlineValue && !Object.prototype.hasOwnProperty.call(CERA_BOOLEAN_LAUNCH_SWITCHES_, sw.name);
           } else if (seenSwitch && prevNeedsValue && parts.length > 0) {
             parts[parts.length - 1] = parts[parts.length - 1] + ' ' + arg;
             prevNeedsValue = false;
@@ -260,7 +260,7 @@ function ceraLaunchSwitches_(value) {
   if (pendingFlagBlock) {
     for (let i = 0; i < pendingFlagBlock.length; i++) outsideTokens[pendingFlagBlock[i].toLowerCase()] = true;
   }
-  const flagSwitches = {};
+  const flagSwitches = Object.create(null);
   Object.keys(closedFlagTokens).forEach(tok => {
     if (!outsideTokens[tok.toLowerCase()]) flagSwitches[tok] = true;
   });
@@ -276,7 +276,7 @@ function ceraLaunchSwitches_(value) {
 var _ceraLaunchSwitchTable_ = null;
 function ceraLaunchSwitchTable_() {
   if (_ceraLaunchSwitchTable_) return _ceraLaunchSwitchTable_;
-  const table = { valued: [], named: {}, prefixes: [] };
+  const table = { valued: [], named: Object.create(null), prefixes: [] };
   const classes = CeraConfig.LAUNCH_SWITCH_CLASSES || {};
   Object.keys(classes).forEach(cls => (classes[cls] || []).forEach(entry => {
     const e = String(entry).trim();
@@ -313,7 +313,7 @@ function ceraLaunchSwitchClass_(token) {
     const e = table.valued[i];
     if (e.name === name && values.indexOf(e.value) !== -1) return { cls: e.cls, label: e.label };
   }
-  if (table.named[name]) return { cls: table.named[name], label: name };
+  if (Object.prototype.hasOwnProperty.call(table.named, name)) return { cls: table.named[name], label: name };
   for (let i = 0; i < table.prefixes.length; i++) {
     if (name.indexOf(table.prefixes[i].prefix) === 0) return { cls: table.prefixes[i].cls, label: name };
   }
@@ -362,10 +362,24 @@ var CERA_EXTERNAL_LAUNCH_SWITCHES_ = {
 function ceraClassifyLaunchSwitch_(token, inFlagBlock) {
   const base = ceraLaunchSwitchClass_(token);
   if (base.cls !== 'other') return base;
-  if (inFlagBlock && !CERA_EXTERNAL_LAUNCH_SWITCHES_[String(base.label || '').toLowerCase()]) {
+  const swKey = String(base.label || '').toLowerCase();
+  if (inFlagBlock && !Object.prototype.hasOwnProperty.call(CERA_EXTERNAL_LAUNCH_SWITCHES_, swKey)) {
     return { cls: 'routine', label: base.label };
   }
   return base;
+}
+
+function ceraLaunchOwnGet_(obj, key) {
+  return (obj && Object.prototype.hasOwnProperty.call(obj, key)) ? obj[key] : undefined;
+}
+
+function ceraLaunchOwnSet_(obj, key, val) {
+  if (key === '__proto__') {
+    Object.defineProperty(obj, '__proto__', { value: val, enumerable: true, configurable: true, writable: true });
+  } else {
+    obj[key] = val;
+  }
+  return val;
 }
 
 /**
@@ -407,12 +421,16 @@ function ceraAddLaunchRow_(state, row) {
   store.events++;
   const switches = row.switches ? row.switches.slice().sort() : null;
   const rowFlags = row.flagSwitches || (row.switches && row.switches.flagSwitches) || null;
-  const flagKeys = rowFlags ? Object.keys(rowFlags).filter(k => rowFlags[k]).sort() : [];
+  const flagKeys = rowFlags ? Object.keys(rowFlags).filter(k => Object.prototype.hasOwnProperty.call(rowFlags, k) && rowFlags[k]).sort() : [];
   const identity = row.device ? 'd|' + row.device : (row.user ? 'u|' + row.user : (row.deviceUser ? 'w|' + row.deviceUser : ''));
   const key = identity + '\u0000' + (switches ? switches.join('\n') : '\u0001') + (flagKeys.length ? '\u0000' + flagKeys.join('\n') : '');
   let entry = store.keys.get(key);
   if (!entry) {
-    const flagCopy = flagKeys.length ? Object.assign({}, rowFlags) : null;
+    let flagCopy = null;
+    if (flagKeys.length) {
+      flagCopy = Object.create(null);
+      flagKeys.forEach(fk => { flagCopy[fk] = true; });
+    }
     store.keys.set(key, entry = { device: row.device || '', switches: switches, flagSwitches: flagCopy, rows: [] });
   }
   entry.rows.push(typeof row.t === 'number' && !isNaN(row.t) ? row.t : NaN, nameId(row.user), nameId(row.deviceUser));
@@ -420,7 +438,7 @@ function ceraAddLaunchRow_(state, row) {
 
 /** An empty tally of launches: how many, and the people and devices they came from (with launches that had none). */
 function ceraLaunchSet_() {
-  return { launches: 0, users: {}, devices: {}, noUser: 0, noDevice: 0 };
+  return { launches: 0, users: Object.create(null), devices: Object.create(null), noUser: 0, noDevice: 0 };
 }
 
 /**
@@ -439,7 +457,7 @@ function ceraFlushLaunches_(state) {
   state._launchRows = null;
   const agg = state.browserLaunches || (state.browserLaunches = {
     events: 0, launches: 0, notReported: 0, routine: 0, all: ceraLaunchSet_(), nonRoutine: ceraLaunchSet_(), routineSet: ceraLaunchSet_(),
-    notReportedSet: ceraLaunchSet_(), classes: {}, switches: {}
+    notReportedSet: ceraLaunchSet_(), classes: Object.create(null), switches: Object.create(null)
   });
   agg.events += store.events;
   const windowMs = CeraConfig.LAUNCH_FOLD_WINDOW_MS || 1000;
@@ -473,10 +491,15 @@ function ceraFlushLaunches_(state) {
 /** Adds one launch to a ceraLaunchSet_ tally: each of its people and its device count it once. */
 function ceraTallyLaunch_(set, launch) {
   set.launches++;
-  launch.users.forEach(u => { set.users[u] = (set.users[u] || 0) + 1; });
+  launch.users.forEach(u => {
+    ceraLaunchOwnSet_(set.users, u, (Number(ceraLaunchOwnGet_(set.users, u)) || 0) + 1);
+  });
   if (!launch.users.length) set.noUser++;
-  if (launch.device) set.devices[launch.device] = (set.devices[launch.device] || 0) + 1;
-  else set.noDevice++;
+  if (launch.device) {
+    ceraLaunchOwnSet_(set.devices, launch.device, (Number(ceraLaunchOwnGet_(set.devices, launch.device)) || 0) + 1);
+  } else {
+    set.noDevice++;
+  }
 }
 
 /**
@@ -492,16 +515,17 @@ function ceraAggregateLaunch_(agg, launch) {
     ceraTallyLaunch_(agg.notReportedSet, launch);
     return;
   }
-  const labels = {};
-  const classes = {};
+  const labels = Object.create(null);
+  const classes = Object.create(null);
   const flagMap = launch.flagSwitches || (launch.switches && launch.switches.flagSwitches) || null;
   launch.switches.forEach(token => {
-    const c = ceraClassifyLaunchSwitch_(token, !!(flagMap && flagMap[token]));
-    if (!labels[c.label] || labels[c.label] === 'routine') labels[c.label] = c.cls;
-    if (c.cls !== 'routine') classes[c.cls] = true;
+    const c = ceraClassifyLaunchSwitch_(token, Boolean(ceraLaunchOwnGet_(flagMap, token)));
+    if (!labels[c.label] || labels[c.label] === 'routine') ceraLaunchOwnSet_(labels, c.label, c.cls);
+    if (c.cls !== 'routine') ceraLaunchOwnSet_(classes, c.cls, true);
   });
   Object.keys(labels).forEach(label => {
-    const sw = agg.switches[label] || (agg.switches[label] = { launches: 0, cls: labels[label] });
+    let sw = ceraLaunchOwnGet_(agg.switches, label);
+    if (!sw) sw = ceraLaunchOwnSet_(agg.switches, label, { launches: 0, cls: labels[label] });
     if (sw.cls === 'routine' && labels[label] !== 'routine') sw.cls = labels[label];
     sw.launches++;
   });
@@ -512,7 +536,11 @@ function ceraAggregateLaunch_(agg, launch) {
     return;
   }
   ceraTallyLaunch_(agg.nonRoutine, launch);
-  list.forEach(cls => ceraTallyLaunch_(agg.classes[cls] || (agg.classes[cls] = ceraLaunchSet_()), launch));
+  list.forEach(cls => {
+    let bucket = ceraLaunchOwnGet_(agg.classes, cls);
+    if (!bucket) bucket = ceraLaunchOwnSet_(agg.classes, cls, ceraLaunchSet_());
+    ceraTallyLaunch_(bucket, launch);
+  });
 }
 
 /**
@@ -527,6 +555,7 @@ function ceraLaunchCount_(set, kind) {
 
 /**
  * What the deck and the workbook say about browser launches, or null when the logs hold none:
+ *   severity ('INFO': informational startup command-line visibility without per-process intent telemetry);
  *   events (log rows), launches, routine, notReported, nonRoutine (launches with a switch that is not routine);
  *   the people and devices ({ n, exact }, ceraLaunchCount_) of every launch (people, devices), of the launches with
  *   other switches (nonRoutinePeople, nonRoutineDevices), of the routine ones (routinePeople, routineDevices) and of
@@ -540,17 +569,33 @@ function ceraLaunchFacts(state) {
   if (!b || !(b.launches > 0)) return null;
   const order = CeraConfig.LAUNCH_CLASS_ORDER || [];
   const rank = id => (order.indexOf(id) === -1 ? order.length : order.indexOf(id));
-  const classes = Object.keys(b.classes || {}).filter(id => b.classes[id].launches > 0).map(id => ({
-    id: id,
-    launches: b.classes[id].launches,
-    people: ceraLaunchCount_(b.classes[id], 'users'),
-    devices: ceraLaunchCount_(b.classes[id], 'devices')
-  })).sort((x, y) => y.launches - x.launches || rank(x.id) - rank(y.id));
-  const switches = Object.keys(b.switches || {}).map(name => ({ name: name, cls: b.switches[name].cls, launches: b.switches[name].launches }))
-    .sort((x, y) => y.launches - x.launches || (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
-  const ranked = kind => Object.keys(b.all[kind]).map(name => ({ name: name, launches: b.all[kind][name], nonRoutine: b.nonRoutine[kind][name] || 0 }))
-    .sort((x, y) => (y.nonRoutine || 0) - (x.nonRoutine || 0) || y.launches - x.launches || String(x.name).localeCompare(String(y.name)));
+  const classes = Object.keys(b.classes || {}).filter(id => {
+    const bucket = ceraLaunchOwnGet_(b.classes, id);
+    return bucket && bucket.launches > 0;
+  }).map(id => {
+    const bucket = ceraLaunchOwnGet_(b.classes, id);
+    return {
+      id: id,
+      launches: bucket.launches,
+      people: ceraLaunchCount_(bucket, 'users'),
+      devices: ceraLaunchCount_(bucket, 'devices')
+    };
+  }).sort((x, y) => y.launches - x.launches || rank(x.id) - rank(y.id));
+  const switches = Object.keys(b.switches || {}).map(name => {
+    const sw = ceraLaunchOwnGet_(b.switches, name);
+    return { name: name, cls: sw ? sw.cls : 'other', launches: sw ? sw.launches : 0 };
+  }).sort((x, y) => y.launches - x.launches || (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
+  const ranked = kind => {
+    const allMap = (b.all && b.all[kind]) || {};
+    const nonRoutineMap = (b.nonRoutine && b.nonRoutine[kind]) || {};
+    return Object.keys(allMap).map(name => ({
+      name: name,
+      launches: Number(ceraLaunchOwnGet_(allMap, name)) || 0,
+      nonRoutine: Number(ceraLaunchOwnGet_(nonRoutineMap, name)) || 0
+    })).sort((x, y) => (y.nonRoutine || 0) - (x.nonRoutine || 0) || y.launches - x.launches || String(x.name).localeCompare(String(y.name)));
+  };
   return {
+    severity: 'INFO',
     events: b.events,
     launches: b.launches,
     routine: b.routine,

@@ -79,33 +79,43 @@ function onOpen(e) {
  * Adds the CERA menu in the user's current language. Also called by setCeraLanguage: adding the menu again under
  * the same name replaces the one on screen, so it follows the new language without a reload.
  */
-function buildCeraMenu_() {
+function buildCeraMenu_(optLang) {
+  const lang = optLang ? ceraNormalizeLang_(optLang) : ceraGetLanguage();
   SpreadsheetApp.getUi()
     .createMenu('🛡️ CERA')
-    .addItem(ceraT('menu.open'), 'showSetupDialog')
+    .addItem(ceraT('menu.open', null, lang), 'showSetupDialog')
     .addSeparator()
-    .addItem(ceraT('menu.resume'), 'menuResumeCloudIngestion')
-    .addItem(ceraT('menu.reset'), 'emergencyResetIngestion')
+    .addItem(ceraT('menu.resume', null, lang), 'menuResumeCloudIngestion')
+    .addItem(ceraT('menu.reset', null, lang), 'emergencyResetIngestion')
     .addSeparator()
-    .addItem(ceraT('menu.privacy'), 'showPrivacyPolicyDialog')
+    .addItem(ceraT('menu.privacy', null, lang), 'showPrivacyPolicyDialog')
     .addToUi();
 }
 
 /**
- * Helper to produce HtmlOutput supporting native UiDialog.html
+ * Helper to produce HtmlOutput supporting native UiDialog.html.
+ * Resolves user language once and strips unused report/deck keys to minimize container RPCs and HTML payload size.
  */
-function createCeraDialogOutput(extractedFolderId, extractedFolderName) {
-  if (typeof extractedFolderId !== 'string') extractedFolderId = '';
-  if (typeof extractedFolderName !== 'string') extractedFolderName = '';
+function createCeraDialogOutput(extractedFolderId, extractedFolderName, optI18nState) {
+  const safeFolderId = typeof extractedFolderId === 'string'
+    ? extractedFolderId.replace(/[^-\w]/g, '').slice(0, 128)
+    : '';
+  const safeFolderName = typeof extractedFolderName === 'string'
+    ? extractedFolderName.replace(/[\r\n<>\\'"]/g, ' ').trim().slice(0, 200)
+    : '';
 
+  const i18nState = optI18nState || getCeraI18nState();
   const template = HtmlService.createTemplateFromFile('UiDialog');
-  template.extractedFolderId = extractedFolderId;
-  template.extractedFolderName = extractedFolderName;
-  // Escape '<' so catalog strings containing HTML cannot close the <script> block they are injected into
-  template.i18nJson = JSON.stringify(getCeraI18nState()).replace(/</g, '\\u003c');
+  template.extractedFolderId = safeFolderId;
+  template.extractedFolderName = safeFolderName;
+  // Escape '<' and JS line separators so catalog strings cannot close or break the <script> block
+  template.i18nJson = JSON.stringify(i18nState)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
   const ver = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? ' (v' + CeraConfig.VERSION + ')' : '';
   return template.evaluate()
-    .setTitle(ceraT('dialog.title') + ver)
+    .setTitle(ceraT('dialog.title', null, i18nState.lang) + ver)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -115,12 +125,13 @@ function createCeraDialogOutput(extractedFolderId, extractedFolderName) {
 function showSetupDialog(extractedFolderId, extractedFolderName) {
   try {
     Logger.log('showSetupDialog invoked: preparing HTML modal output...');
-    const html = createCeraDialogOutput(extractedFolderId, extractedFolderName)
+    const i18nState = getCeraI18nState();
+    const html = createCeraDialogOutput(extractedFolderId, extractedFolderName, i18nState)
       .setWidth(640)
       .setHeight(720);
     const ver = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? ' (v' + CeraConfig.VERSION + ')' : '';
 
-    SpreadsheetApp.getUi().showModalDialog(html, ceraT('dialog.title') + ver);
+    SpreadsheetApp.getUi().showModalDialog(html, ceraT('dialog.title', null, i18nState.lang) + ver);
     Logger.log('showSetupDialog: modal dispatched successfully.');
   } catch (err) {
     Logger.log('showSetupDialog error: ' + err.toString());
@@ -136,13 +147,14 @@ function showSetupDialog(extractedFolderId, extractedFolderName) {
  */
 function showPrivacyPolicyDialog() {
   try {
-    const tx = key => ceraEscapeHtml_(ceraT(key));
+    const lang = ceraGetLanguage();
+    const tx = key => ceraEscapeHtml_(ceraT(key, null, lang));
     const verBadge = (typeof CeraConfig !== 'undefined' && CeraConfig.VERSION)
       ? `<span style="font-size: 11px; font-weight: 600; color: #1D4ED8; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 9999px; padding: 2px 8px; vertical-align: middle; margin-left: 6px;">v${ceraEscapeHtml_(CeraConfig.VERSION)}</span>`
       : '';
     const htmlContent = `
       <!DOCTYPE html>
-      <html lang="${ceraGetLanguage()}">
+      <html lang="${ceraEscapeHtml_(lang)}">
         <head>
           <base target="_top">
           <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
@@ -981,21 +993,80 @@ function menuResumeCloudIngestion() {
   }
 }
 
-/**
- * Setup metadata: registered domains and the background cloud job state.
- * Safely ignores non-admin privileges. The manual source is always the link or ID the user enters; the folder of
- * this spreadsheet is not offered as a source.
- */
-function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
-  // [P2-1] Verify 4-layer workbook license on line 1 BEFORE any Admin SDK, Policy, or Session calls
-  const activeSs = SpreadsheetApp.getActiveSpreadsheet();
-  const docProps = PropertiesService.getDocumentProperties();
-  const licenseGate = ceraVerifyWorkbookLicense_(activeSs, docProps);
+const CERA_BOOT_HYDRATION_CACHE_TTL_SEC_ = 300;
 
-  // Local template freshness calculation (zero external network calls)
+function ceraBootHydrationCacheKey_(ssId) {
+  const cleanId = String(ssId || 'default').replace(/[^-\w]/g, '').slice(0, 64);
+  return 'CERA_BOOT_HYDRATION_V1_' + cleanId;
+}
+
+function ceraReadBootHydrationCache_(ssId) {
+  try {
+    if (typeof CacheService === 'undefined' || typeof CacheService.getUserCache !== 'function') return null;
+    const raw = CacheService.getUserCache().get(ceraBootHydrationCacheKey_(ssId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.v !== 1 || typeof parsed.adminSdkAccess !== 'boolean') return null;
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+function ceraWriteBootHydrationCache_(ssId, data) {
+  try {
+    if (typeof CacheService === 'undefined' || typeof CacheService.getUserCache !== 'function') return;
+    const payload = JSON.stringify({
+      v: 1,
+      savedAtMs: Date.now(),
+      primaryDomain: String(data.primaryDomain || ''),
+      detectedCorpDomain: String(data.detectedCorpDomain || ''),
+      registeredDomains: Array.isArray(data.registeredDomains) ? data.registeredDomains : [],
+      directoryDomainsCount: Number(data.directoryDomainsCount || 0),
+      adminSdkAccess: Boolean(data.adminSdkAccess),
+      policyPrecheck: data.policyPrecheck || null
+    });
+    if (payload.length < 90000) {
+      CacheService.getUserCache().put(ceraBootHydrationCacheKey_(ssId), payload, CERA_BOOT_HYDRATION_CACHE_TTL_SEC_);
+    }
+  } catch (e) {}
+}
+
+function ceraBuildLockedSetupMetadata_(licenseGate, freshness) {
+  return {
+    primaryDomain: '',
+    detectedCorpDomain: '',
+    registeredDomains: [],
+    domains: [],
+    directoryDomainsCount: 0,
+    adminSdkAccess: false,
+    isAdmin: false,
+    policyPrecheck: null,
+    cloudSession: { hasExisting: false, status: 'IDLE' },
+    autoHealResult: null,
+    extractedFolderId: '',
+    extractedFolderName: '',
+    workbookAlreadyUsed: { ingestion: false, report: false },
+    currentSessionAnalyzed: false,
+    lastSlidesUrl: '',
+    lastReportSummary: '',
+    releaseDate: freshness.releaseDate,
+    freshnessWarnDays: freshness.freshnessWarnDays,
+    templateAgeDays: freshness.templateAgeDays,
+    isTemplateStale: freshness.isTemplateStale,
+    analysisJob: null,
+    licenseGate: licenseGate,
+    licenseStatus: licenseGate,
+    strictSingleUse: Boolean(licenseGate && licenseGate.strictSingleUse),
+    policyHydrated: true,
+    needsPolicyHydration: false
+  };
+}
+
+function ceraComputeTemplateFreshness_() {
   const releaseDate = (typeof CeraConfig !== 'undefined' && CeraConfig.RELEASE_DATE)
     ? String(CeraConfig.RELEASE_DATE)
-    : '2026-11-01';
+    : '2026-11-13';
   const freshnessWarnDays = (typeof CeraConfig !== 'undefined' && Number(CeraConfig.FRESHNESS_WARN_DAYS) > 0)
     ? Number(CeraConfig.FRESHNESS_WARN_DAYS)
     : 90;
@@ -1003,10 +1074,112 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
   const templateAgeDays = Number.isFinite(parsedReleaseMs)
     ? Math.max(0, Math.floor((Date.now() - parsedReleaseMs) / 86400000))
     : 0;
-  const isTemplateStale = templateAgeDays > freshnessWarnDays;
+  return {
+    releaseDate: releaseDate,
+    freshnessWarnDays: freshnessWarnDays,
+    templateAgeDays: templateAgeDays,
+    isTemplateStale: templateAgeDays > freshnessWarnDays
+  };
+}
+
+/**
+ * Phase 1 Instant Dialog Boot (< 300ms local-only):
+ * Verifies 4-layer workbook license, checks local session / auto-heal / single-use state, and returns immediately
+ * (hydrating Admin SDK & policy precheck synchronously ONLY if already warm in `CacheService.getUserCache()`).
+ * Eliminates the 8–32s cold-start spinner so closing & reopening the dialog never collides with slow Admin SDK probes.
+ */
+function getFastBootMetadata(passedFolderId, passedFolderName) {
+  const activeSs = SpreadsheetApp.getActiveSpreadsheet();
+  const docProps = PropertiesService.getDocumentProperties();
+  const licenseGate = ceraVerifyWorkbookLicense_(activeSs, docProps);
+  const freshness = ceraComputeTemplateFreshness_();
 
   if (licenseGate && licenseGate.authorized === false) {
+    return ceraBuildLockedSetupMetadata_(licenseGate, freshness);
+  }
+
+  let autoHealResult = null;
+  if (typeof ceraMaybeAutoHealIngestionOnOpen_ === 'function') {
+    try {
+      autoHealResult = ceraMaybeAutoHealIngestionOnOpen_('setup');
+    } catch (healErr) {
+      Logger.log('getFastBootMetadata auto-heal notice: ' + healErr.message);
+    }
+  }
+
+  const cloudSession = detectExistingSession();
+  const workbookAlreadyUsed = ceraGetWorkbookUsageState_(activeSs, docProps);
+  const currentSessionAnalyzed = !!(workbookAlreadyUsed.report && docProps && docProps.getProperty('CERA_ANALYSIS_EXECUTED') === 'true');
+  const lastSlidesUrl = (workbookAlreadyUsed.report && docProps) ? (docProps.getProperty('CERA_LAST_SLIDES_URL') || '') : '';
+  const lastReportSummary = (workbookAlreadyUsed.report && docProps) ? (docProps.getProperty('CERA_LAST_REPORT_SUMMARY') || '') : '';
+
+  let activeExtractedFolderId = passedFolderId || '';
+  let activeExtractedFolderName = passedFolderName || '';
+
+  if (!activeExtractedFolderId && cloudSession && cloudSession.folderId && !currentSessionAnalyzed) {
+    activeExtractedFolderId = cloudSession.folderId;
+    activeExtractedFolderName = cloudSession.folderName || 'Admin SDK Export Folder';
+  }
+
+  const ssId = (activeSs && typeof activeSs.getId === 'function') ? String(activeSs.getId() || '') : '';
+  let analysisJob = null;
+  try {
+    const rawJob = docProps ? docProps.getProperty('CERA_ANALYSIS_JOB') : '';
+    if (rawJob) {
+      const parsedJob = JSON.parse(rawJob);
+      if (parsedJob && (!parsedJob.hostSpreadsheetId || !ssId || parsedJob.hostSpreadsheetId === ssId)) {
+        analysisJob = parsedJob;
+      }
+    }
+  } catch (ajErr) {}
+
+  const cached = ceraReadBootHydrationCache_(ssId);
+  const uniqueDomains = cached ? cached.registeredDomains : [];
+  const adminSdkAccess = cached ? Boolean(cached.adminSdkAccess) : false;
+
+  return {
+    primaryDomain: cached ? cached.primaryDomain : '',
+    detectedCorpDomain: cached ? cached.detectedCorpDomain : '',
+    registeredDomains: uniqueDomains,
+    domains: uniqueDomains,
+    directoryDomainsCount: cached ? cached.directoryDomainsCount : 0,
+    adminSdkAccess: adminSdkAccess,
+    isAdmin: adminSdkAccess,
+    policyPrecheck: cached ? cached.policyPrecheck : null,
+    cloudSession: cloudSession,
+    autoHealResult: autoHealResult,
+    extractedFolderId: activeExtractedFolderId,
+    extractedFolderName: activeExtractedFolderName,
+    workbookAlreadyUsed: workbookAlreadyUsed,
+    currentSessionAnalyzed: currentSessionAnalyzed,
+    lastSlidesUrl: lastSlidesUrl,
+    lastReportSummary: lastReportSummary,
+    releaseDate: freshness.releaseDate,
+    freshnessWarnDays: freshness.freshnessWarnDays,
+    templateAgeDays: freshness.templateAgeDays,
+    isTemplateStale: freshness.isTemplateStale,
+    analysisJob: analysisJob,
+    licenseGate: licenseGate,
+    licenseStatus: licenseGate,
+    strictSingleUse: Boolean(licenseGate && licenseGate.strictSingleUse),
+    policyHydrated: Boolean(cached),
+    needsPolicyHydration: !cached
+  };
+}
+
+/**
+ * Phase 2 Non-Blocking Background Hydration (`UserCache` 300s TTL):
+ * Resolves corporate domains (`AdminDirectory`), Admin SDK Reports access, and Chrome Enterprise policy precheck
+ * without blocking dialog startup or mutating `DocumentProperties` on read-only dialog opens.
+ */
+function getAsyncPolicyAndDomains(forceRefresh) {
+  const activeSs = SpreadsheetApp.getActiveSpreadsheet();
+  const docProps = PropertiesService.getDocumentProperties();
+  const licenseGate = ceraVerifyWorkbookLicense_(activeSs, docProps);
+  if (licenseGate && licenseGate.authorized === false) {
     return {
+      authorized: false,
+      licenseGate: licenseGate,
       primaryDomain: '',
       detectedCorpDomain: '',
       registeredDomains: [],
@@ -1015,23 +1188,31 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
       adminSdkAccess: false,
       isAdmin: false,
       policyPrecheck: null,
-      cloudSession: { hasExisting: false, status: 'IDLE' },
-      autoHealResult: null,
-      extractedFolderId: '',
-      extractedFolderName: '',
-      workbookAlreadyUsed: { ingestion: false, report: false },
-      currentSessionAnalyzed: false,
-      lastSlidesUrl: '',
-      lastReportSummary: '',
-      releaseDate: releaseDate,
-      freshnessWarnDays: freshnessWarnDays,
-      templateAgeDays: templateAgeDays,
-      isTemplateStale: isTemplateStale,
-      analysisJob: null,
-      licenseGate: licenseGate,
-      licenseStatus: licenseGate,
-      strictSingleUse: Boolean(licenseGate.strictSingleUse)
+      policyHydrated: true,
+      needsPolicyHydration: false,
+      cached: false
     };
+  }
+
+  const ssId = (activeSs && typeof activeSs.getId === 'function') ? String(activeSs.getId() || '') : '';
+  if (!forceRefresh) {
+    const cached = ceraReadBootHydrationCache_(ssId);
+    if (cached) {
+      return {
+        authorized: true,
+        primaryDomain: cached.primaryDomain,
+        detectedCorpDomain: cached.detectedCorpDomain,
+        registeredDomains: cached.registeredDomains,
+        domains: cached.registeredDomains,
+        directoryDomainsCount: cached.directoryDomainsCount,
+        adminSdkAccess: cached.adminSdkAccess,
+        isAdmin: cached.adminSdkAccess,
+        policyPrecheck: cached.policyPrecheck,
+        policyHydrated: true,
+        needsPolicyHydration: false,
+        cached: true
+      };
+    }
   }
 
   let detectedDomains = [];
@@ -1039,7 +1220,6 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
   let directoryDomainsCount = 0;
 
   try {
-    // 1. Ingest registered corporate domains from Admin Directory SDK API if accessible
     try {
       if (typeof AdminDirectory !== 'undefined' && AdminDirectory.Domains && AdminDirectory.Domains.list) {
         const dirResp = AdminDirectory.Domains.list('my_customer');
@@ -1058,7 +1238,6 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
       Logger.log('AdminDirectory.Domains.list notice (optional admin API not accessible, ignoring): ' + err.message);
     }
 
-    // 2. Ingest domain aliases if configured and accessible
     try {
       if (typeof AdminDirectory !== 'undefined' && AdminDirectory.DomainAliases && AdminDirectory.DomainAliases.list) {
         const aliasResp = AdminDirectory.DomainAliases.list('my_customer');
@@ -1075,15 +1254,15 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
       Logger.log('AdminDirectory.DomainAliases.list notice (optional admin API not accessible, ignoring): ' + err.message);
     }
   } catch (globalErr) {
-    Logger.log('getAsyncSetupMetadata notice: ' + globalErr.message);
+    Logger.log('getAsyncPolicyAndDomains notice: ' + globalErr.message);
   }
 
-  // Check whether the signed-in user holds the Admin role required to read Chrome audit logs via Reports API
   let adminSdkAccess = true;
+  let accessProbe = null;
   try {
     if (typeof _preflightCheckReportsAccess_ === 'function' && typeof ScriptApp !== 'undefined' && ScriptApp.getOAuthToken) {
-      const access = _preflightCheckReportsAccess_(ScriptApp.getOAuthToken());
-      adminSdkAccess = !!(access && access.ok);
+      accessProbe = _preflightCheckReportsAccess_(ScriptApp.getOAuthToken());
+      adminSdkAccess = !!(accessProbe && accessProbe.ok);
     }
   } catch (accessErr) {
     Logger.log('Admin SDK Reports access check notice: ' + accessErr.message);
@@ -1093,80 +1272,65 @@ function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
   let policyPrecheck = null;
   if (adminSdkAccess && typeof runAdminPolicyPrecheck === 'function') {
     try {
-      policyPrecheck = runAdminPolicyPrecheck();
+      policyPrecheck = runAdminPolicyPrecheck({
+        skipDocPropWrite: true,
+        existingAccessProbe: accessProbe,
+        optExistingProbe: accessProbe
+      });
     } catch (preErr) {
       Logger.log('runAdminPolicyPrecheck notice: ' + preErr.message);
     }
   }
 
-  // Attempt owner auto-heal if a background ingestion session was interrupted
-  let autoHealResult = null;
-  if (typeof ceraMaybeAutoHealIngestionOnOpen_ === 'function') {
-    try {
-      autoHealResult = ceraMaybeAutoHealIngestionOnOpen_('setup');
-    } catch (healErr) {
-      Logger.log('getAsyncSetupMetadata auto-heal notice: ' + healErr.message);
-    }
-  }
-
-  // Check active cloud ingestion background job
-  const cloudSession = detectExistingSession();
-  const workbookAlreadyUsed = ceraGetWorkbookUsageState_(activeSs, docProps);
-  const currentSessionAnalyzed = !!(workbookAlreadyUsed.report && docProps && docProps.getProperty('CERA_ANALYSIS_EXECUTED') === 'true');
-  const lastSlidesUrl = (workbookAlreadyUsed.report && docProps) ? (docProps.getProperty('CERA_LAST_SLIDES_URL') || '') : '';
-  const lastReportSummary = (workbookAlreadyUsed.report && docProps) ? (docProps.getProperty('CERA_LAST_REPORT_SUMMARY') || '') : '';
-
-  let activeExtractedFolderId = passedFolderId || '';
-  let activeExtractedFolderName = passedFolderName || '';
-
-  if (!activeExtractedFolderId && cloudSession && cloudSession.folderId && !currentSessionAnalyzed) {
-    activeExtractedFolderId = cloudSession.folderId;
-    activeExtractedFolderName = cloudSession.folderName || 'Admin SDK Export Folder';
-  }
-
-  // Check for resumable multi-batch analysis job scoped to this spreadsheet
-  let analysisJob = null;
-  try {
-    const rawJob = docProps ? docProps.getProperty('CERA_ANALYSIS_JOB') : '';
-    if (rawJob) {
-      const parsedJob = JSON.parse(rawJob);
-      const ssId = (activeSs && typeof activeSs.getId === 'function') ? String(activeSs.getId() || '') : '';
-      if (parsedJob && (!parsedJob.hostSpreadsheetId || !ssId || parsedJob.hostSpreadsheetId === ssId)) {
-        analysisJob = parsedJob;
-      }
-    }
-  } catch (ajErr) {}
-
-  // Deduplicate domains
   const uniqueDomains = Array.from(new Set(detectedDomains.filter(Boolean)));
   const detectedCorpDomain = uniqueDomains.length > 0 ? uniqueDomains.join(', ') : '';
+  const finalPrimary = primaryDomain || (uniqueDomains.length > 0 ? uniqueDomains[0] : '');
+  const finalCount = uniqueDomains.length || directoryDomainsCount;
 
-  return {
-    primaryDomain: primaryDomain || (uniqueDomains.length > 0 ? uniqueDomains[0] : ''),
+  const hydration = {
+    authorized: true,
+    primaryDomain: finalPrimary,
     detectedCorpDomain: detectedCorpDomain,
     registeredDomains: uniqueDomains,
     domains: uniqueDomains,
-    directoryDomainsCount: uniqueDomains.length || directoryDomainsCount,
+    directoryDomainsCount: finalCount,
     adminSdkAccess: adminSdkAccess,
     isAdmin: adminSdkAccess,
     policyPrecheck: policyPrecheck,
-    cloudSession: cloudSession,
-    autoHealResult: autoHealResult,
-    extractedFolderId: activeExtractedFolderId,
-    extractedFolderName: activeExtractedFolderName,
-    workbookAlreadyUsed: workbookAlreadyUsed,
-    currentSessionAnalyzed: currentSessionAnalyzed,
-    lastSlidesUrl: lastSlidesUrl,
-    lastReportSummary: lastReportSummary,
-    releaseDate: releaseDate,
-    freshnessWarnDays: freshnessWarnDays,
-    templateAgeDays: templateAgeDays,
-    isTemplateStale: isTemplateStale,
-    analysisJob: analysisJob,
-    licenseGate: licenseGate,
-    licenseStatus: licenseGate,
-    strictSingleUse: Boolean(licenseGate && licenseGate.strictSingleUse)
+    policyHydrated: true,
+    needsPolicyHydration: false,
+    cached: false
   };
+
+  ceraWriteBootHydrationCache_(ssId, hydration);
+  return hydration;
+}
+
+/**
+ * Combined setup metadata: backward-compatible full payload combining Phase 1 (`getFastBootMetadata`)
+ * and Phase 2 (`getAsyncPolicyAndDomains`).
+ */
+function getAsyncSetupMetadata(passedFolderId, passedFolderName) {
+  const boot = getFastBootMetadata(passedFolderId, passedFolderName);
+  if (boot && boot.licenseGate && boot.licenseGate.authorized === false) {
+    return boot;
+  }
+  if (boot && !boot.needsPolicyHydration) {
+    return boot;
+  }
+  const hyd = getAsyncPolicyAndDomains(false);
+  return Object.assign({}, boot, {
+    primaryDomain: hyd.primaryDomain,
+    detectedCorpDomain: hyd.detectedCorpDomain,
+    registeredDomains: hyd.registeredDomains,
+    domains: hyd.domains,
+    directoryDomainsCount: hyd.directoryDomainsCount,
+    adminSdkAccess: hyd.adminSdkAccess,
+    isAdmin: hyd.isAdmin,
+    policyPrecheck: hyd.policyPrecheck,
+    policyHydrated: true,
+    needsPolicyHydration: false
+  });
 }
 
 function getInitialSetupContext(passedFolderId, passedFolderName) {
@@ -1254,10 +1418,10 @@ function discoverManualSourceDomains(sourceInput) {
       return dom;
     };
 
-    const counts = {};
-    const accountCounts = {};
+    const counts = Object.create(null);
+    const accountCounts = Object.create(null);
     const corpStems = new Set();
-    const hasManagedOu = {};
+    const hasManagedOu = Object.create(null);
 
     function ceraColIndexToLetter_(idx) {
       let temp, letter = '';
@@ -1412,7 +1576,7 @@ function discoverManualSourceDomains(sourceInput) {
     return {
       domains: domains,
       primaryDomain: domains[0] || '',
-      counts: counts
+      counts: Object.assign({}, counts)
     };
   } catch (err) {
     Logger.log('discoverManualSourceDomains notice: ' + err.message);
@@ -1424,6 +1588,7 @@ function discoverManualSourceDomains(sourceInput) {
  * Bridge method to query live cloud ingestion status from the modal
  */
 function getCloudIngestionStatus() {
+  ceraAssertWorkbookAuthorized_();
   return detectExistingSession();
 }
 
@@ -1431,6 +1596,7 @@ function getCloudIngestionStatus() {
  * Builds and returns a sanitized, zero-PII incident summary packet for clipboard copy in the Setup Dialog.
  */
 function copyIngestionIncidentPacket() {
+  ceraAssertWorkbookAuthorized_();
   try {
     if (typeof ceraBuildIncidentPacket_ === 'function') {
       const state = (typeof getProgressUpdate === 'function') ? getProgressUpdate() : null;
@@ -1449,7 +1615,7 @@ function copyIngestionIncidentPacket() {
     }
     const fallbackLines = [
       'CERA Diagnostic Incident Summary (Zero-PII)',
-      'Version: v' + ((typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.17'),
+      'Version: v' + ((typeof CeraConfig !== 'undefined' && CeraConfig.VERSION) ? CeraConfig.VERSION : '2.0.18'),
       'Status: ' + ((session && session.status) || 'IDLE'),
       'Health: ' + ((session && session.healthState) || 'IDLE'),
       'Progress: ' + Number((session && session.timeSpanPct) || 0) + '% (' + Number((session && session.processedCount) || 0) + ' events)',
@@ -1473,20 +1639,30 @@ function copyIngestionIncidentPacket() {
  * Cache Polling with Size Bounding Guard (<100KB safe)
  */
 function getProgressStatus() {
-  const cache = CacheService.getUserCache();
-  const data = cache.get('DLP_V2_JOB_PROGRESS');
-  return data ? JSON.parse(data) : null;
+  ceraAssertWorkbookAuthorized_();
+  try {
+    const cache = CacheService.getUserCache();
+    const data = cache.get('DLP_V2_JOB_PROGRESS');
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 function updateProgress(message, currentFile, index, total, errors) {
-  const cache = CacheService.getUserCache();
-  const safeErrors = (errors || []).slice(-10); // Keep last 10 errors to prevent cache overflow
-  const payload = {
-    message: message || '',
-    currentFile: currentFile || '',
-    index: index || 0,
-    total: total || 1,
-    errors: safeErrors
-  };
-  cache.put('DLP_V2_JOB_PROGRESS', JSON.stringify(payload), 300);
+  try {
+    const cache = CacheService.getUserCache();
+    const safeErrors = (errors || []).slice(-10).map(e => String(e || '').slice(0, 500));
+    const payload = {
+      message: String(message || '').slice(0, 500),
+      currentFile: String(currentFile || '').slice(0, 300),
+      index: Number(index) || 0,
+      total: Number(total) || 1,
+      errors: safeErrors
+    };
+    const serialized = JSON.stringify(payload);
+    if (serialized.length < 95000) {
+      cache.put('DLP_V2_JOB_PROGRESS', serialized, 300);
+    }
+  } catch (e) {}
 }
